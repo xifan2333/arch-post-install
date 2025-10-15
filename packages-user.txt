@@ -26,7 +26,6 @@ fcitx5-qt|pacman
 fcitx5-configtool|pacman
 fcitx5-rime|pacman
 librime|pacman
-librime-plugin-octagram|pacman
 
 [wayland]
 river|pacman
