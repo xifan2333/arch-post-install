@@ -5,9 +5,11 @@
 set -e
 
 # Simple output functions (no dependencies)
-print_step() { echo -e "\n==> $1"; }
-print_error() { echo -e "[ERROR] $1" >&2; }
-print_success() { echo -e "[OK] $1"; }
+print_step() { echo -e "\n\033[0;34m==>\033[0m \033[1;37m$1\033[0m"; }
+print_substep() { echo -e "  \033[0;35m->\033[0m $1"; }
+print_error() { echo -e "\033[0;31m[ERROR]\033[0m $1" >&2; }
+print_success() { echo -e "\033[0;32m[OK]\033[0m $1"; }
+print_info() { echo -e "\033[0;34m[INFO]\033[0m $1"; }
 
 # Check running as root in chroot
 if [ "$EUID" -ne 0 ]; then

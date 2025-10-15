@@ -73,60 +73,22 @@ sudo pacman -S --needed --noconfirm \
     fcitx5-qt \
     fcitx5-configtool \
     fcitx5-rime \
-    librime
+    librime \
+    librime-plugin-octagram
 
 print_success "fcitx5 installed"
 
-# Install rime-ice
-print_step "Install rime-ice (雾凇拼音)"
-RIME_ICE_DIR="$HOME/.cache/rime-ice"
-FCITX_RIME_DIR="$HOME/.local/share/fcitx5/rime"
+# Download RIME-LMDG language model
+print_step "Download RIME-LMDG language model"
+RIME_DIR="$SCRIPT_DIR/dotfiles/fcitx5/.config/fcitx5/rime"
 
-rm -rf "$RIME_ICE_DIR"
+mkdir -p "$RIME_DIR"
 
-if git clone https://github.com/iDvel/rime-ice.git --depth=1 "$RIME_ICE_DIR"; then
-    cd "$RIME_ICE_DIR" || exit 1
-
-    # Enable comma/period page turning
-    # The following sed command uncomments lines in default.yaml that allow using comma/period for page turning in Rime.
-    sed -i 's/# \(- { when: \(paging\|has_menu\), accept: \(comma\|period\), send: Page_\(Up\|Down\) }\)/\1/' default.yaml
-
-    # Change page size to 9
-    sed -i 's/page_size: 5/page_size: 9/' default.yaml
-
-    # Copy to fcitx5
-    mkdir -p "$FCITX_RIME_DIR"
-    cp -r "$RIME_ICE_DIR"/* "$FCITX_RIME_DIR/"
-
-    cd "$SCRIPT_DIR"
-    print_success "rime-ice installed"
+if curl -L -o "$RIME_DIR/wanxiang-lts-zh-hans.gram" "https://github.com/amzxyz/RIME-LMDG/releases/download/LTS/wanxiang-lts-zh-hans.gram"; then
+    print_success "RIME-LMDG language model downloaded"
 else
-    print_error "Failed to clone rime-ice"
-    exit 1
+    print_warning "Failed to download RIME-LMDG language model"
 fi
-
-# Configure fcitx5 environment
-print_step "Configure fcitx5 environment"
-if [ ! -f "$HOME/.xprofile" ] || ! grep -q "fcitx" "$HOME/.xprofile"; then
-    cat >> "$HOME/.xprofile" << 'EOF'
-
-# Fcitx5 input method
-export GTK_IM_MODULE=fcitx
-export QT_IM_MODULE=fcitx
-export XMODIFIERS="@im=fcitx"
-EOF
-    print_success "fcitx5 env added to .xprofile"
-fi
-
-# Configure fcitx5 UI
-mkdir -p "$HOME/.config/fcitx5/conf"
-cat > "$HOME/.config/fcitx5/conf/classicui.conf" << 'EOF'
-Vertical Candidate List=False
-PerScreenDPI=False
-Font="Noto Sans Mono 13"
-Theme=adwaita-dark
-EOF
-print_success "fcitx5 UI configured"
 
 # Install Wayland environment
 print_step "Install Wayland (River, Foot, etc.)"
