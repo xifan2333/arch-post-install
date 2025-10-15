@@ -15,7 +15,7 @@ print_warning() { echo -e "\033[1;33m[WARNING]\033[0m $1"; }
 
 # Install packages from packages.txt
 install_from_list() {
-    local pkg_file="$SCRIPT_DIR/packages-user.txt"
+    local pkg_file="$SCRIPT_DIR/packages.txt"
 
     if [ ! -f "$pkg_file" ]; then
         print_error "Package list not found: $pkg_file"

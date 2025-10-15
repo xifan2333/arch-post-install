@@ -7,6 +7,13 @@
 rsync|pacman
 ranger|pacman
 neovim|pacman
+bash-completion|pacman
+ripgrep|pacman
+fd|pacman
+fzf|pacman
+unzip|pacman
+less|pacman
+man-db|pacman
 
 [fonts]
 noto-fonts-cjk|pacman
@@ -33,8 +40,12 @@ foot|pacman
 waybar|pacman
 wl-clipboard|pacman
 xdg-desktop-portal-wlr|pacman
+xdg-desktop-portal-gtk|pacman
 qt5-wayland|pacman
 qt6-wayland|pacman
+swaybg|pacman
+polkit-gnome|pacman
+gnome-keyring|pacman
 
 [desktop-tools]
 swaylock|pacman
@@ -43,9 +54,18 @@ dunst|pacman
 imv|pacman
 grim|pacman
 slurp|pacman
+nwg-look|pacman
+qt5ct|pacman
+qt6ct|pacman
+brightnessctl|pacman
+playerctl|pacman
+pamixer|pacman
 
 [applications]
 firefox|pacman
 firefox-i18n-zh-cn|pacman
+google-chrome|aur
 mpv|pacman
-thunar|pacman
+pcmanfm-gtk3|pacman
+visual-studio-code-bin|aur
+

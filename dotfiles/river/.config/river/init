@@ -11,7 +11,7 @@ riverctl spawn "fcitx5 -d"
 riverctl map normal $mod Return spawn foot                    # Super+Enter: terminal
 riverctl map normal $mod Space spawn "wofi --show drun"      # Super+Space: launcher
 riverctl map normal $mod B spawn firefox                      # Super+B: browser
-riverctl map normal $mod F spawn thunar                       # Super+F: file manager
+riverctl map normal $mod F spawn pcmanfm                      # Super+F: file manager
 riverctl map normal $mod C spawn code                         # Super+C: vscode
 
 riverctl map normal $mod+Shift Q close                        # Super+Shift+Q: close window
