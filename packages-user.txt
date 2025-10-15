@@ -48,4 +48,4 @@ slurp|pacman
 firefox|pacman
 firefox-i18n-zh-cn|pacman
 mpv|pacman
-nautilus|pacman
+thunar|pacman
