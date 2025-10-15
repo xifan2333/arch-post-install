@@ -19,10 +19,10 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-# Check network
-if ! ping -c 1 archlinux.org &> /dev/null; then
-    print_error "No network connection"
-    exit 1
+# Check network (try multiple methods)
+if ! ping -c 1 -W 2 8.8.8.8 &> /dev/null && ! ping -c 1 -W 2 archlinux.org &> /dev/null; then
+    print_warning "Network check failed, but continuing anyway"
+    print_info "If downloads fail, check your network connection"
 fi
 
 print_step "Arch Linux Post-Install - Stage 2 (user)"
