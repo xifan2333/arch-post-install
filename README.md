@@ -46,24 +46,55 @@
 
 ## 快速开始
 
-### 前置要求
-- 已安装 Arch Linux 基础系统
-- 已创建普通用户账户
-- 有可用的网络连接
+### 两阶段安装
 
-### 安装步骤
+#### 阶段 1：arch-chroot 中运行（以 root 身份）
+
+在 archinstall 或手动安装后，挂载系统并进入 chroot：
 
 ```bash
-# 1. 克隆此仓库
-git clone https://github.com/yourusername/arch-post-install.git
+# 挂载分区（示例）
+mount /dev/sdX2 /mnt
+arch-chroot /mnt
+
+# 下载脚本
+curl -O https://raw.githubusercontent.com/xifan2333/arch-post-install/main/install-chroot.sh
+chmod +x install-chroot.sh
+
+# 运行 Stage 1
+./install-chroot.sh
+
+# 退出 chroot 并重启
+exit
+umount -R /mnt
+reboot
+```
+
+**Stage 1 做了什么：**
+- 安装 NetworkManager（确保重启后有网络）
+- 配置 pacman（multilib, archlinuxcn）
+- 安装 base-devel 和 git
+- 配置 locale 和时区
+
+#### 阶段 2：系统启动后运行（以普通用户身份）
+
+```bash
+# 登录普通用户后
+git clone https://github.com/xifan2333/arch-post-install.git
 cd arch-post-install
 
-# 2. 运行安装脚本
-./install.sh
+# 运行 Stage 2
+./install-user.sh
 
-# 3. 按照提示完成安装
-# 安装完成后注销并重新登录
+# 完成后注销并重新登录
 ```
+
+**Stage 2 做了什么：**
+- 安装 yay
+- 安装中文字体
+- 安装 fcitx5 + 雾凇拼音
+- 安装 River + Waybar + Foot
+- 安装桌面工具和应用
 
 ### 安装后配置
 
