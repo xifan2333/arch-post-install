@@ -13,21 +13,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_SRC="$SCRIPT_DIR/dotfiles"
 DOTFILES_TARGET="$HOME/.dotfiles"
 
-# Check and install stow if needed
-if ! command -v stow &> /dev/null; then
-    print_substep "Installing stow"
-    if sudo pacman -S --needed --noconfirm stow; then
-        print_success "stow installed"
-    else
-        print_error "Failed to install stow"
-        exit 1
+# Check and install required tools
+for tool in stow rsync; do
+    if ! command -v "$tool" &> /dev/null; then
+        print_substep "Installing $tool"
+        if sudo pacman -S --needed --noconfirm "$tool"; then
+            print_success "$tool installed"
+        else
+            print_error "Failed to install $tool"
+            exit 1
+        fi
     fi
-fi
+done
 
-# Copy dotfiles to ~/.dotfiles
-print_substep "Copy dotfiles to ~/.dotfiles"
-rm -rf "$DOTFILES_TARGET"
-cp -r "$DOTFILES_SRC" "$DOTFILES_TARGET"
+# Sync dotfiles to ~/.dotfiles
+print_substep "Sync dotfiles to ~/.dotfiles"
+rsync -a --delete "$DOTFILES_SRC/" "$DOTFILES_TARGET/"
 
 # Get list of packages (subdirectories in dotfiles)
 cd "$DOTFILES_TARGET" || exit 1

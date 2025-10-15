@@ -29,7 +29,7 @@
 
     "pulseaudio": {
         "format": "{volume}% {icon}",
-        "format-muted": "婢",
+        "format-muted": "M {icon}",
         "format-icons": {
             "default": ["", "", ""]
         },

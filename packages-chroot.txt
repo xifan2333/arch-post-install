@@ -1,0 +1,13 @@
+# Package list for chroot stage (Stage 1)
+# Format: packagename|source
+# source: pacman (chroot stage only uses official repos)
+
+[network]
+networkmanager|pacman
+
+[development]
+base-devel|pacman
+git|pacman
+
+[keyring]
+archlinuxcn-keyring|pacman

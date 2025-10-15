@@ -13,6 +13,51 @@ print_success() { echo -e "\033[0;32m[OK]\033[0m $1"; }
 print_info() { echo -e "\033[0;34m[INFO]\033[0m $1"; }
 print_warning() { echo -e "\033[1;33m[WARNING]\033[0m $1"; }
 
+# Install packages from packages.txt
+install_from_list() {
+    local pkg_file="$SCRIPT_DIR/packages-user.txt"
+
+    if [ ! -f "$pkg_file" ]; then
+        print_error "Package list not found: $pkg_file"
+        return 1
+    fi
+
+    local pacman_pkgs=""
+    local aur_pkgs=""
+
+    # Parse package list
+    while IFS='|' read -r package source; do
+        # Skip comments, empty lines, and section headers
+        [[ "$package" =~ ^#.*$ ]] && continue
+        [[ "$package" =~ ^\[.*\]$ ]] && continue
+        [[ -z "$package" ]] && continue
+
+        # Trim whitespace
+        package=$(echo "$package" | xargs)
+        source=$(echo "$source" | xargs)
+
+        if [ "$source" = "pacman" ]; then
+            pacman_pkgs="$pacman_pkgs $package"
+        elif [ "$source" = "aur" ]; then
+            aur_pkgs="$aur_pkgs $package"
+        fi
+    done < "$pkg_file"
+
+    # Install pacman packages
+    if [ -n "$pacman_pkgs" ]; then
+        print_step "Install packages from official repositories"
+        sudo pacman -S --needed --noconfirm $pacman_pkgs
+        print_success "Official packages installed"
+    fi
+
+    # Install AUR packages
+    if [ -n "$aur_pkgs" ]; then
+        print_step "Install packages from AUR"
+        yay -S --needed --noconfirm $aur_pkgs
+        print_success "AUR packages installed"
+    fi
+}
+
 # Check not running as root
 if [ "$EUID" -eq 0 ]; then
     print_error "Do NOT run as root. Run as regular user."
@@ -52,31 +97,11 @@ if ! command -v yay &> /dev/null; then
     fi
 fi
 
-# Install packages by category
-print_step "Install fonts"
-sudo pacman -S --needed --noconfirm \
-    noto-fonts-cjk \
-    noto-fonts-emoji \
-    adobe-source-han-sans-cn-fonts \
-    adobe-source-han-serif-cn-fonts \
-    wqy-microhei \
-    wqy-zenhei
+# Install packages from package list
+install_from_list
 
+# Refresh font cache
 fc-cache -fv > /dev/null
-print_success "Fonts installed"
-
-# Install fcitx5
-print_step "Install fcitx5"
-sudo pacman -S --needed --noconfirm \
-    fcitx5 \
-    fcitx5-gtk \
-    fcitx5-qt \
-    fcitx5-configtool \
-    fcitx5-rime \
-    librime \
-    librime-plugin-octagram
-
-print_success "fcitx5 installed"
 
 # Download RIME-LMDG language model
 print_step "Download RIME-LMDG language model"
@@ -89,42 +114,6 @@ if curl -L -o "$RIME_DIR/wanxiang-lts-zh-hans.gram" "https://github.com/amzxyz/R
 else
     print_warning "Failed to download RIME-LMDG language model"
 fi
-
-# Install Wayland environment
-print_step "Install Wayland (River, Foot, etc.)"
-sudo pacman -S --needed --noconfirm \
-    river \
-    foot \
-    waybar \
-    wl-clipboard \
-    xdg-desktop-portal-wlr \
-    qt5-wayland \
-    qt6-wayland
-
-print_success "Wayland environment installed"
-
-# Install desktop tools
-print_step "Install desktop tools"
-sudo pacman -S --needed --noconfirm \
-    swaylock \
-    wofi \
-    dunst \
-    imv \
-    grim \
-    slurp
-
-print_success "Desktop tools installed"
-
-# Install applications
-print_step "Install applications"
-sudo pacman -S --needed --noconfirm \
-    firefox \
-    firefox-i18n-zh-cn \
-    mpv \
-    zathura \
-    zathura-pdf-mupdf
-
-print_success "Applications installed"
 
 # Configure Git
 print_step "Configure Git"
@@ -157,10 +146,6 @@ print_step "Installation Complete!"
 echo ""
 print_info "Next steps:"
 print_substep "1. Logout and login again"
-print_substep "2. fcitx5 should auto-start"
-print_substep "3. Run: fcitx5-configtool"
-print_substep "   - Add Input Method"
-print_substep "   - Search 'rime' and add it"
-print_substep "4. Test input with Ctrl+Space"
-print_substep "5. Start River: river (or use display manager)"
+print_substep "2. Press Ctrl+Space to toggle input method"
+print_substep "3. Start River: river (or use display manager)"
 echo ""

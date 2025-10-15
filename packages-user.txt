@@ -1,0 +1,52 @@
+# Package list for arch-post-install
+# Format: packagename|source
+# source: pacman or aur
+# Use [step] to organize packages by installation phase
+
+[system-tools]
+rsync|pacman
+ranger|pacman
+neovim|pacman
+
+[fonts]
+noto-fonts-cjk|pacman
+noto-fonts-emoji|pacman
+adobe-source-han-sans-cn-fonts|pacman
+adobe-source-han-serif-cn-fonts|pacman
+wqy-microhei|pacman
+wqy-zenhei|pacman
+ttf-jetbrains-mono-nerd|pacman
+ttf-firacode-nerd|pacman
+ttf-hack-nerd|pacman
+
+[input-method]
+fcitx5|pacman
+fcitx5-gtk|pacman
+fcitx5-qt|pacman
+fcitx5-configtool|pacman
+fcitx5-rime|pacman
+librime|pacman
+librime-plugin-octagram|pacman
+
+[wayland]
+river|pacman
+foot|pacman
+waybar|pacman
+wl-clipboard|pacman
+xdg-desktop-portal-wlr|pacman
+qt5-wayland|pacman
+qt6-wayland|pacman
+
+[desktop-tools]
+swaylock|pacman
+wofi|pacman
+dunst|pacman
+imv|pacman
+grim|pacman
+slurp|pacman
+
+[applications]
+firefox|pacman
+firefox-i18n-zh-cn|pacman
+mpv|pacman
+nautilus|pacman
