@@ -1,0 +1,147 @@
+#!/bin/bash
+# Wallpaper switcher with local and network (Bing) modes
+# Usage: switch-wallpaper
+
+set -e
+
+# XDG directories
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+
+# Wallpaper state file - stores current wallpaper path
+WALLPAPER_STATE="$XDG_CONFIG_HOME/wallpaper"
+WALLPAPER_DIR="$XDG_PICTURES_DIR/wallpapers"
+
+# Load wmenu common configuration
+WMENU_LIB="$HOME/.local/lib/wmenu-common.sh"
+if [ -f "$WMENU_LIB" ]; then
+    . "$WMENU_LIB"
+    load_theme_colors
+else
+    # Fallback
+    if [ -f "$XDG_CONFIG_HOME/theme/colors.sh" ]; then
+        . "$XDG_CONFIG_HOME/theme/colors.sh"
+    fi
+fi
+
+# Ensure wallpaper directory exists
+mkdir -p "$WALLPAPER_DIR"
+
+# Set wallpaper using swaybg (Wayland)
+set_wallpaper() {
+    local wallpaper="$1"
+
+    # Kill existing swaybg
+    pkill swaybg 2>/dev/null || true
+
+    # Start new swaybg in background
+    swaybg -i "$wallpaper" -m fill &
+
+    # Save wallpaper path to state file
+    echo "$wallpaper" > "$WALLPAPER_STATE"
+
+    echo "Wallpaper set to: $wallpaper"
+}
+
+# Download Bing daily wallpaper
+download_bing_wallpaper() {
+    echo "Downloading Bing daily wallpaper..."
+
+    # Get Bing wallpaper URL
+    BING_URL="https://www.bing.com"
+    BING_API="${BING_URL}/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
+
+    # Fetch image URL from Bing API
+    IMAGE_PATH=$(curl -s "$BING_API" | grep -oP '"url":".*?"' | sed 's/"url":"//;s/".*//' | head -1)
+
+    if [ -z "$IMAGE_PATH" ]; then
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "壁纸设置" "无法获取 Bing 每日壁纸"
+        fi
+        echo "Error: Failed to fetch Bing wallpaper URL" >&2
+        exit 1
+    fi
+
+    # Full image URL
+    IMAGE_URL="${BING_URL}${IMAGE_PATH}"
+
+    # Generate filename from date
+    FILENAME="bing-$(date +%Y%m%d).jpg"
+    WALLPAPER_PATH="$WALLPAPER_DIR/$FILENAME"
+
+    # Download if not already exists
+    if [ ! -f "$WALLPAPER_PATH" ]; then
+        curl -s -o "$WALLPAPER_PATH" "$IMAGE_URL"
+        echo "Downloaded: $WALLPAPER_PATH"
+    else
+        echo "Already exists: $WALLPAPER_PATH"
+    fi
+
+    # Set as wallpaper
+    set_wallpaper "$WALLPAPER_PATH"
+
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "壁纸设置" "已设置 Bing 每日壁纸"
+    fi
+}
+
+# Select wallpaper from local directory
+select_local_wallpaper() {
+    # Find all image files in wallpaper directory
+    local images=$(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) -printf "%f\n" | sort)
+
+    if [ -z "$images" ]; then
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "壁纸设置" "未找到壁纸文件\n请将图片放入 $WALLPAPER_DIR"
+        fi
+        echo "Error: No wallpapers found in $WALLPAPER_DIR" >&2
+        exit 1
+    fi
+
+    # Show selection menu
+    local selected=$(echo "$images" | wmenu -p "选择壁纸:" \
+        -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+        -N "${COLOR_BG0#\#}" \
+        -n "${COLOR_FG0#\#}" \
+        -M "${COLOR_BLUE#\#}" \
+        -m "${COLOR_BG0#\#}" \
+        -S "${COLOR_GREEN#\#}" \
+        -s "${COLOR_BG0#\#}")
+
+    # User cancelled
+    [ -z "$selected" ] && exit 0
+
+    # Set wallpaper
+    WALLPAPER_PATH="$WALLPAPER_DIR/$selected"
+    set_wallpaper "$WALLPAPER_PATH"
+
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "壁纸设置" "已设置壁纸: $selected"
+    fi
+}
+
+# Main menu
+MODE=$(printf "本地壁纸\nBing 每日壁纸" | wmenu -p "壁纸模式:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+
+# User cancelled
+[ -z "$MODE" ] && exit 0
+
+case "$MODE" in
+    "本地壁纸")
+        select_local_wallpaper
+        ;;
+    "Bing 每日壁纸")
+        download_bing_wallpaper
+        ;;
+    *)
+        echo "Invalid mode" >&2
+        exit 1
+        ;;
+esac

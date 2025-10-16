@@ -14,6 +14,15 @@ fzf|pacman
 unzip|pacman
 less|pacman
 man-db|pacman
+archlinuxcn-keyring|pacman
+stow|pacman
+starship|pacman
+jq|pacman
+zsh|pacman
+zsh-autosuggestions|pacman
+zsh-syntax-highlighting|pacman
+zsh-history-substring-search|pacman
+zsh-completions|pacman
 
 [fonts]
 noto-fonts-cjk|pacman
@@ -33,12 +42,14 @@ fcitx5-qt|pacman
 fcitx5-configtool|pacman
 fcitx5-rime|pacman
 librime|pacman
+rime-ice-git|aur
 
 [wayland]
 river|pacman
 foot|pacman
 waybar|pacman
 wl-clipboard|pacman
+xdg-desktop-portal|pacman
 xdg-desktop-portal-wlr|pacman
 xdg-desktop-portal-gtk|pacman
 qt5-wayland|pacman
@@ -49,7 +60,7 @@ gnome-keyring|pacman
 
 [desktop-tools]
 swaylock|pacman
-wofi|pacman
+j4-dmenu-desktop|pacman
 dunst|pacman
 imv|pacman
 grim|pacman
@@ -68,4 +79,12 @@ google-chrome|aur
 mpv|pacman
 pcmanfm-gtk3|pacman
 visual-studio-code-bin|aur
+wechat-appimage|aur
+linuxqq-appimage-wayland|aur
+kdenlive-appimage-pure|aur
+claude-code|aur
+openai-codex|aur
+gemini-cli|aur
+qwen-code|aur
+
 

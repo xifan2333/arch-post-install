@@ -1,0 +1,110 @@
+/* Waybar style with theme support */
+@import url("../theme/colors.css");
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "Noto Sans CJK SC", "Symbols Nerd Font", sans-serif;
+    font-size: 13px;
+    min-height: 0;
+}
+
+window#waybar {
+    background: @color-bg0;
+    color: @color-fg0;
+}
+
+/* Workspaces / Tags */
+#tags button {
+    padding: 0 10px;
+    background: transparent;
+    color: @color-fg2;
+    border-bottom: 2px solid transparent;
+}
+
+#tags button.focused {
+    color: @color-blue;
+    border-bottom: 2px solid @color-blue;
+}
+
+#tags button:hover {
+    background: @color-bg1;
+    color: @color-fg0;
+}
+
+/* Clock */
+#clock {
+    padding: 0 15px;
+    color: @color-fg0;
+}
+
+/* System Tray */
+#tray {
+    padding: 0 10px;
+}
+
+#tray > .passive {
+    background: transparent;
+}
+
+#tray > .active {
+    background: @color-bg1;
+}
+
+#tray > .needs-attention {
+    background: @color-red;
+    color: @color-bg0;
+}
+
+
+/* Network */
+#network {
+    padding: 0 10px;
+    color: @color-cyan;
+}
+
+#network.disconnected {
+    color: @color-red;
+}
+
+/* Pulseaudio */
+#pulseaudio {
+    padding: 0 10px;
+    color: @color-green;
+}
+
+#pulseaudio.muted {
+    color: @color-fg2;
+}
+
+/* Battery */
+#battery {
+    padding: 0 10px;
+    color: @color-yellow;
+}
+
+#battery.charging {
+    color: @color-green;
+}
+
+#battery.warning:not(.charging) {
+    color: @color-orange;
+}
+
+#battery.critical:not(.charging) {
+    color: @color-red;
+    animation: blink 1s linear infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Modules spacing */
+.modules-left,
+.modules-center,
+.modules-right {
+    margin: 0 5px;
+}

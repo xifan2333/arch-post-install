@@ -1,6 +1,6 @@
 #!/bin/bash
-# Stage 1: Run in arch-chroot as root
-# Critical system-level setup before first boot
+# Stage 1: Run as root in new system
+# Critical system-level setup
 
 set -e
 
@@ -15,44 +15,9 @@ print_success() { echo -e "\033[0;32m[OK]\033[0m $1"; }
 print_info() { echo -e "\033[0;34m[INFO]\033[0m $1"; }
 print_warning() { echo -e "\033[1;33m[WARNING]\033[0m $1"; }
 
-# Install packages from packages-chroot.txt
-install_from_list() {
-    local pkg_file="$SCRIPT_DIR/packages-chroot.txt"
-
-    if [ ! -f "$pkg_file" ]; then
-        print_error "Package list not found: $pkg_file"
-        return 1
-    fi
-
-    local pacman_pkgs=""
-
-    # Parse package list
-    while IFS='|' read -r package source; do
-        # Skip comments, empty lines, and section headers
-        [[ "$package" =~ ^#.*$ ]] && continue
-        [[ "$package" =~ ^\[.*\]$ ]] && continue
-        [[ -z "$package" ]] && continue
-
-        # Trim whitespace
-        package=$(echo "$package" | xargs)
-        source=$(echo "$source" | xargs)
-
-        if [ "$source" = "pacman" ]; then
-            pacman_pkgs="$pacman_pkgs $package"
-        fi
-    done < "$pkg_file"
-
-    # Install packages
-    if [ -n "$pacman_pkgs" ]; then
-        print_step "Install system packages"
-        pacman -S --needed --noconfirm $pacman_pkgs
-        print_success "System packages installed"
-    fi
-}
-
-# Check running as root in chroot
+# Check running as root
 if [ "$EUID" -ne 0 ]; then
-    print_error "Must run as root in arch-chroot"
+    print_error "Must run as root"
     exit 1
 fi
 
@@ -61,7 +26,7 @@ if [ ! -f /etc/arch-release ]; then
     exit 1
 fi
 
-print_step "Arch Linux Post-Install - Stage 1 (chroot)"
+print_step "Arch Linux Post-Install - Stage 1 (root)"
 echo "This script configures critical system settings"
 echo ""
 
@@ -88,14 +53,7 @@ fi
 pacman -Sy --noconfirm
 print_success "pacman configured"
 
-# 2. Install packages from list
-install_from_list
-
-# 3. Enable NetworkManager
-systemctl enable NetworkManager
-print_success "NetworkManager enabled"
-
-# 4. Configure localization
+# 2. Configure localization
 print_step "Configure localization"
 
 # Uncomment locales
@@ -113,13 +71,10 @@ hwclock --systohc
 print_success "Localization configured"
 
 # 5. Create install marker
-echo "$(date '+%Y-%m-%d %H:%M:%S')" > /root/.arch-post-install-chroot-done
+echo "$(date '+%Y-%m-%d %H:%M:%S')" > /root/.arch-post-install-root-done
 
 print_step "Stage 1 Complete!"
 echo ""
 echo "Next steps:"
-echo "  1. Exit chroot"
-echo "  2. Reboot into new system"
-echo "  3. Login as regular user"
-echo "  4. Run: ./install-user.sh"
+echo "  1. Run as user: ./install-user.sh"
 echo ""

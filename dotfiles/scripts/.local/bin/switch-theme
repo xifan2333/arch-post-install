@@ -1,0 +1,68 @@
+#!/bin/bash
+# Interactive theme switcher with wmenu
+# Usage: switch-theme
+
+set -e
+
+THEME_DIR="$HOME/.config/theme/themes"
+CONFIG_DIR="$HOME/.config/theme"
+
+# Load wmenu common configuration
+WMENU_LIB="$HOME/.local/lib/wmenu-common.sh"
+if [ -f "$WMENU_LIB" ]; then
+    . "$WMENU_LIB"
+    load_theme_colors
+else
+    # Fallback: load current theme colors
+    if [ -f "$CONFIG_DIR/colors.sh" ]; then
+        . "$CONFIG_DIR/colors.sh"
+    fi
+fi
+
+# Get current theme
+CURRENT_THEME=""
+if [ -L "$CONFIG_DIR/colors.sh" ]; then
+    CURRENT_THEME=$(basename "$(readlink "$CONFIG_DIR/colors.sh")" .sh)
+fi
+
+# Get available themes with current theme marked
+get_themes() {
+    for theme in "$THEME_DIR"/*.sh; do
+        name=$(basename "$theme" .sh)
+        if [ "$name" = "$CURRENT_THEME" ]; then
+            echo "● $name"
+        else
+            echo "  $name"
+        fi
+    done
+}
+
+# Show wmenu selector with theme colors
+SELECTED=$(get_themes | wmenu -p "选择主题:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+
+# User cancelled
+[ -z "$SELECTED" ] && exit 0
+
+# Extract theme name (remove marker if present)
+THEME_NAME=$(echo "$SELECTED" | sed 's/^[●  ]*//')
+
+# Create symbolic links
+ln -sf "themes/${THEME_NAME}.sh" "$CONFIG_DIR/colors.sh"
+ln -sf "themes/${THEME_NAME}.css" "$CONFIG_DIR/colors.css"
+
+# Apply theme to foot terminal
+if command -v apply-theme-to-foot >/dev/null 2>&1; then
+    apply-theme-to-foot
+fi
+
+# Send notification
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send "主题切换" "已切换到: ${THEME_NAME}\n打开新终端以查看效果"
+fi

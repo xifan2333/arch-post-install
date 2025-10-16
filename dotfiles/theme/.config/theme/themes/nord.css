@@ -1,0 +1,35 @@
+/* Nord color theme - GTK CSS format */
+
+/* Background colors */
+@define-color color-bg0 #2e3440;
+@define-color color-bg1 #3b4252;
+@define-color color-bg2 #434c5e;
+@define-color color-bg3 #4c566a;
+
+/* Foreground colors */
+@define-color color-fg0 #eceff4;
+@define-color color-fg1 #e5e9f0;
+@define-color color-fg2 #d8dee9;
+
+/* Accent colors (vibrant) */
+@define-color color-red #bf616a;
+@define-color color-green #a3be8c;
+@define-color color-yellow #ebcb8b;
+@define-color color-blue #88c0d0;
+@define-color color-purple #b48ead;
+@define-color color-cyan #8fbcbb;
+@define-color color-orange #d08770;
+
+/* Muted accent colors */
+@define-color color-red-dim #bf616a;
+@define-color color-green-dim #a3be8c;
+@define-color color-yellow-dim #ebcb8b;
+@define-color color-blue-dim #81a1c1;
+@define-color color-purple-dim #b48ead;
+@define-color color-cyan-dim #88c0d0;
+@define-color color-orange-dim #d08770;
+
+/* Special colors */
+@define-color color-black #2e3440;
+@define-color color-white #eceff4;
+@define-color color-transparent transparent;

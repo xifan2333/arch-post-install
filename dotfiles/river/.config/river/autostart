@@ -1,0 +1,42 @@
+#!/bin/sh
+# River autostart programs
+
+# Set locale (must be set before importing to systemd)
+export LANG=zh_CN.UTF-8
+export LANGUAGE=zh_CN:en_US
+
+# Import environment for systemd user session and dbus
+# Required for xdg-desktop-portal and proper locale to work
+systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP LANG LANGUAGE
+dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP LANG LANGUAGE
+
+# Restart on every reload
+killall -q waybar swaybg fcitx5
+
+# Status bar
+riverctl spawn waybar
+
+# Input method
+riverctl spawn "fcitx5 -d"
+
+# Wallpaper - restore from saved state
+if command -v swaybg >/dev/null 2>&1; then
+    WALLPAPER_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/wallpaper"
+    if [ -f "$WALLPAPER_STATE" ]; then
+        WALLPAPER_PATH=$(cat "$WALLPAPER_STATE")
+        if [ -f "$WALLPAPER_PATH" ]; then
+            riverctl spawn "swaybg -i $WALLPAPER_PATH -m fill"
+        else
+            # Fallback to solid color if saved wallpaper doesn't exist
+            riverctl spawn "swaybg -c '#1d2021'"
+        fi
+    else
+        # No saved wallpaper, use solid color
+        riverctl spawn "swaybg -c '#1d2021'"
+    fi
+fi
+
+# Start if not running
+pgrep 'dunst' || riverctl spawn "dunst"
+
+pgrep 'polkit-gnome' || riverctl spawn "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"

@@ -131,6 +131,8 @@ git config --global core.editor vim
 git config --global init.defaultBranch main
 print_success "Git configured"
 
+# Gen ssh
+
 # Deploy dotfiles
 print_step "Deploy dotfiles"
 if [ -f "$SCRIPT_DIR/install-dotfiles.sh" ]; then

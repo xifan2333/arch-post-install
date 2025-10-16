@@ -4,10 +4,15 @@
     "height": 30,
     "modules-left": ["river/tags"],
     "modules-center": ["clock"],
-    "modules-right": ["network", "pulseaudio", "battery"],
+    "modules-right": ["tray", "network", "pulseaudio", "battery"],
 
     "river/tags": {
         "num-tags": 9
+    },
+
+    "tray": {
+        "icon-size": 18,
+        "spacing": 8
     },
 
     "clock": {

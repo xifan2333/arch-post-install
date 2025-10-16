@@ -1,0 +1,151 @@
+#!/bin/bash
+# Interactive font switcher for terminal and UI applications
+# Automatically detects Nerd Font Mono fonts from the system
+# Usage: switch-font
+
+set -e
+
+# Load wmenu common configuration
+WMENU_LIB="$HOME/.local/lib/wmenu-common.sh"
+if [ -f "$WMENU_LIB" ]; then
+    . "$WMENU_LIB"
+    load_theme_colors
+else
+    # Fallback
+    if [ -f "$HOME/.config/theme/colors.sh" ]; then
+        . "$HOME/.config/theme/colors.sh"
+    fi
+fi
+
+# Auto-detect Nerd Font Mono fonts from system
+get_nerd_fonts() {
+    fc-list : family style | grep -i "nerd font mono" | cut -d: -f1 | cut -d, -f1 | sort -u
+}
+
+# Get available fonts
+FONTS=$(get_nerd_fonts)
+
+if [ -z "$FONTS" ]; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "字体切换" "未找到 Nerd Font Mono 字体"
+    fi
+    echo "Error: No Nerd Font Mono fonts found" >&2
+    exit 1
+fi
+
+# Font sizes for different applications
+FOOT_SIZES=(8 9 10 11 12 13 14)
+WAYBAR_SIZES=(11 12 13 14 15 16)
+WMENU_SIZES=(11 12 13 14 15 16)
+VSCODE_SIZES=(12 13 14 15 16 17 18)
+
+# Show font menu
+SELECTED_FONT=$(echo "$FONTS" | wmenu -p "选择字体:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+
+# User cancelled
+[ -z "$SELECTED_FONT" ] && exit 0
+
+# Get size for Foot terminal
+FOOT_SIZE=$(printf '%s\n' "${FOOT_SIZES[@]}" | wmenu -p "Foot 终端大小:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+[ -z "$FOOT_SIZE" ] && exit 0
+
+# Get size for Waybar
+WAYBAR_SIZE=$(printf '%s\n' "${WAYBAR_SIZES[@]}" | wmenu -p "Waybar 大小:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+[ -z "$WAYBAR_SIZE" ] && exit 0
+
+# Get size for wmenu
+WMENU_SIZE=$(printf '%s\n' "${WMENU_SIZES[@]}" | wmenu -p "wmenu 大小:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+[ -z "$WMENU_SIZE" ] && exit 0
+
+# Get size for VSCode
+VSCODE_SIZE=$(printf '%s\n' "${VSCODE_SIZES[@]}" | wmenu -p "VSCode 大小:" \
+    -f "${WMENU_FONT:-Noto Sans CJK SC 13}" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+[ -z "$VSCODE_SIZE" ] && exit 0
+
+# Update Foot terminal config
+if [ -f "$HOME/.config/foot/foot.ini" ]; then
+    sed -i "s|^font=.*|font=${SELECTED_FONT}:size=${FOOT_SIZE}|" "$HOME/.config/foot/foot.ini"
+    echo "Updated: Foot terminal (size ${FOOT_SIZE})"
+fi
+
+# Update Waybar config
+if [ -f "$HOME/.config/waybar/style.css" ]; then
+    # Remove "Nerd Font" suffix for CSS (e.g., "CaskaydiaMono Nerd Font Mono" -> "CaskaydiaMono")
+    CSS_FONT=$(echo "$SELECTED_FONT" | sed 's/ Nerd Font Mono$//')
+    sed -i "s|font-family:.*|font-family: \"${CSS_FONT}\", \"Symbols Nerd Font\", sans-serif;|" "$HOME/.config/waybar/style.css"
+    sed -i "s|font-size:.*|font-size: ${WAYBAR_SIZE}px;|" "$HOME/.config/waybar/style.css"
+    echo "Updated: Waybar (size ${WAYBAR_SIZE})"
+fi
+
+# Update wmenu common configuration
+if [ -f "$HOME/.local/lib/wmenu-common.sh" ]; then
+    sed -i "s|WMENU_FONT=.*|WMENU_FONT=\"${SELECTED_FONT} ${WMENU_SIZE}\"|" "$HOME/.local/lib/wmenu-common.sh"
+    echo "Updated: wmenu common config (size ${WMENU_SIZE})"
+fi
+
+# Update wmenu launcher (for compatibility)
+if [ -f "$HOME/.local/bin/launcher" ]; then
+    sed -i "s|-f \"\${WMENU_FONT:-.*}\" \\\\|-f \"\${WMENU_FONT:-${SELECTED_FONT} ${WMENU_SIZE}}\" \\\\|" "$HOME/.local/bin/launcher"
+    echo "Updated: wmenu launcher"
+fi
+
+# Update VSCode settings
+VSCODE_SETTINGS="$HOME/.config/Code/User/settings.json"
+if [ -f "$VSCODE_SETTINGS" ]; then
+    # Use jq if available, otherwise use sed
+    if command -v jq >/dev/null 2>&1; then
+        TEMP=$(mktemp)
+        jq --arg font "$SELECTED_FONT" --argjson size "$VSCODE_SIZE" \
+            '.["editor.fontFamily"] = $font | .["editor.fontSize"] = $size' \
+            "$VSCODE_SETTINGS" > "$TEMP" && mv "$TEMP" "$VSCODE_SETTINGS"
+        echo "Updated: VSCode (size ${VSCODE_SIZE}, with jq)"
+    else
+        # Simple sed replacement (may not work for all JSON formats)
+        sed -i "s|\"editor.fontFamily\":.*|\"editor.fontFamily\": \"${SELECTED_FONT}\",|" "$VSCODE_SETTINGS"
+        sed -i "s|\"editor.fontSize\":.*|\"editor.fontSize\": ${VSCODE_SIZE},|" "$VSCODE_SETTINGS"
+        echo "Updated: VSCode (size ${VSCODE_SIZE}, with sed - may need manual verification)"
+    fi
+fi
+
+# Send notification
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send "字体切换" "已切换到: ${SELECTED_FONT}\n\n各应用大小:\n- Foot: ${FOOT_SIZE}\n- Waybar: ${WAYBAR_SIZE}\n- wmenu: ${WMENU_SIZE}\n- VSCode: ${VSCODE_SIZE}\n\n打开新终端或重启应用以查看效果"
+fi
+
+echo "Font switched to: ${SELECTED_FONT}"
+echo "Sizes: Foot=${FOOT_SIZE}, Waybar=${WAYBAR_SIZE}, wmenu=${WMENU_SIZE}, VSCode=${VSCODE_SIZE}"
+echo "Please restart applications or open new terminals to see the changes"

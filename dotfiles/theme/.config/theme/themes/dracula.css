@@ -1,0 +1,35 @@
+/* Dracula color theme - GTK CSS format */
+
+/* Background colors */
+@define-color color-bg0 #282a36;
+@define-color color-bg1 #21222c;
+@define-color color-bg2 #343746;
+@define-color color-bg3 #44475a;
+
+/* Foreground colors */
+@define-color color-fg0 #f8f8f2;
+@define-color color-fg1 #f8f8f2;
+@define-color color-fg2 #6272a4;
+
+/* Accent colors (vibrant) */
+@define-color color-red #ff5555;
+@define-color color-green #50fa7b;
+@define-color color-yellow #f1fa8c;
+@define-color color-blue #8be9fd;
+@define-color color-purple #bd93f9;
+@define-color color-cyan #8be9fd;
+@define-color color-orange #ffb86c;
+
+/* Muted accent colors */
+@define-color color-red-dim #ff6e6e;
+@define-color color-green-dim #69ff94;
+@define-color color-yellow-dim #ffffa5;
+@define-color color-blue-dim #a4ffff;
+@define-color color-purple-dim #d6acff;
+@define-color color-cyan-dim #a4ffff;
+@define-color color-orange-dim #ffcc95;
+
+/* Special colors */
+@define-color color-black #191a21;
+@define-color color-white #f8f8f2;
+@define-color color-transparent transparent;

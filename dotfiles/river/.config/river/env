@@ -1,0 +1,31 @@
+#!/bin/sh
+# River environment variables
+# Sourced by River init script
+
+# Add user bin directories to PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Input method (fcitx5)
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+export XMODIFIERS=@im=fcitx
+
+# XDG
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=river
+
+# Qt
+export QT_QPA_PLATFORM=wayland
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+
+# GTK
+export GDK_BACKEND=wayland
+
+# Firefox
+export MOZ_ENABLE_WAYLAND=1
+
+# Java
+export _JAVA_AWT_WM_NONREPARENTING=1
+
+# Cursor
+export XCURSOR_SIZE=24

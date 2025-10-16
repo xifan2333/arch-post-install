@@ -13,16 +13,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_SRC="$SCRIPT_DIR/dotfiles"
 DOTFILES_TARGET="$HOME/.dotfiles"
 
-# Check and install required tools
+# Check required tools
 for tool in stow rsync; do
     if ! command -v "$tool" &> /dev/null; then
-        print_substep "Installing $tool"
-        if sudo pacman -S --needed --noconfirm "$tool"; then
-            print_success "$tool installed"
-        else
-            print_error "Failed to install $tool"
-            exit 1
-        fi
+        print_error "$tool is not installed"
+        print_info "Please run install-user.sh first to install all required packages"
+        exit 1
     fi
 done
 
@@ -40,8 +36,29 @@ if [ ${#PACKAGES[@]} -eq 0 ]; then
 fi
 
 # Stow each package individually
+# First unstow to remove old symlinks, then stow to create new ones
 print_substep "Stowing packages: ${PACKAGES[*]}"
 for package in "${PACKAGES[@]}"; do
+    # Unstow first (ignore errors if not previously stowed)
+    stow -D -t "$HOME" "$package" 2>/dev/null || true
+
+    # Remove any regular files that conflict with stow
+    # This handles the case where Edit tool converts symlinks to regular files
+    if ! stow -n -t "$HOME" "$package" 2>&1 | grep -q "would cause conflicts"; then
+        # No conflicts, proceed
+        :
+    else
+        # Find and remove conflicting regular files
+        stow -n -t "$HOME" "$package" 2>&1 | grep "existing target" | sed 's/.*existing target //' | sed 's/ since.*//' | while read -r conflict; do
+            target="$HOME/$conflict"
+            if [ -f "$target" ] && [ ! -L "$target" ]; then
+                print_warning "Removing conflicting file: $target"
+                rm -f "$target"
+            fi
+        done
+    fi
+
+    # Now stow the package
     if stow -t "$HOME" "$package"; then
         print_success "Stowed: $package"
     else

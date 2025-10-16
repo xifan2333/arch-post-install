@@ -1,0 +1,74 @@
+#!/bin/sh
+# River keybindings
+
+mod="Mod4"  # Super/Windows key
+
+# Application launchers
+riverctl map normal $mod Return spawn foot                                    # Terminal
+riverctl map normal $mod Space spawn "$HOME/.local/bin/launcher"              # App launcher (wmenu)
+riverctl map normal $mod B spawn google-chrome-stable                         # Browser
+riverctl map normal $mod R spawn foot lf                                      # File manager (lf)
+riverctl map normal $mod F spawn pcmanfm                                      # File manager (GUI)
+riverctl map normal $mod C spawn code                                         # VSCode
+
+# Window management                            
+riverctl map normal $mod W close                                    # Close window
+riverctl map normal $mod+Shift E exit                               # Exit River
+riverctl map normal $mod+Shift R spawn "$HOME/.config/river/init"   # Reload River config
+
+# Focus navigation
+riverctl map normal $mod J focus-view next                          # Focus next window
+riverctl map normal $mod K focus-view previous                      # Focus previous window
+riverctl map normal $mod H focus-view left                          # Focus left
+riverctl map normal $mod L focus-view right                         # Focus right
+
+# Window swap
+riverctl map normal ${mod}+Shift J swap next                        # Swap with next
+riverctl map normal ${mod}+Shift K swap previous                    # Swap with previous
+riverctl map normal ${mod}+Shift H swap left                        # Swap left
+riverctl map normal ${mod}+Shift L swap right                       # Swap right
+
+# Layout control
+riverctl map normal $mod+Control H send-layout-cmd rivertile "main-ratio -0.05"  # Decrease main ratio
+riverctl map normal $mod+Control L send-layout-cmd rivertile "main-ratio +0.05"  # Increase main ratio
+riverctl map normal $mod I send-layout-cmd rivertile "main-count +1"             # Increase main count
+riverctl map normal $mod D send-layout-cmd rivertile "main-count -1"             # Decrease main count
+
+# Window state
+riverctl map normal $mod T toggle-float                             # Toggle floating
+riverctl map normal $mod E toggle-fullscreen                        # Toggle fullscreen
+riverctl map normal $mod+Shift Return zoom                          # Zoom (swap with main)
+
+# Multi-monitor
+riverctl map normal $mod Period focus-output next                   # Focus next output
+riverctl map normal $mod Comma focus-output previous                # Focus previous output
+riverctl map normal ${mod}+Shift Period send-to-output next         # Send to next output
+riverctl map normal ${mod}+Shift Comma send-to-output previous      # Send to previous output
+
+# Screenshots
+riverctl map normal $mod S spawn "grim -g \"\$(slurp)\" - | wl-copy"              # Screenshot area to clipboard
+riverctl map normal $mod+Shift S spawn "grim ~/Pictures/screenshot-\$(date +%Y%m%d_%H%M%S).png"  # Screenshot full screen
+
+# Volume control (using pamixer)
+riverctl map -repeat normal $mod Minus spawn "pamixer -d 5"         # Volume down
+riverctl map -repeat normal $mod Equal spawn "pamixer -i 5"         # Volume up
+riverctl map normal $mod Backspace spawn "pamixer -t"               # Mute toggle
+
+# Brightness control (using brightnessctl)
+riverctl map -repeat normal $mod BracketLeft spawn "brightnessctl set 5%-"   # Brightness down
+riverctl map -repeat normal $mod BracketRight spawn "brightnessctl set +5%"  # Brightness up
+
+# Screen lock
+riverctl map normal $mod+Shift W spawn swaylock                     # Lock screen
+
+# Input method toggle
+riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle input method
+
+# Notification control
+riverctl map normal $mod N spawn "dunstctl history-pop"             # Show notification history
+riverctl map normal $mod+Shift N spawn "dunstctl close"             # Close notification
+
+# Mouse bindings
+riverctl map-pointer normal $mod BTN_LEFT move-view                 # Move window with mouse
+riverctl map-pointer normal $mod BTN_RIGHT resize-view              # Resize window with mouse
+riverctl map-pointer normal $mod BTN_MIDDLE toggle-float            # Toggle float with middle click
