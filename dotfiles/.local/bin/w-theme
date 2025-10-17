@@ -1,0 +1,113 @@
+#!/bin/bash
+# Interactive theme switcher with wmenu
+# Usage: wtheme
+
+set -e
+
+THEMES_DIR="$HOME/.config/themes"
+CURRENT_LINK="$HOME/.config/current"
+
+# Load wmenu common configuration
+WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
+if [ -f "$WMENU_LIB" ]; then
+    . "$WMENU_LIB"
+    load_theme_colors
+fi
+
+# Get current theme name
+get_current_theme() {
+    if [ -L "$CURRENT_LINK" ]; then
+        basename "$(readlink "$CURRENT_LINK")"
+    else
+        echo ""
+    fi
+}
+
+CURRENT_THEME=$(get_current_theme)
+
+# Get available themes with current theme marked
+get_themes() {
+    for theme_dir in "$THEMES_DIR"/*; do
+        [ -d "$theme_dir" ] || continue
+        theme_name=$(basename "$theme_dir")
+        if [ "$theme_name" = "$CURRENT_THEME" ]; then
+            echo "● $theme_name"
+        else
+            echo "  $theme_name"
+        fi
+    done
+}
+
+# Show wmenu selector with theme colors
+SELECTED=$(get_themes | wmenu -p "选择主题:" \
+    -f "$WMENU_FONT" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+
+# User cancelled
+[ -z "$SELECTED" ] && exit 0
+
+# Extract theme name (remove marker if present)
+THEME_NAME=$(echo "$SELECTED" | sed 's/^[●  ]*//')
+THEME_PATH="$THEMES_DIR/$THEME_NAME"
+
+# Check if theme exists
+if [ ! -d "$THEME_PATH" ]; then
+    echo "Error: Theme '$THEME_NAME' not found at $THEME_PATH" >&2
+    exit 1
+fi
+
+# Update symlink to current theme
+ln -nsf "themes/$THEME_NAME" "$CURRENT_LINK"
+echo "Switched to theme: $THEME_NAME"
+
+# Reload applications to apply theme
+reload_apps() {
+    # Reload waybar
+    if pgrep -x waybar >/dev/null; then
+        killall waybar
+        riverctl spawn waybar &
+        echo "Waybar reloaded"
+    fi
+
+    # Kill wmenu if running (will use new theme on next launch)
+    if pgrep -x wmenu >/dev/null || pgrep -x wmenu-run >/dev/null; then
+        pkill -x wmenu
+        pkill -x wmenu-run
+        echo "wmenu closed (will use new theme on next launch)"
+    fi
+
+    # Sync terminal emulator theme
+    if [ -f "$HOME/.local/lib/l-theme-sync-terminal" ]; then
+        "$HOME/.local/lib/l-theme-sync-terminal"
+    else
+        echo "Alacritty will use new theme (config auto-reloads)"
+    fi
+
+    # Sync VSCode theme
+    if [ -f "$HOME/.local/lib/l-theme-sync-vscode" ]; then
+        "$HOME/.local/lib/l-theme-sync-vscode"
+    fi
+
+    # Sync eza (ls) theme
+    if [ -f "$HOME/.local/lib/l-theme-sync-eza" ]; then
+        "$HOME/.local/lib/l-theme-sync-eza"
+    fi
+
+    # Sync browser theme (optional, requires sudo)
+    # Uncomment to enable browser theme syncing:
+    # if [ -f "$HOME/.local/lib/l-theme-sync-browser" ]; then
+    #     "$HOME/.local/lib/l-theme-sync-browser"
+    # fi
+}
+
+reload_apps
+
+# Send notification
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send "主题切换" "已切换到: ${THEME_NAME}\n\n✓ Waybar 已重启\n✓ 终端配置已重载\n✓ VSCode 主题已同步\n✓ Eza 主题已同步"
+fi

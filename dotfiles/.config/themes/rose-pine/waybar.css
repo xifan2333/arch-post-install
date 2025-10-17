@@ -1,0 +1,21 @@
+/* Rose Pine Dawn color scheme for waybar */
+@define-color foreground #575279;
+@define-color background #faf4ed;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #faf4ed;
+@define-color color-bg1 #fffaf3;
+@define-color color-bg2 #f2e9e1;
+@define-color color-fg0 #575279;
+@define-color color-fg1 #6e6a86;
+@define-color color-fg2 #9893a5;
+
+/* Rose Pine Dawn palette - synced with alacritty */
+@define-color color-red #b4637a;
+@define-color color-orange #d7827e;
+@define-color color-yellow #ea9d34;
+@define-color color-green #286983;
+@define-color color-cyan #d7827e;
+@define-color color-blue #56949f;
+@define-color color-purple #907aa9;
+@define-color color-pink #b4637a;

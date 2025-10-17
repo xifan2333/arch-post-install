@@ -1,0 +1,46 @@
+#!/bin/bash
+# Reload terminal emulator to apply theme changes
+
+set -e
+
+# Load terminal configuration
+TERMINAL_CONFIG="$HOME/.local/lib/l-terminal-config.sh"
+if [ -f "$TERMINAL_CONFIG" ]; then
+    . "$TERMINAL_CONFIG"
+fi
+
+# Detect terminal emulator
+TERMINAL="${TERMINAL:-alacritty}"
+
+case "$TERMINAL" in
+    "alacritty")
+        # Alacritty auto-reloads config when the file is modified
+        # Touch the config file to trigger reload
+        if [ -f "$HOME/.config/alacritty/alacritty.toml" ]; then
+            touch "$HOME/.config/alacritty/alacritty.toml"
+            echo "Alacritty config reloaded"
+        fi
+        ;;
+    "kitty")
+        # Send SIGUSR1 to reload kitty config
+        if pgrep -x kitty >/dev/null; then
+            killall -SIGUSR1 kitty
+            echo "Kitty theme reloaded"
+        fi
+        ;;
+    "ghostty")
+        # Send SIGUSR2 to reload ghostty config
+        if pgrep -x ghostty >/dev/null; then
+            killall -SIGUSR2 ghostty
+            echo "Ghostty theme reloaded"
+        fi
+        ;;
+    "foot")
+        # Foot doesn't support live config reload
+        # New instances will use the new theme
+        echo "Foot theme updated (restart foot to apply)"
+        ;;
+    *)
+        echo "Terminal '$TERMINAL' reload not configured"
+        ;;
+esac

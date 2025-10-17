@@ -1,0 +1,65 @@
+#!/bin/bash
+# Interactive font switcher with wmenu
+# Usage: wfont
+
+set -e
+
+# Load wmenu common configuration
+WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
+if [ -f "$WMENU_LIB" ]; then
+    . "$WMENU_LIB"
+    load_theme_colors
+fi
+
+# Auto-detect Nerd Font Mono fonts from system
+get_nerd_fonts() {
+    fc-list : family style | grep -i "nerd font mono" | cut -d: -f1 | cut -d, -f1 | sort -u
+}
+
+# Get available fonts
+FONTS=$(get_nerd_fonts)
+
+if [ -z "$FONTS" ]; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "字体切换" "未找到 Nerd Font Mono 字体"
+    fi
+    echo "Error: No Nerd Font Mono fonts found"
+    exit 1
+fi
+
+# Get current font
+CURRENT_FONT=$(font-current 2>/dev/null || echo "")
+
+# Mark current font in list
+if [ -n "$CURRENT_FONT" ]; then
+    FONTS=$(echo "$FONTS" | sed "s/^$CURRENT_FONT$/● $CURRENT_FONT/")
+fi
+
+# Show font menu
+SELECTED=$(echo "$FONTS" | wmenu -p "选择字体:" \
+    -f "$WMENU_FONT" \
+    -N "${COLOR_BG0#\#}" \
+    -n "${COLOR_FG0#\#}" \
+    -M "${COLOR_BLUE#\#}" \
+    -m "${COLOR_BG0#\#}" \
+    -S "${COLOR_GREEN#\#}" \
+    -s "${COLOR_BG0#\#}")
+
+# User cancelled
+[ -z "$SELECTED" ] && exit 0
+
+# Remove marker if present
+FONT_NAME=$(echo "$SELECTED" | sed 's/^● //')
+
+# Set the font using font-set
+if font-set "$FONT_NAME"; then
+    # Send notification
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "字体切换" "已切换到: ${FONT_NAME}\n\n✓ 终端配置已更新\n✓ Waybar 已重启"
+    fi
+else
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "字体切换失败" "无法设置字体: ${FONT_NAME}"
+    fi
+    exit 1
+fi

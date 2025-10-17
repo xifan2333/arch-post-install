@@ -1,0 +1,4 @@
+#!/bin/bash
+# Get current font from waybar config
+
+grep -oP 'font-family:\s*["'\''"]?\K[^;"'\''",]+' ~/.config/waybar/style.css | head -n1

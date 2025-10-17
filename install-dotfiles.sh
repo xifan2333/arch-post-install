@@ -24,23 +24,28 @@ done
 
 # Sync dotfiles to ~/.dotfiles
 print_substep "Sync dotfiles to ~/.dotfiles"
-rsync -a --delete "$DOTFILES_SRC/" "$DOTFILES_TARGET/"
+# Exclude runtime state files that should not be managed by dotfiles
+rsync -a --delete \
+    --exclude '.config/wallpaper' \
+    --exclude '.config/wmenu-font' \
+    --exclude '.config/current' \
+    "$DOTFILES_SRC/" "$DOTFILES_TARGET/"
 
 # Stow dotfiles as a single package
 print_substep "Stowing dotfiles"
-cd "$HOME" || exit 1
+cd "$DOTFILES_TARGET" || exit 1
 
 # Unstow first (ignore errors if not previously stowed)
-stow -D -d "$HOME" -t "$HOME" .dotfiles 2>/dev/null || true
+stow -D -t "$HOME" . 2>/dev/null || true
 
 # Remove any regular files that conflict with stow
 # This handles the case where Edit tool converts symlinks to regular files
-if ! stow -n -d "$HOME" -t "$HOME" .dotfiles 2>&1 | grep -q "would cause conflicts"; then
+if ! stow -n -t "$HOME" . 2>&1 | grep -q "would cause conflicts"; then
     # No conflicts, proceed
     :
 else
     # Find and remove conflicting regular files
-    stow -n -d "$HOME" -t "$HOME" .dotfiles 2>&1 | grep "existing target" | sed 's/.*existing target //' | sed 's/ since.*//' | while read -r conflict; do
+    stow -n -t "$HOME" . 2>&1 | grep "existing target" | sed 's/.*existing target //' | sed 's/ since.*//' | while read -r conflict; do
         target="$HOME/$conflict"
         if [ -f "$target" ] && [ ! -L "$target" ]; then
             print_warning "Removing conflicting file: $target"
@@ -50,9 +55,16 @@ else
 fi
 
 # Now stow the package
-if stow -d "$HOME" -t "$HOME" .dotfiles; then
+if stow -t "$HOME" .; then
     print_success "Dotfiles deployed: ~/.dotfiles/* -> ~/"
 else
     print_error "Failed to stow dotfiles"
     exit 1
+fi
+
+# Ensure all scripts in ~/.local/bin are executable
+print_substep "Setting executable permissions for scripts"
+if [ -d "$HOME/.local/bin" ]; then
+    chmod +x "$HOME/.local/bin"/* 2>/dev/null || true
+    print_success "Script permissions updated"
 fi

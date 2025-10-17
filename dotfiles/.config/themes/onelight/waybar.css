@@ -1,0 +1,21 @@
+/* One Light color scheme for waybar */
+@define-color foreground #383a42;
+@define-color background #fafafa;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #fafafa;
+@define-color color-bg1 #f0f0f0;
+@define-color color-bg2 #e5e5e6;
+@define-color color-fg0 #383a42;
+@define-color color-fg1 #2c2d30;
+@define-color color-fg2 #a0a1a7;
+
+/* One Light palette */
+@define-color color-red #e45649;
+@define-color color-orange #d19a66;
+@define-color color-yellow #c18401;
+@define-color color-green #50a14f;
+@define-color color-cyan #0184bc;
+@define-color color-blue #4078f2;
+@define-color color-purple #a626a4;
+@define-color color-pink #a626a4;

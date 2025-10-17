@@ -1,0 +1,21 @@
+/* Kanagawa color scheme for waybar */
+@define-color foreground #dcd7ba;
+@define-color background #1f1f28;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #1f1f28;
+@define-color color-bg1 #2a2a37;
+@define-color color-bg2 #363646;
+@define-color color-fg0 #dcd7ba;
+@define-color color-fg1 #c8c093;
+@define-color color-fg2 #727169;
+
+/* Kanagawa palette */
+@define-color color-red #c34043;
+@define-color color-orange #ffa066;
+@define-color color-yellow #c0a36e;
+@define-color color-green #76946a;
+@define-color color-cyan #6a9589;
+@define-color color-blue #7e9cd8;
+@define-color color-purple #957fb8;
+@define-color color-pink #d27e99;

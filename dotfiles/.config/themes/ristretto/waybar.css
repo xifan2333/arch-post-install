@@ -1,0 +1,21 @@
+/* Ristretto color scheme for waybar */
+@define-color foreground #e6d9db;
+@define-color background #2c2525;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #2c2525;
+@define-color color-bg1 #3a3232;
+@define-color color-bg2 #4a3f3f;
+@define-color color-fg0 #e6d9db;
+@define-color color-fg1 #d9cccf;
+@define-color color-fg2 #b3a6a8;
+
+/* Ristretto palette - synced with alacritty */
+@define-color color-red #fd6883;
+@define-color color-orange #f38d70;
+@define-color color-yellow #f9cc6c;
+@define-color color-green #adda78;
+@define-color color-cyan #85dacc;
+@define-color color-blue #f38d70;
+@define-color color-purple #a8a9eb;
+@define-color color-pink #fd6883;

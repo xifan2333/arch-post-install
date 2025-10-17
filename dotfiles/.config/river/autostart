@@ -13,8 +13,8 @@ dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 # Restart on every reload
 killall -q waybar swaybg fcitx5
 
-# Foot server for fast terminal startup
-riverctl spawn "$HOME/.local/bin/foots"
+# Alacritty terminal - no server mode needed (fast startup)
+# The configuration will auto-reload when changed
 
 # Status bar
 riverctl spawn waybar
@@ -25,7 +25,7 @@ riverctl spawn "fcitx5 -d"
 # Wallpaper - restore from saved state
 if command -v swaybg >/dev/null 2>&1; then
     WALLPAPER_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/wallpaper"
-    if [ -f "$WALLPAPER_STATE" ]; then
+    if [ -f "$WALLPAPER_STATE" ] && [ -s "$WALLPAPER_STATE" ]; then
         WALLPAPER_PATH=$(cat "$WALLPAPER_STATE")
         if [ -f "$WALLPAPER_PATH" ]; then
             riverctl spawn "swaybg -i $WALLPAPER_PATH -m fill"

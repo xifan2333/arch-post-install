@@ -1,0 +1,21 @@
+/* Osaka Jade color scheme for waybar */
+@define-color foreground #e6d8ba;
+@define-color background #11221C;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #11221C;
+@define-color color-bg1 #1a2e27;
+@define-color color-bg2 #243a32;
+@define-color color-fg0 #e6d8ba;
+@define-color color-fg1 #d9ccae;
+@define-color color-fg2 #a89984;
+
+/* Osaka Jade palette - synced with alacritty */
+@define-color color-red #ff5345;
+@define-color color-orange #ff9664;
+@define-color color-yellow #459451;
+@define-color color-green #549e6a;
+@define-color color-cyan #2dd5b7;
+@define-color color-blue #509475;
+@define-color color-purple #d2689c;
+@define-color color-pink #d2689c;

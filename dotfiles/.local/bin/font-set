@@ -1,0 +1,76 @@
+#!/bin/bash
+# Set font for all applications
+# Usage: sfont-set <font-name>
+
+set -e
+
+FONT_NAME="$1"
+
+if [[ -z "$FONT_NAME" ]]; then
+    echo "Usage: sfont-set <font-name>"
+    exit 1
+fi
+
+# Check if font exists on the system
+if ! fc-list | grep -iq "$FONT_NAME"; then
+    echo "Error: Font '$FONT_NAME' not found on system"
+    exit 1
+fi
+
+# Update Alacritty config
+if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
+    sed -i "s/family = \".*\"/family = \"$FONT_NAME\"/g" ~/.config/alacritty/alacritty.toml
+    touch ~/.config/alacritty/alacritty.toml  # Trigger reload
+    echo "Updated: Alacritty"
+fi
+
+# Update Kitty config
+if [[ -f ~/.config/kitty/kitty.conf ]]; then
+    sed -i "s/^font_family .*/font_family $FONT_NAME/g" ~/.config/kitty/kitty.conf
+    if pgrep -x kitty >/dev/null; then
+        killall -SIGUSR1 kitty 2>/dev/null || true
+    fi
+    echo "Updated: Kitty"
+fi
+
+# Update Ghostty config
+if [[ -f ~/.config/ghostty/config ]]; then
+    sed -i "s/font-family = \".*\"/font-family = \"$FONT_NAME\"/g" ~/.config/ghostty/config
+    if pgrep -x ghostty >/dev/null; then
+        killall -SIGUSR2 ghostty 2>/dev/null || true
+    fi
+    echo "Updated: Ghostty"
+fi
+
+# Update Waybar
+if [[ -f ~/.config/waybar/style.css ]]; then
+    sed -i "s/font-family: .*/font-family: \"$FONT_NAME\", \"Symbols Nerd Font\", sans-serif;/g" ~/.config/waybar/style.css
+    if pgrep -x waybar >/dev/null; then
+        killall waybar
+        riverctl spawn waybar &
+    fi
+    echo "Updated: Waybar"
+fi
+
+# Update SwayOSD (if exists)
+if [[ -f ~/.config/swayosd/style.css ]]; then
+    sed -i "s/font-family: .*/font-family: '$FONT_NAME';/g" ~/.config/swayosd/style.css
+    echo "Updated: SwayOSD"
+fi
+
+# Update fontconfig (optional, for system-wide monospace override)
+if [[ -f ~/.config/fontconfig/fonts.conf ]] && command -v xmlstarlet >/dev/null 2>&1; then
+    xmlstarlet ed -L \
+        -u '//match[@target="pattern"][test/string="monospace"]/edit[@name="family"]/string' \
+        -v "$FONT_NAME" \
+        ~/.config/fontconfig/fonts.conf 2>/dev/null || true
+    echo "Updated: fontconfig"
+fi
+
+# Save wmenu font configuration
+WMENU_FONT_CONFIG="$HOME/.config/current/wmenu-font"
+mkdir -p "$(dirname "$WMENU_FONT_CONFIG")"
+echo "WMENU_FONT=\"${FONT_NAME} 13\"" > "$WMENU_FONT_CONFIG"
+echo "Updated: wmenu font config"
+
+echo "Font set to: $FONT_NAME"

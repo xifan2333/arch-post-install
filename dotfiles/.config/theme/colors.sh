@@ -1,1 +1,0 @@
-themes/one-dark.sh

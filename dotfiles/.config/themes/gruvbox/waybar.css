@@ -1,0 +1,21 @@
+/* Gruvbox Dark color scheme for waybar */
+@define-color foreground #d4be98;
+@define-color background #282828;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #282828;
+@define-color color-bg1 #3c3836;
+@define-color color-bg2 #504945;
+@define-color color-fg0 #d4be98;
+@define-color color-fg1 #ddc7a1;
+@define-color color-fg2 #a89984;
+
+/* Gruvbox palette */
+@define-color color-red #ea6962;
+@define-color color-orange #e78a4e;
+@define-color color-yellow #d8a657;
+@define-color color-green #a9b665;
+@define-color color-cyan #89b482;
+@define-color color-blue #7daea3;
+@define-color color-purple #d3869b;
+@define-color color-pink #d3869b;

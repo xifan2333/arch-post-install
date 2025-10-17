@@ -1,0 +1,36 @@
+# Alacritty terminal configuration
+# Theme colors loaded from current theme
+
+[general]
+import = ["~/.config/current/alacritty.toml"]
+
+[window]
+padding = { x = 15, y = 15 }
+decorations = "Full"
+opacity = 1.0
+dynamic_padding = true
+
+[scrolling]
+history = 10000
+
+[font]
+normal = { family = "CaskaydiaMono Nerd Font", style = "Regular" }
+bold = { family = "CaskaydiaMono Nerd Font", style = "Bold" }
+italic = { family = "CaskaydiaMono Nerd Font", style = "Italic" }
+bold_italic = { family = "CaskaydiaMono Nerd Font", style = "Bold Italic" }
+size = 10.5
+
+# Font offset for better vertical alignment
+[font.offset]
+x = 0
+y = 2
+
+[cursor]
+style = { shape = "Beam", blinking = "On" }
+
+[bell]
+animation = "EaseOutExpo"
+duration = 0
+
+[mouse]
+hide_when_typing = true

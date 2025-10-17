@@ -1,0 +1,21 @@
+/* Everforest Dark color scheme for waybar */
+@define-color foreground #d3c6aa;
+@define-color background #2d353b;
+
+/* Color variables used by waybar */
+@define-color color-bg0 #2d353b;
+@define-color color-bg1 #343f44;
+@define-color color-bg2 #3d484d;
+@define-color color-fg0 #d3c6aa;
+@define-color color-fg1 #ddd8be;
+@define-color color-fg2 #859289;
+
+/* Everforest palette */
+@define-color color-red #e67e80;
+@define-color color-orange #e69875;
+@define-color color-yellow #dbbc7f;
+@define-color color-green #a7c080;
+@define-color color-cyan #83c092;
+@define-color color-blue #7fbbb3;
+@define-color color-purple #d699b6;
+@define-color color-pink #d699b6;

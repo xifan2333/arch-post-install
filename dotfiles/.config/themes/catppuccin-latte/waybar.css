@@ -1,0 +1,23 @@
+/* Catppuccin Latte color scheme for waybar */
+@define-color foreground #4c4f69; /* text */
+@define-color background #eff1f5; /* base */
+@define-color border     #dce0e8; /* crust */
+@define-color accent     #1e66f5; /* blue */
+
+/* Color variables used by waybar */
+@define-color color-bg0 #eff1f5;
+@define-color color-bg1 #e6e9ef;
+@define-color color-bg2 #ccd0da;
+@define-color color-fg0 #4c4f69;
+@define-color color-fg1 #5c5f77;
+@define-color color-fg2 #6c6f85;
+
+/* Catppuccin Latte palette */
+@define-color color-red #d20f39;
+@define-color color-orange #fe640b;
+@define-color color-yellow #df8e1d;
+@define-color color-green #40a02b;
+@define-color color-cyan #179299;
+@define-color color-blue #1e66f5;
+@define-color color-purple #8839ef;
+@define-color color-pink #ea76cb;

@@ -1,5 +1,6 @@
 /* Waybar style with theme support */
-@import url("../theme/colors.css");
+/* Theme colors loaded from current theme */
+@import url("../current/waybar.css");
 
 * {
     border: none;
