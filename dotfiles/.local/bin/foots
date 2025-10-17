@@ -1,0 +1,4 @@
+#!/bin/sh
+# Start foot server if not running
+
+pgrep -f "foot --server" >/dev/null || foot --server

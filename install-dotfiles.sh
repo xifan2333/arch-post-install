@@ -26,45 +26,33 @@ done
 print_substep "Sync dotfiles to ~/.dotfiles"
 rsync -a --delete "$DOTFILES_SRC/" "$DOTFILES_TARGET/"
 
-# Get list of packages (subdirectories in dotfiles)
-cd "$DOTFILES_TARGET" || exit 1
-PACKAGES=($(ls -d */ 2>/dev/null | sed 's/\///g'))
+# Stow dotfiles as a single package
+print_substep "Stowing dotfiles"
+cd "$HOME" || exit 1
 
-if [ ${#PACKAGES[@]} -eq 0 ]; then
-    print_warning "No dotfile packages found"
-    exit 0
+# Unstow first (ignore errors if not previously stowed)
+stow -D -d "$HOME" -t "$HOME" .dotfiles 2>/dev/null || true
+
+# Remove any regular files that conflict with stow
+# This handles the case where Edit tool converts symlinks to regular files
+if ! stow -n -d "$HOME" -t "$HOME" .dotfiles 2>&1 | grep -q "would cause conflicts"; then
+    # No conflicts, proceed
+    :
+else
+    # Find and remove conflicting regular files
+    stow -n -d "$HOME" -t "$HOME" .dotfiles 2>&1 | grep "existing target" | sed 's/.*existing target //' | sed 's/ since.*//' | while read -r conflict; do
+        target="$HOME/$conflict"
+        if [ -f "$target" ] && [ ! -L "$target" ]; then
+            print_warning "Removing conflicting file: $target"
+            rm -f "$target"
+        fi
+    done
 fi
 
-# Stow each package individually
-# First unstow to remove old symlinks, then stow to create new ones
-print_substep "Stowing packages: ${PACKAGES[*]}"
-for package in "${PACKAGES[@]}"; do
-    # Unstow first (ignore errors if not previously stowed)
-    stow -D -t "$HOME" "$package" 2>/dev/null || true
-
-    # Remove any regular files that conflict with stow
-    # This handles the case where Edit tool converts symlinks to regular files
-    if ! stow -n -t "$HOME" "$package" 2>&1 | grep -q "would cause conflicts"; then
-        # No conflicts, proceed
-        :
-    else
-        # Find and remove conflicting regular files
-        stow -n -t "$HOME" "$package" 2>&1 | grep "existing target" | sed 's/.*existing target //' | sed 's/ since.*//' | while read -r conflict; do
-            target="$HOME/$conflict"
-            if [ -f "$target" ] && [ ! -L "$target" ]; then
-                print_warning "Removing conflicting file: $target"
-                rm -f "$target"
-            fi
-        done
-    fi
-
-    # Now stow the package
-    if stow -t "$HOME" "$package"; then
-        print_success "Stowed: $package"
-    else
-        print_error "Failed to stow: $package"
-        exit 1
-    fi
-done
-
-print_success "All dotfiles deployed: ~/.dotfiles/* -> ~/"
+# Now stow the package
+if stow -d "$HOME" -t "$HOME" .dotfiles; then
+    print_success "Dotfiles deployed: ~/.dotfiles/* -> ~/"
+else
+    print_error "Failed to stow dotfiles"
+    exit 1
+fi

@@ -1,0 +1,132 @@
+#!/bin/sh
+# River keybindings
+
+mod="Mod4"  # Super/Windows key
+term="footclient"  # Use footclient for faster startup
+
+# Application launchers
+riverctl map normal $mod Return spawn $term                                   # Terminal
+riverctl map normal $mod Space spawn "$HOME/.local/bin/wlauncher"             # App launcher (wmenu)
+riverctl map normal Mod1 Space spawn "$HOME/.local/bin/river-scratchpad"      # Scratchpad terminal (Alt+Space)
+riverctl map normal $mod B spawn google-chrome-stable                         # Browser
+riverctl map normal $mod R spawn "$term lf"                                   # File manager (lf)
+riverctl map normal $mod F spawn pcmanfm                                      # File manager (GUI)
+riverctl map normal $mod C spawn code                                         # VSCode
+
+# Window management                            
+riverctl map normal $mod W close                                    # Close window
+riverctl map normal $mod+Shift E exit                               # Exit River
+riverctl map normal $mod+Shift R spawn "$HOME/.config/river/init"   # Reload River config
+
+# Focus navigation (HJKL)
+riverctl map normal $mod H focus-view left                          # Focus left
+riverctl map normal $mod J focus-view next                          # Focus next window
+riverctl map normal $mod K focus-view previous                      # Focus previous window
+riverctl map normal $mod L focus-view right                         # Focus right
+
+# Focus navigation (Arrow keys - same as JK for up/down)
+riverctl map normal $mod Up focus-view previous                     # Focus previous window
+riverctl map normal $mod Down focus-view next                       # Focus next window
+
+# Window swap (HJKL)
+riverctl map normal ${mod}+Shift H swap left                        # Swap left
+riverctl map normal ${mod}+Shift J swap next                        # Swap with next
+riverctl map normal ${mod}+Shift K swap previous                    # Swap with previous
+riverctl map normal ${mod}+Shift L swap right                       # Swap right
+
+# Window swap (Arrow keys - same as JK for up/down)
+riverctl map normal ${mod}+Shift Up swap previous                   # Swap with previous
+riverctl map normal ${mod}+Shift Down swap next                     # Swap with next
+
+# Layout direction (Arrow keys - Left/Right control layout direction)
+riverctl map normal ${mod}+Shift Left send-layout-cmd rivertile "main-location left"   # Horizontal layout
+riverctl map normal ${mod}+Shift Right send-layout-cmd rivertile "main-location top"   # Vertical layout
+
+# Layout control (YUIO keys)
+riverctl map normal $mod Y send-layout-cmd rivertile "main-location left"        # Horizontal layout (main left)
+riverctl map normal $mod U send-layout-cmd rivertile "main-location top"         # Vertical layout (main top)
+riverctl map normal $mod I send-layout-cmd rivertile "main-ratio -0.05"          # Decrease main ratio
+riverctl map normal $mod O send-layout-cmd rivertile "main-ratio +0.05"          # Increase main ratio
+
+# Layout control (Arrow keys - Left/Right adjust ratio)
+riverctl map normal $mod Left send-layout-cmd rivertile "main-ratio -0.05"       # Decrease main ratio
+riverctl map normal $mod Right send-layout-cmd rivertile "main-ratio +0.05"      # Increase main ratio
+
+# Window state
+riverctl map normal $mod P toggle-float                             # Toggle floating
+riverctl map normal $mod E toggle-fullscreen                        # Toggle fullscreen
+riverctl map normal $mod+Shift Return zoom                          # Zoom (swap with main)
+
+# Multi-monitor
+riverctl map normal $mod Period focus-output next                   # Focus next output
+riverctl map normal $mod Comma focus-output previous                # Focus previous output
+riverctl map normal ${mod}+Shift Period send-to-output next         # Send to next output
+riverctl map normal ${mod}+Shift Comma send-to-output previous      # Send to previous output
+
+# Screenshots
+riverctl map normal $mod S spawn "grim -g \"\$(slurp)\" - | wl-copy"              # Screenshot area to clipboard
+riverctl map normal $mod+Shift S spawn "grim ~/Pictures/screenshot-\$(date +%Y%m%d_%H%M%S).png"  # Screenshot full screen
+
+# Media keys - Volume
+riverctl map -repeat normal None XF86AudioRaiseVolume spawn "pamixer -i 5"
+riverctl map -repeat normal None XF86AudioLowerVolume spawn "pamixer -d 5"
+riverctl map normal None XF86AudioMute spawn "pamixer -t"
+riverctl map normal None XF86AudioMicMute spawn "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
+
+# Media keys - Brightness
+riverctl map -repeat normal None XF86MonBrightnessUp spawn "brightnessctl set +5%"
+riverctl map -repeat normal None XF86MonBrightnessDown spawn "brightnessctl set 5%-"
+
+# Media keys - Playback control
+riverctl map normal None XF86AudioPlay spawn "playerctl play-pause"
+riverctl map normal None XF86AudioNext spawn "playerctl next"
+riverctl map normal None XF86AudioPrev spawn "playerctl previous"
+
+# Screen lock
+riverctl map normal $mod+Shift W spawn swaylock                     # Lock screen
+
+# Input method toggle
+riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle input method
+
+# Tag (workspace) management
+# Switch to tag 1-9
+for i in $(seq 1 9); do
+    tags=$((1 << ($i - 1)))
+
+    # Mod+[1-9]: Focus tag N
+    riverctl map normal $mod $i set-focused-tags $tags
+
+    # Mod+Shift+[1-9]: Send focused window to tag N
+    riverctl map normal ${mod}+Shift $i set-view-tags $tags
+
+    # Mod+Control+[1-9]: Toggle visibility of tag N
+    riverctl map normal ${mod}+Control $i toggle-focused-tags $tags
+
+    # Mod+Alt+[1-9]: Tag focused window with tag N (add, not move)
+    riverctl map normal ${mod}+Mod1 $i toggle-view-tags $tags
+done
+
+# View all normal tags and sticky/scratchpad management
+all_tags=$(((1 << 9) - 1))  # Tags 1-9
+scratch_tag=$((1 << 31))     # Tag 32
+
+# Mod+Equal: View all normal workspaces (1-9 only, excluding scratchpad)
+# Note: Equal key (=) is used because Plus (+) requires Shift
+riverctl map normal $mod equal set-focused-tags $all_tags
+
+# Mod+Minus: Sticky window (appears on all workspaces 1-9)
+riverctl map normal $mod minus set-view-tags $all_tags
+
+# Note: To un-sticky a window, use Mod+Shift+[1-9] to send it to a specific tag
+
+# Scratchpad functionality (using tag 32)
+# Mod+0: Toggle scratchpad visibility
+riverctl map normal $mod 0 toggle-focused-tags $scratch_tag
+
+# Mod+Shift+0: Send focused window to scratchpad
+riverctl map normal ${mod}+Shift 0 set-view-tags $scratch_tag
+
+# Mouse bindings
+riverctl map-pointer normal $mod BTN_LEFT move-view                 # Move window with mouse
+riverctl map-pointer normal $mod BTN_RIGHT resize-view              # Resize window with mouse
+riverctl map-pointer normal $mod BTN_MIDDLE toggle-float            # Toggle float with middle click

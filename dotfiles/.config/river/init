@@ -1,0 +1,52 @@
+#!/bin/sh
+# River init - modular configuration
+# Author: xifan
+# Reference: unixchad's dotfiles
+
+# Source modular configs
+RIVER_CONFIG="$HOME/.config/river"
+THEME_CONFIG="$HOME/.config/theme"
+
+# Load environment variables
+[ -f "$RIVER_CONFIG/env" ] && . "$RIVER_CONFIG/env"
+
+# Load theme colors
+[ -f "$THEME_CONFIG/colors.sh" ] && . "$THEME_CONFIG/colors.sh"
+
+. "$RIVER_CONFIG/autostart"
+. "$RIVER_CONFIG/bindings"
+. "$RIVER_CONFIG/rules"
+
+# Tag management
+# River uses tags (1-9) as workspaces
+# Tag 32 is reserved for scratchpad functionality
+# All tags are always available on all outputs
+
+riverctl default-layout rivertile
+
+# Configure default spawn behavior: new windows spawn on normal workspaces (1-9)
+# Note: all_tags is defined in bindings file
+riverctl spawn-tagmask $(((1 << 9) - 1))
+
+# Set initial focused tags to tag 1 (start on first workspace)
+riverctl set-focused-tags $((1 << 0))
+
+# Sticky window support
+# Sticky windows appear on all tags
+# This is achieved by setting output-focused-tags to show the sticky tag
+# along with the currently focused tags
+
+# Input configuration
+riverctl set-repeat 30 200
+riverctl hide-cursor timeout 3000
+riverctl hide-cursor when-typing enabled
+
+# Enable touchpad tap-to-click
+for i in $(riverctl list-inputs | grep -i touchpad); do
+    riverctl input "$i" tap enabled
+done
+
+# Border colors
+riverctl border-color-focused ${RIVER_BORDER_FOCUSED:-0x61afefff}
+riverctl border-color-unfocused ${RIVER_BORDER_UNFOCUSED:-0x4b5263ff}
+riverctl border-width 2

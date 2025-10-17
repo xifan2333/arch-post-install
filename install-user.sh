@@ -142,6 +142,49 @@ else
     print_warning "install-dotfiles.sh not found, skip"
 fi
 
+# Create default user directories
+print_step "Create default user directories"
+if command -v xdg-user-dirs-update &> /dev/null; then
+    xdg-user-dirs-update
+    print_success "Default user directories created"
+else
+    print_warning "xdg-user-dirs not installed, skipping"
+fi
+
+# Set default applications
+print_step "Set default applications"
+
+# Set default file manager
+if command -v pcmanfm &> /dev/null; then
+    xdg-mime default pcmanfm.desktop inode/directory
+    print_success "Set pcmanfm as default file manager"
+else
+    print_warning "pcmanfm not installed, skipping file manager setup"
+fi
+
+# Set default browser (if Google Chrome is installed)
+if command -v google-chrome-stable &> /dev/null; then
+    xdg-mime default google-chrome.desktop x-scheme-handler/http
+    xdg-mime default google-chrome.desktop x-scheme-handler/https
+    xdg-mime default google-chrome.desktop text/html
+    print_success "Set Google Chrome as default browser"
+elif command -v firefox &> /dev/null; then
+    xdg-mime default firefox.desktop x-scheme-handler/http
+    xdg-mime default firefox.desktop x-scheme-handler/https
+    xdg-mime default firefox.desktop text/html
+    print_success "Set Firefox as default browser"
+else
+    print_warning "No browser found, skipping browser setup"
+fi
+
+# Set default terminal (if foot is installed)
+if command -v foot &> /dev/null; then
+    xdg-mime default foot.desktop application/x-terminal-emulator
+    print_success "Set foot as default terminal"
+else
+    print_warning "foot not installed, skipping terminal setup"
+fi
+
 # Done
 echo ""
 print_step "Installation Complete!"
