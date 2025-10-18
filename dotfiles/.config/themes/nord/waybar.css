@@ -19,3 +19,7 @@
 @define-color color-blue #81a1c1;
 @define-color color-purple #b48ead;
 @define-color color-pink #b48ead;
+
+/* Semantic accent colors for UI elements */
+@define-color accent-primary #88c0d0;   /* Primary accent (frost cyan) */
+@define-color accent-secondary #81a1c1; /* Secondary accent (frost blue) */

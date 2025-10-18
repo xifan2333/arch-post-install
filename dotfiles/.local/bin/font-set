@@ -67,10 +67,15 @@ if [[ -f ~/.config/fontconfig/fonts.conf ]] && command -v xmlstarlet >/dev/null 
     echo "Updated: fontconfig"
 fi
 
-# Save wmenu font configuration
-WMENU_FONT_CONFIG="$HOME/.config/current/wmenu-font"
-mkdir -p "$(dirname "$WMENU_FONT_CONFIG")"
-echo "WMENU_FONT=\"${FONT_NAME} 13\"" > "$WMENU_FONT_CONFIG"
-echo "Updated: wmenu font config"
+# Save current font state to config directory
+CURRENT_DIR="$HOME/.config/current"
+mkdir -p "$CURRENT_DIR"
 
+# Save current font name
+echo "$FONT_NAME" > "$CURRENT_DIR/font"
+
+# Save wmenu font configuration
+echo "WMENU_FONT=\"${FONT_NAME} 13\"" > "$CURRENT_DIR/wmenu-font"
+
+echo "Updated: font state saved to ~/.config/current/"
 echo "Font set to: $FONT_NAME"

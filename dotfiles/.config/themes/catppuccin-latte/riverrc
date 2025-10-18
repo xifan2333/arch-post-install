@@ -1,0 +1,5 @@
+# Catppuccin Latte color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0x8839efff
+export RIVER_BORDER_UNFOCUSED=0xccd0daff

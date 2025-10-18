@@ -1,23 +1,15 @@
 #!/bin/sh
 # River keybindings
 
-# Load terminal configuration
-TERM_CONFIG="$HOME/.local/lib/l-terminal-config.sh"
-if [ -f "$TERM_CONFIG" ]; then
-    . "$TERM_CONFIG"
-else
-    # Fallback if config not found
-    TERM_CMD="kitty"
-fi
-
 mod="Mod4"  # Super/Windows key
 
 # Application launchers
-riverctl map normal $mod Return spawn $TERM_CMD                                # Terminal
+riverctl map normal $mod Return spawn $TERMINAL                                # Terminal
 riverctl map normal $mod Space spawn "$HOME/.local/bin/w-launcher"            # App launcher (wmenu)
+riverctl map normal $mod V spawn "$HOME/.local/bin/w-clipboard"               # Clipboard history (wmenu)
 riverctl map normal Mod1 Space spawn "$HOME/.local/bin/r-scratchpad"          # Scratchpad terminal (Alt+Space)
 riverctl map normal $mod B spawn google-chrome-stable                         # Browser
-riverctl map normal $mod R spawn "$TERM_CMD lf"                                # File manager (lf)
+riverctl map normal $mod R spawn "$TERMINAL -e lf"                             # File manager (lf)
 riverctl map normal $mod F spawn pcmanfm                                      # File manager (GUI)
 riverctl map normal $mod C spawn code                                         # VSCode
 

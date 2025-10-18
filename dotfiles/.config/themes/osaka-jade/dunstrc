@@ -1,0 +1,16 @@
+# Osaka Jade color scheme for dunst
+
+[urgency_low]
+    background = "#111c18"
+    foreground = "#C1C497"
+    frame_color = "#53685B"
+
+[urgency_normal]
+    background = "#111c18"
+    foreground = "#C1C497"
+    frame_color = "#2DD5B7"
+
+[urgency_critical]
+    background = "#111c18"
+    foreground = "#FF5345"
+    frame_color = "#FF5345"

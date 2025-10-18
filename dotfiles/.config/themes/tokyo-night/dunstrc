@@ -1,0 +1,16 @@
+# Tokyo Night color scheme for dunst
+
+[urgency_low]
+    background = "#1a1b26"
+    foreground = "#a9b1d6"
+    frame_color = "#444b6a"
+
+[urgency_normal]
+    background = "#1a1b26"
+    foreground = "#a9b1d6"
+    frame_color = "#7aa2f7"
+
+[urgency_critical]
+    background = "#1a1b26"
+    foreground = "#f7768e"
+    frame_color = "#f7768e"

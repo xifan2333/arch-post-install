@@ -5,8 +5,7 @@
 riverctl rule-add -app-id "*" ssd
 
 # Floating windows
-riverctl rule-add -app-id "scratchpad" float                        # Scratchpad terminal
-riverctl rule-add -title "Floating_Term" float                      # Floating terminal
+riverctl rule-add -app-id "scratchpad" float                        # Scratchpad terminal                    # Floating terminal
 riverctl rule-add -app-id "file-*" float                            # GIMP file dialogs
 riverctl rule-add -app-id "script-fu" float                         # GIMP script-fu
 riverctl rule-add -app-id "electron" -title "Open*" float           # Electron open dialogs

@@ -11,7 +11,9 @@ CURRENT_LINK="$HOME/.config/current"
 WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
 if [ -f "$WMENU_LIB" ]; then
     . "$WMENU_LIB"
-    load_theme_colors
+else
+    echo "Error: wmenu common library not found" >&2
+    exit 1
 fi
 
 # Get current theme name
@@ -39,14 +41,7 @@ get_themes() {
 }
 
 # Show wmenu selector with theme colors
-SELECTED=$(get_themes | wmenu -p "选择主题:" \
-    -f "$WMENU_FONT" \
-    -N "${COLOR_BG0#\#}" \
-    -n "${COLOR_FG0#\#}" \
-    -M "${COLOR_BLUE#\#}" \
-    -m "${COLOR_BG0#\#}" \
-    -S "${COLOR_GREEN#\#}" \
-    -s "${COLOR_BG0#\#}")
+SELECTED=$(get_themes | run_wmenu -p "Select theme:")
 
 # User cancelled
 [ -z "$SELECTED" ] && exit 0
@@ -67,6 +62,11 @@ echo "Switched to theme: $THEME_NAME"
 
 # Reload applications to apply theme
 reload_apps() {
+    # Sync GTK color scheme (light/dark mode)
+    if [ -f "$HOME/.local/lib/l-theme-sync-gtk" ]; then
+        "$HOME/.local/lib/l-theme-sync-gtk"
+    fi
+
     # Reload waybar
     if pgrep -x waybar >/dev/null; then
         killall waybar
@@ -98,6 +98,31 @@ reload_apps() {
         "$HOME/.local/lib/l-theme-sync-eza"
     fi
 
+    # Restart dunst to apply new theme
+    if pgrep -x dunst >/dev/null; then
+        killall dunst
+        riverctl spawn dunst &
+        echo "Dunst restarted with new theme"
+    fi
+
+    # Sync btop theme
+    if [ -f "$HOME/.local/lib/l-theme-sync-btop" ]; then
+        "$HOME/.local/lib/l-theme-sync-btop"
+    fi
+
+    # Sync fcitx5 theme
+    if [ -f "$HOME/.local/lib/l-theme-sync-fcitx5" ]; then
+        "$HOME/.local/lib/l-theme-sync-fcitx5"
+    fi
+
+    # Apply River WM border colors
+    if [ -f "$THEME_PATH/riverrc" ]; then
+        . "$THEME_PATH/riverrc"
+        riverctl border-color-focused "${RIVER_BORDER_FOCUSED:-0x61afefff}"
+        riverctl border-color-unfocused "${RIVER_BORDER_UNFOCUSED:-0x4b5263ff}"
+        echo "River border colors updated"
+    fi
+
     # Sync browser theme (optional, requires sudo)
     # Uncomment to enable browser theme syncing:
     # if [ -f "$HOME/.local/lib/l-theme-sync-browser" ]; then
@@ -109,5 +134,5 @@ reload_apps
 
 # Send notification
 if command -v notify-send >/dev/null 2>&1; then
-    notify-send "主题切换" "已切换到: ${THEME_NAME}\n\n✓ Waybar 已重启\n✓ 终端配置已重载\n✓ VSCode 主题已同步\n✓ Eza 主题已同步"
+    notify-send -i preferences-desktop-theme "Theme Switcher" "Theme switched to $THEME_NAME"
 fi

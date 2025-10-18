@@ -15,7 +15,11 @@
 @define-color color-orange #e78a4e;
 @define-color color-yellow #d8a657;
 @define-color color-green #a9b665;
-@define-color color-cyan #89b482;
+@define-color color-cyan #89b482;  /* Official Gruvbox cyan/aqua */
 @define-color color-blue #7daea3;
 @define-color color-purple #d3869b;
 @define-color color-pink #d3869b;
+
+/* Semantic accent colors for UI elements */
+@define-color accent-primary #d8a657;   /* Primary accent (yellow) */
+@define-color accent-secondary #e78a4e; /* Secondary accent (orange) */

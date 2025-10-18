@@ -7,8 +7,7 @@ EZA_THEME_FILE="$HOME/.config/current/eza.yml"
 EZA_CONFIG_DIR="$HOME/.config/eza"
 EZA_THEME_LINK="$EZA_CONFIG_DIR/theme.yml"
 
-# Create eza config directory if it doesn't exist
-mkdir -p "$EZA_CONFIG_DIR"
+
 
 # Check if theme has eza configuration
 if [ -f "$EZA_THEME_FILE" ]; then

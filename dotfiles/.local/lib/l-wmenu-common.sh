@@ -2,31 +2,20 @@
 # Common wmenu wrapper with theme colors and font
 # Usage: source this file and use run_wmenu function
 
-# Parse color from waybar.css
-# Usage: parse_waybar_color <color-name>
-# Example: parse_waybar_color "color-bg0" returns "#282828"
-parse_waybar_color() {
-    local color_name="$1"
-    local waybar_css="$HOME/.config/current/waybar.css"
-
-    if [ -f "$waybar_css" ]; then
-        grep "@define-color $color_name" "$waybar_css" | \
-            sed -n 's/.*@define-color [^ ]* \(#[0-9a-fA-F]*\);.*/\1/p' | \
-            head -n1
-    fi
-}
-
 # Load theme colors and font configuration
 load_theme_colors() {
-    # Try to load colors from current theme's waybar.css
-    if [ -f "$HOME/.config/current/waybar.css" ]; then
-        COLOR_BG0=$(parse_waybar_color "color-bg0")
-        COLOR_FG0=$(parse_waybar_color "color-fg0")
-        COLOR_BLUE=$(parse_waybar_color "color-blue")
-        COLOR_GREEN=$(parse_waybar_color "color-green")
+    local wmenu_conf="$HOME/.config/current/wmenu.conf"
+
+    # Try to load colors from wmenu.conf
+    if [ -f "$wmenu_conf" ]; then
+        . "$wmenu_conf"
+        COLOR_BG0="${WMENU_BG}"
+        COLOR_FG0="${WMENU_FG}"
+        COLOR_BLUE="${WMENU_HIGHLIGHT}"
+        COLOR_GREEN="${WMENU_SELECT}"
     fi
 
-    # Set default colors if parsing failed
+    # Set default colors if loading failed
     COLOR_BG0="${COLOR_BG0:-#282c34}"
     COLOR_FG0="${COLOR_FG0:-#abb2bf}"
     COLOR_BLUE="${COLOR_BLUE:-#61afef}"

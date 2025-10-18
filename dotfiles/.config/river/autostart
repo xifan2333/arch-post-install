@@ -1,26 +1,20 @@
 #!/bin/sh
 # River autostart programs
 
-# Set locale (must be set before importing to systemd)
-export LANG=zh_CN.UTF-8
-export LANGUAGE=zh_CN:en_US
+# Restart on every reload (kill managed services)
+killall -q waybar swaybg fcitx5 dunst
 
-# Import environment for systemd user session and dbus
-# Required for xdg-desktop-portal and proper locale to work
-systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP LANG LANGUAGE
-dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP LANG LANGUAGE
+# Note: UWSM handles systemd environment import automatically
+# No need to manually import WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP, etc.
 
-# Restart on every reload
-killall -q waybar swaybg fcitx5
+# Status bar - managed by uwsm
+uwsm app -- waybar &
 
-# Alacritty terminal - no server mode needed (fast startup)
-# The configuration will auto-reload when changed
+# Input method - managed by uwsm
+uwsm app -- fcitx5 -d &
 
-# Status bar
-riverctl spawn waybar
-
-# Input method
-riverctl spawn "fcitx5 -d"
+# Notification daemon - managed by uwsm
+uwsm app -- dunst &
 
 # Wallpaper - restore from saved state
 if command -v swaybg >/dev/null 2>&1; then
@@ -28,23 +22,29 @@ if command -v swaybg >/dev/null 2>&1; then
     if [ -f "$WALLPAPER_STATE" ] && [ -s "$WALLPAPER_STATE" ]; then
         WALLPAPER_PATH=$(cat "$WALLPAPER_STATE")
         if [ -f "$WALLPAPER_PATH" ]; then
-            riverctl spawn "swaybg -i $WALLPAPER_PATH -m fill"
+            uwsm app -- swaybg -i "$WALLPAPER_PATH" -m fill &
         else
             # Fallback to solid color if saved wallpaper doesn't exist
-            riverctl spawn "swaybg -c '#1d2021'"
+            uwsm app -- swaybg -c '#1d2021' &
         fi
     else
         # No saved wallpaper, use solid color
-        riverctl spawn "swaybg -c '#1d2021'"
+        uwsm app -- swaybg -c '#1d2021' &
     fi
 fi
 
-# Start if not running
-pgrep 'dunst' || riverctl spawn "dunst"
+# Clipboard history manager - managed by uwsm
+uwsm app -- wl-paste --type text --watch cliphist store &
+uwsm app -- wl-paste --type image --watch cliphist store &
 
-pgrep 'polkit-gnome' || riverctl spawn "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+# Polkit authentication agent
+pgrep 'polkit-gnome' || riverctl spawn "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1" &
 
-pgrep 'nm-applet' || riverctl spawn "nm-applet --indicator"
+# Network manager applet
+pgrep 'nm-applet' || uwsm app -- nm-applet --indicator &
 
-# Layout generator
+# Bluetooth tray
+pgrep 'blueman-applet' || uwsm app -- blueman-applet &
+
+# Layout generator - NOT managed by uwsm (river-specific)
 riverctl spawn rivertile

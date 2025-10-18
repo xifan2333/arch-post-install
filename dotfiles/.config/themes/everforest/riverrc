@@ -1,0 +1,5 @@
+# Everforest Dark color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0xa7c080ff
+export RIVER_BORDER_UNFOCUSED=0x3d484dff

@@ -1,0 +1,16 @@
+# One Light color scheme for dunst (light theme)
+
+[urgency_low]
+    background = "#fafafa"
+    foreground = "#383a42"
+    frame_color = "#a0a1a7"
+
+[urgency_normal]
+    background = "#fafafa"
+    foreground = "#383a42"
+    frame_color = "#4078f2"
+
+[urgency_critical]
+    background = "#fafafa"
+    foreground = "#e45649"
+    frame_color = "#e45649"

@@ -1,0 +1,7 @@
+# UWSM environment configuration for River
+# Changes require a relaunch of River to take effect.
+# Note: Basic env vars (PATH, TERMINAL, EDITOR) are in ~/.config/uwsm/env
+
+# Activate mise if present on the system
+command -v mise &>/dev/null && eval "$(mise activate bash)"
+

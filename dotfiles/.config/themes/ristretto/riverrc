@@ -1,0 +1,5 @@
+# Ristretto color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0xa8a9ebff
+export RIVER_BORDER_UNFOCUSED=0x4a3f3fff

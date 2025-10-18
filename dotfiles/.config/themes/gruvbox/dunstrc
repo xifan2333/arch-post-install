@@ -1,0 +1,17 @@
+# Gruvbox Dark color scheme for dunst
+# Colors extracted from theme
+
+[urgency_low]
+    background = "#282828"
+    foreground = "#d4be98"
+    frame_color = "#a89984"
+
+[urgency_normal]
+    background = "#282828"
+    foreground = "#d4be98"
+    frame_color = "#d8a657"
+
+[urgency_critical]
+    background = "#282828"
+    foreground = "#ea6962"
+    frame_color = "#ea6962"

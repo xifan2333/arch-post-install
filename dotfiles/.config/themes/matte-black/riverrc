@@ -1,0 +1,5 @@
+# Matte Black color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0xe68e0dff
+export RIVER_BORDER_UNFOCUSED=0x3a3a3aff

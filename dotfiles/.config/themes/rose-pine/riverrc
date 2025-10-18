@@ -1,0 +1,5 @@
+# Rose Pine Dawn color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0xb4637aff
+export RIVER_BORDER_UNFOCUSED=0xf2e9e1ff

@@ -1,0 +1,16 @@
+# Matte Black color scheme for dunst
+
+[urgency_low]
+    background = "#121212"
+    foreground = "#bebebe"
+    frame_color = "#8a8a8d"
+
+[urgency_normal]
+    background = "#121212"
+    foreground = "#bebebe"
+    frame_color = "#e68e0d"
+
+[urgency_critical]
+    background = "#121212"
+    foreground = "#D35F5F"
+    frame_color = "#D35F5F"

@@ -15,7 +15,11 @@
 @define-color color-orange #ff9e64;
 @define-color color-yellow #e0af68;
 @define-color color-green #9ece6a;
-@define-color color-cyan #449dab;
+@define-color color-cyan #7dcfff;  /* Official Tokyo Night cyan */
 @define-color color-blue #7aa2f7;
 @define-color color-purple #ad8ee6;
 @define-color color-pink #ad8ee6;
+
+/* Semantic accent colors for UI elements */
+@define-color accent-primary #7aa2f7;   /* Primary accent (blue) */
+@define-color accent-secondary #7dcfff; /* Secondary accent (cyan) */

@@ -1,0 +1,16 @@
+# Ristretto color scheme for dunst
+
+[urgency_low]
+    background = "#2c2525"
+    foreground = "#e6d9db"
+    frame_color = "#948a8b"
+
+[urgency_normal]
+    background = "#2c2525"
+    foreground = "#e6d9db"
+    frame_color = "#a8a9eb"
+
+[urgency_critical]
+    background = "#2c2525"
+    foreground = "#fd6883"
+    frame_color = "#fd6883"

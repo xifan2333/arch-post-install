@@ -1,0 +1,375 @@
+#!/bin/bash
+
+# ccm - Claude Config Manager
+# Usage: ccm <command> [options]
+
+set -e
+
+# XDG Base Directory Specification
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+CONFIG_DIR="$XDG_CONFIG_HOME/claude"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+# Ensure config directory exists
+mkdir -p "$CONFIG_DIR"
+
+# Create default config file if not exists
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    cat > "$CONFIG_FILE" << 'EOF'
+# Claude API Configuration
+# Format: name key url
+# Example:
+# openai sk-xxx https://api.openai.com/v1
+# anthropic sk-ant-xxx https://api.anthropic.com
+EOF
+fi
+
+# Helper functions
+get_current_config() {
+    # Get from environment variable only
+    echo "${CLAUDE_PROVIDER:-}"
+}
+
+ensure_source_in_shell() {
+    local env_file="$1"
+    local env_fish="$2"
+
+    # For bash/zsh
+    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [[ -f "$rc_file" || -L "$rc_file" ]]; then
+            # Resolve symlink if exists
+            local target_file="$rc_file"
+            if [[ -L "$rc_file" ]]; then
+                target_file=$(readlink -f "$rc_file")
+            fi
+
+            # Check if source statement already exists
+            if ! grep -qF "source \"$env_file\"" "$target_file" 2>/dev/null; then
+                echo "" >> "$target_file"
+                echo "# Claude Config Manager - auto-generated" >> "$target_file"
+                echo "[[ -f \"$env_file\" ]] && source \"$env_file\"" >> "$target_file"
+            fi
+        fi
+    done
+
+    # For fish
+    local fish_config="$HOME/.config/fish/config.fish"
+    if [[ -f "$fish_config" || -L "$fish_config" ]]; then
+        # Resolve symlink if exists
+        local target_file="$fish_config"
+        if [[ -L "$fish_config" ]]; then
+            target_file=$(readlink -f "$fish_config")
+        fi
+
+        # Check if source statement already exists
+        if ! grep -qF "source \"$env_fish\"" "$target_file" 2>/dev/null; then
+            echo "" >> "$target_file"
+            echo "# Claude Config Manager - auto-generated" >> "$target_file"
+            echo "test -f \"$env_fish\"; and source \"$env_fish\"" >> "$target_file"
+        fi
+    fi
+}
+
+list_configs() {
+    local current
+    current=$(get_current_config)
+    echo "Available providers:"
+    
+    while IFS=' ' read -r name key url; do
+        # Skip comments and empty lines
+        if [[ "$name" =~ ^#.*$ ]] || [[ -z "$name" ]]; then
+            continue
+        fi
+        
+        if [[ "$name" == "$current" ]]; then
+            echo "* $name $url (current)"
+        else
+            echo "  $name $url"
+        fi
+    done < "$CONFIG_FILE"
+    
+    if [[ -z "$current" ]]; then
+        echo ""
+        echo "No current provider selected. Use 'ccm use <name>' to select one."
+    fi
+}
+
+show_help() {
+    cat << EOF
+ccm - Claude Config Manager
+
+USAGE:
+    ccm <command> [options]
+
+COMMANDS:
+    init                        Create template config file
+    ls                          List all providers
+    add                         Add a provider interactively
+    rm <name>                   Remove a provider
+    use <name>                  Switch to provider and update shell configuration
+    edit                        Edit config file with nvim
+    help                        Show this help message
+
+CONFIG FILE FORMAT:
+    # Comments start with #
+    name key url
+    
+EXAMPLES:
+    # Create template config file
+    ccm init
+    
+    # Add a provider interactively
+    ccm add
+    
+    # Edit config file
+    ccm edit
+    
+    # List providers
+    ccm ls
+    
+    # Remove a provider
+    ccm rm openai
+    
+    # Switch to a provider (updates shell configuration automatically)
+    ccm use openai
+
+CONFIG FILE:
+    $CONFIG_FILE
+EOF
+}
+
+# Main command handling
+case "${1:-}" in
+    "init")
+        if [[ -f "$CONFIG_FILE" ]]; then
+            echo "Config file already exists at: $CONFIG_FILE"
+            echo "Use 'ccm edit' to modify it"
+        else
+            cat > "$CONFIG_FILE" << 'EOF'
+# ccm - Claude Config Manager
+# Format: name key url
+# Add your providers below:
+
+# Official Anthropic
+anthropic sk-ant-api03-xxxxxxxx https://api.anthropic.com
+
+# Popular relay services (replace with your actual keys)
+# openrouter sk-or-xxxxxxxx https://openrouter.ai/api/v1
+# claude2api sk-xxxxxxxx https://claude2api.com/v1
+# anyrouter sk-xxxxxxxx https://anyrouter.top
+
+# Self-hosted
+# local sk-xxxxxxxx http://localhost:8080/v1
+EOF
+            echo "Created template config file at: $CONFIG_FILE"
+            echo "Edit it with: ccm edit"
+        fi
+        ;;
+        
+    "ls"|"list")
+        list_configs
+        ;;
+        
+    "add")
+    echo "Add new provider"
+        echo ""
+
+        read -r -e -p "Name: " name
+        if [[ -z "$name" ]]; then
+            echo "Error: Name is required" >&2
+            exit 1
+        fi
+
+        # Check if name already exists
+        exists=false
+        while IFS=' ' read -r config_name _key _url; do
+            [[ "$config_name" =~ ^#.*$ || -z "$config_name" ]] && continue
+            if [[ "$config_name" == "$name" ]]; then
+                exists=true
+                break
+            fi
+        done < "$CONFIG_FILE"
+
+        if [[ "$exists" == true ]]; then
+            echo "Error: Provider '$name' already exists" >&2
+            exit 1
+        fi
+
+        read -r -e -p "API Key: " key
+        if [[ -z "$key" ]]; then
+            echo "Error: API Key is required" >&2
+            exit 1
+        fi
+
+        read -r -e -p "Base URL [https://api.anthropic.com]: " url
+        url="${url:-https://api.anthropic.com}"
+
+        # Append to config file
+        printf "%s %s %s\n" "$name" "$key" "$url" >> "$CONFIG_FILE"
+
+        echo ""
+        echo "Added provider '$name'"
+        echo "Run: ccm use $name"
+        ;;
+
+    "rm")
+        if [[ $# -ne 2 ]]; then
+            echo "Usage: ccm rm <name>" >&2
+            exit 1
+        fi
+
+        name="$2"
+
+        # Verify it exists
+        found=false
+        while IFS=' ' read -r config_name _key _url; do
+            [[ "$config_name" =~ ^#.*$ || -z "$config_name" ]] && continue
+            if [[ "$config_name" == "$name" ]]; then
+                found=true
+                break
+            fi
+        done < "$CONFIG_FILE"
+
+        if [[ "$found" != true ]]; then
+            echo "Error: Provider '$name' not found" >&2
+            exit 1
+        fi
+
+        # Remove matching entry (preserve comments/blank lines)
+        tmp_file=$(mktemp)
+        awk -v n="$name" '
+            BEGIN { OFS=" " }
+            $0 ~ /^\s*#/ { print; next }
+            NF==0 { print; next }
+            $1==n { next }
+            { print }
+        ' "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
+
+        # If it was current, clear env files
+        current=$(get_current_config)
+        if [[ "$current" == "$name" ]]; then
+            # Unset environment variables in current session
+            unset CLAUDE_PROVIDER
+            unset ANTHROPIC_AUTH_TOKEN
+            unset ANTHROPIC_BASE_URL
+
+            # Remove environment variable files
+            ENV_FILE="$CONFIG_DIR/env"
+            ENV_FISH="$CONFIG_DIR/env.fish"
+
+            rm -f "$ENV_FILE" "$ENV_FISH"
+
+            echo "Removed '$name' (was current)"
+            echo "Environment cleared from current and future sessions."
+        else
+            echo "Removed '$name'"
+        fi
+        ;;
+
+    "use")
+        if [[ $# -ne 2 ]]; then
+            echo "Error: use requires provider name" >&2
+            echo "Usage: ccm use <name>" >&2
+            exit 1
+        fi
+
+        name="$2"
+        found=false
+        found_key=""
+        found_url=""
+
+        while IFS=' ' read -r config_name key url; do
+            if [[ "$config_name" =~ ^#.*$ ]] || [[ -z "$config_name" ]]; then
+                continue
+            fi
+
+            if [[ "$config_name" == "$name" ]]; then
+                found=true
+                found_key="$key"
+                found_url="$url"
+                break
+            fi
+        done < "$CONFIG_FILE"
+
+        if [[ "$found" == "true" ]]; then
+            # Export to current session immediately
+            export CLAUDE_PROVIDER="$name"
+            export ANTHROPIC_AUTH_TOKEN="$found_key"
+            export ANTHROPIC_BASE_URL="$found_url"
+
+            # Write environment variables to env (for bash/zsh)
+            ENV_FILE="$CONFIG_DIR/env"
+            cat > "$ENV_FILE" << EOF
+# Claude API Configuration - managed by ccm
+# Current provider: $name
+# DO NOT commit this file to git - contains sensitive API keys
+
+export CLAUDE_PROVIDER="$name"
+export ANTHROPIC_AUTH_TOKEN="$found_key"
+export ANTHROPIC_BASE_URL="$found_url"
+EOF
+            chmod 600 "$ENV_FILE"
+
+            # Write environment variables to env.fish (for fish shell)
+            ENV_FISH="$CONFIG_DIR/env.fish"
+            cat > "$ENV_FISH" << EOF
+# Claude API Configuration - managed by ccm
+# Current provider: $name
+# DO NOT commit this file to git - contains sensitive API keys
+
+set -gx CLAUDE_PROVIDER "$name"
+set -gx ANTHROPIC_AUTH_TOKEN "$found_key"
+set -gx ANTHROPIC_BASE_URL "$found_url"
+EOF
+            chmod 600 "$ENV_FISH"
+
+            # Ensure shell configs source the env files
+            ensure_source_in_shell "$ENV_FILE" "$ENV_FISH"
+
+            echo "Switched to '$name'"
+            echo "Current session updated. New shells will auto-load settings."
+        else
+            echo "Error: Provider '$name' not found" >&2
+            echo "Use 'ccm ls' to see available providers" >&2
+            exit 1
+        fi
+        ;;
+        
+    "edit")
+        if command -v nvim >/dev/null 2>&1; then
+            nvim "$CONFIG_FILE"
+        elif command -v vim >/dev/null 2>&1; then
+            vim "$CONFIG_FILE"
+        elif command -v nano >/dev/null 2>&1; then
+            nano "$CONFIG_FILE"
+        elif [[ -n "$EDITOR" ]]; then
+            "$EDITOR" "$CONFIG_FILE"
+        elif [[ -n "$VISUAL" ]]; then
+            "$VISUAL" "$CONFIG_FILE"
+        else
+            echo "Error: No editor found. Please install nvim, vim, nano, or set EDITOR/VISUAL:" >&2
+            echo "$CONFIG_FILE" >&2
+            exit 1
+        fi
+        ;;
+        
+    "help"|"-h"|"--help")
+        show_help
+        ;;
+        
+    "")
+        current=$(get_current_config)
+        if [[ -n "$current" ]]; then
+            echo "Current provider: $current"
+        else
+            echo "No provider selected"
+            echo "Use 'ccm ls' to see available providers"
+        fi
+        ;;
+        
+    *)
+        echo "Error: Unknown command '$1'" >&2
+        echo "Use 'ccm help' for usage information" >&2
+        exit 1
+        ;;
+esac

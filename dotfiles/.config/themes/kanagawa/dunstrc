@@ -1,0 +1,16 @@
+# Kanagawa color scheme for dunst
+
+[urgency_low]
+    background = "#1f1f28"
+    foreground = "#dcd7ba"
+    frame_color = "#727169"
+
+[urgency_normal]
+    background = "#1f1f28"
+    foreground = "#dcd7ba"
+    frame_color = "#957fb8"
+
+[urgency_critical]
+    background = "#1f1f28"
+    foreground = "#e82424"
+    frame_color = "#e82424"

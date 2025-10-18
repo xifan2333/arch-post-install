@@ -21,3 +21,7 @@
 @define-color color-blue #1e66f5;
 @define-color color-purple #8839ef;
 @define-color color-pink #ea76cb;
+
+/* Semantic accent colors for UI elements */
+@define-color accent-primary #8839ef;   /* Primary accent (mauve) */
+@define-color accent-secondary #1e66f5; /* Secondary accent (blue) */

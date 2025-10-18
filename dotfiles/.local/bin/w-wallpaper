@@ -15,16 +15,29 @@ WALLPAPER_DIR="$XDG_PICTURES_DIR/wallpapers"
 WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
 if [ -f "$WMENU_LIB" ]; then
     . "$WMENU_LIB"
-    load_theme_colors
 else
-    # Fallback
-    if [ -f "$XDG_CONFIG_HOME/theme/colors.sh" ]; then
-        . "$XDG_CONFIG_HOME/theme/colors.sh"
-    fi
+    echo "Error: wmenu common library not found" >&2
+    exit 1
+fi
+
+# Load i18n library
+I18N_LIB="$HOME/.local/lib/l-i18n.sh"
+if [ -f "$I18N_LIB" ]; then
+    . "$I18N_LIB"
+else
+    echo "Error: i18n library not found" >&2
+    exit 1
 fi
 
 # Ensure wallpaper directory exists
 mkdir -p "$WALLPAPER_DIR"
+
+# Notification helper
+notify() {
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$(t "wallpaper.title")" "$1"
+    fi
+}
 
 # Set wallpaper using swaybg (Wayland)
 set_wallpaper() {
@@ -37,6 +50,7 @@ set_wallpaper() {
     swaybg -i "$wallpaper" -m fill &
 
     # Save wallpaper path to state file
+    mkdir -p "$(dirname "$WALLPAPER_STATE")"
     echo "$wallpaper" > "$WALLPAPER_STATE"
 
     echo "Wallpaper set to: $wallpaper"
@@ -57,19 +71,14 @@ download_bing_wallpaper() {
     if curl -L -s -o "$WALLPAPER_PATH" "$BING_API"; then
         echo "Downloaded: $WALLPAPER_PATH"
     else
-        if command -v notify-send >/dev/null 2>&1; then
-            notify-send "壁纸设置" "无法获取 Bing 每日壁纸"
-        fi
+        notify "$(t "wallpaper.bing_error")"
         echo "Error: Failed to download Bing wallpaper" >&2
         exit 1
     fi
 
     # Set as wallpaper
     set_wallpaper "$WALLPAPER_PATH"
-
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send "壁纸设置" "已设置 Bing 每日壁纸"
-    fi
+    notify "$(t "wallpaper.bing_success")"
 }
 
 # Select wallpaper from local directory
@@ -78,22 +87,13 @@ select_local_wallpaper() {
     local images=$(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) -printf "%f\n" | sort)
 
     if [ -z "$images" ]; then
-        if command -v notify-send >/dev/null 2>&1; then
-            notify-send "壁纸设置" "未找到壁纸文件\n请将图片放入 $WALLPAPER_DIR"
-        fi
+        notify "$(t "wallpaper.not_found")"
         echo "Error: No wallpapers found in $WALLPAPER_DIR" >&2
         exit 1
     fi
 
     # Show selection menu
-    local selected=$(echo "$images" | wmenu -p "选择壁纸:" \
-        -f "$WMENU_FONT" \
-        -N "${COLOR_BG0#\#}" \
-        -n "${COLOR_FG0#\#}" \
-        -M "${COLOR_BLUE#\#}" \
-        -m "${COLOR_BG0#\#}" \
-        -S "${COLOR_GREEN#\#}" \
-        -s "${COLOR_BG0#\#}")
+    local selected=$(echo "$images" | run_wmenu -p "$(t "wallpaper.select_prompt")")
 
     # User cancelled
     [ -z "$selected" ] && exit 0
@@ -101,30 +101,20 @@ select_local_wallpaper() {
     # Set wallpaper
     WALLPAPER_PATH="$WALLPAPER_DIR/$selected"
     set_wallpaper "$WALLPAPER_PATH"
-
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send "壁纸设置" "已设置壁纸: $selected"
-    fi
+    notify "$(t "wallpaper.set_success" "$selected")"
 }
 
 # Main menu
-MODE=$(printf "本地壁纸\nBing 随机壁纸" | wmenu -p "壁纸模式:" \
-    -f "$WMENU_FONT" \
-    -N "${COLOR_BG0#\#}" \
-    -n "${COLOR_FG0#\#}" \
-    -M "${COLOR_BLUE#\#}" \
-    -m "${COLOR_BG0#\#}" \
-    -S "${COLOR_GREEN#\#}" \
-    -s "${COLOR_BG0#\#}")
+MODE=$(printf "$(t "wallpaper.local")\n$(t "wallpaper.bing")" | run_wmenu -p "$(t "wallpaper.mode_prompt")")
 
 # User cancelled
 [ -z "$MODE" ] && exit 0
 
 case "$MODE" in
-    "本地壁纸")
+    "$(t "wallpaper.local")")
         select_local_wallpaper
         ;;
-    "Bing 随机壁纸")
+    "$(t "wallpaper.bing")")
         download_bing_wallpaper
         ;;
     *)

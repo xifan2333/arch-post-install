@@ -19,3 +19,7 @@
 @define-color color-blue #f38d70;
 @define-color color-purple #a8a9eb;
 @define-color color-pink #fd6883;
+
+/* Semantic accent colors for UI elements */
+@define-color accent-primary #a8a9eb;   /* Primary accent (purple) */
+@define-color accent-secondary #85dacc; /* Secondary accent (cyan) */

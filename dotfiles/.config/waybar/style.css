@@ -30,15 +30,15 @@ window#waybar {
 }
 
 #tags button.focused {
-    color: @color-blue;
-    border-bottom: 2px solid @color-blue;
+    color: @accent-secondary;
+    border-bottom: 2px solid @accent-secondary;
     font-weight: bold;
 }
 
 #tags button.focused.occupied {
-    color: @color-cyan;
+    color: @accent-primary;
     background: @color-bg1;
-    border-bottom: 2px solid @color-cyan;
+    border-bottom: 2px solid @accent-primary;
     font-weight: bold;
 }
 
@@ -58,24 +58,19 @@ window#waybar {
     padding: 0 10px;
 }
 
-#tray > .passive {
+#tray > * {
     background: transparent;
-}
-
-#tray > .active {
-    background: @color-bg1;
 }
 
 #tray > .needs-attention {
     background: @color-red;
-    color: @color-bg0;
 }
 
 
 /* Network */
 #network {
     padding: 0 10px;
-    color: @color-cyan;
+    color: @accent-secondary;
 }
 
 #network.disconnected {

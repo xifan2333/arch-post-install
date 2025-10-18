@@ -46,6 +46,16 @@ if command -v mise &> /dev/null; then
     eval "$(mise activate zsh)"
 fi
 
+# eza - modern ls replacement
+if command -v eza &> /dev/null; then
+    alias ls='eza'
+    alias ll='eza -l --icons --git'
+    alias la='eza -la --icons --git'
+    alias lt='eza --tree --level=2 --icons'
+    alias l='eza -lah --icons --git'
+    alias tree='eza --tree --icons'
+fi
+
 # starship prompt (must be at the end)
 if command -v starship &> /dev/null; then
     eval "$(starship init zsh)"

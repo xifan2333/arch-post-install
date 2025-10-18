@@ -4,8 +4,7 @@
 
 set -e
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 
 # Simple output functions (no dependencies)
 print_step() { echo -e "\n\033[0;34m==>\033[0m \033[1;37m$1\033[0m"; }
@@ -70,8 +69,27 @@ hwclock --systohc
 
 print_success "Localization configured"
 
-# 5. Create install marker
-echo "$(date '+%Y-%m-%d %H:%M:%S')" > /root/.arch-post-install-root-done
+# 3. Enable bluetooth
+print_step "Configure bluetooth"
+
+# Load bluetooth kernel modules
+if ! lsmod | grep -q "^btusb"; then
+    modprobe btusb 2>/dev/null || print_warning "btusb module not available (may need bluetooth hardware)"
+fi
+
+# Enable bluetooth service
+if systemctl enable bluetooth.service; then
+    print_success "Bluetooth service enabled"
+else
+    print_warning "Failed to enable bluetooth service"
+fi
+
+if systemctl start bluetooth.service; then
+    print_success "Bluetooth service started"
+else
+    print_warning "Failed to start bluetooth service"
+fi
+
 
 print_step "Stage 1 Complete!"
 echo ""

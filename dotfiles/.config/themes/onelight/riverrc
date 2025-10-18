@@ -1,0 +1,5 @@
+# One Light color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0x4078f2ff
+export RIVER_BORDER_UNFOCUSED=0xe5e5e6ff

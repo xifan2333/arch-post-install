@@ -1,0 +1,16 @@
+# Nord color scheme for dunst
+
+[urgency_low]
+    background = "#2e3440"
+    foreground = "#d8dee9"
+    frame_color = "#4c566a"
+
+[urgency_normal]
+    background = "#2e3440"
+    foreground = "#d8dee9"
+    frame_color = "#88c0d0"
+
+[urgency_critical]
+    background = "#2e3440"
+    foreground = "#bf616a"
+    frame_color = "#bf616a"

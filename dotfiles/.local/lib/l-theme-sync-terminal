@@ -3,12 +3,6 @@
 
 set -e
 
-# Load terminal configuration
-TERMINAL_CONFIG="$HOME/.local/lib/l-terminal-config.sh"
-if [ -f "$TERMINAL_CONFIG" ]; then
-    . "$TERMINAL_CONFIG"
-fi
-
 # Detect terminal emulator
 TERMINAL="${TERMINAL:-alacritty}"
 

@@ -1,0 +1,5 @@
+# Osaka Jade color scheme for River WM
+# Border colors in format: 0xRRGGBBAA
+
+export RIVER_BORDER_FOCUSED=0x2dd5b7ff
+export RIVER_BORDER_UNFOCUSED=0x243a32ff

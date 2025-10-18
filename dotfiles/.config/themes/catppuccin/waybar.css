@@ -15,7 +15,12 @@
 @define-color color-orange #f5a97f;
 @define-color color-yellow #eed49f;
 @define-color color-green #a6da95;
-@define-color color-cyan #8bd5ca;
+@define-color color-cyan #8bd5ca;  /* Official Catppuccin Macchiato teal */
 @define-color color-blue #8aadf4;
-@define-color color-purple #f5bde6;
+@define-color color-purple #f5bde6;  /* Lavender/Pink */
 @define-color color-pink #f5bde6;
+
+/* Semantic accent colors for UI elements */
+@define-color color-mauve #c6a0f6;      /* Catppuccin signature mauve color */
+@define-color accent-primary #c6a0f6;   /* Primary accent (mauve) */
+@define-color accent-secondary #8aadf4; /* Secondary accent (blue) */

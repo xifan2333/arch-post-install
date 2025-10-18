@@ -1,0 +1,16 @@
+# Catppuccin Latte color scheme for dunst (light theme)
+
+[urgency_low]
+    background = "#eff1f5"
+    foreground = "#4c4f69"
+    frame_color = "#acb0be"
+
+[urgency_normal]
+    background = "#eff1f5"
+    foreground = "#4c4f69"
+    frame_color = "#8839ef"
+
+[urgency_critical]
+    background = "#eff1f5"
+    foreground = "#d20f39"
+    frame_color = "#d20f39"

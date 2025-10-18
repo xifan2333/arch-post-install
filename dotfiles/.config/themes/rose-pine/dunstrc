@@ -1,0 +1,16 @@
+# Rose Pine Dawn color scheme for dunst (light theme)
+
+[urgency_low]
+    background = "#faf4ed"
+    foreground = "#575279"
+    frame_color = "#9893a5"
+
+[urgency_normal]
+    background = "#faf4ed"
+    foreground = "#575279"
+    frame_color = "#b4637a"
+
+[urgency_critical]
+    background = "#faf4ed"
+    foreground = "#b4637a"
+    frame_color = "#b4637a"

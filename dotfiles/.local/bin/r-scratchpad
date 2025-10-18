@@ -1,24 +1,25 @@
 #!/bin/sh
-# Toggle scratchpad terminal in River
-
-# Load terminal configuration
-TERM_CONFIG="$HOME/.local/lib/l-terminal-config.sh"
-if [ -f "$TERM_CONFIG" ]; then
-    . "$TERM_CONFIG"
-else
-    # Fallback if config not found
-    TERM_APP_ID="kitty --class"
-fi
+# Toggle scratchpad in River
+# Usage: r-scratchpad [command] [app-id/class]
+#
+# Examples:
+#   r-scratchpad "alacritty --class scratchpad" "scratchpad"
+#   r-scratchpad "btop" "btop"
+#   r-scratchpad "kitty --class=scratch" "scratch"
 
 SCRATCH_TAG=$((1 << 31))  # Tag 32 for scratchpad
 
-# Check if scratchpad terminal is already running
-if pgrep -f "alacritty.*scratchpad" >/dev/null; then
-    # Terminal exists, just toggle its visibility
+# Get command and app-id from arguments
+COMMAND="${1:-alacritty --class scratchpad}"
+APP_ID="${2:-scratchpad}"
+
+# Check if scratchpad window is already running
+if pgrep -f "$APP_ID" >/dev/null; then
+    # Window exists, just toggle its visibility
     riverctl toggle-focused-tags $SCRATCH_TAG
 else
-    # Start new scratchpad terminal
-    $TERM_APP_ID scratchpad &
+    # Start new scratchpad window
+    $COMMAND &
     sleep 0.1
     # Move it to scratchpad tag and make it floating
     riverctl set-view-tags $SCRATCH_TAG

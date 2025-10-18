@@ -1,0 +1,45 @@
+#!/bin/bash
+# Sync btop theme with current system theme
+
+set -e
+
+CURRENT_LINK="$HOME/.config/current"
+BTOP_THEMES_DIR="$HOME/.config/btop/themes"
+BTOP_CONF="$HOME/.config/btop/btop.conf"
+
+# Get current theme
+if [ -L "$CURRENT_LINK" ]; then
+    CURRENT_THEME=$(basename "$(readlink "$CURRENT_LINK")")
+    THEME_BTOP="$HOME/.config/themes/$CURRENT_THEME/btop.theme"
+else
+    echo "No current theme found"
+    exit 1
+fi
+
+# Check if theme btop file exists
+if [ ! -f "$THEME_BTOP" ]; then
+    echo "Warning: Theme btop.theme not found at $THEME_BTOP"
+    exit 1
+fi
+
+# Create btop themes directory if it doesn't exist
+mkdir -p "$BTOP_THEMES_DIR"
+
+# Copy theme file to btop themes directory
+cp "$THEME_BTOP" "$BTOP_THEMES_DIR/$CURRENT_THEME.theme"
+
+# Update btop.conf to use the new theme
+if [ -f "$BTOP_CONF" ]; then
+    sed -i "s/^color_theme = .*/color_theme = \"$CURRENT_THEME\"/" "$BTOP_CONF"
+else
+    echo "Warning: btop.conf not found at $BTOP_CONF"
+    exit 1
+fi
+
+# Reload btop if it's running
+if pgrep -x btop >/dev/null; then
+    pkill -SIGUSR2 btop
+    echo "Btop theme reloaded (theme: $CURRENT_THEME)"
+else
+    echo "Btop theme updated (theme: $CURRENT_THEME)"
+fi

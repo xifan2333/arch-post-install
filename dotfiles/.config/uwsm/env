@@ -1,0 +1,9 @@
+# River session environment
+# This file is sourced by uwsm before starting River
+
+# User binaries path
+export PATH="$HOME/.local/bin:$PATH"
+
+# Default applications
+export TERMINAL="${TERMINAL:-alacritty}"
+export EDITOR="${EDITOR:-nvim}"

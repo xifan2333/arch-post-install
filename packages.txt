@@ -63,6 +63,8 @@ gnome-keyring|pacman
 swaylock|pacman
 j4-dmenu-desktop|pacman
 dunst|pacman
+cliphist|pacman
+blueman|pacman
 imv|pacman
 grim|pacman
 slurp|pacman

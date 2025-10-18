@@ -5,13 +5,6 @@
 
 # Source modular configs
 RIVER_CONFIG="$HOME/.config/river"
-THEME_CONFIG="$HOME/.config/theme"
-
-# Load environment variables
-[ -f "$RIVER_CONFIG/env" ] && . "$RIVER_CONFIG/env"
-
-# Load theme colors
-[ -f "$THEME_CONFIG/colors.sh" ] && . "$THEME_CONFIG/colors.sh"
 
 . "$RIVER_CONFIG/autostart"
 . "$RIVER_CONFIG/bindings"
@@ -50,3 +43,7 @@ done
 riverctl border-color-focused ${RIVER_BORDER_FOCUSED:-0x61afefff}
 riverctl border-color-unfocused ${RIVER_BORDER_UNFOCUSED:-0x4b5263ff}
 riverctl border-width 2
+
+# Finalize UWSM environment - essential for River integration with UWSM
+# This exports WAYLAND_DISPLAY to systemd and dbus activation environment
+uwsm finalize
