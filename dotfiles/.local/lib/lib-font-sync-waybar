@@ -1,0 +1,30 @@
+#!/bin/bash
+# Sync Waybar font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+WAYBAR_STYLE="$HOME/.config/waybar/style.css"
+
+# Check if Waybar config exists
+if [ ! -f "$WAYBAR_STYLE" ]; then
+    # Waybar not configured, exit silently
+    exit 0
+fi
+
+# Update font family in style.css
+sed -i "s/font-family: .*/font-family: \"$FONT_NAME\", \"Symbols Nerd Font\", sans-serif;/g" "$WAYBAR_STYLE"
+
+# Restart Waybar if running
+if pgrep -x waybar >/dev/null; then
+    killall waybar
+    riverctl spawn waybar &
+fi
+
+echo "Waybar font updated to: $FONT_NAME"

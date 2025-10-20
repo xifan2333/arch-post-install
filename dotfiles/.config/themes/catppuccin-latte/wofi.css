@@ -1,0 +1,65 @@
+/* Wofi complete stylesheet - catppuccin-latte */
+
+@define-color bg-color #eff1f5;
+@define-color input-bg-color #eff1f5;
+@define-color text-color #4c4f69;
+@define-color selected-bg-color #e6e9ef;
+@define-color selected-text-color #8839ef;
+@define-color border-color #8839ef;
+
+/* Base styling */
+* {
+    font-family: "Noto Sans CJK SC";
+    font-size: 13px;
+}
+
+#window {
+    background-color: transparent;
+}
+
+#outer-box {
+    border-radius: 8px;
+    border: 2px solid @border-color;
+    background-color: @bg-color;
+    padding: 20px;
+}
+
+#input {
+    border-radius: 4px;
+    border: 1px solid @border-color;
+    background-color: @input-bg-color;
+    color: @text-color;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+
+#scroll {
+    margin-top: 5px;
+}
+
+#inner-box {
+    background-color: transparent;
+}
+
+#entry {
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+
+#entry:selected {
+    background-color: @selected-bg-color;
+    color: @selected-text-color;
+}
+
+#text {
+    color: @text-color;
+}
+
+#entry:selected #text {
+    color: @selected-text-color;
+}
+
+#img {
+    margin-right: 8px;
+}

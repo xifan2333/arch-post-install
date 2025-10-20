@@ -1,0 +1,6 @@
+{
+  "terminal.integrated.fontFamily": "CaskaydiaMono Nerd Font Mono",
+  "editor.fontFamily": "CaskaydiaMono Nerd Font Mono",
+  "workbench.colorTheme": "One Dark Pro",
+  "explorer.confirmDelete": false,
+}

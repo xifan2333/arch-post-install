@@ -1,0 +1,27 @@
+# Version Control
+.git
+.gitignore
+
+# Runtime / Dynamic Configuration
+.config/current
+.config/fcitx5/conf/cached_layouts
+.config/fcitx5/conf/classicui.conf
+.config/eza/config.yml
+.config/btop/btop.conf
+
+# VSCode Runtime
+.config/Code/User/History
+.config/Code/User/globalStorage
+.config/Code/User/workspaceStorage
+.config/Code/User/sync
+.config/Code/User/*.tmp
+.vscode/extensions
+
+# Cache & Data
+.cache
+.local/share/Trash
+.dotnet
+
+# Theme Runtime State
+.config/themes/*/font
+.config/themes/*/wmenu-font

@@ -14,10 +14,10 @@ dynamic_padding = true
 history = 10000
 
 [font]
-normal = { family = "CaskaydiaMono Nerd Font", style = "Regular" }
-bold = { family = "CaskaydiaMono Nerd Font", style = "Bold" }
-italic = { family = "CaskaydiaMono Nerd Font", style = "Italic" }
-bold_italic = { family = "CaskaydiaMono Nerd Font", style = "Bold Italic" }
+normal = { family = "CaskaydiaMono Nerd Font Mono" }
+bold = { family = "CaskaydiaMono Nerd Font Mono" }
+italic = { family = "CaskaydiaMono Nerd Font Mono" }
+bold_italic = { family = "CaskaydiaMono Nerd Font Mono" }
 size = 10.5
 
 # Font offset for better vertical alignment
@@ -34,3 +34,13 @@ duration = 0
 
 [mouse]
 hide_when_typing = true
+
+[[keyboard.bindings]]
+key = "V"
+mods = "Control|Shift"
+action = "Paste"
+
+[[keyboard.bindings]]
+key = "C"
+mods = "Control|Shift"
+action = "Copy"

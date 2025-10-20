@@ -1,0 +1,24 @@
+#!/bin/bash
+# Sync SwayOSD font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+SWAYOSD_STYLE="$HOME/.config/swayosd/style.css"
+
+# Check if SwayOSD config exists
+if [ ! -f "$SWAYOSD_STYLE" ]; then
+    # SwayOSD not configured, exit silently
+    exit 0
+fi
+
+# Update font family in style.css
+sed -i "s/font-family: .*/font-family: '$FONT_NAME';/g" "$SWAYOSD_STYLE"
+
+echo "SwayOSD font updated to: $FONT_NAME"

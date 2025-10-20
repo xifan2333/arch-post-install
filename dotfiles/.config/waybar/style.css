@@ -5,7 +5,7 @@
 * {
     border: none;
     border-radius: 0;
-    font-family: "Noto Sans CJK SC", "Symbols Nerd Font", sans-serif;
+    font-family: "CaskaydiaMono Nerd Font Mono", "Symbols Nerd Font", sans-serif;
     font-size: 15px;
     min-height: 0;
 }
@@ -49,13 +49,13 @@ window#waybar {
 
 /* Clock */
 #clock {
-    padding: 0 15px;
+    padding: 0 8px;
     color: @color-fg0;
 }
 
 /* System Tray */
 #tray {
-    padding: 0 10px;
+    padding: 0 8px;
 }
 
 #tray > * {
@@ -69,7 +69,7 @@ window#waybar {
 
 /* Network */
 #network {
-    padding: 0 10px;
+    padding: 0 8px;
     color: @accent-secondary;
 }
 
@@ -79,7 +79,7 @@ window#waybar {
 
 /* Pulseaudio */
 #pulseaudio {
-    padding: 0 10px;
+    padding: 0 8px;
     color: @color-green;
 }
 
@@ -89,7 +89,7 @@ window#waybar {
 
 /* Battery */
 #battery {
-    padding: 0 10px;
+    padding: 0 8px;
     color: @color-yellow;
 }
 
@@ -106,15 +106,66 @@ window#waybar {
     animation: blink 1s linear infinite;
 }
 
+/* Backlight */
+#backlight {
+    padding: 0 8px;
+}
+
 @keyframes blink {
     50% {
         opacity: 0.5;
     }
 }
 
-/* Modules spacing */
-.modules-left,
-.modules-center,
-.modules-right {
-    margin: 0 5px;
+/* Screenshot */
+#custom-screenshot {
+    padding: 0 8px;
+    color: @color-fg2;
+    min-width: 16px;
 }
+
+#custom-screenshot:hover {
+    color: @accent-primary;
+}
+
+/* Screen Recording */
+#custom-screenrecord {
+    padding: 0 8px;
+    color: @color-fg2;
+}
+
+#custom-screenrecord.idle {
+    padding: 0 8px;
+    min-width: 16px;
+}
+
+#custom-screenrecord.recording {
+    color: @color-red;
+    animation: blink 1s linear infinite;
+}
+
+#custom-screenrecord:hover {
+    color: @accent-primary;
+}
+
+/* Microphone */
+#custom-microphone {
+    padding: 0 8px;
+    color: @color-fg2;
+}
+
+#custom-microphone.idle {
+    padding: 0 8px;
+    min-width: 16px;
+}
+
+#custom-microphone.recording {
+    color: @color-red;
+    animation: blink 1s linear infinite;
+}
+
+#custom-microphone:hover {
+    color: @accent-primary;
+}
+
+

@@ -1,0 +1,40 @@
+#!/bin/bash
+# Core logic for installing TUI programs as .desktop files
+# Usage: l-tui-install <name> <command> [icon-path]
+
+APP_NAME="$1"
+APP_EXEC="$2"
+ICON_PATH="$3"
+
+if [ -z "$APP_NAME" ] || [ -z "$APP_EXEC" ]; then
+    echo "Error: Name and command are required" >&2
+    echo "Usage: l-tui-install <name> <command> [icon-path]" >&2
+    exit 1
+fi
+
+TERMINAL="${TERMINAL:-alacritty}"
+DESKTOP_FILE="$HOME/.local/share/applications/$APP_NAME.desktop"
+
+# Create .desktop file
+mkdir -p "$HOME/.local/share/applications"
+
+cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Version=1.0
+Name=$APP_NAME
+Comment=$APP_NAME TUI Application
+Exec=$TERMINAL -e $APP_EXEC
+Terminal=false
+Type=Application
+Categories=System;
+StartupNotify=true
+EOF
+
+# Add icon if provided
+if [ -n "$ICON_PATH" ] && [ -f "$ICON_PATH" ]; then
+    echo "Icon=$ICON_PATH" >> "$DESKTOP_FILE"
+fi
+
+chmod +x "$DESKTOP_FILE"
+
+echo "$APP_NAME"

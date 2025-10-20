@@ -3,8 +3,8 @@
     "position": "top",
     "height": 30,
     "modules-left": ["river/tags"],
-    "modules-center": ["clock"],
-    "modules-right": ["tray", "pulseaudio", "backlight", "battery"],
+    "modules-center": [],
+    "modules-right": ["tray", "custom/screenshot", "custom/screenrecord", "custom/microphone", "pulseaudio", "backlight", "battery", "clock"],
 
     "river/tags": {
         "num-tags": 9
@@ -16,8 +16,8 @@
     },
 
     "clock": {
-        "format": "{:%Y-%m-%d %H:%M}",
-        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+        "format": "{:%H:%M}",
+        "tooltip-format": "<big>{:%Y-%m-%d %A}</big>\n<tt><small>{calendar}</small></tt>"
     },
 
     "battery": {
@@ -32,19 +32,60 @@
     },
 
     "pulseaudio": {
-        "format": "{icon}  {volume}%",
+        "format": "{icon}{volume}%",
         "format-muted": "󰝟",
         "format-icons": {
             "default": ["󰕿", "󰖀", "󰕾"]
         },
-        "on-click": "pavucontrol"
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
     },
 
     "backlight": {
         "device": "intel_backlight",
-        "format": "{icon}  {percent}%",
+        "format": "{icon}{percent}%",
         "format-icons": ["󰃞", "󰃟", "󰃠"],
         "on-scroll-up": "brightnessctl set +5%",
         "on-scroll-down": "brightnessctl set 5%-"
+    },
+
+    "custom/screenshot": {
+        "exec": "waybar-status-screenshot",
+        "return-type": "json",
+        "on-click": "ui-screenshot",
+        "format": "{icon}",
+        "format-icons": {
+            "default": "󰻿"
+        }
+    },
+
+    "custom/screenrecord": {
+        "exec": "waybar-status-screenrecord",
+        "return-type": "json",
+        "interval": 1,
+        "signal": 8,
+        "on-click": "waybar-event-screenrecord click",
+        "format": "{icon} {text}",
+        "format-icons": {
+            "recording": "󰑋",
+            "idle": "󰑊"
+        }
+    },
+
+    "custom/microphone": {
+        "exec": "waybar-status-microphone",
+        "return-type": "json",
+        "interval": 1,
+        "signal": 9,
+        "on-click": "waybar-event-microphone click",
+        "on-scroll-up": "waybar-event-microphone scroll-up",
+        "on-scroll-down": "waybar-event-microphone scroll-down",
+        "format": "{icon} {text}",
+        "format-icons": {
+            "recording": "󰍬",
+            "idle": "󰍬",
+            "recording-muted": "󰍭",
+            "muted": "󰍭"
+        }
+            
     }
 }

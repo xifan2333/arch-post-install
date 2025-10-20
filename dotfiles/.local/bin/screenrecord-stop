@@ -1,0 +1,31 @@
+#!/bin/bash
+# Stop screen recording
+
+set -e
+source "$HOME/.local/lib/lib-screenrecord"
+source "$HOME/.local/lib/lib-ui-i18n"
+
+# Check if recording is active
+if ! screenrecord_is_active; then
+    exit 1
+fi
+
+# Get PID and send SIGINT to stop recording gracefully
+pid=$(cat "$PID_FILE")
+kill -SIGINT "$pid"
+
+# Wait for process to finish
+wait "$pid" 2>/dev/null || true
+
+# Get the most recent recording file
+filename=$(ls -t "$RECORDINGS_DIR"/screenrecord-*.mp4 2>/dev/null | head -1 | xargs basename)
+
+# Remove PID file
+rm -f "$PID_FILE"
+
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_notify_stopped filename "$filename")"
+fi
+
+# Notify waybar to update
+screenrecord_notify_waybar

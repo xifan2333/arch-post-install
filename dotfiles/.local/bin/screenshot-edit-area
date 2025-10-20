@@ -1,0 +1,22 @@
+#!/bin/bash
+# Take area screenshot and open in editor (swappy)
+
+set -e
+source "$HOME/.local/lib/lib-screenshot"
+
+screenshot_check_deps
+
+# Check if swappy is installed
+if ! command -v swappy >/dev/null 2>&1; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "Screenshot" "swappy is not installed"
+    fi
+    exit 1
+fi
+
+# Generate output filename
+filename=$(screenshot_filename)
+filepath="$SCREENSHOTS_DIR/$filename"
+
+# Take screenshot and pipe to swappy for editing
+grim -g "$(slurp)" - | swappy -f - -o "$filepath"

@@ -77,16 +77,18 @@ print_step "Deploying dotfiles using stow"
 stow -D -t "$HOME" . 2>/dev/null || true
 print_substep "Previous links unstowed."
 
-# 2. 检查并移除冲突的常规文件
+# 2. 检查并处理冲突
 if ! stow -n -t "$HOME" . 2>&1 | grep -q "would cause conflicts"; then
     print_substep "No major conflicts detected."
 else
-    # 发现并移除与 Stow 冲突的常规文件（非符号链接）
+    # 发现并移除与 Stow 冲突的常规文件和符号链接
+    # 在rsync update模式下，这些可能是运行时脚本创建的符号链接（如theme.yml）
     stow -n -t "$HOME" . 2>&1 | grep "existing target" | sed 's/.*existing target //' | sed 's/ since.*//' | while read -r conflict; do
         target="$HOME/$conflict"
-        # 关键：只删除常规文件，保留其他符号链接
-        if [ -f "$target" ] && [ ! -L "$target" ]; then
-            print_warning "Removing conflicting regular file: $target"
+        # 删除常规文件和符号链接，但保留目录
+        # 这些是运行时脚本创建的，rsync不会覆盖它们，所以需要手动清理
+        if [ -e "$target" ] && [ ! -d "$target" ]; then
+            print_warning "Removing conflicting file or symlink (created by runtime scripts): $target"
             rm -f "$target"
         fi
     done

@@ -1,0 +1,26 @@
+#!/bin/bash
+# Screenshot library - shared functions
+# Source this file in screenshot scripts
+
+# XDG directories
+XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+SCREENSHOTS_DIR="$XDG_PICTURES_DIR/screenshots"
+TEMP_DIR="/tmp"
+
+# Ensure directories exist
+mkdir -p "$SCREENSHOTS_DIR"
+
+# Generate filename with timestamp
+screenshot_filename() {
+    echo "screenshot-$(date +%Y%m%d_%H%M%S).png"
+}
+
+# Check dependencies
+screenshot_check_deps() {
+    for cmd in grim slurp wl-copy; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "Error: $cmd is not installed" >&2
+            exit 1
+        fi
+    done
+}

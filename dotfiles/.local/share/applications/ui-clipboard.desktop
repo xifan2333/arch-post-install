@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Clipboard Manager
+Name[zh_CN]=剪贴板
+Comment=Manage clipboard history with fuzzel
+Comment[zh_CN]=管理剪贴板历史
+Exec=sh -c "$HOME/.local/bin/ui-clipboard"
+Icon=edit-paste
+Terminal=false
+Categories=Utility;System;
+Keywords=clipboard;history;paste;
+Keywords[zh_CN]=剪贴板;历史;粘贴;jtb;

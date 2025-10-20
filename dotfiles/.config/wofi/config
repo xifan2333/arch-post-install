@@ -1,0 +1,13 @@
+# Wofi base configuration
+# Window size and position managed by River WM rules
+
+show=drun
+normal_window=true
+allow_images=true
+allow_markup=true
+insensitive=true
+matching=fuzzy
+no_actions=true
+term=alacritty
+lines=10
+columns=1

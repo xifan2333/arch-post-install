@@ -1,0 +1,29 @@
+#!/bin/bash
+# Sync Kitty font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+KITTY_CONFIG="$HOME/.config/kitty/kitty.conf"
+
+# Check if Kitty config exists
+if [ ! -f "$KITTY_CONFIG" ]; then
+    # Kitty not configured, exit silently
+    exit 0
+fi
+
+# Update font family in config
+sed -i "s/^font_family .*/font_family $FONT_NAME/g" "$KITTY_CONFIG"
+
+# Reload running Kitty instances
+if pgrep -x kitty >/dev/null; then
+    killall -SIGUSR1 kitty 2>/dev/null || true
+fi
+
+echo "Kitty font updated to: $FONT_NAME"

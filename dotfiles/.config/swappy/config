@@ -1,0 +1,7 @@
+[Default]
+show_panel=true
+text_font=sans-serif
+early_exit=true
+line_size=5
+text_size=20
+fill_shape=false

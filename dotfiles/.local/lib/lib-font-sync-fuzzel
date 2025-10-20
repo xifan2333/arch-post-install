@@ -1,0 +1,36 @@
+#!/bin/bash
+# Sync Fuzzel font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+FUZZEL_CONFIG="$HOME/.config/fuzzel/fuzzel.ini"
+
+# Check if Fuzzel config exists
+if [ ! -f "$FUZZEL_CONFIG" ]; then
+    # Fuzzel not configured, exit silently
+    exit 0
+fi
+
+# Update font in fuzzel.ini (preserve size if present)
+# Extract current size from existing font line
+CURRENT_SIZE=$(grep "^font=" "$FUZZEL_CONFIG" | sed -n 's/.*:size=\([0-9]*\).*/\1/p')
+
+# Use default size 13 if not found
+SIZE="${CURRENT_SIZE:-13}"
+
+# Update font line
+sed -i "s/^font=.*/font=$FONT_NAME:size=$SIZE/" "$FUZZEL_CONFIG"
+
+# Kill fuzzel if running (will use new font on next launch)
+if pgrep -x fuzzel >/dev/null; then
+    pkill -x fuzzel
+fi
+
+echo "Fuzzel font updated to: $FONT_NAME (size: $SIZE)"

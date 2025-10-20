@@ -1,0 +1,242 @@
+#!/bin/bash
+# Microphone control library - shared functions
+# Source this file in microphone control scripts
+
+# Constants
+MIC_STEP=5  # Volume step for scroll adjustment (percentage)
+STATE_FILE="/tmp/waybar-microphone.state"
+
+# Get default microphone source ID
+mic_get_source() {
+    # Try wpctl first (PipeWire), fallback to pactl (PulseAudio)
+    if command -v wpctl >/dev/null 2>&1; then
+        # Extract the ID number from Audio Sources section
+        wpctl status | awk '
+            BEGIN { in_audio_sources = 0 }
+            /^Audio/,/^Video/ {
+                if (/Sources:/) in_audio_sources = 1
+                else if (/Sinks:|Filters:|Streams:/) in_audio_sources = 0
+                if (in_audio_sources && /\*.*\[vol:/) {
+                    match($0, /\*[[:space:]]*([0-9]+)\./, arr)
+                    print arr[1]
+                    exit
+                }
+            }
+        '
+    elif command -v pactl >/dev/null 2>&1; then
+        pactl get-default-source
+    else
+        echo "Error: Neither wpctl nor pactl found" >&2
+        return 1
+    fi
+}
+
+# Get microphone volume percentage (0-150)
+mic_get_volume() {
+    local source="$1"
+    if [ -z "$source" ]; then
+        source=$(mic_get_source)
+    fi
+
+    if command -v wpctl >/dev/null 2>&1; then
+        wpctl get-volume "$source" | awk '{print int($2 * 100)}'
+    elif command -v pactl >/dev/null 2>&1; then
+        pactl get-source-volume "$source" | grep -oP '\d+%' | head -1 | tr -d '%'
+    fi
+}
+
+# Get microphone mute status (0=unmuted, 1=muted)
+mic_is_muted() {
+    local source="$1"
+    if [ -z "$source" ]; then
+        source=$(mic_get_source)
+    fi
+
+    if command -v wpctl >/dev/null 2>&1; then
+        wpctl get-volume "$source" | grep -q "MUTED" && echo 1 || echo 0
+    elif command -v pactl >/dev/null 2>&1; then
+        local mute_status=$(pactl get-source-mute "$source" | awk '{print $2}')
+        [ "$mute_status" = "yes" ] && echo 1 || echo 0
+    fi
+}
+
+# Set microphone volume percentage (0-150)
+mic_set_volume() {
+    local volume="$1"
+    local source="$2"
+
+    if [ -z "$source" ]; then
+        source=$(mic_get_source)
+    fi
+
+    # Clamp volume between 0 and 150
+    if [ "$volume" -lt 0 ]; then
+        volume=0
+    elif [ "$volume" -gt 150 ]; then
+        volume=150
+    fi
+
+    if command -v wpctl >/dev/null 2>&1; then
+        wpctl set-volume "$source" "${volume}%"
+    elif command -v pactl >/dev/null 2>&1; then
+        pactl set-source-volume "$source" "${volume}%"
+    fi
+}
+
+# Increase microphone volume
+mic_volume_up() {
+    local source=$(mic_get_source)
+    local current=$(mic_get_volume "$source")
+    local new_volume=$((current + MIC_STEP))
+    mic_set_volume "$new_volume" "$source"
+    mic_notify_waybar
+}
+
+# Decrease microphone volume
+mic_volume_down() {
+    local source=$(mic_get_source)
+    local current=$(mic_get_volume "$source")
+    local new_volume=$((current - MIC_STEP))
+    mic_set_volume "$new_volume" "$source"
+    mic_notify_waybar
+}
+
+# Toggle mute
+mic_toggle_mute() {
+    local source=$(mic_get_source)
+
+    if command -v wpctl >/dev/null 2>&1; then
+        wpctl set-mute "$source" toggle
+    elif command -v pactl >/dev/null 2>&1; then
+        pactl set-source-mute "$source" toggle
+    fi
+
+    mic_notify_waybar
+}
+
+# Notify waybar to update microphone module
+mic_notify_waybar() {
+    pkill -SIGRTMIN+9 waybar 2>/dev/null || true
+}
+
+# Check if microphone is being used by any application
+# Returns "recording" if in use, empty string otherwise
+mic_is_recording() {
+    # Try wpctl first (native PipeWire), more accurate than pactl
+    if command -v wpctl >/dev/null 2>&1; then
+        # Check if there are any Stream/Input/Audio entries under Streams
+        # These represent actual applications using the microphone
+        local stream_count=$(wpctl status | \
+            awk '
+                /^Audio/,/^Video/ {
+                    if (/Streams:/) in_streams = 1
+                    else if (/^[A-Z]/) in_streams = 0
+                    if (in_streams && /Stream\/Input\/Audio/) count++
+                }
+                END { print count+0 }
+            ')
+
+        if [ "$stream_count" -gt 0 ]; then
+            echo "recording"
+            return
+        fi
+
+        # Check for JACK/DAW applications in client list
+        # These apps (like Ardour, Reaper, Bitwig) use JACK connections
+        # and don't show up as regular streams
+        local jack_clients=$(wpctl status | \
+            awk '
+                /Clients:/,/^Audio/ {
+                    line = tolower($0)
+                    if (line ~ /ardour|reaper|bitwig|carla|qtractor|renoise|lmms|rosegarden/) {
+                        print
+                        exit
+                    }
+                }
+            ')
+
+        if [ -n "$jack_clients" ]; then
+            echo "recording"
+            return
+        fi
+    fi
+
+    # Fallback to pactl for PulseAudio systems
+    if command -v pactl >/dev/null 2>&1; then
+        # Check for active (non-corked) source outputs
+        local source_outputs=$(pactl list source-outputs 2>/dev/null)
+
+        if [ -z "$source_outputs" ]; then
+            echo ""
+            return
+        fi
+
+        # Count active source outputs (Corked: no means actively recording)
+        local active_count=$(echo "$source_outputs" | \
+            awk '
+                /^Source Output/ { in_output=1; corked=""; has_app=0 }
+                /Corked:/ { corked=$2 }
+                /application\.(name|process\.binary)/ {
+                    if ($0 !~ /filter-chain|module-/) has_app=1
+                }
+                /^$/ && in_output {
+                    if (corked == "no" && has_app == 1) count++
+                    in_output=0
+                }
+                END { print count+0 }
+            ')
+
+        if [ "$active_count" -gt 0 ]; then
+            echo "recording"
+        else
+            echo ""
+        fi
+    else
+        echo ""
+    fi
+}
+
+# Waybar module: output status JSON
+mic_waybar_status() {
+    # Load i18n for tooltips
+    source "$HOME/.local/lib/lib-ui-i18n"
+
+    local source=$(mic_get_source)
+    local volume=$(mic_get_volume "$source")
+    local is_muted=$(mic_is_muted "$source")
+    local is_recording=$(mic_is_recording)
+
+    # Determine text, class and tooltip based on recording and mute state
+    local text
+    local class
+    local tooltip
+
+    if [ "$is_muted" -eq 1 ]; then
+        # Muted state - check if recording
+        if [ -n "$is_recording" ]; then
+            text="${volume}%"
+            class="recording-muted"
+            tooltip=$(msg "waybar_microphone_tooltip_recording_muted" "volume" "$volume")
+        else
+            text=""
+            class="muted"
+            tooltip=$(msg "waybar_microphone_tooltip_muted")
+        fi
+    else
+        # Unmuted state
+        if [ -n "$is_recording" ]; then
+            # Recording in progress - show volume percentage
+            text="${volume}%"
+            class="recording"
+            tooltip=$(msg "waybar_microphone_tooltip_recording" "volume" "$volume")
+        else
+            # Not recording - no text, idle state
+            text=""
+            class="idle"
+            tooltip=$(msg "waybar_microphone_tooltip_idle")
+        fi
+    fi
+
+    # Output JSON for waybar
+    echo "{\"text\":\"${text}\",\"alt\":\"${class}\",\"class\":\"${class}\",\"tooltip\":\"${tooltip}\"}"
+}

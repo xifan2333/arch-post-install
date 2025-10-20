@@ -1,0 +1,27 @@
+#!/bin/bash
+# Sync Alacritty font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
+
+# Check if Alacritty config exists
+if [ ! -f "$ALACRITTY_CONFIG" ]; then
+    # Alacritty not configured, exit silently
+    exit 0
+fi
+
+# Update font family in config
+sed -i "s/family = \".*\"/family = \"$FONT_NAME\"/g" "$ALACRITTY_CONFIG"
+
+# Trigger reload by touching the file
+touch "$ALACRITTY_CONFIG"
+
+echo "Alacritty font updated to: $FONT_NAME"

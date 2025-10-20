@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Theme Switcher
+Name[zh_CN]=主题设置
+Comment=Switch between system themes with fuzzel
+Comment[zh_CN]=使用 fuzzel 切换系统主题
+Exec=sh -c "$HOME/.local/bin/ui-theme"
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=theme;appearance;color;style;
+Keywords[zh_CN]=主题;外观;颜色;样式;zt;

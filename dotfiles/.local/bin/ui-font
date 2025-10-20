@@ -1,17 +1,11 @@
 #!/bin/bash
-# Interactive font switcher with wmenu
-# Usage: wfont
+# Interactive font switcher with wofi
+# Usage: ui-font
 
 set -e
 
-# Load wmenu common configuration
-WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
-if [ -f "$WMENU_LIB" ]; then
-    . "$WMENU_LIB"
-else
-    echo "Error: wmenu common library not found" >&2
-    exit 1
-fi
+# Load i18n
+source "$HOME/.local/lib/lib-ui-i18n"
 
 # Auto-detect Nerd Font Mono fonts from system
 get_nerd_fonts() {
@@ -23,38 +17,35 @@ FONTS=$(get_nerd_fonts)
 
 if [ -z "$FONTS" ]; then
     if command -v notify-send >/dev/null 2>&1; then
-        notify-send "Font Switcher" "No Nerd Font Mono fonts found"
+        notify-send "${i18n[font_title]}" "${i18n[font_error_not_found]}"
     fi
-    echo "Error: No Nerd Font Mono fonts found"
     exit 1
 fi
 
 # Get current font
-CURRENT_FONT=$(font-current 2>/dev/null || echo "")
+CURRENT_FONT=$("$HOME/.local/lib/lib-font-current" 2>/dev/null || echo "")
 
 # Mark current font in list
 if [ -n "$CURRENT_FONT" ]; then
-    FONTS=$(echo "$FONTS" | sed "s/^$CURRENT_FONT$/● $CURRENT_FONT/")
+    FONTS=$(echo "$FONTS" | sed "s/^$CURRENT_FONT$/${i18n[current_marker]} $CURRENT_FONT/")
 fi
 
 # Show font menu
-SELECTED=$(echo "$FONTS" | run_wmenu -p "Select font:")
+SELECTED=$(echo "$FONTS" | ui-wofi --dmenu -p "${i18n[font_prompt]}")
 
 # User cancelled
 [ -z "$SELECTED" ] && exit 0
 
 # Remove marker if present
-FONT_NAME=$(echo "$SELECTED" | sed 's/^● //')
+FONT_NAME=$(echo "$SELECTED" | sed "s/^${i18n[current_marker]} //")
 
 # Set the font using font-set
-if font-set "$FONT_NAME"; then
-    # Send notification
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send "Font Switcher" "Switched to: $FONT_NAME\n\n✓ Terminal config updated\n✓ Waybar restarted"
-    fi
+if "$HOME/.local/lib/lib-font-set" "$FONT_NAME"; then
+    # Notification is handled by font-set
+    :
 else
     if command -v notify-send >/dev/null 2>&1; then
-        notify-send "Font switch failed" "Failed to set font: $FONT_NAME"
+        notify-send "${i18n[font_switch_failed_title]}" "$(msg font_switch_failed_msg font "$FONT_NAME")"
     fi
     exit 1
 fi

@@ -1,0 +1,30 @@
+#!/bin/bash
+# Wofi wrapper - automatically loads theme from current theme directory
+# Supports toggle behavior: first press launches, second press closes
+
+CURRENT_LINK="$HOME/.config/current"
+WOFI_BIN="wofi"
+
+# Check if wofi is already running
+if pgrep -x wofi >/dev/null 2>&1; then
+    # Wofi is running, kill it
+    pkill -x wofi
+    exit 0
+fi
+
+# Add small delay to avoid race condition
+sleep 0.05
+
+# Double check wofi is not running (avoid flicker)
+if pgrep -x wofi >/dev/null 2>&1; then
+    exit 0
+fi
+
+# Wofi is not running, launch it with theme
+if [ -L "$CURRENT_LINK" ] && [ -f "$CURRENT_LINK/wofi.css" ]; then
+    # Launch wofi with theme from current directory
+    exec "$WOFI_BIN" -s "$CURRENT_LINK/wofi.css" "$@"
+else
+    # Fallback to default wofi
+    exec "$WOFI_BIN" "$@"
+fi

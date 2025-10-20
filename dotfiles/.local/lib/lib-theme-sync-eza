@@ -1,0 +1,38 @@
+#!/bin/bash
+# Sync eza (ls replacement) theme with current system theme
+#
+# NOTE: This script copies the entire theme file to ~/.config/eza/config.yml
+# To avoid stow conflicts, ensure ~/.config/eza/config.yml is in .stow-local-ignore
+# as it is dynamically managed by theme switching.
+
+set -e
+
+CURRENT_LINK="$HOME/.config/current"
+EZA_THEME_FILE="$HOME/.config/themes/$(basename $(readlink $HOME/.config/current))/eza.yml"
+EZA_CONFIG_DIR="$HOME/.config/eza"
+EZA_CONFIG_FILE="$EZA_CONFIG_DIR/config.yml"
+
+# Check if theme has eza configuration
+if [ -f "$EZA_THEME_FILE" ]; then
+    # Create eza config directory if it doesn't exist
+    mkdir -p "$EZA_CONFIG_DIR"
+    
+    # Copy theme file to eza config directory
+    cp "$EZA_THEME_FILE" "$EZA_CONFIG_FILE"
+    
+    echo "Eza theme synced"
+else
+    # If no theme-specific config exists, ensure default config is in place
+    mkdir -p "$EZA_CONFIG_DIR"
+    
+    # Create a basic config file if none exists
+    if [ ! -f "$EZA_CONFIG_FILE" ]; then
+        cat > "$EZA_CONFIG_FILE" << 'EOL'
+# Default eza configuration
+# Add your default eza settings here
+EOL
+        echo "Created default eza config"
+    else
+        echo "Using existing eza config (no theme-specific config found)"
+    fi
+fi

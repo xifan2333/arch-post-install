@@ -4,8 +4,6 @@
 
 set -e
 
-
-
 # Simple output functions (no dependencies)
 print_step() { echo -e "\n\033[0;34m==>\033[0m \033[1;37m$1\033[0m"; }
 print_substep() { echo -e "  \033[0;35m->\033[0m $1"; }
@@ -29,7 +27,7 @@ print_step "Arch Linux Post-Install - Stage 1 (root)"
 echo "This script configures critical system settings"
 echo ""
 
-# 1. Configure pacman
+# 1. 设置镜像源，开启 multilib 和 archlinuxcn
 print_step "Configure pacman"
 
 # Enable multilib
@@ -38,7 +36,7 @@ if ! grep -q "^\[multilib\]" /etc/pacman.conf; then
     print_success "multilib enabled"
 fi
 
-# Add archlinuxcn repo
+# 
 if ! grep -q "^\[archlinuxcn\]" /etc/pacman.conf; then
     cat >> /etc/pacman.conf << 'EOF'
 
@@ -48,11 +46,10 @@ EOF
     print_success "archlinuxcn repo added"
 fi
 
-# Update database
 pacman -Sy --noconfirm
 print_success "pacman configured"
 
-# 2. Configure localization
+# 2. 本地化设置
 print_step "Configure localization"
 
 # Uncomment locales
@@ -60,16 +57,18 @@ sed -i 's/^#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
 sed -i 's/^#zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen
 locale-gen
 
-# Set system locale (English for system messages)
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
-# Set timezone
+echo "export LANG=zh_CN.UTF-8" >> /etc/profile.d/locale.sh
+echo "export LANGUAGE=zh_CN:en_US" >> /etc/profile.d/locale.sh
+
+
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 hwclock --systohc
 
 print_success "Localization configured"
 
-# 3. Enable bluetooth
+# 3. 开启蓝牙
 print_step "Configure bluetooth"
 
 # Load bluetooth kernel modules
@@ -77,7 +76,6 @@ if ! lsmod | grep -q "^btusb"; then
     modprobe btusb 2>/dev/null || print_warning "btusb module not available (may need bluetooth hardware)"
 fi
 
-# Enable bluetooth service
 if systemctl enable bluetooth.service; then
     print_success "Bluetooth service enabled"
 else
@@ -89,7 +87,6 @@ if systemctl start bluetooth.service; then
 else
     print_warning "Failed to start bluetooth service"
 fi
-
 
 print_step "Stage 1 Complete!"
 echo ""

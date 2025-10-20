@@ -1,0 +1,50 @@
+#!/bin/bash
+# Sync VSCode font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+VSCODE_SETTINGS="$HOME/.config/Code/User/settings.json"
+
+# Check if VSCode is installed
+if ! command -v code >/dev/null 2>&1; then
+    # VSCode not installed, exit silently
+    exit 0
+fi
+
+# Create settings directory if it doesn't exist
+mkdir -p "$(dirname "$VSCODE_SETTINGS")"
+
+# Create settings file if it doesn't exist
+if [ ! -f "$VSCODE_SETTINGS" ]; then
+    printf '{\n}\n' > "$VSCODE_SETTINGS"
+fi
+
+# Add editor.fontFamily entry if it doesn't exist
+if ! grep -q '"editor.fontFamily"' "$VSCODE_SETTINGS"; then
+    sed -i --follow-symlinks -E '0,/\{/{s/\{/{\
+  "editor.fontFamily": "",/}' "$VSCODE_SETTINGS"
+fi
+
+# Add terminal.integrated.fontFamily entry if it doesn't exist
+if ! grep -q '"terminal.integrated.fontFamily"' "$VSCODE_SETTINGS"; then
+    sed -i --follow-symlinks -E '0,/\{/{s/\{/{\
+  "terminal.integrated.fontFamily": "",/}' "$VSCODE_SETTINGS"
+fi
+
+# Update font settings
+sed -i --follow-symlinks -E \
+    "s/(\"editor.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1$FONT_NAME\2/" \
+    "$VSCODE_SETTINGS"
+
+sed -i --follow-symlinks -E \
+    "s/(\"terminal.integrated.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1$FONT_NAME\2/" \
+    "$VSCODE_SETTINGS"
+
+echo "VSCode font updated to: $FONT_NAME"

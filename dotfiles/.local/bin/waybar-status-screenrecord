@@ -1,0 +1,7 @@
+#!/bin/bash
+# Waybar module for screen recording status
+# Outputs JSON format for waybar custom module
+
+source "$HOME/.local/lib/lib-screenrecord"
+
+screenrecord_waybar_status

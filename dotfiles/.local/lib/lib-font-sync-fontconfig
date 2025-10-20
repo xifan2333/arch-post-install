@@ -1,0 +1,27 @@
+#!/bin/bash
+# Sync fontconfig with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+FONTCONFIG="$HOME/.config/fontconfig/fonts.conf"
+
+# Check if fontconfig exists and xmlstarlet is available
+if [ ! -f "$FONTCONFIG" ] || ! command -v xmlstarlet >/dev/null 2>&1; then
+    # Fontconfig not configured or xmlstarlet not installed, exit silently
+    exit 0
+fi
+
+# Update monospace font override
+xmlstarlet ed -L \
+    -u '//match[@target="pattern"][test/string="monospace"]/edit[@name="family"]/string' \
+    -v "$FONT_NAME" \
+    "$FONTCONFIG" 2>/dev/null || true
+
+echo "Fontconfig updated to: $FONT_NAME"

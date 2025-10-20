@@ -1,11 +1,20 @@
 #!/bin/sh
 # River window rules
 
+# Wofi launcher - floating with fixed dimensions, centered by River
+riverctl rule-add -app-id "wofi" float
+riverctl rule-add -app-id "wofi" csd
+riverctl rule-add -app-id "wofi" dimensions 800 600
+
 # Server-side decorations (SSD) for all windows
 riverctl rule-add -app-id "*" ssd
 
 # Floating windows
-riverctl rule-add -app-id "scratchpad" float                        # Scratchpad terminal                    # Floating terminal
+riverctl rule-add -app-id "scratchpad" float                        # Scratchpad terminal
+riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv) - English
+riverctl rule-add -title "Screenshot Preview" dimensions 600 400    # Smaller size for reference
+riverctl rule-add -title "截图预览" float                            # Screenshot preview (imv) - Chinese
+riverctl rule-add -title "截图预览" dimensions 600 400               # Smaller size for reference
 riverctl rule-add -app-id "file-*" float                            # GIMP file dialogs
 riverctl rule-add -app-id "script-fu" float                         # GIMP script-fu
 riverctl rule-add -app-id "electron" -title "Open*" float           # Electron open dialogs

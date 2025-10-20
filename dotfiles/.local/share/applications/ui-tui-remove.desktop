@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=TUI App Remover
+Name[zh_CN]= 移除 TUI 应用
+Comment=Remove desktop entries for TUI applications
+Comment[zh_CN]=移除 TUI 应用的桌面入口
+Exec=sh -c "$HOME/.local/bin/ui-tui-remove"
+Icon=edit-delete
+Terminal=false
+Categories=Settings;System;
+Keywords=tui;terminal;remove;uninstall;desktop entry;
+Keywords[zh_CN]=TUI;终端;移除;卸载;桌面入口;yc;yctui;

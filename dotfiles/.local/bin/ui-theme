@@ -1,20 +1,14 @@
 #!/bin/bash
-# Interactive theme switcher with wmenu
-# Usage: wtheme
+# Interactive theme switcher with wofi
+# Usage: ui-theme
 
 set -e
 
+# Load i18n
+source "$HOME/.local/lib/lib-ui-i18n"
+
 THEMES_DIR="$HOME/.config/themes"
 CURRENT_LINK="$HOME/.config/current"
-
-# Load wmenu common configuration
-WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
-if [ -f "$WMENU_LIB" ]; then
-    . "$WMENU_LIB"
-else
-    echo "Error: wmenu common library not found" >&2
-    exit 1
-fi
 
 # Get current theme name
 get_current_theme() {
@@ -33,86 +27,79 @@ get_themes() {
         [ -d "$theme_dir" ] || continue
         theme_name=$(basename "$theme_dir")
         if [ "$theme_name" = "$CURRENT_THEME" ]; then
-            echo "● $theme_name"
+            echo "${i18n[current_marker]} $theme_name"
         else
             echo "  $theme_name"
         fi
     done
 }
 
-# Show wmenu selector with theme colors
-SELECTED=$(get_themes | run_wmenu -p "Select theme:")
+# Show wofi selector
+SELECTED=$(get_themes | ui-wofi --dmenu -p "${i18n[theme_prompt]}")
 
 # User cancelled
 [ -z "$SELECTED" ] && exit 0
 
 # Extract theme name (remove marker if present)
-THEME_NAME=$(echo "$SELECTED" | sed 's/^[●  ]*//')
+THEME_NAME=$(echo "$SELECTED" | sed "s/^[${i18n[current_marker]}  ]*//")
 THEME_PATH="$THEMES_DIR/$THEME_NAME"
 
 # Check if theme exists
 if [ ! -d "$THEME_PATH" ]; then
-    echo "Error: Theme '$THEME_NAME' not found at $THEME_PATH" >&2
+    echo "$(msg theme_error_not_found theme "$THEME_NAME" path "$THEME_PATH")" >&2
     exit 1
 fi
 
 # Update symlink to current theme
 ln -nsf "themes/$THEME_NAME" "$CURRENT_LINK"
-echo "Switched to theme: $THEME_NAME"
 
 # Reload applications to apply theme
 reload_apps() {
     # Sync GTK color scheme (light/dark mode)
-    if [ -f "$HOME/.local/lib/l-theme-sync-gtk" ]; then
-        "$HOME/.local/lib/l-theme-sync-gtk"
+    if [ -f "$HOME/.local/lib/lib-theme-sync-gtk" ]; then
+        "$HOME/.local/lib/lib-theme-sync-gtk"
     fi
 
     # Reload waybar
     if pgrep -x waybar >/dev/null; then
         killall waybar
         riverctl spawn waybar &
-        echo "Waybar reloaded"
     fi
 
-    # Kill wmenu if running (will use new theme on next launch)
-    if pgrep -x wmenu >/dev/null || pgrep -x wmenu-run >/dev/null; then
-        pkill -x wmenu
-        pkill -x wmenu-run
-        echo "wmenu closed (will use new theme on next launch)"
+    # Kill wofi if running (will use new theme on next launch)
+    if pgrep -x wofi >/dev/null; then
+        pkill -x wofi
     fi
 
     # Sync terminal emulator theme
-    if [ -f "$HOME/.local/lib/l-theme-sync-terminal" ]; then
-        "$HOME/.local/lib/l-theme-sync-terminal"
-    else
-        echo "Alacritty will use new theme (config auto-reloads)"
+    if [ -f "$HOME/.local/lib/lib-theme-sync-terminal" ]; then
+        "$HOME/.local/lib/lib-theme-sync-terminal"
     fi
 
     # Sync VSCode theme
-    if [ -f "$HOME/.local/lib/l-theme-sync-vscode" ]; then
-        "$HOME/.local/lib/l-theme-sync-vscode"
+    if [ -f "$HOME/.local/lib/lib-theme-sync-vscode" ]; then
+        "$HOME/.local/lib/lib-theme-sync-vscode"
     fi
 
     # Sync eza (ls) theme
-    if [ -f "$HOME/.local/lib/l-theme-sync-eza" ]; then
-        "$HOME/.local/lib/l-theme-sync-eza"
+    if [ -f "$HOME/.local/lib/lib-theme-sync-eza" ]; then
+        "$HOME/.local/lib/lib-theme-sync-eza"
     fi
 
     # Restart dunst to apply new theme
     if pgrep -x dunst >/dev/null; then
         killall dunst
         riverctl spawn dunst &
-        echo "Dunst restarted with new theme"
     fi
 
     # Sync btop theme
-    if [ -f "$HOME/.local/lib/l-theme-sync-btop" ]; then
-        "$HOME/.local/lib/l-theme-sync-btop"
+    if [ -f "$HOME/.local/lib/lib-theme-sync-btop" ]; then
+        "$HOME/.local/lib/lib-theme-sync-btop"
     fi
 
     # Sync fcitx5 theme
-    if [ -f "$HOME/.local/lib/l-theme-sync-fcitx5" ]; then
-        "$HOME/.local/lib/l-theme-sync-fcitx5"
+    if [ -f "$HOME/.local/lib/lib-theme-sync-fcitx5" ]; then
+        "$HOME/.local/lib/lib-theme-sync-fcitx5"
     fi
 
     # Apply River WM border colors
@@ -120,19 +107,12 @@ reload_apps() {
         . "$THEME_PATH/riverrc"
         riverctl border-color-focused "${RIVER_BORDER_FOCUSED:-0x61afefff}"
         riverctl border-color-unfocused "${RIVER_BORDER_UNFOCUSED:-0x4b5263ff}"
-        echo "River border colors updated"
     fi
-
-    # Sync browser theme (optional, requires sudo)
-    # Uncomment to enable browser theme syncing:
-    # if [ -f "$HOME/.local/lib/l-theme-sync-browser" ]; then
-    #     "$HOME/.local/lib/l-theme-sync-browser"
-    # fi
 }
 
 reload_apps
 
 # Send notification
 if command -v notify-send >/dev/null 2>&1; then
-    notify-send -i preferences-desktop-theme "Theme Switcher" "Theme switched to $THEME_NAME"
+    notify-send -i preferences-desktop-theme "${i18n[theme_title]}" "$(msg theme_switched_notify theme "$THEME_NAME")"
 fi

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=TUI App Installer
+Name[zh_CN]=安装 TUI 应用
+Comment=Create desktop entries for TUI applications
+Comment[zh_CN]=为 TUI 应用创建桌面入口
+Exec=sh -c "$HOME/.local/bin/ui-tui-install"
+Icon=application-x-executable
+Terminal=false
+Categories=Settings;System;
+Keywords=tui;terminal;install;desktop entry;
+Keywords[zh_CN]=TUI;终端;安装;桌面入口;az;aztui;

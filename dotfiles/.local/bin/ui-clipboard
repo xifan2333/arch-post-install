@@ -1,36 +1,30 @@
 #!/bin/bash
-# Clipboard history manager using wmenu
-# Usage: w-clipboard
+# Clipboard history manager using wofi
+# Usage: ui-clipboard
 
-# Load wmenu common configuration
-WMENU_LIB="$HOME/.local/lib/l-wmenu-common.sh"
-if [ -f "$WMENU_LIB" ]; then
-    . "$WMENU_LIB"
-else
-    echo "Error: wmenu common library not found" >&2
-    exit 1
-fi
+# Load i18n
+source "$HOME/.local/lib/lib-ui-i18n"
 
 # Check if cliphist is available
 if ! command -v cliphist >/dev/null 2>&1; then
-    notify-send -i dialog-error "Clipboard History" "cliphist is not installed"
+    notify-send -i dialog-error "${i18n[clipboard_title]}" "${i18n[clipboard_error_not_installed]}"
     exit 1
 fi
 
 # Get clipboard history and add clear option at the top
 SELECTED=$(
     {
-        echo "  Clear clipboard history"
+        echo "  ${i18n[clipboard_clear_option]}"
         cliphist list
-    } | run_wmenu -p "Clipboard history:" -l 10)
+    } | wofi --dmenu -p "${i18n[clipboard_prompt]}")
 
 # User cancelled
 [ -z "$SELECTED" ] && exit 0
 
 # Check if user selected clear option
-if [ "$SELECTED" = "  Clear clipboard history" ]; then
+if [ "$SELECTED" = "  ${i18n[clipboard_clear_option]}" ]; then
     cliphist wipe
-    notify-send -i edit-clear "Clipboard History" "Clipboard history cleared"
+    notify-send -i edit-clear "${i18n[clipboard_title]}" "${i18n[clipboard_cleared]}"
     exit 0
 fi
 

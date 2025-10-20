@@ -1,0 +1,65 @@
+/* Wofi complete stylesheet - nord */
+
+@define-color bg-color #2e3440;
+@define-color input-bg-color #2e3440;
+@define-color text-color #d8dee9;
+@define-color selected-bg-color #3b4252;
+@define-color selected-text-color #88c0d0;
+@define-color border-color #88c0d0;
+
+/* Base styling */
+* {
+    font-family: "Noto Sans CJK SC";
+    font-size: 13px;
+}
+
+#window {
+    background-color: transparent;
+}
+
+#outer-box {
+    border-radius: 8px;
+    border: 2px solid @border-color;
+    background-color: @bg-color;
+    padding: 20px;
+}
+
+#input {
+    border-radius: 4px;
+    border: 1px solid @border-color;
+    background-color: @input-bg-color;
+    color: @text-color;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+
+#scroll {
+    margin-top: 5px;
+}
+
+#inner-box {
+    background-color: transparent;
+}
+
+#entry {
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 2px 0;
+}
+
+#entry:selected {
+    background-color: @selected-bg-color;
+    color: @selected-text-color;
+}
+
+#text {
+    color: @text-color;
+}
+
+#entry:selected #text {
+    color: @selected-text-color;
+}
+
+#img {
+    margin-right: 8px;
+}

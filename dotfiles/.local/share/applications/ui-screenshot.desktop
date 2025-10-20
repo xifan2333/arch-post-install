@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot
+Name[zh_CN]=截图
+Comment=Take screenshots
+Comment[zh_CN]=截图工具
+Icon=camera-photo
+Exec=ui-screenshot
+Terminal=false
+Categories=Utility;
+Keywords=screenshot;capture;screen;
+Keywords[zh_CN]=截图;屏幕;jt;

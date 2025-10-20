@@ -1,0 +1,29 @@
+#!/bin/bash
+# Sync Ghostty font with current system font
+
+set -e
+
+FONT_NAME="$1"
+
+if [ -z "$FONT_NAME" ]; then
+    echo "Error: Font name not provided" >&2
+    exit 1
+fi
+
+GHOSTTY_CONFIG="$HOME/.config/ghostty/config"
+
+# Check if Ghostty config exists
+if [ ! -f "$GHOSTTY_CONFIG" ]; then
+    # Ghostty not configured, exit silently
+    exit 0
+fi
+
+# Update font family in config
+sed -i "s/font-family = \".*\"/font-family = \"$FONT_NAME\"/g" "$GHOSTTY_CONFIG"
+
+# Reload running Ghostty instances
+if pgrep -x ghostty >/dev/null; then
+    killall -SIGUSR2 ghostty 2>/dev/null || true
+fi
+
+echo "Ghostty font updated to: $FONT_NAME"

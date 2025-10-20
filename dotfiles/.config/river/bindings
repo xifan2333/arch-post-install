@@ -5,18 +5,19 @@ mod="Mod4"  # Super/Windows key
 
 # Application launchers
 riverctl map normal $mod Return spawn $TERMINAL                                # Terminal
-riverctl map normal $mod Space spawn "$HOME/.local/bin/w-launcher"            # App launcher (wmenu)
-riverctl map normal $mod V spawn "$HOME/.local/bin/w-clipboard"               # Clipboard history (wmenu)
-riverctl map normal Mod1 Space spawn "$HOME/.local/bin/r-scratchpad"          # Scratchpad terminal (Alt+Space)
+riverctl map normal $mod Space spawn ui-wofi                                  # App launcher (wofi)
+riverctl map normal $mod V spawn ui-clipboard                                 # Clipboard history
 riverctl map normal $mod B spawn google-chrome-stable                         # Browser
-riverctl map normal $mod R spawn "$TERMINAL -e lf"                             # File manager (lf)
-riverctl map normal $mod F spawn pcmanfm                                      # File manager (GUI)
+riverctl map normal $mod E spawn pcmanfm                                      # File manager (GUI)
+riverctl map normal $mod+Shift E spawn "$TERMINAL -e lf"                      # File manager (TUI)
 riverctl map normal $mod C spawn code                                         # VSCode
+riverctl map normal $mod G spawn ui-screenrecord                              # Screen record
 
-# Window management                            
+# Window management
 riverctl map normal $mod W close                                    # Close window
-riverctl map normal $mod+Shift E exit                               # Exit River
-riverctl map normal $mod+Shift R spawn "$HOME/.config/river/init"   # Reload River config
+riverctl map normal $mod F toggle-fullscreen                        # Toggle fullscreen
+riverctl map normal $mod+Shift Q exit                               # Exit River
+riverctl map normal $mod+Shift R spawn river-reload                 # Reload River config
 
 # Focus navigation (HJKL)
 riverctl map normal $mod H focus-view left                          # Focus left
@@ -54,7 +55,6 @@ riverctl map normal $mod Right send-layout-cmd rivertile "main-ratio +0.05"     
 
 # Window state
 riverctl map normal $mod P toggle-float                             # Toggle floating
-riverctl map normal $mod E toggle-fullscreen                        # Toggle fullscreen
 riverctl map normal $mod+Shift Return zoom                          # Zoom (swap with main)
 
 # Multi-monitor
@@ -64,8 +64,17 @@ riverctl map normal ${mod}+Shift Period send-to-output next         # Send to ne
 riverctl map normal ${mod}+Shift Comma send-to-output previous      # Send to previous output
 
 # Screenshots
-riverctl map normal $mod S spawn "grim -g \"\$(slurp)\" - | wl-copy"              # Screenshot area to clipboard
-riverctl map normal $mod+Shift S spawn "grim ~/Pictures/screenshot-\$(date +%Y%m%d_%H%M%S).png"  # Screenshot full screen
+riverctl map normal $mod Print spawn screenshot-edit-area                    # Screenshot area and edit
+riverctl map normal ${mod}+Shift Print spawn ui-colorpicker                  # Color picker
+riverctl map normal None Print spawn screenshot-save-area                    # Screenshot area
+riverctl map normal Shift Print spawn screenshot-save-full                   # Screenshot full screen
+riverctl map normal Control Print spawn screenshot-preview-area              # Screenshot area and preview
+riverctl map normal Mod1 Print spawn screenshot-temp-area                    # Screenshot area to temp (copy path)
+
+# Screen recording
+riverctl map normal $mod G spawn screenrecord-start-full                     # Record full screen
+riverctl map normal ${mod}+Control G spawn screenrecord-stop                 # Stop recording
+riverctl map normal ${mod}+Mod1 G spawn screenrecord-start-area              # Record area
 
 # Media keys - Volume
 riverctl map -repeat normal None XF86AudioRaiseVolume spawn "pamixer -i 5"

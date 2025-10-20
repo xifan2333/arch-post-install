@@ -15,6 +15,11 @@ setopt HIST_IGNORE_SPACE
 setopt AUTO_CD
 setopt CORRECT
 
+# Enable bracketed paste mode for safe multi-line pasting
+autoload -Uz bracketed-paste-magic
+zle -N bracketed-paste bracketed-paste-magic
+zstyle ':bracketed-paste-magic' active-widgets '.self-*'
+
 # Load zsh-completions
 if [ -d /usr/share/zsh/site-functions ]; then
     fpath=(/usr/share/zsh/site-functions $fpath)
@@ -60,3 +65,9 @@ fi
 if command -v starship &> /dev/null; then
     eval "$(starship init zsh)"
 fi
+
+# Codex Config Manager - auto-generated
+[[ -f "/home/xifan/.config/codex/env" ]] && source "/home/xifan/.config/codex/env"
+
+# Claude Config Manager - auto-generated
+[[ -f "/home/xifan/.config/claude/env" ]] && source "/home/xifan/.config/claude/env"
