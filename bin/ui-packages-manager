@@ -1,0 +1,36 @@
+#!/bin/bash
+# Package manager interface
+
+source i18n-core
+
+# Pre-load all i18n messages
+PROMPT_MSG="$(msg packages_manager_prompt)"
+INSTALL_MSG="$(msg packages_manager_install)"
+AUR_INSTALL_MSG="$(msg packages_manager_aur_install)"
+REMOVE_MSG="$(msg packages_manager_remove)"
+
+# Define menu options
+OPTIONS=(
+    "$INSTALL_MSG"
+    "$AUR_INSTALL_MSG"
+    "$REMOVE_MSG"
+)
+
+# Show menu using ui-wofi
+CHOICE=$(printf "%s\n" "${OPTIONS[@]}" | ui-wofi --dmenu -p "$PROMPT_MSG")
+
+# Exit if no selection
+[ -z "$CHOICE" ] && exit 0
+
+# Execute based on choice
+case "$CHOICE" in
+    "$INSTALL_MSG")
+        terminal-launch --class="PackageManager" --title="$INSTALL_MSG" --done -- package-install
+        ;;
+    "$AUR_INSTALL_MSG")
+        terminal-launch --class="PackageManager" --title="$AUR_INSTALL_MSG" --done -- package-install-aur
+        ;;
+    "$REMOVE_MSG")
+        terminal-launch --class="PackageManager" --title="$REMOVE_MSG" --done -- package-remove
+        ;;
+esac

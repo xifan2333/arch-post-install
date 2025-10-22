@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Remove Web App
+Name[zh_CN]=卸载 Web 应用
+Comment=Remove installed web application
+Comment[zh_CN]=卸载 Web 应用
+Exec=sh -c "$HOME/.local/bin/ui-webapp-remove"
+Icon=$HOME/.local/share/applications/icons/ui-webapp.png
+Terminal=false
+Categories=Utility;Network;
+Keywords=webapp;remove;uninstall;browser;application;
+Keywords[zh_CN]=网页;应用;卸载;删除;浏览器;xz;

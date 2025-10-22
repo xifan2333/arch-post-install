@@ -1,0 +1,11 @@
+#!/bin/bash
+# View all normal workspaces (1-9, excluding scratchpad)
+# Usage: river-workspace-view-all
+
+set -e
+
+# Tags 1-9 (all normal workspaces)
+all_tags=$(((1 << 9) - 1))
+
+# Set focused tags to show all normal workspaces
+riverctl set-focused-tags $all_tags

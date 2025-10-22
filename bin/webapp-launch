@@ -1,0 +1,27 @@
+#!/bin/bash
+# Launch web application in browser app mode with unique window class
+
+if [ -z "$1" ]; then
+    echo "Usage: webapp-launch <URL> [APP_NAME]"
+    exit 1
+fi
+
+URL="$1"
+APP_NAME="${2:-webapp}"
+
+# Generate a unique class name from URL if APP_NAME not provided
+if [ "$APP_NAME" = "webapp" ]; then
+    # Extract domain from URL as class name
+    APP_NAME=$(echo "$URL" | sed -E 's|^https?://([^/]+).*|\1|' | sed 's/[^a-zA-Z0-9]/-/g')
+fi
+
+# Wayland IME flags with text-input-v3 protocol support
+WAYLAND_FLAGS="--enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime --wayland-text-input-version=3"
+
+# Use google-chrome-stable or fallback to xdg-open
+if command -v google-chrome-stable >/dev/null 2>&1; then
+    exec google-chrome-stable $WAYLAND_FLAGS --class="$APP_NAME" --app="$URL"
+else
+    # Fallback to default browser
+    exec xdg-open "$URL"
+fi

@@ -1,0 +1,32 @@
+#!/bin/bash
+# Remove web application desktop entry
+# Usage: webapp-remove <app-name> [app-name...]
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: At least one application name is required" >&2
+    echo "Usage: webapp-remove <app-name> [app-name...]" >&2
+    exit 1
+fi
+
+ICON_DIR="$HOME/.local/share/applications/icons"
+DESKTOP_DIR="$HOME/.local/share/applications"
+
+# Remove all specified apps
+for APP_NAME in "$@"; do
+    DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
+    ICON_FILE="$ICON_DIR/$APP_NAME.png"
+
+    if [ ! -f "$DESKTOP_FILE" ]; then
+        echo "Warning: Application '$APP_NAME' not found" >&2
+        continue
+    fi
+
+    rm -f "$DESKTOP_FILE"
+    rm -f "$ICON_FILE"
+    echo "$APP_NAME"
+done
+
+# Update desktop database
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+fi

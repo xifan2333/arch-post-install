@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Package Manager
+Name[zh_CN]=软件包管理
+Comment=Install, remove and manage packages
+Comment[zh_CN]=安装、卸载和管理软件包
+Exec=sh -c "$HOME/.local/bin/ui-packages-manager"
+Icon=$HOME/.local/share/applications/icons/ui-packages-manager.png
+Terminal=false
+Categories=System;PackageManager;
+Keywords=package;install;remove;pacman;yay;
+Keywords[zh_CN]=软件包;安装;卸载;管理;rjb;

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Waybar module for screenshot button
+# Outputs JSON format for waybar custom module
+
+source i18n-core
+
+tooltip=$(msg "waybar_screenshot_tooltip")
+echo "{\"text\":\"\",\"tooltip\":\"$tooltip\"}"

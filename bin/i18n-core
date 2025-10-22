@@ -1,0 +1,67 @@
+#!/bin/bash
+# UI Internationalization Library
+# Provides i18n support for UI scripts
+
+# Global associative array for i18n messages
+declare -gA i18n
+
+# Load language-specific translations
+load_i18n() {
+    local lang="${LANG%%.*}"  # Extract language code (e.g., zh_CN from zh_CN.UTF-8)
+    local i18n_dir="$HOME/.local/bin"
+    # Convert lang to lowercase with dashes (zh_CN -> zh-cn)
+    local lang_normalized="${lang,,}"
+    lang_normalized="${lang_normalized/_/-}"
+    local i18n_file="$i18n_dir/i18n-${lang_normalized}"
+
+    # Fallback to English if translation doesn't exist
+    if [[ ! -f "$i18n_file" ]]; then
+        case "$lang" in
+            zh_CN|zh_TW|zh_HK)
+                i18n_file="$i18n_dir/i18n-zh-cn"
+                ;;
+            *)
+                i18n_file="$i18n_dir/i18n-en-us"
+                ;;
+        esac
+    fi
+
+    # Source language file if it exists, otherwise use English
+    if [[ -f "$i18n_file" ]]; then
+        source "$i18n_file"
+    elif [[ -f "$i18n_dir/i18n-en-us" ]]; then
+        source "$i18n_dir/i18n-en-us"
+    else
+        # Minimal fallback if no language files exist
+        echo "Warning: No i18n files found, using minimal English defaults" >&2
+        i18n[error]="Error"
+        i18n[success]="Success"
+    fi
+}
+
+# Get translated message with optional variable substitution
+# Usage: msg "key" ["var1" "value1" "var2" "value2" ...]
+msg() {
+    local key="$1"
+    local message="${i18n[$key]}"
+
+    # If message not found, return key as fallback
+    if [[ -z "$message" ]]; then
+        echo "[$key]"
+        return 1
+    fi
+
+    # Variable substitution
+    shift
+    while [[ $# -ge 2 ]]; do
+        local var="$1"
+        local val="$2"
+        message="${message//\{$var\}/$val}"
+        shift 2
+    done
+
+    echo "$message"
+}
+
+# Auto-load i18n on source
+load_i18n

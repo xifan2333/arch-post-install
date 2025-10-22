@@ -1,0 +1,31 @@
+#!/bin/bash
+# Interactive AUR package installation using fzf
+
+# Load i18n
+source i18n-core
+
+fzf_args=(
+  --multi
+  --prompt="$(msg package_aur_install_prompt) "
+  --preview 'yay -Siia {1}'
+  --preview-label="$(msg package_aur_install_preview_label)"
+  --preview-label-pos='bottom'
+  --preview-window 'down:65%:wrap'
+  --bind 'alt-p:toggle-preview'
+  --bind 'alt-d:preview-half-page-down,alt-u:preview-half-page-up'
+  --bind 'alt-k:preview-up,alt-j:preview-down'
+  --bind 'alt-b:change-preview:yay -Gpa {1} | tail -n +5'
+  --bind 'alt-B:change-preview:yay -Siia {1}'
+  --color 'pointer:green,marker:green'
+)
+
+pkg_names=$(yay -Slqa | fzf "${fzf_args[@]}")
+
+if [[ -n "$pkg_names" ]]; then
+  # Show logo before installation (visible when entering password)
+  echo
+  component-show-logo
+
+  # Convert newline-separated selections to space-separated for yay
+  echo "$pkg_names" | tr '\n' ' ' | xargs yay -S --noconfirm
+fi

@@ -1,0 +1,148 @@
+#!/bin/bash
+# Bin Manager - Install/Uninstall scripts to/from $HOME/.local/bin
+# Usage: bin-manager <install|uninstall>
+
+set -e
+
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BIN_SOURCE="$PROJECT_ROOT/bin"
+BIN_TARGET="$HOME/.local/bin"
+
+# Print functions
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+# Install function
+install_scripts() {
+    print_info "Installing scripts to $BIN_TARGET"
+
+    if [ ! -d "$BIN_SOURCE" ]; then
+        print_error "Source directory not found: $BIN_SOURCE"
+        exit 1
+    fi
+
+    # Create target directory if it doesn't exist
+    mkdir -p "$BIN_TARGET"
+
+    # Count files before sync
+    local count
+    count=$(find "$BIN_SOURCE" -maxdepth 1 -type f | wc -l)
+
+    if [ "$count" -eq 0 ]; then
+        print_warning "No scripts found in $BIN_SOURCE"
+        exit 0
+    fi
+
+    # Use rsync to sync files
+    if rsync -av --chmod=+x "$BIN_SOURCE/" "$BIN_TARGET/"; then
+        print_success "Installed $count scripts to $BIN_TARGET"
+        echo
+        print_info "Make sure $BIN_TARGET is in your PATH"
+
+        # Check if bin is in PATH
+        if [[ ":$PATH:" != *":$BIN_TARGET:"* ]]; then
+            print_warning "$BIN_TARGET is not in your PATH"
+            echo
+            echo "Add this line to your ~/.bashrc or ~/.zshrc:"
+            echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+        fi
+    else
+        print_error "Failed to install scripts"
+        exit 1
+    fi
+}
+
+# Uninstall function
+uninstall_scripts() {
+    print_info "Uninstalling scripts from $BIN_TARGET"
+
+    if [ ! -d "$BIN_TARGET" ]; then
+        print_warning "Target directory does not exist: $BIN_TARGET"
+        exit 0
+    fi
+
+    if [ ! -d "$BIN_SOURCE" ]; then
+        print_error "Source directory not found: $BIN_SOURCE"
+        exit 1
+    fi
+
+    # Get list of scripts and remove them
+    cd "$BIN_SOURCE"
+    local removed
+    removed=$(find . -maxdepth 1 -type f -exec basename {} \; | \
+        xargs -I {} sh -c 'if [ -f "'$BIN_TARGET'/{}" ]; then rm -v "'$BIN_TARGET'/{}"; fi' | \
+        wc -l)
+
+    if [ "$removed" -gt 0 ]; then
+        print_success "Removed $removed scripts from $BIN_TARGET"
+    else
+        print_info "No scripts were removed"
+    fi
+}
+
+# Show usage
+usage() {
+    echo "Usage: $0 <install|uninstall>"
+    echo
+    echo "Commands:"
+    echo "  install     Install all scripts from bin/ to $BIN_TARGET using rsync"
+    echo "  uninstall   Remove all scripts from $BIN_TARGET"
+    echo
+    echo "Example:"
+    echo "  $0 install"
+    echo "  $0 uninstall"
+}
+
+# Main
+main() {
+    if [ $# -eq 0 ]; then
+        print_error "No command specified"
+        echo
+        usage
+        exit 1
+    fi
+
+    local command="$1"
+
+    case "$command" in
+        install)
+            install_scripts
+            ;;
+        uninstall)
+            uninstall_scripts
+            ;;
+        -h|--help|help)
+            usage
+            ;;
+        *)
+            print_error "Unknown command: $command"
+            echo
+            usage
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

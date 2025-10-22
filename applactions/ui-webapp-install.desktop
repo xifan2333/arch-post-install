@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Install Web App
+Name[zh_CN]=安装 Web 应用
+Comment=Install web application as standalone app
+Comment[zh_CN]=安装 Web 应用
+Exec=sh -c "$HOME/.local/bin/ui-webapp-install"
+Icon=$HOME/.local/share/applications/icons/ui-webapp.png
+Terminal=false
+Categories=Utility;Network;
+Keywords=webapp;install;browser;application;
+Keywords[zh_CN]=网页;应用;安装;浏览器;yy;

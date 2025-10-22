@@ -1,0 +1,21 @@
+#!/bin/bash
+# List all installed web applications
+# Usage: webapp-list
+
+DESKTOP_DIR="$HOME/.local/share/applications"
+
+# Find all web app desktop entries
+WEB_APPS=()
+while IFS= read -r -d '' file; do
+    if grep -q '^Exec=webapp-launch.*' "$file"; then
+        WEB_APPS+=("$(basename "${file%.desktop}")")
+    fi
+done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
+
+# Output list (one per line, sorted)
+if [ ${#WEB_APPS[@]} -gt 0 ]; then
+    printf '%s\n' "${WEB_APPS[@]}" | sort
+    exit 0
+else
+    exit 1
+fi

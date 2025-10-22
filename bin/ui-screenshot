@@ -1,0 +1,43 @@
+#!/bin/bash
+# Interactive screenshot menu with wofi
+# Usage: ui-screenshot
+
+set -e
+
+# Load i18n
+source i18n-core
+
+# Show menu
+CHOICE=$(printf "%s\n%s\n%s\n%s\n%s\n%s" \
+    "${i18n[screenshot_save_area]}" \
+    "${i18n[screenshot_save_full]}" \
+    "${i18n[screenshot_edit_area]}" \
+    "${i18n[screenshot_temp_area]}" \
+    "${i18n[screenshot_preview_area]}" \
+    "${i18n[screenshot_colorpicker]}" \
+    | ui-wofi --dmenu -p "${i18n[screenshot_prompt]}")
+
+# User cancelled
+[ -z "$CHOICE" ] && exit 0
+
+# Execute based on choice
+case "$CHOICE" in
+    "${i18n[screenshot_save_area]}")
+        screenshot-save-area
+        ;;
+    "${i18n[screenshot_save_full]}")
+        screenshot-save-full
+        ;;
+    "${i18n[screenshot_edit_area]}")
+        screenshot-edit-area
+        ;;
+    "${i18n[screenshot_temp_area]}")
+        screenshot-temp-area
+        ;;
+    "${i18n[screenshot_preview_area]}")
+        screenshot-preview-area
+        ;;
+    "${i18n[screenshot_colorpicker]}")
+        screenshot-colorpicker
+        ;;
+esac

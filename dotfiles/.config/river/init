@@ -34,11 +34,6 @@ riverctl set-repeat 30 200
 riverctl hide-cursor timeout 3000
 riverctl hide-cursor when-typing enabled
 
-# Enable touchpad tap-to-click
-for i in $(riverctl list-inputs | grep -i touchpad); do
-    riverctl input "$i" tap enabled
-done
-
 # Border colors
 riverctl border-color-focused ${RIVER_BORDER_FOCUSED:-0x61afefff}
 riverctl border-color-unfocused ${RIVER_BORDER_UNFOCUSED:-0x4b5263ff}

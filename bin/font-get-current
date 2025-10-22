@@ -1,0 +1,13 @@
+#!/bin/bash
+# Get current system font
+# Usage: font-get-current
+
+CURRENT_DIR="$HOME/.config/current"
+FONT_FILE="$CURRENT_DIR/font"
+
+if [ -f "$FONT_FILE" ]; then
+    cat "$FONT_FILE"
+else
+    # Return empty if no font is set
+    echo ""
+fi

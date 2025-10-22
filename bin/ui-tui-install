@@ -1,0 +1,20 @@
+#!/bin/bash
+# Interactive TUI installer with wofi
+# Create .desktop entries for TUI programs
+
+# Load i18n
+source i18n-core
+
+# Get app name via wofi
+app_name=$(echo "" | ui-wofi --dmenu -p "${i18n[tui_install_app_prompt]}")
+[ -z "$app_name" ] && exit 0
+
+# Get command via wofi
+app_cmd=$(echo "" | ui-wofi --dmenu -p "${i18n[tui_install_cmd_prompt]}")
+[ -z "$app_cmd" ] && exit 0
+
+# Create .desktop file
+tui-install-desktop "$app_name" "$app_cmd"
+
+# Notify success
+notify-send "${i18n[tui_install_title]}" "$(msg tui_install_success app "$app_name")" 2>/dev/null

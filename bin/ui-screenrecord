@@ -1,0 +1,31 @@
+#!/bin/bash
+# Interactive screen recording menu with wofi
+# Usage: ui-screenrecord
+
+set -e
+
+# Load i18n
+source i18n-core
+
+# Show menu
+CHOICE=$(printf "%s\n%s\n%s" \
+    "${i18n[screenrecord_start_area]}" \
+    "${i18n[screenrecord_start_full]}" \
+    "${i18n[screenrecord_stop]}" \
+    | ui-wofi --dmenu -p "${i18n[screenrecord_prompt]}")
+
+# User cancelled
+[ -z "$CHOICE" ] && exit 0
+
+# Execute based on choice
+case "$CHOICE" in
+    "${i18n[screenrecord_start_area]}")
+        screenrecord-start-area
+        ;;
+    "${i18n[screenrecord_start_full]}")
+        screenrecord-start-full
+        ;;
+    "${i18n[screenrecord_stop]}")
+        screenrecord-stop
+        ;;
+esac

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+source i18n-core
+
+echo
+gum spin --spinner "globe" --title "$(msg terminal_done_message)" -- bash -c 'read -n 1 -s'

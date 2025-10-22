@@ -16,6 +16,7 @@ riverctl map normal $mod G spawn ui-screenrecord                              # 
 # Window management
 riverctl map normal $mod W close                                    # Close window
 riverctl map normal $mod F toggle-fullscreen                        # Toggle fullscreen
+riverctl map normal None F11 toggle-fullscreen                      # Toggle fullscreen (F11)
 riverctl map normal $mod+Shift Q exit                               # Exit River
 riverctl map normal $mod+Shift R spawn river-reload                 # Reload River config
 
@@ -100,40 +101,37 @@ riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle inp
 # Tag (workspace) management
 # Switch to tag 1-9
 for i in $(seq 1 9); do
-    tags=$((1 << ($i - 1)))
-
     # Mod+[1-9]: Focus tag N
-    riverctl map normal $mod $i set-focused-tags $tags
+    riverctl map normal $mod $i spawn "river-workspace-focus $i"
 
     # Mod+Shift+[1-9]: Send focused window to tag N
-    riverctl map normal ${mod}+Shift $i set-view-tags $tags
+    riverctl map normal ${mod}+Shift $i spawn "river-workspace-send $i"
 
     # Mod+Control+[1-9]: Toggle visibility of tag N
-    riverctl map normal ${mod}+Control $i toggle-focused-tags $tags
+    riverctl map normal ${mod}+Control $i spawn "river-workspace-toggle $i"
 
     # Mod+Alt+[1-9]: Tag focused window with tag N (add, not move)
-    riverctl map normal ${mod}+Mod1 $i toggle-view-tags $tags
+    riverctl map normal ${mod}+Mod1 $i spawn "river-workspace-tag $i"
 done
-
-# View all normal tags and sticky/scratchpad management
-all_tags=$(((1 << 9) - 1))  # Tags 1-9
-scratch_tag=$((1 << 31))     # Tag 32
 
 # Mod+Equal: View all normal workspaces (1-9 only, excluding scratchpad)
 # Note: Equal key (=) is used because Plus (+) requires Shift
-riverctl map normal $mod equal set-focused-tags $all_tags
+riverctl map normal $mod equal spawn river-workspace-view-all
 
 # Mod+Minus: Sticky window (appears on all workspaces 1-9)
-riverctl map normal $mod minus set-view-tags $all_tags
+riverctl map normal $mod minus spawn river-sticky
 
 # Note: To un-sticky a window, use Mod+Shift+[1-9] to send it to a specific tag
 
 # Scratchpad functionality (using tag 32)
 # Mod+0: Toggle scratchpad visibility
-riverctl map normal $mod 0 toggle-focused-tags $scratch_tag
+riverctl map normal $mod 0 spawn river-scratchpad-toggle
+
+# Alt+Space: Toggle scratchpad visibility (alternative binding)
+riverctl map normal Mod1 Space spawn river-scratchpad-toggle
 
 # Mod+Shift+0: Send focused window to scratchpad
-riverctl map normal ${mod}+Shift 0 set-view-tags $scratch_tag
+riverctl map normal ${mod}+Shift 0 spawn river-scratchpad-send
 
 # Mouse bindings
 riverctl map-pointer normal $mod BTN_LEFT move-view                 # Move window with mouse

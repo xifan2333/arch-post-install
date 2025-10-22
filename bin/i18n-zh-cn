@@ -1,0 +1,161 @@
+#!/bin/bash
+# 简体中文翻译文件
+# Chinese Simplified Translation
+
+# ============================================================================
+# 通用
+# ============================================================================
+i18n[current_marker]="> "
+
+# ============================================================================
+# ui-clipboard - 剪贴板管理
+# ============================================================================
+i18n[clipboard_title]="剪贴板历史"
+i18n[clipboard_error_not_installed]="cliphist 未安装"
+i18n[clipboard_clear_option]="清空剪贴板历史"
+i18n[clipboard_prompt]="剪贴板历史："
+i18n[clipboard_cleared]="剪贴板历史已清空"
+
+# ============================================================================
+# ui-font - 字体管理
+# ============================================================================
+i18n[font_title]="字体切换器"
+i18n[font_error_not_found]="未找到 Nerd Font Mono 字体"
+i18n[font_prompt]="选择字体："
+i18n[font_switch_failed_title]="字体切换失败"
+i18n[font_switch_failed_msg]="无法设置字体：{font}"
+i18n[font_switched_notify]="已切换至：{font}"
+
+# ============================================================================
+# ui-theme - 主题管理
+# ============================================================================
+i18n[theme_title]="主题切换器"
+i18n[theme_prompt]="选择主题："
+i18n[theme_error_not_found]="错误：主题 '{theme}' 未找到于 {path}"
+i18n[theme_switched_notify]="主题已切换至 {theme}"
+
+# ============================================================================
+# ui-tui-install - TUI 应用安装
+# ============================================================================
+i18n[tui_install_title]="TUI 安装器"
+i18n[tui_install_app_prompt]="应用名称："
+i18n[tui_install_cmd_prompt]="命令："
+i18n[tui_install_success]="已安装：{app}\n\n从应用启动器启动 (Super+Space)"
+
+# ============================================================================
+# ui-tui-remove - TUI 应用移除
+# ============================================================================
+i18n[tui_remove_title]="TUI 移除"
+i18n[tui_remove_empty]="未找到 TUI 应用"
+i18n[tui_remove_prompt]="移除 TUI："
+i18n[tui_remove_success]="已移除：{app}"
+
+# ============================================================================
+# ui-wallpaper - 壁纸管理
+# ============================================================================
+i18n[wallpaper_title]="壁纸切换器"
+i18n[wallpaper_mode_prompt]="选择壁纸模式："
+i18n[wallpaper_mode_local]="本地"
+i18n[wallpaper_mode_bing]="必应"
+i18n[wallpaper_prompt]="选择壁纸："
+i18n[wallpaper_none_found]="未找到壁纸"
+i18n[wallpaper_set]="壁纸已设置为 {name}"
+i18n[wallpaper_bing_success]="必应壁纸设置成功"
+i18n[wallpaper_bing_failed]="下载必应壁纸失败"
+i18n[wallpaper_bing_error]="错误：下载必应壁纸失败"
+i18n[wallpaper_invalid_mode]="无效的模式"
+
+# ============================================================================
+# ui-screenshot - 截图工具
+# ============================================================================
+i18n[screenshot_prompt]="截图："
+i18n[screenshot_save_area]="区域截图保存 (Print)"
+i18n[screenshot_save_full]="全屏截图保存 (Shift+Print)"
+i18n[screenshot_edit_area]="区域截图标注 (Super+Print)"
+i18n[screenshot_temp_area]="区域截图临时路径 (Alt+Print)"
+i18n[screenshot_preview_area]="区域截图贴图 (Ctrl+Print)"
+i18n[screenshot_colorpicker]="取色 (Super+Shift+Print)"
+i18n[screenshot_notify_title]="截图"
+i18n[screenshot_notify_saved]="已保存：{filename}"
+i18n[screenshot_notify_path_copied]="路径已复制：{filepath}"
+i18n[screenshot_preview_window_title]="截图预览"
+
+# ============================================================================
+# ui-screenrecord - 录屏工具
+# ============================================================================
+i18n[screenrecord_prompt]="录屏："
+i18n[screenrecord_start_area]="区域录制"
+i18n[screenrecord_start_full]="全屏录制"
+i18n[screenrecord_stop]="停止录制"
+i18n[screenrecord_notify_title]="录屏"
+i18n[screenrecord_notify_stopped]="已保存：{filename}"
+i18n[screenrecord_notify_already_active]="录制已在进行中"
+
+# waybar-screenrecord
+i18n[waybar_screenrecord_tooltip_recording]="录制中 - 点击停止"
+i18n[waybar_screenrecord_tooltip_idle]="录屏"
+
+# waybar-screenshot
+i18n[waybar_screenshot_tooltip]="截图"
+
+# waybar-microphone
+i18n[waybar_microphone_tooltip_recording]="录音中 ({volume}%)"
+i18n[waybar_microphone_tooltip_recording_muted]="录音中 - 已静音 ({volume}%)"
+i18n[waybar_microphone_tooltip_idle]="麦克风"
+i18n[waybar_microphone_tooltip_muted]="麦克风 - 已静音"
+
+# ui-colorpicker - 取色工具
+i18n[colorpicker_notify_title]="取色器"
+i18n[colorpicker_notify_not_installed]="hyprpicker 未安装"
+i18n[colorpicker_notify_copied]="已复制：{color}"
+i18n[waybar_colorpicker_tooltip]="取色"
+
+# ============================================================================
+# ui-webapp-install - Web 应用安装
+# ============================================================================
+i18n[webapp_install_prompt_name]="应用名称："
+i18n[webapp_install_prompt_url]="URL 地址："
+i18n[webapp_install_prompt_icon]="图标 URL (PNG)："
+i18n[webapp_install_notify_title]="Web 应用安装器"
+i18n[webapp_install_notify_downloading]="正在下载图标..."
+i18n[webapp_install_notify_error]="图标下载失败"
+i18n[webapp_install_notify_success]="已安装：{app}"
+
+# ============================================================================
+# ui-webapp-remove - Web 应用移除
+# ============================================================================
+i18n[webapp_remove_prompt]="移除 Web 应用："
+i18n[webapp_remove_notify_title]="Web 应用移除"
+i18n[webapp_remove_notify_none]="未找到 Web 应用"
+i18n[webapp_remove_notify_success]="已移除：{app}"
+
+# ============================================================================
+# package-install - 包安装
+# ============================================================================
+i18n[package_install_prompt]="选择包："
+i18n[package_install_preview_label]="alt-p: 切换描述, alt-j/k: 滚动, tab: 多选, F11: 最大化"
+
+# ============================================================================
+# package-install-aur - AUR 包安装
+# ============================================================================
+i18n[package_aur_install_prompt]="选择 AUR 包："
+i18n[package_aur_install_preview_label]="alt-p: 切换描述, alt-b/B: 切换 PKGBUILD, alt-j/k: 滚动, tab: 多选, F11: 最大化"
+
+# ============================================================================
+# package-remove - 包移除
+# ============================================================================
+i18n[package_remove_prompt]="选择要移除的包："
+i18n[package_remove_preview_label]="alt-p: 切换描述, alt-j/k: 滚动, tab: 多选, F11: 最大化"
+
+# ============================================================================
+# ui-packages-manager - 包管理器
+# ============================================================================
+i18n[packages_manager_prompt]="包管理器："
+i18n[packages_manager_install]="安装包"
+i18n[packages_manager_aur_install]="安装 AUR 包"
+i18n[packages_manager_remove]="移除包"
+
+# ============================================================================
+# terminal-launch - 终端启动器
+# ============================================================================
+i18n[terminal_done_message]="完成！按任意键关闭..."

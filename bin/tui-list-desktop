@@ -1,0 +1,21 @@
+#!/bin/bash
+# List all installed TUI applications
+# Usage: tui-list
+
+DESKTOP_DIR="$HOME/.local/share/applications"
+
+# Find all TUI desktop entries
+TUIS=()
+while IFS= read -r -d '' file; do
+    if grep -q "^Exec=.*\$TERMINAL.*-e" "$file" || grep -q "^Exec=.*alacritty.*-e" "$file"; then
+        TUIS+=("$(basename "${file%.desktop}")")
+    fi
+done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
+
+# Output list (one per line, sorted)
+if [ ${#TUIS[@]} -gt 0 ]; then
+    printf '%s\n' "${TUIS[@]}" | sort
+    exit 0
+else
+    exit 1
+fi

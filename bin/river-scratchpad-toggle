@@ -1,0 +1,11 @@
+#!/bin/bash
+# Toggle scratchpad visibility
+# Usage: river-scratchpad-toggle
+
+set -e
+
+# Tag 32 is reserved for scratchpad
+scratch_tag=$((1 << 31))
+
+# Toggle visibility of scratchpad tag
+riverctl toggle-focused-tags $scratch_tag

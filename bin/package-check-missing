@@ -1,0 +1,11 @@
+#!/bin/bash
+# Check if any package is missing
+# Returns 0 if at least one package is missing, 1 if all are installed
+
+for pkg in "$@"; do
+  if ! pacman -Q "$pkg" &>/dev/null; then
+    exit 0
+  fi
+done
+
+exit 1

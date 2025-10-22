@@ -1,0 +1,16 @@
+#!/bin/bash
+# Backup installed packages to ~/.dotfiles/packages/
+
+BACKUP_DIR="$HOME/.dotfiles/packages"
+mkdir -p "$BACKUP_DIR"
+
+# Official repository packages
+pacman -Qeqn | sort > "$BACKUP_DIR/official.txt"
+
+# AUR packages
+pacman -Qeqm | sort > "$BACKUP_DIR/aur.txt"
+
+# All packages
+pacman -Qeq | sort > "$BACKUP_DIR/all.txt"
+
+echo "✓ Backed up $(wc -l < "$BACKUP_DIR/all.txt") packages to $BACKUP_DIR"

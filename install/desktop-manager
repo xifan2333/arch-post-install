@@ -1,0 +1,79 @@
+#!/bin/bash
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+DESKTOP_SOURCE="$PROJECT_ROOT/applactions"
+ICONS_SOURCE="$DESKTOP_SOURCE/icons"
+DESKTOP_TARGET="$HOME/.local/share/applications"
+ICONS_TARGET="$DESKTOP_TARGET/icons"
+
+install_desktops() {
+    echo -e "${BLUE}[INFO]${NC} Installing desktop entries to $DESKTOP_TARGET"
+
+    # Create target directories
+    mkdir -p "$DESKTOP_TARGET"
+    mkdir -p "$ICONS_TARGET"
+
+    # Copy and process .desktop files
+    for desktop_file in "$DESKTOP_SOURCE"/*.desktop; do
+        if [ -f "$desktop_file" ]; then
+            basename=$(basename "$desktop_file")
+            # Copy file and replace $HOME with actual path
+            sed "s|\$HOME|$HOME|g" "$desktop_file" > "$DESKTOP_TARGET/$basename"
+            echo -e "${GREEN}[✓]${NC} Installed: $basename"
+        fi
+    done
+
+    # Copy icons
+    if [ -d "$ICONS_SOURCE" ]; then
+        rsync -av "$ICONS_SOURCE/" "$ICONS_TARGET/"
+        echo -e "${GREEN}[✓]${NC} Copied icons to $ICONS_TARGET"
+    fi
+
+    echo -e "${GREEN}[SUCCESS]${NC} Desktop entries installed successfully"
+}
+
+uninstall_desktops() {
+    echo -e "${BLUE}[INFO]${NC} Uninstalling desktop entries from $DESKTOP_TARGET"
+
+    # Remove .desktop files
+    for desktop_file in "$DESKTOP_SOURCE"/*.desktop; do
+        if [ -f "$desktop_file" ]; then
+            basename=$(basename "$desktop_file")
+            if [ -f "$DESKTOP_TARGET/$basename" ]; then
+                rm -f "$DESKTOP_TARGET/$basename"
+                echo -e "${GREEN}[✓]${NC} Removed: $basename"
+            fi
+        fi
+    done
+
+    # Remove icons directory
+    if [ -d "$ICONS_TARGET" ]; then
+        rm -rf "$ICONS_TARGET"
+        echo -e "${GREEN}[✓]${NC} Removed icons directory"
+    fi
+
+    echo -e "${GREEN}[SUCCESS]${NC} Desktop entries uninstalled successfully"
+}
+
+# Main
+case "${1:-}" in
+    install)
+        install_desktops
+        ;;
+    uninstall)
+        uninstall_desktops
+        ;;
+    *)
+        echo -e "${RED}[ERROR]${NC} Usage: $0 {install|uninstall}"
+        exit 1
+        ;;
+esac

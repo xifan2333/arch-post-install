@@ -28,13 +28,10 @@ y = 2
 [cursor]
 style = { shape = "Beam", blinking = "On" }
 
-[bell]
-animation = "EaseOutExpo"
-duration = 0
-
 [mouse]
 hide_when_typing = true
 
+# Keyboard bindings
 [[keyboard.bindings]]
 key = "V"
 mods = "Control|Shift"
@@ -44,3 +41,12 @@ action = "Paste"
 key = "C"
 mods = "Control|Shift"
 action = "Copy"
+
+# Spawn new instance in same directory (Super+Ctrl+Enter)
+[[keyboard.bindings]]
+key = "Return"
+mods = "Super|Control"
+action = "SpawnNewInstance"
+
+
+

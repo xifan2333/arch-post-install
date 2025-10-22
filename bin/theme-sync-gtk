@@ -1,0 +1,37 @@
+#!/bin/bash
+# Sync GTK settings with current theme
+# Creates symlink from gtk-3.0/settings.ini to current theme's gtk3.ini
+
+set -e
+
+CURRENT_LINK="$HOME/.config/current"
+GTK3_DIR="$HOME/.config/gtk-3.0"
+GTK3_SETTINGS="$GTK3_DIR/settings.ini"
+
+# Check if current theme symlink exists
+if [ ! -L "$CURRENT_LINK" ]; then
+    echo "Warning: No current theme set" >&2
+    exit 1
+fi
+
+THEME_GTK_FILE="$CURRENT_LINK/gtk3.ini"
+
+# Check if theme has GTK configuration
+if [ ! -f "$THEME_GTK_FILE" ]; then
+    echo "Warning: Current theme has no gtk3.ini" >&2
+    exit 1
+fi
+
+# Create GTK-3.0 directory if it doesn't exist
+mkdir -p "$GTK3_DIR"
+
+# Remove old settings.ini if it exists (whether it's a file or symlink)
+if [ -e "$GTK3_SETTINGS" ] || [ -L "$GTK3_SETTINGS" ]; then
+    rm -f "$GTK3_SETTINGS"
+fi
+
+# Create symlink to current theme's GTK config
+ln -sf "$THEME_GTK_FILE" "$GTK3_SETTINGS"
+
+THEME_NAME=$(basename "$(readlink -f "$CURRENT_LINK")")
+echo "GTK theme synced (theme: $THEME_NAME)"

@@ -1,0 +1,59 @@
+#!/bin/bash
+# Interactive web application installer with wofi
+# Usage: ui-webapp-install [app-name] [app-url] [icon-ref] [custom-exec] [mime-types]
+
+source i18n-core
+
+# Check if running in interactive mode
+if [ "$#" -lt 3 ]; then
+    INTERACTIVE_MODE=true
+
+    # Get app name
+    APP_NAME=$(echo "" | ui-wofi --dmenu -p "$(msg webapp_install_prompt_name)")
+    [ -z "$APP_NAME" ] && exit 1
+
+    # Get app URL
+    APP_URL=$(echo "" | ui-wofi --dmenu -p "$(msg webapp_install_prompt_url)")
+    [ -z "$APP_URL" ] && exit 1
+
+    # Get icon URL
+    ICON_REF=$(echo "" | ui-wofi --dmenu -p "$(msg webapp_install_prompt_icon)")
+    [ -z "$ICON_REF" ] && exit 1
+
+    CUSTOM_EXEC=""
+    MIME_TYPES=""
+else
+    INTERACTIVE_MODE=false
+    APP_NAME="$1"
+    APP_URL="$2"
+    ICON_REF="$3"
+    CUSTOM_EXEC="$4"  # Optional custom exec command
+    MIME_TYPES="$5"   # Optional mime types
+fi
+
+# Show downloading notification if icon is a URL
+if [[ $ICON_REF =~ ^https?:// ]] && [ "$INTERACTIVE_MODE" = true ]; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$(msg webapp_install_notify_title)" "$(msg webapp_install_notify_downloading)"
+    fi
+fi
+
+# Install the webapp
+if webapp-install-desktop "$APP_NAME" "$APP_URL" "$ICON_REF" "$CUSTOM_EXEC" "$MIME_TYPES"; then
+    if [ "$INTERACTIVE_MODE" = true ]; then
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg webapp_install_notify_title)" "$(msg webapp_install_notify_success "app" "$APP_NAME")"
+        fi
+        echo "Web app '$APP_NAME' installed successfully"
+    else
+        echo "Installed: $APP_NAME"
+    fi
+else
+    if [ "$INTERACTIVE_MODE" = true ]; then
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg webapp_install_notify_title)" "$(msg webapp_install_notify_error)"
+        fi
+    fi
+    echo "Error: Failed to install '$APP_NAME'" >&2
+    exit 1
+fi

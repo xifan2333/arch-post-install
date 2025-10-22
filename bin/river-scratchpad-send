@@ -1,0 +1,11 @@
+#!/bin/bash
+# Send focused window to scratchpad
+# Usage: river-scratchpad-send
+
+set -e
+
+# Tag 32 is reserved for scratchpad
+scratch_tag=$((1 << 31))
+
+# Send focused window to scratchpad tag
+riverctl set-view-tags $scratch_tag

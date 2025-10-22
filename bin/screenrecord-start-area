@@ -1,0 +1,45 @@
+#!/bin/bash
+# Start area screen recording with slurp selection
+
+set -e
+source screenrecord-core
+source i18n-core
+
+screenrecord_check_deps
+
+# Check if already recording
+if screenrecord_is_active; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_notify_already_active)"
+    fi
+    exit 1
+fi
+
+# Get geometry from slurp
+geometry=$(slurp) || exit 1
+
+filename=$(screenrecord_filename)
+filepath="$RECORDINGS_DIR/$filename"
+
+# Ensure audio source is not muted before recording
+if pactl list sources | grep -A 10 "Name: $AUDIO_SOURCE" | grep -q "Mute: yes"; then
+    pactl set-source-mute "$AUDIO_SOURCE" 0
+fi
+
+# Start recording in background
+wf-recorder \
+    -f "$filepath" \
+    -c "$CODEC" \
+    -r "$FRAMERATE" \
+    -p preset="$PRESET" \
+    -p crf="$CRF" \
+    --audio="$AUDIO_SOURCE" \
+    -g "$geometry" \
+    -y &
+
+# Save PID
+echo $! > "$PID_FILE"
+
+# Don't notify on start to avoid recording the notification popup
+# Only notify waybar to update status
+screenrecord_notify_waybar

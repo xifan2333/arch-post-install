@@ -15,11 +15,6 @@ setopt HIST_IGNORE_SPACE
 setopt AUTO_CD
 setopt CORRECT
 
-# Enable bracketed paste mode for safe multi-line pasting
-autoload -Uz bracketed-paste-magic
-zle -N bracketed-paste bracketed-paste-magic
-zstyle ':bracketed-paste-magic' active-widgets '.self-*'
-
 # Load zsh-completions
 if [ -d /usr/share/zsh/site-functions ]; then
     fpath=(/usr/share/zsh/site-functions $fpath)

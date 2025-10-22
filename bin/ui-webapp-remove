@@ -1,0 +1,51 @@
+#!/bin/bash
+# Interactive web application remover with wofi
+# Usage: ui-webapp-remove [app-name...]
+
+source i18n-core
+
+if [ "$#" -eq 0 ]; then
+    # Interactive mode - get list and show selection menu
+    WEB_APPS=$(webapp-list-desktop 2>/dev/null)
+
+    if [ -z "$WEB_APPS" ]; then
+        echo "No web apps found"
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg webapp_remove_notify_title)" "$(msg webapp_remove_notify_none)"
+        fi
+        exit 1
+    fi
+
+    # Use ui-wofi for selection
+    APP_NAMES_STRING=$(echo "$WEB_APPS" | ui-wofi --dmenu -p "$(msg webapp_remove_prompt)")
+
+    # Convert newline-separated string to array
+    APP_NAMES=()
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && APP_NAMES+=("$line")
+    done <<< "$APP_NAMES_STRING"
+
+    INTERACTIVE_MODE=true
+else
+    # Use array to preserve spaces in app names
+    APP_NAMES=("$@")
+    INTERACTIVE_MODE=false
+fi
+
+if [[ ${#APP_NAMES[@]} -eq 0 ]]; then
+    echo "No app selected"
+    exit 0
+fi
+
+# Remove selected apps
+REMOVED_APPS=$(webapp-remove-desktop "${APP_NAMES[@]}")
+
+# Show notifications for each removed app in interactive mode
+if [ "$INTERACTIVE_MODE" = true ] && [ -n "$REMOVED_APPS" ]; then
+    while IFS= read -r APP_NAME; do
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg webapp_remove_notify_title)" "$(msg webapp_remove_notify_success "app" "$APP_NAME")"
+        fi
+        echo "Removed: $APP_NAME"
+    done <<< "$REMOVED_APPS"
+fi

@@ -1,0 +1,76 @@
+#!/bin/bash
+# Launch a floating terminal with a command
+
+# Parse options
+TERMINAL_CLASS="floating-terminal"
+TERMINAL_TITLE="Terminal"
+SHOW_LOGO=false
+SHOW_DONE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --class=*)
+            TERMINAL_CLASS="${1#*=}"
+            shift
+            ;;
+        --title=*)
+            TERMINAL_TITLE="${1#*=}"
+            shift
+            ;;
+        --logo)
+            SHOW_LOGO=true
+            shift
+            ;;
+        --done)
+            SHOW_DONE=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+cmd="$*"
+
+# Build the command chain
+cmd_chain=""
+
+if [ "$SHOW_LOGO" = true ]; then
+    cmd_chain="component-show-logo"
+fi
+
+if [ -n "$cmd" ]; then
+    if [ -n "$cmd_chain" ]; then
+        cmd_chain="$cmd_chain; $cmd"
+    else
+        cmd_chain="$cmd"
+    fi
+fi
+
+if [ "$SHOW_DONE" = true ]; then
+    if [ -n "$cmd_chain" ]; then
+        cmd_chain="$cmd_chain; component-show-done"
+    else
+        cmd_chain="component-show-done"
+    fi
+fi
+
+# Launch terminal
+if [ -z "$cmd_chain" ]; then
+    # Just launch an interactive shell
+    setsid -f alacritty --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE"
+else
+    # Execute command chain
+    # If --done is used, terminal closes after user confirmation
+    # Otherwise, keep shell open for user to continue working
+    if [ "$SHOW_DONE" = true ]; then
+        setsid -f alacritty --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" -e bash -l -c "$cmd_chain"
+    else
+        setsid -f alacritty --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" -e bash -l -c "$cmd_chain; exec bash -l"
+    fi
+fi

@@ -11,6 +11,10 @@ riverctl rule-add -app-id "*" ssd
 
 # Floating windows
 riverctl rule-add -app-id "scratchpad" float                        # Scratchpad terminal
+riverctl rule-add -app-id "floating-terminal" float                 # Floating terminal (terminal-launch)
+riverctl rule-add -app-id "floating-terminal" dimensions 960 540   # Default size for floating terminal
+riverctl rule-add -app-id "PackageManager" float                    # Package manager terminal
+riverctl rule-add -app-id "PackageManager" dimensions 960 540      # Larger size for package manager
 riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv) - English
 riverctl rule-add -title "Screenshot Preview" dimensions 600 400    # Smaller size for reference
 riverctl rule-add -title "截图预览" float                            # Screenshot preview (imv) - Chinese
@@ -20,7 +24,4 @@ riverctl rule-add -app-id "script-fu" float                         # GIMP scrip
 riverctl rule-add -app-id "electron" -title "Open*" float           # Electron open dialogs
 riverctl rule-add -app-id "kdenlive" float                          # kdenlive dialogs
 
-# Add more rules as needed
-# Examples:
-# riverctl rule-add -title "Picture-in-Picture" float
-# riverctl rule-add -app-id "mpv" float
+

@@ -1,7 +1,0 @@
-#!/bin/bash
-# Waybar module for microphone status
-# Outputs JSON format for waybar custom module
-
-source "$HOME/.local/lib/lib-microphone"
-
-mic_waybar_status

@@ -1,0 +1,30 @@
+#!/bin/bash
+# Remove a TUI application desktop entry
+# Usage: tui-remove <app-name>
+
+APP_NAME="$1"
+
+if [ -z "$APP_NAME" ]; then
+    echo "Error: Application name is required" >&2
+    echo "Usage: tui-remove <app-name>" >&2
+    exit 1
+fi
+
+DESKTOP_DIR="$HOME/.local/share/applications"
+DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
+
+if [ ! -f "$DESKTOP_FILE" ]; then
+    echo "Error: Application '$APP_NAME' not found" >&2
+    exit 1
+fi
+
+# Remove the desktop file
+rm -f "$DESKTOP_FILE"
+
+if [ $? -eq 0 ]; then
+    echo "$APP_NAME"
+    exit 0
+else
+    echo "Error: Failed to remove '$APP_NAME'" >&2
+    exit 1
+fi

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Check if all packages are installed
+# Returns 0 if all packages are present, 1 otherwise
+
+for pkg in "$@"; do
+  pacman -Q "$pkg" &>/dev/null || exit 1
+done
+
+exit 0

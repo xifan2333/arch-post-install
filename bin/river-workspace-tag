@@ -1,0 +1,24 @@
+#!/bin/bash
+# Tag focused window with a specific workspace (add, not move)
+# Usage: river-workspace-tag <workspace_number>
+#   workspace_number: 1-9
+
+set -e
+
+if [ $# -ne 1 ]; then
+    echo "Usage: river-workspace-tag <workspace_number>"
+    exit 1
+fi
+
+workspace=$1
+
+if ! [[ "$workspace" =~ ^[1-9]$ ]]; then
+    echo "Error: workspace_number must be between 1 and 9"
+    exit 1
+fi
+
+# Calculate tag value (1 << (workspace - 1))
+tags=$((1 << ($workspace - 1)))
+
+# Tag focused window with the specified workspace (add, not move)
+riverctl toggle-view-tags $tags

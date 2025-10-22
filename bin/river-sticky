@@ -1,0 +1,11 @@
+#!/bin/bash
+# Make focused window sticky (appear on all workspaces 1-9)
+# Usage: river-sticky
+
+set -e
+
+# Tags 1-9 (normal workspaces)
+all_tags=$(((1 << 9) - 1))
+
+# Set the focused window to appear on all normal tags
+riverctl set-view-tags $all_tags

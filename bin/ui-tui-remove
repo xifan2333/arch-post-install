@@ -1,0 +1,37 @@
+#!/bin/bash
+# Remove TUI .desktop entries with wofi
+# Interactive interface for removing installed TUI programs
+
+# Load i18n
+source i18n-core
+
+# Get list of TUI applications
+TUIS=$(tui-list 2>/dev/null)
+
+if [ -z "$TUIS" ]; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "${i18n[tui_remove_title]}" "${i18n[tui_remove_empty]}"
+    fi
+    echo "${i18n[tui_remove_empty]}"
+    exit 0
+fi
+
+# Show selection menu
+selected=$(echo "$TUIS" | wofi --dmenu -p "${i18n[tui_remove_prompt]}")
+
+# Exit if cancelled
+[ -z "$selected" ] && exit 0
+
+# Remove the selected application
+if tui-remove-desktop "$selected"; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "${i18n[tui_remove_title]}" "$(msg tui_remove_success app "$selected")"
+    fi
+    echo "$(msg tui_remove_success app "$selected")"
+else
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "${i18n[tui_remove_title]}" "Failed to remove $selected"
+    fi
+    echo "Failed to remove $selected" >&2
+    exit 1
+fi
