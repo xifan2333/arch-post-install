@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child>
+      <object class="GtkMenuItem" id="save-full">
+        <property name="label">󰹑   Save Full Screen</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="save-area">
+        <property name="label">󰩭   Save Area</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="delimiter1"/>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="edit-area">
+        <property name="label">󰏬   Annotate Area</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="temp-area">
+        <property name="label">󰆓   Temp Area Path</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="preview-area">
+        <property name="label">󰸶   Preview Area</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="delimiter2"/>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="colorpicker">
+        <property name="label">󰏘   Pick Color</property>
+      </object>
+    </child>
+  </object>
+</interface>

@@ -1,0 +1,28 @@
+#!/bin/bash
+# swayidle configuration for River WM
+# Manages screen timeout, screensaver, lock, and display power
+#
+# Usage: idle-manager [SCREENSAVER_TIMEOUT] [DPMS_TIMEOUT]
+#   SCREENSAVER_TIMEOUT: seconds before starting screensaver (default: 300)
+#   DPMS_TIMEOUT: seconds before turning off display (default: 600)
+#
+# Logic flow:
+#   1. After SCREENSAVER_TIMEOUT: Start screensaver animation
+#      - If user input: Stop screensaver, return to desktop
+#   2. After DPMS_TIMEOUT: Turn off display (screensaver still running)
+#   3. On resume from DPMS off: Lock screen with password prompt
+#
+# Example: idle-manager 180 300  # 3min screensaver, 5min dpms+lock
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Timeouts (in seconds) - can be overridden by arguments
+SCREENSAVER_TIMEOUT=${1:-300}   # Default: 5 minutes - start screensaver
+DPMS_TIMEOUT=${2:-600}          # Default: 10 minutes - turn off display and lock
+
+exec swayidle \
+    timeout $SCREENSAVER_TIMEOUT "$SCRIPT_DIR/screensaver-start" \
+        resume "$SCRIPT_DIR/screensaver-stop" \
+    timeout $DPMS_TIMEOUT 'wlopm --off \*' \
+        resume "$SCRIPT_DIR/screensaver-stop && wlopm --on \* && $SCRIPT_DIR/screen-lock" \
+    before-sleep "$SCRIPT_DIR/screensaver-stop && $SCRIPT_DIR/screen-lock"

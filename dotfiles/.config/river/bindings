@@ -93,7 +93,8 @@ riverctl map normal None XF86AudioNext spawn "playerctl next"
 riverctl map normal None XF86AudioPrev spawn "playerctl previous"
 
 # Screen lock
-riverctl map normal $mod+Shift W spawn swaylock                     # Lock screen
+riverctl map normal $mod Escape spawn screen-lock                   # Lock screen (Super + ESC)
+riverctl map normal $mod+Shift W spawn screen-lock                  # Lock screen
 
 # Input method toggle
 riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle input method
@@ -120,8 +121,6 @@ riverctl map normal $mod equal spawn river-workspace-view-all
 
 # Mod+Minus: Sticky window (appears on all workspaces 1-9)
 riverctl map normal $mod minus spawn river-sticky
-
-# Note: To un-sticky a window, use Mod+Shift+[1-9] to send it to a specific tag
 
 # Scratchpad functionality (using tag 32)
 # Mod+0: Toggle scratchpad visibility

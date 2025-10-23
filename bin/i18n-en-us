@@ -79,7 +79,6 @@ i18n[screenshot_colorpicker]="Pick Color (Super+Shift+Print)"
 i18n[screenshot_notify_title]="Screenshot"
 i18n[screenshot_notify_saved]="Saved: {filename}"
 i18n[screenshot_notify_path_copied]="Path copied: {filepath}"
-i18n[screenshot_preview_window_title]="Screenshot Preview"
 
 # ============================================================================
 # ui-screenrecord
@@ -155,6 +154,14 @@ i18n[packages_manager_prompt]="Package Manager:"
 i18n[packages_manager_install]="Install Package"
 i18n[packages_manager_aur_install]="Install AUR Package"
 i18n[packages_manager_remove]="Remove Package"
+i18n[packages_manager_backup]="Backup Package List"
+
+# ============================================================================
+# package-backup
+# ============================================================================
+i18n[package_backup_title]="Package Backup"
+i18n[package_backup_progress]="Backing up package list..."
+i18n[package_backup_success]="Backed up {count} packages to {dir}"
 
 # ============================================================================
 # terminal-launch

@@ -1,8 +1,14 @@
 #!/bin/bash
 # Backup installed packages to ~/.dotfiles/packages/
 
+source i18n-core
+
 BACKUP_DIR="$HOME/.dotfiles/packages"
 mkdir -p "$BACKUP_DIR"
+
+# Show progress message
+echo "$(msg package_backup_progress)"
+echo
 
 # Official repository packages
 pacman -Qeqn | sort > "$BACKUP_DIR/official.txt"
@@ -13,4 +19,8 @@ pacman -Qeqm | sort > "$BACKUP_DIR/aur.txt"
 # All packages
 pacman -Qeq | sort > "$BACKUP_DIR/all.txt"
 
-echo "✓ Backed up $(wc -l < "$BACKUP_DIR/all.txt") packages to $BACKUP_DIR"
+# Get package count
+PACKAGE_COUNT=$(wc -l < "$BACKUP_DIR/all.txt")
+
+# Show success message
+echo "$(msg package_backup_success count "$PACKAGE_COUNT" dir "$BACKUP_DIR")"

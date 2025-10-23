@@ -168,4 +168,39 @@ window#waybar {
     color: @accent-primary;
 }
 
+/* Power Menu */
+#custom-power {
+    padding: 0 8px;
+    color: @color-fg2;
+    min-width: 16px;
+}
+
+#custom-power:hover {
+    color: @accent-primary;
+}
+
+/* Power Menu Popup */
+menu {
+    background: @color-bg0;
+    border: 1px solid @color-bg2;
+    border-radius: 8px;
+    padding: 5px;
+}
+
+menuitem {
+    color: @color-fg0;
+    padding: 8px 16px;
+    border-radius: 4px;
+    min-width: 120px;
+}
+
+menuitem:hover {
+    background: @color-bg2;
+    color: @accent-primary;
+}
+
+separator {
+    background: @color-bg2;
+    margin: 4px 8px;
+}
 

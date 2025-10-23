@@ -1,0 +1,30 @@
+#!/bin/bash
+# Sync swaylock theme configuration
+# Usage: theme-sync-swaylock
+
+set -e
+
+CURRENT_LINK="$HOME/.config/current"
+SWAYLOCK_CONFIG="$HOME/.config/swaylock/config"
+
+# Check if current theme link exists
+if [ ! -L "$CURRENT_LINK" ]; then
+    echo "Error: Current theme link not found at $CURRENT_LINK" >&2
+    exit 1
+fi
+
+# Get theme config file
+THEME_CONFIG="$CURRENT_LINK/swaylock.conf"
+
+if [ ! -f "$THEME_CONFIG" ]; then
+    echo "Warning: swaylock.conf not found in current theme" >&2
+    exit 0
+fi
+
+# Create swaylock config directory
+mkdir -p "$(dirname "$SWAYLOCK_CONFIG")"
+
+# Copy theme config to swaylock config
+cp "$THEME_CONFIG" "$SWAYLOCK_CONFIG"
+
+echo "Swaylock theme synced"

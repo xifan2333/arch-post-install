@@ -1,13 +1,15 @@
 #!/bin/bash
 
+LOGO_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/logo.txt"
+
 clear
 echo -e "\033[32m"
-cat <<'LOGO'
- █████  ██████   ██████ ██   ██     ██      ██ ███    ██ ██    ██ ██   ██ 
-██   ██ ██   ██ ██      ██   ██     ██      ██ ████   ██ ██    ██  ██ ██  
-███████ ██████  ██      ███████     ██      ██ ██ ██  ██ ██    ██   ███   
-██   ██ ██   ██ ██      ██   ██     ██      ██ ██  ██ ██ ██    ██  ██ ██  
-██   ██ ██   ██  ██████ ██   ██     ███████ ██ ██   ████  ██████  ██   ██                                                                     
-LOGO
+
+if [ -f "$LOGO_FILE" ]; then
+    cat "$LOGO_FILE"
+else
+    echo "Error: Logo file not found at $LOGO_FILE"
+fi
+
 echo -e "\033[0m"
 echo

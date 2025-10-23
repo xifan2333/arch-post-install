@@ -1,6 +1,10 @@
 #!/bin/sh
 # River window rules
 
+# Screensaver - fullscreen and no decorations
+riverctl rule-add -app-id "Screensaver" fullscreen
+riverctl rule-add -app-id "Screensaver" csd
+
 # Wofi launcher - floating with fixed dimensions, centered by River
 riverctl rule-add -app-id "wofi" float
 riverctl rule-add -app-id "wofi" csd
@@ -15,13 +19,6 @@ riverctl rule-add -app-id "floating-terminal" float                 # Floating t
 riverctl rule-add -app-id "floating-terminal" dimensions 960 540   # Default size for floating terminal
 riverctl rule-add -app-id "PackageManager" float                    # Package manager terminal
 riverctl rule-add -app-id "PackageManager" dimensions 960 540      # Larger size for package manager
-riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv) - English
+riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv)
 riverctl rule-add -title "Screenshot Preview" dimensions 600 400    # Smaller size for reference
-riverctl rule-add -title "截图预览" float                            # Screenshot preview (imv) - Chinese
-riverctl rule-add -title "截图预览" dimensions 600 400               # Smaller size for reference
-riverctl rule-add -app-id "file-*" float                            # GIMP file dialogs
-riverctl rule-add -app-id "script-fu" float                         # GIMP script-fu
-riverctl rule-add -app-id "electron" -title "Open*" float           # Electron open dialogs
-riverctl rule-add -app-id "kdenlive" float                          # kdenlive dialogs
-
 

@@ -78,7 +78,6 @@ i18n[screenshot_colorpicker]="取色 (Super+Shift+Print)"
 i18n[screenshot_notify_title]="截图"
 i18n[screenshot_notify_saved]="已保存：{filename}"
 i18n[screenshot_notify_path_copied]="路径已复制：{filepath}"
-i18n[screenshot_preview_window_title]="截图预览"
 
 # ============================================================================
 # ui-screenrecord - 录屏工具
@@ -154,6 +153,14 @@ i18n[packages_manager_prompt]="包管理器："
 i18n[packages_manager_install]="安装包"
 i18n[packages_manager_aur_install]="安装 AUR 包"
 i18n[packages_manager_remove]="移除包"
+i18n[packages_manager_backup]="备份包列表"
+
+# ============================================================================
+# package-backup - 包备份
+# ============================================================================
+i18n[package_backup_title]="包备份"
+i18n[package_backup_progress]="正在备份包列表..."
+i18n[package_backup_success]="已将 {count} 个包备份到 {dir}"
 
 # ============================================================================
 # terminal-launch - 终端启动器

@@ -24,15 +24,14 @@ riverctl spawn-tagmask $(((1 << 9) - 1))
 # Set initial focused tags to tag 1 (start on first workspace)
 riverctl set-focused-tags $((1 << 0))
 
-# Sticky window support
-# Sticky windows appear on all tags
-# This is achieved by setting output-focused-tags to show the sticky tag
-# along with the currently focused tags
 
 # Input configuration
 riverctl set-repeat 30 200
 riverctl hide-cursor timeout 3000
 riverctl hide-cursor when-typing enabled
+
+# Keyboard layout - swap ESC and Caps Lock
+riverctl keyboard-layout -options caps:swapescape us
 
 # Border colors
 riverctl border-color-focused ${RIVER_BORDER_FOCUSED:-0x61afefff}

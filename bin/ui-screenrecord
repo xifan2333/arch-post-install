@@ -7,12 +7,12 @@ set -e
 # Load i18n
 source i18n-core
 
-# Show menu
+# Show menu (disable cache to preserve order)
 CHOICE=$(printf "%s\n%s\n%s" \
-    "${i18n[screenrecord_start_area]}" \
     "${i18n[screenrecord_start_full]}" \
+    "${i18n[screenrecord_start_area]}" \
     "${i18n[screenrecord_stop]}" \
-    | ui-wofi --dmenu -p "${i18n[screenrecord_prompt]}")
+    | ui-wofi --dmenu --cache-file=/dev/null -p "${i18n[screenrecord_prompt]}")
 
 # User cancelled
 [ -z "$CHOICE" ] && exit 0

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child>
+      <object class="GtkMenuItem" id="save-full">
+        <property name="label">󰹑   全屏截图保存</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="save-area">
+        <property name="label">󰩭   区域截图保存</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="delimiter1"/>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="edit-area">
+        <property name="label">󰏬   区域截图标注</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="temp-area">
+        <property name="label">󰆓   区域截图临时路径</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="preview-area">
+        <property name="label">󰸶   区域截图贴图</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" id="delimiter2"/>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="colorpicker">
+        <property name="label">󰏘   取色</property>
+      </object>
+    </child>
+  </object>
+</interface>

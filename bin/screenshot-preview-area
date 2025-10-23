@@ -3,7 +3,6 @@
 
 set -e
 source screenshot-core
-source i18n-core
 
 screenshot_check_deps
 
@@ -14,5 +13,5 @@ grim -g "$(slurp)" "$filepath"
 wl-copy < "$filepath"
 
 if command -v imv >/dev/null 2>&1; then
-    imv -w "$(msg screenshot_preview_window_title)" "$filepath" &
+    imv -w "Screenshot Preview" "$filepath" &
 fi

@@ -4,7 +4,7 @@
     "height": 30,
     "modules-left": ["river/tags"],
     "modules-center": [],
-    "modules-right": ["tray", "custom/screenshot", "custom/screenrecord", "custom/microphone", "pulseaudio", "backlight", "battery", "clock"],
+    "modules-right": ["tray", "custom/screenshot", "custom/screenrecord", "custom/microphone", "pulseaudio", "backlight", "battery", "clock", "custom/power"],
 
     "river/tags": {
         "num-tags": 9
@@ -49,12 +49,17 @@
     },
 
     "custom/screenshot": {
-        "exec": "waybar-status-screenshot",
-        "return-type": "json",
-        "on-click": "ui-screenshot",
-        "format": "{icon}",
-        "format-icons": {
-            "default": "󰻿"
+        "format": "󰻿",
+        "tooltip": false,
+        "menu": "on-click",
+        "menu-file": "~/.config/waybar/screenshot_menu_zh.xml",
+        "menu-actions": {
+            "save-full": "screenshot-save-full",
+            "save-area": "screenshot-save-area",
+            "edit-area": "screenshot-edit-area",
+            "temp-area": "screenshot-temp-area",
+            "preview-area": "screenshot-preview-area",
+            "colorpicker": "screenshot-colorpicker"
         }
     },
 
@@ -86,6 +91,20 @@
             "recording-muted": "󰍭",
             "muted": "󰍭"
         }
-            
+
+    },
+
+    "custom/power": {
+        "format": "⏻",
+        "tooltip": false,
+        "menu": "on-click",
+        "menu-file": "~/.config/waybar/power_menu_zh.xml",
+        "menu-actions": {
+            "shutdown": "systemctl poweroff",
+            "reboot": "systemctl reboot",
+            "logout": "riverctl exit",
+            "suspend": "systemctl suspend",
+            "lock": "screen-lock"
+        }
     }
 }

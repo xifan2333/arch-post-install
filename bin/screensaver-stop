@@ -1,0 +1,13 @@
+#!/bin/bash
+# Stop screensaver
+
+SCREENSAVER_PID_FILE="/tmp/screensaver-$USER.pid"
+
+# Kill tte processes
+pkill -x tte 2>/dev/null
+
+# Kill screensaver terminal
+pkill -f "alacritty.*--class Screensaver" 2>/dev/null
+
+# Remove PID file
+rm -f "$SCREENSAVER_PID_FILE"

@@ -2,7 +2,7 @@
 # River autostart programs
 
 # Restart on every reload (kill managed services)
-killall -q waybar swaybg fcitx5 dunst
+killall -q waybar swaybg fcitx5 dunst swayidle
 
 # Note: UWSM handles systemd environment import automatically
 # No need to manually import WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP, etc.
@@ -15,6 +15,9 @@ uwsm app -- fcitx5 -d &
 
 # Notification daemon - managed by uwsm
 uwsm app -- dunst &
+
+# Idle manager (screensaver,dpms) - managed by uwsm
+uwsm app -- idle-manager 600 1800 &
 
 # Wallpaper - restore from saved state
 if command -v swaybg >/dev/null 2>&1; then

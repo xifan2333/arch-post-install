@@ -102,6 +102,11 @@ reload_apps() {
         theme-sync-fcitx5
     fi
 
+    # Sync swaylock theme
+    if command -v theme-sync-swaylock >/dev/null 2>&1; then
+        theme-sync-swaylock
+    fi
+
     # Apply River WM border colors
     if [ -f "$THEME_PATH/riverrc" ]; then
         . "$THEME_PATH/riverrc"

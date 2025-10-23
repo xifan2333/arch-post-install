@@ -1,0 +1,22 @@
+/* GTKLock theme - Tokyo Night */
+
+@define-color clock-color #c0caf5;
+@define-color date-color #a9b1d6;
+
+/* Input box colors */
+@define-color input-bg-color rgba(26, 27, 38, 0.8);
+@define-color input-border-color #7aa2f7;
+@define-color input-text-color #c0caf5;
+
+/* Focus state */
+@define-color input-focus-bg-color rgba(26, 27, 38, 0.95);
+@define-color input-focus-border-color #7dcfff;
+
+/* Error state */
+@define-color input-error-bg-color rgba(247, 118, 142, 0.2);
+@define-color input-error-border-color #f7768e;
+
+/* Messages */
+@define-color message-color #a9b1d6;
+@define-color error-color #f7768e;
+@define-color warning-color #e0af68;

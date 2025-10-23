@@ -1,0 +1,33 @@
+#!/bin/bash
+# Screen locker with swaylock-effects and tokyo-night theme
+# Usage: screen-lock
+
+set -e
+
+# Configuration
+CONFIG_FILE="$HOME/.config/swaylock/config"
+WALLPAPER_FILE="$HOME/.config/current/wallpaper"
+
+# Get current wallpaper
+if [ -f "$WALLPAPER_FILE" ]; then
+    WALLPAPER=$(cat "$WALLPAPER_FILE")
+else
+    # Fallback to default wallpaper
+    WALLPAPER="$HOME/Pictures/wallpapers/bing.jpg"
+fi
+
+# Build swaylock command
+SWAYLOCK_CMD="swaylock"
+
+# Add config if exists
+if [ -f "$CONFIG_FILE" ]; then
+    SWAYLOCK_CMD="$SWAYLOCK_CMD --config $CONFIG_FILE"
+fi
+
+# Add wallpaper if exists
+if [ -f "$WALLPAPER" ]; then
+    SWAYLOCK_CMD="$SWAYLOCK_CMD --image $WALLPAPER"
+fi
+
+# Lock screen with swaylock-effects
+exec $SWAYLOCK_CMD

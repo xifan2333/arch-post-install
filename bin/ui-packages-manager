@@ -8,16 +8,18 @@ PROMPT_MSG="$(msg packages_manager_prompt)"
 INSTALL_MSG="$(msg packages_manager_install)"
 AUR_INSTALL_MSG="$(msg packages_manager_aur_install)"
 REMOVE_MSG="$(msg packages_manager_remove)"
+BACKUP_MSG="$(msg packages_manager_backup)"
 
 # Define menu options
 OPTIONS=(
     "$INSTALL_MSG"
     "$AUR_INSTALL_MSG"
     "$REMOVE_MSG"
+    "$BACKUP_MSG"
 )
 
-# Show menu using ui-wofi
-CHOICE=$(printf "%s\n" "${OPTIONS[@]}" | ui-wofi --dmenu -p "$PROMPT_MSG")
+# Show menu using ui-wofi (disable cache to preserve order)
+CHOICE=$(printf "%s\n" "${OPTIONS[@]}" | ui-wofi --dmenu --cache-file=/dev/null -p "$PROMPT_MSG")
 
 # Exit if no selection
 [ -z "$CHOICE" ] && exit 0
@@ -32,5 +34,8 @@ case "$CHOICE" in
         ;;
     "$REMOVE_MSG")
         terminal-launch --class="PackageManager" --title="$REMOVE_MSG" --done -- package-remove
+        ;;
+    "$BACKUP_MSG")
+        terminal-launch --class="PackageManager" --title="$BACKUP_MSG" --logo --done -- package-backup
         ;;
 esac
