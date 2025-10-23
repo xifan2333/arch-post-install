@@ -13,7 +13,8 @@ if [ -f "$WALLPAPER_FILE" ]; then
     WALLPAPER=$(cat "$WALLPAPER_FILE")
 else
     # Fallback to default wallpaper
-    WALLPAPER="$HOME/Pictures/wallpapers/bing.jpg"
+    XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+    WALLPAPER="$XDG_PICTURES_DIR/wallpapers/bing.jpg"
 fi
 
 # Build swaylock command

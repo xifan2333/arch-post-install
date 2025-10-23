@@ -182,9 +182,14 @@ window#waybar {
 /* Power Menu Popup */
 menu {
     background: @color-bg0;
-    border: 1px solid @color-bg2;
+    border: none;
     border-radius: 8px;
     padding: 5px;
+}
+
+menu * {
+    border: none;
+    outline: none;
 }
 
 menuitem {

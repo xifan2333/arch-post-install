@@ -51,3 +51,6 @@ pgrep 'blueman-applet' || uwsm app -- blueman-applet &
 
 # Layout generator - NOT managed by uwsm (river-specific)
 riverctl spawn rivertile
+
+# Auto-lock on startup (for seamless login security)
+(sleep 2 && swaylock) &
