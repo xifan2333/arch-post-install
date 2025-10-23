@@ -56,9 +56,17 @@ if command -v eza &> /dev/null; then
     alias tree='eza --tree --icons'
 fi
 
+
+
 # starship prompt (must be at the end)
 if command -v starship &> /dev/null; then
     eval "$(starship init zsh)"
+fi
+
+# zoxide - smarter cd
+
+if command -v zoxide &> /dev/null; then
+    eval "$(zoxide init zsh)"
 fi
 
 # Codex Config Manager - auto-generated

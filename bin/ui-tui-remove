@@ -6,7 +6,7 @@
 source i18n-core
 
 # Get list of TUI applications
-TUIS=$(tui-list 2>/dev/null)
+TUIS=$(tui-list-desktop 2>/dev/null)
 
 if [ -z "$TUIS" ]; then
     if command -v notify-send >/dev/null 2>&1; then
@@ -17,7 +17,7 @@ if [ -z "$TUIS" ]; then
 fi
 
 # Show selection menu
-selected=$(echo "$TUIS" | wofi --dmenu -p "${i18n[tui_remove_prompt]}")
+selected=$(echo "$TUIS" | ui-wofi --dmenu -p "${i18n[tui_remove_prompt]}")
 
 # Exit if cancelled
 [ -z "$selected" ] && exit 0
