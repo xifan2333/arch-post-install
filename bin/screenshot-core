@@ -3,7 +3,7 @@
 # Source this file in screenshot scripts
 
 # XDG directories
-XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$(xdg-user-dir PICTURES)}"
 SCREENSHOTS_DIR="$XDG_PICTURES_DIR/screenshots"
 TEMP_DIR="/tmp"
 

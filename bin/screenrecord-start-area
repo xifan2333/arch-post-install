@@ -26,20 +26,14 @@ if pactl list sources | grep -A 10 "Name: $AUDIO_SOURCE" | grep -q "Mute: yes"; 
     pactl set-source-mute "$AUDIO_SOURCE" 0
 fi
 
-# Start recording in background
+# Start recording in background (minimal parameters - use wf-recorder defaults)
 wf-recorder \
     -f "$filepath" \
-    -c "$CODEC" \
-    -r "$FRAMERATE" \
-    -p preset="$PRESET" \
-    -p crf="$CRF" \
     --audio="$AUDIO_SOURCE" \
-    -g "$geometry" \
-    -y &
+    -g "$geometry" &
 
 # Save PID
 echo $! > "$PID_FILE"
 
-# Don't notify on start to avoid recording the notification popup
-# Only notify waybar to update status
+# Notify waybar to update screenrecord module
 screenrecord_notify_waybar

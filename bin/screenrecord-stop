@@ -17,15 +17,52 @@ kill -SIGINT "$pid"
 # Wait for process to finish
 wait "$pid" 2>/dev/null || true
 
+# Remove PID file immediately after recording stops
+rm -f "$PID_FILE"
+
+# Notify waybar to update screenrecord module
+screenrecord_notify_waybar
+
 # Get the most recent recording file
 filename=$(ls -t "$RECORDINGS_DIR"/screenrecord-*.mp4 2>/dev/null | head -1 | xargs basename)
-
-# Remove PID file
-rm -f "$PID_FILE"
+filepath="$RECORDINGS_DIR/$filename"
 
 if command -v notify-send >/dev/null 2>&1; then
     notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_notify_stopped filename "$filename")"
 fi
 
-# Notify waybar to update
-screenrecord_notify_waybar
+# Auto-transcode to true CFR for kdenlive compatibility
+# This is a post-processing step and doesn't affect the recording status
+if [ "$AUTO_TRANSCODE" = "true" ] && [ -f "$filepath" ]; then
+    temp_file="$RECORDINGS_DIR/.transcoding_${filename}"
+
+    # Notify start of transcoding
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_notify_transcoding)"
+    fi
+
+    # Transcode to true CFR using ffmpeg with YouTube-standard settings
+    # CRF 15 = near-lossless, slow preset for better compression
+    # -r forces constant frame rate output, -vsync cfr ensures CFR sync
+    ffmpeg -i "$filepath" \
+        -c:v libx264 \
+        -preset "$TRANSCODE_PRESET" \
+        -crf "$TRANSCODE_CRF" \
+        -profile:v "$TRANSCODE_PROFILE" \
+        -level "$TRANSCODE_LEVEL" \
+        -g "$GOP_SIZE" \
+        -bf "$B_FRAMES" \
+        -pix_fmt "$PIXEL_FORMAT" \
+        -r "$FRAMERATE" \
+        -vsync cfr \
+        -c:a copy \
+        "$temp_file" 2>/dev/null
+
+    # Replace original with transcoded version
+    if [ -f "$temp_file" ]; then
+        mv "$temp_file" "$filepath"
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_notify_transcode_complete filename "$filename")"
+        fi
+    fi
+fi

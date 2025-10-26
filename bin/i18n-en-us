@@ -90,6 +90,8 @@ i18n[screenrecord_stop]="Stop Recording"
 i18n[screenrecord_notify_title]="Screen Record"
 i18n[screenrecord_notify_stopped]="Saved: {filename}"
 i18n[screenrecord_notify_already_active]="Recording already in progress"
+i18n[screenrecord_notify_transcoding]="Transcoding to constant framerate..."
+i18n[screenrecord_notify_transcode_complete]="Transcode complete: {filename}"
 
 # waybar-screenrecord
 i18n[waybar_screenrecord_tooltip_recording]="Recording in progress - Click to stop"

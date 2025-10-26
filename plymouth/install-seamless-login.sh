@@ -169,6 +169,25 @@ fi
 if [ ! -f /etc/systemd/system/seamless-login.service ]; then
     log_info "创建 seamless-login systemd 服务..."
 
+    # 获取用户的语言环境设置
+    # 优先级: ~/.config/environment.d/ > /etc/locale.conf > 默认值
+    USER_LANG=""
+
+    # 1. 尝试从用户的 environment.d 配置读取
+    if [ -d "$REAL_HOME/.config/environment.d" ]; then
+        USER_LANG=$(grep -h '^LANG=' "$REAL_HOME/.config/environment.d"/*.conf 2>/dev/null | tail -1 | cut -d= -f2)
+    fi
+
+    # 2. 如果没有，从 /etc/locale.conf 读取
+    if [ -z "$USER_LANG" ] && [ -f /etc/locale.conf ]; then
+        USER_LANG=$(grep '^LANG=' /etc/locale.conf | cut -d= -f2)
+    fi
+
+    # 3. 如果还是空的，使用默认值
+    [ -z "$USER_LANG" ] && USER_LANG="en_US.UTF-8"
+
+    log_info "检测到语言环境: $USER_LANG"
+
     cat <<EOF | tee /etc/systemd/system/seamless-login.service >/dev/null
 [Unit]
 Description=Seamless Auto-Login
@@ -193,6 +212,12 @@ StandardInput=tty
 StandardOutput=journal
 StandardError=journal+console
 PAMName=login
+
+# 环境变量配置 - 保留用户的语言设置
+Environment="LANG=$USER_LANG"
+Environment="XDG_SESSION_TYPE=wayland"
+Environment="XDG_SESSION_DESKTOP=river"
+Environment="XDG_CURRENT_DESKTOP=river"
 
 [Install]
 WantedBy=graphical.target

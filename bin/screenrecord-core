@@ -3,16 +3,23 @@
 # Source this file in screen recording scripts
 
 # XDG directories
-XDG_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}"
+XDG_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$(xdg-user-dir VIDEOS)}"
 RECORDINGS_DIR="$XDG_VIDEOS_DIR/screenrecords"
 PID_FILE="/tmp/wf-recorder.pid"
 
-# Recording settings for kdenlive compatibility
-FRAMERATE="30"              # CFR - Constant Frame Rate for kdenlive (30fps perfect for tutorials)
-CODEC="libx264"             # H.264 codec
-PRESET="medium"             # Encoding preset (medium is good balance for recording)
-CRF="20"                    # Quality (18-28, lower = better quality) - 20 for clear text/UI
+# Recording settings (minimal - use wf-recorder defaults)
 AUDIO_SOURCE="rnnoise_source"  # Noise-suppressed audio source
+
+# YouTube-standard transcode settings (高质量转码，符合社交媒体标准)
+AUTO_TRANSCODE="true"       # Auto-transcode to true CFR after recording stops (set to "false" to disable)
+FRAMERATE="30"              # Target framerate for transcode
+TRANSCODE_CRF="15"          # CRF 15 = near-lossless (lower than 18 for better quality after re-encode)
+TRANSCODE_PRESET="slow"     # slow = better quality compression (YouTube recommended)
+TRANSCODE_PROFILE="high"    # High Profile Level 4.0 (YouTube recommended)
+TRANSCODE_LEVEL="4.0"       # H.264 Level 4.0 (supports 1080p30)
+PIXEL_FORMAT="yuv420p"      # Standard pixel format for kdenlive compatibility
+GOP_SIZE="60"               # Keyframe interval (2 seconds at 30fps) for better seeking in kdenlive
+B_FRAMES="2"                # B-frames for better compression
 
 # Ensure directories exist
 mkdir -p "$RECORDINGS_DIR"
@@ -68,14 +75,11 @@ screenrecord_waybar_status() {
     fi
 }
 
-# Waybar module: handle click event
+
 screenrecord_waybar_click() {
     if screenrecord_is_active; then
-        # Currently recording - stop it
         screenrecord-stop
     else
-        # Not recording - show menu to start
-        ui-screenrecord
+        screenrecord-start-full
     fi
 }
-

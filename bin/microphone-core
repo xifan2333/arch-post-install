@@ -122,43 +122,24 @@ mic_notify_waybar() {
 # Check if microphone is being used by any application
 # Returns "recording" if in use, empty string otherwise
 mic_is_recording() {
-    # Try wpctl first (native PipeWire), more accurate than pactl
-    if command -v wpctl >/dev/null 2>&1; then
-        # Check if there are any Stream/Input/Audio entries under Streams
-        # These represent actual applications using the microphone
-        local stream_count=$(wpctl status | \
-            awk '
-                /^Audio/,/^Video/ {
-                    if (/Streams:/) in_streams = 1
-                    else if (/^[A-Z]/) in_streams = 0
-                    if (in_streams && /Stream\/Input\/Audio/) count++
-                }
-                END { print count+0 }
-            ')
+    # Try pw-link first - most accurate, checks actual audio connections
+    # This catches ALL recording apps including Ardour, wf-recorder, etc.
+    if command -v pw-link >/dev/null 2>&1; then
+        # Get microphone source ports (both hardware and noise-suppressed)
+        # Check if any applications are connected to these ports
+        # Exclude internal connections: filters, monitors, playback outputs
+        local connection_count=$(pw-link -l 2>/dev/null | \
+            grep -E "^alsa_input.*:capture|^rnnoise_source:capture" -A10 | \
+            grep "  |->" | \
+            grep -v -E "capture\.rnnoise_source|physical_.*_monitor|monitor|alsa_output.*playback" | \
+            wc -l)
 
-        if [ "$stream_count" -gt 0 ]; then
+        if [ "$connection_count" -gt 0 ]; then
             echo "recording"
-            return
+        else
+            echo ""
         fi
-
-        # Check for JACK/DAW applications in client list
-        # These apps (like Ardour, Reaper, Bitwig) use JACK connections
-        # and don't show up as regular streams
-        local jack_clients=$(wpctl status | \
-            awk '
-                /Clients:/,/^Audio/ {
-                    line = tolower($0)
-                    if (line ~ /ardour|reaper|bitwig|carla|qtractor|renoise|lmms|rosegarden/) {
-                        print
-                        exit
-                    }
-                }
-            ')
-
-        if [ -n "$jack_clients" ]; then
-            echo "recording"
-            return
-        fi
+        return
     fi
 
     # Fallback to pactl for PulseAudio systems
@@ -191,9 +172,11 @@ mic_is_recording() {
         else
             echo ""
         fi
-    else
-        echo ""
+        return
     fi
+
+    # No recording detected
+    echo ""
 }
 
 # Waybar module: output status JSON

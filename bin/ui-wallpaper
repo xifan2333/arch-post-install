@@ -8,10 +8,10 @@ set -e
 source i18n-core
 
 # Wallpaper state file - stores current wallpaper path
-WALLPAPER_STATE="$HOME/.config/current/wallpaper"
+WALLPAPER_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/current/wallpaper"
 
 # Wallpaper directory - user's Pictures folder
-XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$(xdg-user-dir PICTURES)}"
 WALLPAPER_DIR="$XDG_PICTURES_DIR/wallpapers"
 
 # Ensure wallpaper directory exists

@@ -5,15 +5,15 @@
 set -e
 
 # Configuration
-CONFIG_FILE="$HOME/.config/swaylock/config"
-WALLPAPER_FILE="$HOME/.config/current/wallpaper"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/swaylock/config"
+WALLPAPER_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/current/wallpaper"
 
 # Get current wallpaper
 if [ -f "$WALLPAPER_FILE" ]; then
     WALLPAPER=$(cat "$WALLPAPER_FILE")
 else
     # Fallback to default wallpaper
-    XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+    XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$(xdg-user-dir PICTURES)}"
     WALLPAPER="$XDG_PICTURES_DIR/wallpapers/bing.jpg"
 fi
 

@@ -89,6 +89,8 @@ i18n[screenrecord_stop]="停止录制"
 i18n[screenrecord_notify_title]="录屏"
 i18n[screenrecord_notify_stopped]="已保存：{filename}"
 i18n[screenrecord_notify_already_active]="录制已在进行中"
+i18n[screenrecord_notify_transcoding]="正在转码为恒定帧率视频..."
+i18n[screenrecord_notify_transcode_complete]="转码完成：{filename}"
 
 # waybar-screenrecord
 i18n[waybar_screenrecord_tooltip_recording]="录制中 - 点击停止"

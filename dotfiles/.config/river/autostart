@@ -21,7 +21,7 @@ uwsm app -- idle-manager 600 1800 &
 
 # Wallpaper - restore from saved state
 if command -v swaybg >/dev/null 2>&1; then
-    WALLPAPER_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/wallpaper"
+    WALLPAPER_STATE="${XDG_CONFIG_HOME:-$HOME/.config}/current/wallpaper"
     if [ -f "$WALLPAPER_STATE" ] && [ -s "$WALLPAPER_STATE" ]; then
         WALLPAPER_PATH=$(cat "$WALLPAPER_STATE")
         if [ -f "$WALLPAPER_PATH" ]; then
@@ -53,4 +53,4 @@ pgrep 'blueman-applet' || uwsm app -- blueman-applet &
 riverctl spawn rivertile
 
 # Auto-lock on startup (for seamless login security)
-(sleep 2 && swaylock) &
+(sleep 2 && uwsm app -- screen-lock) &

@@ -4,14 +4,14 @@
 mod="Mod4"  # Super/Windows key
 
 # Application launchers
-riverctl map normal $mod Return spawn $TERMINAL                                # Terminal
-riverctl map normal $mod Space spawn ui-wofi                                  # App launcher (wofi)
-riverctl map normal $mod V spawn ui-clipboard                                 # Clipboard history
-riverctl map normal $mod B spawn google-chrome-stable                         # Browser
-riverctl map normal $mod E spawn pcmanfm                                      # File manager (GUI)
-riverctl map normal $mod+Shift E spawn "$TERMINAL -e lf"                      # File manager (TUI)
-riverctl map normal $mod C spawn code                                         # VSCode
-riverctl map normal $mod G spawn ui-screenrecord                              # Screen record
+riverctl map normal $mod Return spawn "uwsm app -- $TERMINAL"                                # Terminal
+riverctl map normal $mod Space spawn "uwsm app -- ui-wofi"                                  # App launcher (wofi)
+riverctl map normal $mod V spawn "uwsm app -- ui-clipboard"                                 # Clipboard history
+riverctl map normal $mod B spawn "uwsm app -- google-chrome-stable"                         # Browser
+riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # File manager (GUI)
+riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e lf"                        # File manager (TUI)
+riverctl map normal $mod C spawn "uwsm app -- code"                                         # VSCode
+riverctl map normal $mod G spawn "uwsm app -- ui-screenrecord"                              # Screen record
 
 # Window management
 riverctl map normal $mod W close                                    # Close window
@@ -65,17 +65,17 @@ riverctl map normal ${mod}+Shift Period send-to-output next         # Send to ne
 riverctl map normal ${mod}+Shift Comma send-to-output previous      # Send to previous output
 
 # Screenshots
-riverctl map normal $mod Print spawn screenshot-edit-area                    # Screenshot area and edit
-riverctl map normal ${mod}+Shift Print spawn ui-colorpicker                  # Color picker
-riverctl map normal None Print spawn screenshot-save-area                    # Screenshot area
-riverctl map normal Shift Print spawn screenshot-save-full                   # Screenshot full screen
-riverctl map normal Control Print spawn screenshot-preview-area              # Screenshot area and preview
-riverctl map normal Mod1 Print spawn screenshot-temp-area                    # Screenshot area to temp (copy path)
+riverctl map normal $mod Print spawn "uwsm app -- screenshot-edit-area"                    # Screenshot area and edit
+riverctl map normal ${mod}+Shift Print spawn "uwsm app -- ui-colorpicker"                  # Color picker
+riverctl map normal None Print spawn "uwsm app -- screenshot-save-area"                    # Screenshot area
+riverctl map normal Shift Print spawn "uwsm app -- screenshot-save-full"                   # Screenshot full screen
+riverctl map normal Control Print spawn "uwsm app -- screenshot-preview-area"              # Screenshot area and preview
+riverctl map normal Mod1 Print spawn "uwsm app -- screenshot-temp-area"                    # Screenshot area to temp (copy path)
 
 # Screen recording
-riverctl map normal $mod G spawn screenrecord-start-full                     # Record full screen
-riverctl map normal ${mod}+Control G spawn screenrecord-stop                 # Stop recording
-riverctl map normal ${mod}+Mod1 G spawn screenrecord-start-area              # Record area
+riverctl map normal $mod G spawn "uwsm app -- screenrecord-start-full"                     # Record full screen
+riverctl map normal ${mod}+Control G spawn "uwsm app -- screenrecord-stop"                 # Stop recording
+riverctl map normal ${mod}+Mod1 G spawn "uwsm app -- screenrecord-start-area"              # Record area
 
 # Media keys - Volume
 riverctl map -repeat normal None XF86AudioRaiseVolume spawn "pamixer -i 5"
@@ -93,8 +93,8 @@ riverctl map normal None XF86AudioNext spawn "playerctl next"
 riverctl map normal None XF86AudioPrev spawn "playerctl previous"
 
 # Screen lock
-riverctl map normal $mod Escape spawn screen-lock                   # Lock screen (Super + ESC)
-riverctl map normal $mod+Shift W spawn screen-lock                  # Lock screen
+riverctl map normal $mod Escape spawn "uwsm app -- screen-lock"                   # Lock screen (Super + ESC)
+riverctl map normal $mod+Shift W spawn "uwsm app -- screen-lock"                  # Lock screen
 
 # Input method toggle
 riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle input method
@@ -103,34 +103,34 @@ riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle inp
 # Switch to tag 1-9
 for i in $(seq 1 9); do
     # Mod+[1-9]: Focus tag N
-    riverctl map normal $mod $i spawn "river-workspace-focus $i"
+    riverctl map normal $mod $i spawn "uwsm app -- river-workspace-focus $i"
 
     # Mod+Shift+[1-9]: Send focused window to tag N
-    riverctl map normal ${mod}+Shift $i spawn "river-workspace-send $i"
+    riverctl map normal ${mod}+Shift $i spawn "uwsm app -- river-workspace-send $i"
 
     # Mod+Control+[1-9]: Toggle visibility of tag N
-    riverctl map normal ${mod}+Control $i spawn "river-workspace-toggle $i"
+    riverctl map normal ${mod}+Control $i spawn "uwsm app -- river-workspace-toggle $i"
 
     # Mod+Alt+[1-9]: Tag focused window with tag N (add, not move)
-    riverctl map normal ${mod}+Mod1 $i spawn "river-workspace-tag $i"
+    riverctl map normal ${mod}+Mod1 $i spawn "uwsm app -- river-workspace-tag $i"
 done
 
 # Mod+Equal: View all normal workspaces (1-9 only, excluding scratchpad)
 # Note: Equal key (=) is used because Plus (+) requires Shift
-riverctl map normal $mod equal spawn river-workspace-view-all
+riverctl map normal $mod equal spawn "uwsm app -- river-workspace-view-all"
 
 # Mod+Minus: Sticky window (appears on all workspaces 1-9)
-riverctl map normal $mod minus spawn river-sticky
+riverctl map normal $mod minus spawn "uwsm app -- river-sticky"
 
 # Scratchpad functionality (using tag 32)
 # Mod+0: Toggle scratchpad visibility
-riverctl map normal $mod 0 spawn river-scratchpad-toggle
+riverctl map normal $mod 0 spawn "uwsm app -- river-scratchpad-toggle"
 
 # Alt+Space: Toggle scratchpad visibility (alternative binding)
-riverctl map normal Mod1 Space spawn river-scratchpad-toggle
+riverctl map normal Mod1 Space spawn "uwsm app -- river-scratchpad-toggle"
 
 # Mod+Shift+0: Send focused window to scratchpad
-riverctl map normal ${mod}+Shift 0 spawn river-scratchpad-send
+riverctl map normal ${mod}+Shift 0 spawn "uwsm app -- river-scratchpad-send"
 
 # Mouse bindings
 riverctl map-pointer normal $mod BTN_LEFT move-view                 # Move window with mouse
