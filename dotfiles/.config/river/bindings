@@ -66,7 +66,7 @@ riverctl map normal ${mod}+Shift Comma send-to-output previous      # Send to pr
 
 # Screenshots
 riverctl map normal $mod Print spawn "uwsm app -- screenshot-edit-area"                    # Screenshot area and edit
-riverctl map normal ${mod}+Shift Print spawn "uwsm app -- ui-colorpicker"                  # Color picker
+riverctl map normal ${mod}+Shift Print spawn "uwsm app -- screenshot-colorpicker"           # Color picker
 riverctl map normal None Print spawn "uwsm app -- screenshot-save-area"                    # Screenshot area
 riverctl map normal Shift Print spawn "uwsm app -- screenshot-save-full"                   # Screenshot full screen
 riverctl map normal Control Print spawn "uwsm app -- screenshot-preview-area"              # Screenshot area and preview
