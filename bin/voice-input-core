@@ -1,0 +1,932 @@
+#!/usr/bin/env python3
+"""
+Voice Input Core - 完整的语音输入解决方案
+管理录音、识别、provider 切换
+"""
+
+import sys
+import time
+import os
+import json
+import subprocess
+import hashlib
+import hmac
+import zlib
+import random
+from urllib.request import Request, urlopen
+from urllib.parse import urlencode
+from urllib.error import URLError, HTTPError
+
+# 文件路径
+AUDIO_FILE = "/tmp/rime-voice-input.wav"
+RESULT_FILE = "/tmp/rime-voice-input-result.txt"
+PID_FILE = "/tmp/rime-voice-input-recording.pid"
+STATE_FILE = "/tmp/rime-voice-input-state.json"
+CONFIG_FILE = os.path.expanduser("~/.config/rime-voice-input.json")
+
+API_BASE_URL = "https://lv-pc-api-sinfonlinec.ulikecam.com"
+API_UPLOAD_SIGN = f"{API_BASE_URL}/lv/v1/upload_sign"
+API_SUBMIT = f"{API_BASE_URL}/lv/v1/audio_subtitle/submit"
+API_QUERY = f"{API_BASE_URL}/lv/v1/audio_subtitle/query"
+VOD_BASE_URL = "https://vod.bytedanceapi.com"
+UPLOAD_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36 Thea/1.0.1"
+
+# Bijian API endpoints
+BIJIAN_BASE_URL = "https://member.bilibili.com/x/bcut/rubick-interface"
+BIJIAN_REQ_UPLOAD = f"{BIJIAN_BASE_URL}/resource/create"
+BIJIAN_COMMIT_UPLOAD = f"{BIJIAN_BASE_URL}/resource/create/complete"
+BIJIAN_CREATE_TASK = f"{BIJIAN_BASE_URL}/task"
+BIJIAN_QUERY_RESULT = f"{BIJIAN_BASE_URL}/task/result"
+BIJIAN_MODEL_ID = "8"
+
+
+class JianYingASR:
+    """JianYing ASR implementation using stdlib only"""
+
+    def __init__(self, audio_path):
+        self.audio_path = audio_path
+        self.upload_ctx = {}
+
+    def recognize(self):
+        """Run JianYing ASR recognition"""
+        try:
+            # Read audio file
+           
+            with open(self.audio_path, 'rb') as f:
+                audio_data = f.read()
+
+            # Calculate CRC32
+            crc32_val = zlib.crc32(audio_data) & 0xffffffff
+            crc32_hex = f"{crc32_val:08x}"
+
+            # Generate device ID
+            tdid = self._generate_tdid()
+
+            self.upload_ctx = {
+                'crc32_hex': crc32_hex,
+                'access_key': '',
+                'secret_key': '',
+                'session_token': '',
+                'store_uri': '',
+                'auth': '',
+                'upload_id': '',
+                'session_key': '',
+                'upload_host': '',
+            }
+            # Store audio_data for later use in commit
+            self.audio_data = audio_data
+
+            # Step 1: Get upload signature
+           
+            self._get_upload_sign(tdid)
+
+            # Step 2: Get upload authorization
+           
+            self._get_upload_auth(len(audio_data))
+
+            # Step 3: Upload file
+           
+            self._upload_file(audio_data)
+
+            # Step 4: Check upload
+           
+            self._upload_check()
+
+            # Step 5: Commit upload
+           
+            self._upload_commit()
+
+            # Step 6: Submit transcription task
+            
+            query_id = self._submit_task(tdid)
+
+            # Step 7: Query result
+           
+            result = self._query_task(query_id, tdid)
+
+            # Parse result
+            return self._parse_result(result)
+
+        except Exception as e:
+            raise Exception(f"JianYing ASR failed: {e}")
+
+    def _generate_tdid(self):
+        """Generate device ID"""
+        year_last_digit = int(time.strftime("%Y")) % 10
+        fr = 390 + year_last_digit
+
+        if year_last_digit % 2 != 0:
+            ed = "3278516897751"
+        else:
+            ed = f"{random.randint(1000000000000, 9999999999999)}"
+
+        return f"{fr}{ed}"
+
+    def _generate_sign(self, url, tdid):
+        """Generate signature for JianYing API"""
+        device_time = str(int(time.time()))
+
+        # Extract last 7 characters from URL
+        pathname = url
+        if len(pathname) >= 7:
+            v = pathname[-7:]
+        else:
+            v = pathname
+
+        # Build signature string
+        pf = "4"
+        app_version = "6.6.0"
+        sign_string = f"9e2c|{v}|{pf}|{app_version}|{device_time}|{tdid}|11ac"
+
+        # Calculate MD5
+        sign = hashlib.md5(sign_string.encode()).hexdigest()
+
+        return sign, device_time
+
+    def _build_headers(self, sign, device_time, tdid):
+        """Build request headers"""
+        return {
+            "User-Agent": "Cronet/TTNetVersion:d4572e53 2024-06-12 QuicVersion:4bf243e0 2023-04-17",
+            "appvr": "6.6.0",
+            "device-time": device_time,
+            "pf": "4",
+            "sign": sign,
+            "sign-ver": "1",
+            "tdid": tdid,
+            "Content-Type": "application/json",
+        }
+
+    def _do_request(self, url, data=None, headers=None, method=None):
+        """Execute HTTP request"""
+        if headers is None:
+            headers = {}
+
+        if data is not None and not isinstance(data, bytes):
+            data = json.dumps(data).encode('utf-8')
+
+        req = Request(url, data=data, headers=headers, method=method)
+
+        try:
+            with urlopen(req, timeout=300) as response:
+                body = response.read()
+                return json.loads(body.decode('utf-8'))
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Network error: {e.reason}")
+
+    def _get_upload_sign(self, tdid):
+        """Get upload signature"""
+        payload = {"biz": "pc-recognition"}
+
+        sign, device_time = self._generate_sign("/lv/v1/upload_sign", tdid)
+        headers = self._build_headers(sign, device_time, tdid)
+
+        result = self._do_request(API_UPLOAD_SIGN, payload, headers)
+
+        if result.get("ret") != "0":
+            raise Exception(f"Upload sign failed: {result.get('errmsg')}")
+
+        data = result.get("data", {})
+        self.upload_ctx['access_key'] = data.get('access_key_id', '')
+        self.upload_ctx['secret_key'] = data.get('secret_access_key', '')
+        self.upload_ctx['session_token'] = data.get('session_token', '')
+
+    def _aws_signature(self, secret_key, request_params, headers, method, payload, region, service):
+        """Generate AWS v4 signature"""
+        canonical_uri = "/"
+        canonical_querystring = request_params
+
+        # Sort headers
+        sorted_headers = sorted(headers.items(), key=lambda x: x[0].lower())
+        canonical_headers = "".join(f"{k.lower()}:{v.strip()}\n" for k, v in sorted_headers)
+        signed_headers = ";".join(k.lower() for k, _ in sorted_headers)
+
+        # Calculate payload hash
+        payload_hash = hashlib.sha256(payload.encode()).hexdigest()
+
+        # Create canonical request
+        canonical_request = f"{method}\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+
+        # Create string to sign
+        amz_date = headers["x-amz-date"]
+        datestamp = amz_date[:8]
+        algorithm = "AWS4-HMAC-SHA256"
+        credential_scope = f"{datestamp}/{region}/{service}/aws4_request"
+        request_hash = hashlib.sha256(canonical_request.encode()).hexdigest()
+        string_to_sign = f"{algorithm}\n{amz_date}\n{credential_scope}\n{request_hash}"
+
+        # Calculate signing key
+        k_date = hmac.new(f"AWS4{secret_key}".encode(), datestamp.encode(), hashlib.sha256).digest()
+        k_region = hmac.new(k_date, region.encode(), hashlib.sha256).digest()
+        k_service = hmac.new(k_region, service.encode(), hashlib.sha256).digest()
+        k_signing = hmac.new(k_service, b"aws4_request", hashlib.sha256).digest()
+
+        # Calculate signature
+        signature = hmac.new(k_signing, string_to_sign.encode(), hashlib.sha256).hexdigest()
+
+        return signature
+
+    def _get_upload_auth(self, file_size):
+        """Get upload authorization"""
+        request_params = f"Action=ApplyUploadInner&FileSize={file_size}&FileType=object&IsInner=1&SpaceName=lv-mac-recognition&Version=2020-11-19&s=5y0udbjapi"
+
+        t = time.gmtime()
+        amz_date = time.strftime("%Y%m%dT%H%M%SZ", t)
+        datestamp = time.strftime("%Y%m%d", t)
+
+        headers = {
+            "x-amz-date": amz_date,
+            "x-amz-security-token": self.upload_ctx['session_token'],
+        }
+
+        signature = self._aws_signature(
+            self.upload_ctx['secret_key'],
+            request_params,
+            headers,
+            "GET",
+            "",
+            "cn",
+            "vod"
+        )
+
+        auth_header = f"AWS4-HMAC-SHA256 Credential={self.upload_ctx['access_key']}/{datestamp}/cn/vod/aws4_request, SignedHeaders=x-amz-date;x-amz-security-token, Signature={signature}"
+
+        headers["authorization"] = auth_header
+
+        url = f"{VOD_BASE_URL}/?{request_params}"
+        result = self._do_request(url, headers=headers, method="GET")
+
+        result_data = result.get("Result", {})
+        upload_addr = result_data.get("UploadAddress", {})
+        store_infos = upload_addr.get("StoreInfos", [])
+        upload_hosts = upload_addr.get("UploadHosts", [])
+
+        if not store_infos or not upload_hosts:
+            raise Exception("Missing upload info in response")
+
+        store_info = store_infos[0]
+        self.upload_ctx['store_uri'] = store_info.get('StoreUri', '')
+        self.upload_ctx['auth'] = store_info.get('Auth', '')
+        self.upload_ctx['upload_id'] = store_info.get('UploadID', '')
+        self.upload_ctx['session_key'] = upload_addr.get('SessionKey', '')
+        self.upload_ctx['upload_host'] = upload_hosts[0]
+
+    def _upload_file(self, audio_data):
+        """Upload audio file"""
+
+        url = f"https://{self.upload_ctx['upload_host']}/{self.upload_ctx['store_uri']}"
+
+        headers = {
+            "User-Agent": UPLOAD_UA,
+            "Authorization": self.upload_ctx['auth'],
+            "Content-CRC32": self.upload_ctx['crc32_hex'],
+            "Content-Type": "application/octet-stream",
+        }
+
+        # Build params
+        params = urlencode({
+            "partNumber": "1",
+            "uploadID": self.upload_ctx['upload_id'],
+        })
+        full_url = f"{url}?{params}"
+
+        req = Request(full_url, data=audio_data, headers=headers, method="PUT")
+
+        try:
+            with urlopen(req, timeout=7200) as response:
+                body = response.read()
+                if not body:
+                    raise Exception("Empty response body from upload")
+
+                result = json.loads(body.decode('utf-8'))
+                success = result.get("success")
+
+                if success != 0:
+                    raise Exception(f"Upload failed with success={success}: {result}")
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"Upload failed with HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Upload network error: {e.reason}")
+
+    def _upload_check(self):
+        """Check upload status"""
+        from urllib.parse import urlencode
+
+        url = f"https://{self.upload_ctx['upload_host']}/{self.upload_ctx['store_uri']}"
+        payload = f"1:{self.upload_ctx['crc32_hex']}"
+
+        headers = {
+            "User-Agent": UPLOAD_UA,
+            "Authorization": self.upload_ctx['auth'],
+            "Content-CRC32": self.upload_ctx['crc32_hex'],
+        }
+
+        # Build params
+        params = urlencode({"uploadID": self.upload_ctx['upload_id']})
+        full_url = f"{url}?{params}"
+
+        req = Request(full_url, payload.encode(), headers, method="POST")
+
+        try:
+            with urlopen(req, timeout=7200) as response:
+                body = response.read()
+
+                if body:
+                    try:
+                        result = json.loads(body.decode('utf-8'))
+                        success = result.get("success")
+                        if success is not None and success != 0:
+                            raise Exception(f"Upload check failed with success={success}: {result}")
+                    except json.JSONDecodeError:
+                        pass  # Ignore JSON parse errors
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"Check failed with HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Check network error: {e.reason}")
+
+    def _upload_commit(self):
+        """Commit upload"""
+        url = f"https://{self.upload_ctx['upload_host']}/{self.upload_ctx['store_uri']}"
+
+        # 2sub-mcp 的方式：有 Content-Type，没有 partNumber
+        headers = {
+            "User-Agent": UPLOAD_UA,
+            "Authorization": self.upload_ctx['auth'],
+            "Content-Type": "application/xml",
+            "Content-CRC32": self.upload_ctx['crc32_hex'],
+        }
+
+        # 没有 partNumber，只有 uploadID 和 x-amz-security-token
+        params = f"uploadID={self.upload_ctx['upload_id']}&x-amz-security-token={self.upload_ctx['session_token']}"
+        full_url = f"{url}?{params}"
+
+        # Use audio_data (file_binary)
+        req = Request(full_url, data=self.audio_data, headers=headers, method="PUT")
+
+        try:
+            with urlopen(req, timeout=7200) as response:
+                response.read()
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"Commit failed with HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Commit network error: {e.reason}")
+
+    def _submit_task(self, tdid):
+        """Submit transcription task"""
+        payload = {
+            "adjust_endtime": 200,
+            "audio": self.upload_ctx['store_uri'],
+            "caption_type": 2,
+            "client_request_id": "45faf98c-160f-4fae-a649-6d89b0fe35be",
+            "max_lines": 1,
+            "songs_info": [
+                {
+                    "end_time": 6000.0,
+                    "id": "",
+                    "start_time": 0.0,
+                }
+            ],
+            "words_per_line": 16,
+        }
+
+        sign, device_time = self._generate_sign("/lv/v1/audio_subtitle/submit", tdid)
+        headers = self._build_headers(sign, device_time, tdid)
+
+        result = self._do_request(API_SUBMIT, payload, headers)
+
+        if result.get("ret") != "0":
+            raise Exception(f"Submit task failed: {result.get('errmsg')}")
+
+        query_id = result.get("data", {}).get("id")
+        if not query_id:
+            raise Exception("No query ID in response")
+
+        return query_id
+
+    def _query_task(self, query_id, tdid):
+        """Query transcription result"""
+        payload = {
+            "id": query_id,
+            "pack_options": {
+                "need_attribute": True,
+            }
+        }
+
+        sign, device_time = self._generate_sign("/lv/v1/audio_subtitle/query", tdid)
+        headers = self._build_headers(sign, device_time, tdid)
+
+        # Poll for result
+        for i in range(100):
+            result = self._do_request(API_QUERY, payload, headers)
+
+            if result.get("ret") != "0":
+                raise Exception(f"Query failed: {result.get('errmsg')}")
+
+            # Check task status
+            data = result.get("data", {})
+
+            # Check if has utterances (task completed)
+            if data.get("utterances"):
+                return result
+
+            # Wait before next poll
+            time.sleep(1)
+
+        raise Exception("Query timeout")
+
+    def _parse_result(self, raw):
+        """Parse JianYing response"""
+        data = raw.get("data", {})
+        utterances = data.get("utterances", [])
+
+        if not utterances:
+            raise Exception("No utterances in response")
+
+        # Concatenate all text
+        text_parts = []
+        for utt in utterances:
+            text = utt.get("text", "")
+            if text:
+                text_parts.append(text)
+
+        result = "".join(text_parts)
+
+        if not result:
+            raise Exception("Empty recognition result")
+
+        return result
+
+
+class BijianASR:
+    """Bijian ASR implementation using stdlib only"""
+
+    def __init__(self, audio_path):
+        self.audio_path = audio_path
+        self.cookie = ""
+
+    def recognize(self):
+        """Run Bijian ASR recognition"""
+        try:
+            # Read audio file
+            
+            with open(self.audio_path, 'rb') as f:
+                audio_data = f.read()
+
+            # Step 1: Request upload
+           
+            upload_resp = self._request_upload(audio_data)
+
+            # Step 2: Upload parts
+           
+            etags = self._upload_parts(audio_data, upload_resp)
+
+            # Step 3: Commit upload
+           
+            download_url = self._commit_upload(upload_resp, etags)
+
+            # Step 4: Create task
+            
+            task_id = self._create_task(download_url)
+
+            # Step 5: Poll result
+          
+            result = self._poll_result(task_id)
+
+            # Parse result
+            return self._parse_result(result)
+
+        except Exception as e:
+            raise Exception(f"Bijian ASR failed: {e}")
+
+    def _do_request(self, method, url, payload):
+        """Execute HTTP JSON request"""
+        headers = {
+            "User-Agent": "Bilibili/1.0.0 (https://www.bilibili.com)",
+            "Content-Type": "application/json",
+        }
+        if self.cookie:
+            headers["Cookie"] = self.cookie
+
+        data = json.dumps(payload).encode('utf-8')
+        req = Request(url, data=data, headers=headers, method=method)
+
+        try:
+            with urlopen(req, timeout=7200) as response:
+                body = response.read()
+                return json.loads(body.decode('utf-8'))
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Network error: {e.reason}")
+
+    def _request_upload(self, audio_data):
+        """Request upload authorization"""
+        payload = {
+            "type": 2,
+            "name": "audio.mp3",
+            "size": len(audio_data),
+            "ResourceFileType": "mp3",
+            "model_id": BIJIAN_MODEL_ID,
+        }
+
+        resp = self._do_request("POST", BIJIAN_REQ_UPLOAD, payload)
+
+        if "data" not in resp:
+            raise Exception("Missing data field in response")
+
+        return resp["data"]
+
+    def _upload_parts(self, audio_data, upload_resp):
+        """Upload audio parts"""
+        upload_urls = upload_resp.get("upload_urls", [])
+        per_size = upload_resp.get("per_size", 0)
+
+        if not upload_urls:
+            raise Exception("Missing upload_urls in response")
+
+        etags = []
+        for i, url in enumerate(upload_urls):
+            start = i * int(per_size)
+            end = (i + 1) * int(per_size)
+            if end > len(audio_data):
+                end = len(audio_data)
+
+            etag = self._upload_part(url, audio_data[start:end])
+            etags.append(etag)
+
+        return etags
+
+    def _upload_part(self, url, data):
+        """Upload a single part"""
+        headers = {
+            "User-Agent": "Bilibili/1.0.0 (https://www.bilibili.com)",
+            "Content-Type": "application/octet-stream",
+        }
+        if self.cookie:
+            headers["Cookie"] = self.cookie
+
+        req = Request(url, data=data, headers=headers, method="PUT")
+
+        try:
+            with urlopen(req, timeout=7200) as response:
+                etag = response.headers.get("Etag")
+                if not etag:
+                    raise Exception("Missing Etag header")
+                return etag
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"Upload part failed: HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Upload part network error: {e.reason}")
+
+    def _commit_upload(self, upload_resp, etags):
+        """Commit the upload"""
+        payload = {
+            "InBossKey": upload_resp.get("in_boss_key"),
+            "ResourceId": upload_resp.get("resource_id"),
+            "Etags": ",".join(etags),
+            "UploadId": upload_resp.get("upload_id"),
+            "model_id": BIJIAN_MODEL_ID,
+        }
+
+        resp = self._do_request("POST", BIJIAN_COMMIT_UPLOAD, payload)
+
+        if "data" not in resp:
+            raise Exception("Missing data field in response")
+
+        download_url = resp["data"].get("download_url")
+        if not download_url:
+            raise Exception("Missing download_url in response")
+
+        return download_url
+
+    def _create_task(self, download_url):
+        """Create a transcription task"""
+        payload = {
+            "resource": download_url,
+            "model_id": BIJIAN_MODEL_ID,
+        }
+
+        resp = self._do_request("POST", BIJIAN_CREATE_TASK, payload)
+
+        if "data" not in resp:
+            raise Exception("Missing data field in response")
+
+        task_id = resp["data"].get("task_id")
+        if not task_id:
+            raise Exception("Missing task_id in response")
+
+        return task_id
+
+    def _poll_result(self, task_id):
+        """Poll for task result"""
+        for i in range(500):
+            resp = self._query_result(task_id)
+
+            if "data" not in resp:
+                raise Exception("Missing data field in response")
+
+            data = resp["data"]
+            state = data.get("state")
+
+            # state == 4 means completed
+            if state == 4:
+                result_str = data.get("result")
+                if not result_str:
+                    raise Exception("Missing result in response")
+
+                # Parse result JSON string
+                try:
+                    return json.loads(result_str)
+                except json.JSONDecodeError as e:
+                    raise Exception(f"Failed to parse result JSON: {e}")
+
+            time.sleep(1)
+
+        raise Exception("Polling timeout after 500 attempts")
+
+    def _query_result(self, task_id):
+        """Query task result"""
+        url = f"{BIJIAN_QUERY_RESULT}?model_id=7&task_id={task_id}"
+
+        headers = {"User-Agent": "Bilibili/1.0.0 (https://www.bilibili.com)"}
+        if self.cookie:
+            headers["Cookie"] = self.cookie
+
+        req = Request(url, headers=headers, method="GET")
+
+        try:
+            with urlopen(req, timeout=7200) as response:
+                body = response.read()
+                return json.loads(body.decode('utf-8'))
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"Query failed: HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"Query network error: {e.reason}")
+
+    def _parse_result(self, raw):
+        """Parse Bijian response"""
+        utterances = raw.get("utterances", [])
+
+        if not utterances:
+            raise Exception("No utterances in response")
+
+        # Concatenate all text
+        text_parts = []
+        for utt in utterances:
+            transcript = utt.get("transcript", "")
+            if transcript:
+                text_parts.append(transcript)
+
+        result = "".join(text_parts)
+
+        if not result:
+            raise Exception("Empty recognition result")
+
+        return result
+
+def load_config():
+    """加载配置"""
+    default_config = {
+        "provider": "jianying",
+        "providers": ["jianying", "bijian"]
+    }
+
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                return {**default_config, **config}
+        except:
+            pass
+
+    return default_config
+
+
+def save_config(config):
+    """保存配置"""
+    try:
+        # Resolve symlink to real path
+        config_path = CONFIG_FILE
+        if os.path.islink(config_path):
+            config_path = os.path.realpath(config_path)
+
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+    except:
+        pass
+
+
+def msg(key, **kwargs):
+    """Get i18n message via subprocess call to msg command"""
+    try:
+        # Build command with variable substitutions
+        args = [key]
+        for var, val in kwargs.items():
+            args.extend([var, str(val)])
+
+        # Escape arguments for shell
+        escaped_args = " ".join(f'"{arg}"' for arg in args)
+
+        # Source i18n-core and call msg function
+        cmd = f'source i18n-core && msg {escaped_args}'
+
+        result = subprocess.run(
+            ["bash", "-c", cmd],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        # Return the message if successful, otherwise return the key
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+        else:
+            return f"[{key}]"
+    except Exception as e:
+        return f"[{key}]"
+
+
+def notify(message, urgency="normal", timeout=2000):
+    """发送桌面通知"""
+    try:
+        title = msg("voice_input_title")
+        subprocess.run(
+            ["notify-send", title, message, "-u", urgency, "-t", str(timeout)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except:
+        pass
+
+
+def is_recording():
+    """检查是否正在录音"""
+    return os.path.exists(PID_FILE)
+
+
+def start_recording():
+    """开始录音"""
+    # 清理旧文件
+    for f in [AUDIO_FILE, RESULT_FILE]:
+        try:
+            os.remove(f)
+        except:
+            pass
+
+    notify(msg("voice_input_recording"))
+
+    # 启动录音进程
+    proc = subprocess.Popen(
+        ["arecord", "-f", "S16_LE", "-r", "16000", "-c", "1", AUDIO_FILE],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+    # 保存 PID
+    with open(PID_FILE, 'w') as f:
+        f.write(str(proc.pid))
+
+
+def stop_recording():
+    """停止录音"""
+    stopped = False
+
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, 'r') as f:
+                pid = int(f.read().strip())
+
+            # 先尝试 SIGTERM，等待一下，如果还在就 SIGKILL
+            try:
+                os.kill(pid, 15)  # SIGTERM
+                time.sleep(0.2)
+                # 检查进程是否还在
+                os.kill(pid, 0)  # 检查进程是否存在
+                # 还在，强制杀死
+                os.kill(pid, 9)  # SIGKILL
+                time.sleep(0.1)
+            except ProcessLookupError:
+                # 进程已经不存在了，正常
+                pass
+
+            stopped = True
+        except Exception as e:
+            print(f"Stop recording error: {e}", file=sys.stderr)
+
+        # 清理 PID 文件
+        try:
+            os.remove(PID_FILE)
+        except:
+            pass
+
+    # 备用方案：直接杀死所有 arecord 进程
+    try:
+        subprocess.run(["pkill", "-9", "arecord"], stderr=subprocess.DEVNULL)
+        stopped = True
+    except:
+        pass
+
+    return stopped
+
+
+def stop_and_recognize():
+    """停止录音并识别"""
+    if not stop_recording():
+        notify(msg("voice_input_not_recording"), "critical", 2000)
+        return
+
+    # 检查音频文件
+    if not os.path.exists(AUDIO_FILE) or os.path.getsize(AUDIO_FILE) < 1000:
+        notify(msg("voice_input_invalid_audio"), "critical", 3000)
+        return
+
+    notify(msg("voice_input_recognizing"), "normal", 3000)
+
+    # 加载配置
+    config = load_config()
+    providers = config.get("providers", ["jianying", "bijian"])
+    current_provider = config.get("provider", providers[0])
+
+    result = None
+    tried_providers = []
+
+    # 尝试当前 provider
+    try:
+        if current_provider == "bijian":
+            asr = BijianASR(AUDIO_FILE)
+        else:
+            asr = JianYingASR(AUDIO_FILE)
+
+        result = asr.recognize()
+    except Exception as e:
+        print(f"{current_provider} failed: {e}", file=sys.stderr)
+    finally:
+        tried_providers.append(current_provider)
+
+    # 如果失败，尝试其他 provider
+    if not result:
+        for provider in providers:
+            if provider not in tried_providers:
+                try:
+                    notify(msg("voice_input_switching_provider", provider=provider))
+
+                    if provider == "bijian":
+                        asr = BijianASR(AUDIO_FILE)
+                    else:
+                        asr = JianYingASR(AUDIO_FILE)
+
+                    result = asr.recognize()
+
+                    # 成功，更新配置
+                    config["provider"] = provider
+                    save_config(config)
+                    break
+                except Exception as e:
+                    print(f"{provider} failed: {e}", file=sys.stderr)
+                    tried_providers.append(provider)
+
+    if result and result.strip():
+        # 写入结果文件
+        with open(RESULT_FILE, 'w') as f:
+            f.write(result.strip())
+
+        notify(f"{result.strip()}", "normal", 3000)
+
+        print(result.strip())
+    else:
+        notify(msg("voice_input_failed", providers=", ".join(tried_providers)), "critical", 5000)
+
+
+def main():
+    """主函数"""
+    if is_recording():
+        # 正在录音，停止并识别
+        stop_and_recognize()
+    else:
+        # 未录音，开始录音
+        start_recording()
+
+
+# ============================================================================
+# ASR 实现代码
+# ============================================================================
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    main()
+

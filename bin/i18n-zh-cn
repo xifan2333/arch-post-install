@@ -168,3 +168,14 @@ i18n[package_backup_success]="已将 {count} 个包备份到 {dir}"
 # terminal-launch - 终端启动器
 # ============================================================================
 i18n[terminal_done_message]="完成！按任意键关闭..."
+
+# ============================================================================
+# voice-input - 语音输入
+# ============================================================================
+i18n[voice_input_title]="语音输入"
+i18n[voice_input_recording]="录音中... (再按一次停止)"
+i18n[voice_input_not_recording]="未在录音"
+i18n[voice_input_invalid_audio]="录音文件无效"
+i18n[voice_input_recognizing]="识别中..."
+i18n[voice_input_switching_provider]="切换到 {provider}..."
+i18n[voice_input_failed]="识别失败 (尝试了: {providers})"

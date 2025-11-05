@@ -169,3 +169,14 @@ i18n[package_backup_success]="Backed up {count} packages to {dir}"
 # terminal-launch
 # ============================================================================
 i18n[terminal_done_message]="Done! Press any key to close..."
+
+# ============================================================================
+# voice-input
+# ============================================================================
+i18n[voice_input_title]="Voice Input"
+i18n[voice_input_recording]="Recording... (Press again to stop)"
+i18n[voice_input_not_recording]="Not recording"
+i18n[voice_input_invalid_audio]="Invalid audio file"
+i18n[voice_input_recognizing]="Recognizing..."
+i18n[voice_input_switching_provider]="Switching to {provider}..."
+i18n[voice_input_failed]="Recognition failed (Tried: {providers})"
