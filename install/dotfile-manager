@@ -92,7 +92,8 @@ install_dotfiles() {
     # Sync dotfiles using rsync
     print_substep "Syncing dotfiles to $DOTFILES_TARGET"
     # rsync -a -u: only update files that are older in target
-    if rsync -a -u "$DOTFILES_SRC/" "$DOTFILES_TARGET/"; then
+    # --exclude '*.example': exclude example files
+    if rsync -a -u --exclude '*.example' "$DOTFILES_SRC/" "$DOTFILES_TARGET/"; then
         print_success "Dotfiles synced"
     else
         print_error "Failed to sync dotfiles"

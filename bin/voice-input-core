@@ -21,7 +21,6 @@ from urllib.error import URLError, HTTPError
 AUDIO_FILE = "/tmp/rime-voice-input.wav"
 RESULT_FILE = "/tmp/rime-voice-input-result.txt"
 PID_FILE = "/tmp/rime-voice-input-recording.pid"
-STATE_FILE = "/tmp/rime-voice-input-state.json"
 CONFIG_FILE = os.path.expanduser("~/.config/rime-voice-input.json")
 
 API_BASE_URL = "https://lv-pc-api-sinfonlinec.ulikecam.com"
@@ -692,11 +691,82 @@ class BijianASR:
 
         return result
 
+
+class LLMCorrector:
+    """LLM 修正器 - 支持 OpenAI 兼容的 API"""
+
+    def __init__(self, api_base, api_key, model, prompt_template):
+        self.api_base = api_base.rstrip('/')
+        self.api_key = api_key
+        self.model = model
+        self.prompt_template = prompt_template
+
+    def correct(self, text):
+        """使用 LLM 修正文本"""
+        if not self.api_key:
+            raise Exception("LLM API key not configured")
+
+        try:
+            # 构建 prompt
+            prompt = self.prompt_template.format(text=text)
+
+            # 构建请求
+            url = f"{self.api_base}/chat/completions"
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.3,
+                "max_tokens": 500
+            }
+
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+
+            data = json.dumps(payload).encode('utf-8')
+            req = Request(url, data=data, headers=headers, method="POST")
+
+            with urlopen(req, timeout=30) as response:
+                body = response.read()
+                result = json.loads(body.decode('utf-8'))
+
+            # 提取结果
+            choices = result.get("choices", [])
+            if not choices:
+                raise Exception("No choices in LLM response")
+
+            message = choices[0].get("message", {})
+            corrected_text = message.get("content", "").strip()
+
+            if not corrected_text:
+                raise Exception("Empty LLM correction result")
+
+            return corrected_text
+
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"LLM API error HTTP {e.code}: {error_body}")
+        except URLError as e:
+            raise Exception(f"LLM API network error: {e.reason}")
+        except Exception as e:
+            raise Exception(f"LLM correction failed: {e}")
+
+
 def load_config():
     """加载配置"""
     default_config = {
         "provider": "jianying",
-        "providers": ["jianying", "bijian"]
+        "providers": ["jianying", "bijian"],
+        "llm": {
+            "enabled": False,
+            "api_base": "https://api.openai.com/v1",
+            "api_key": "",
+            "model": "gpt-4o-mini",
+            "prompt": "请修正以下语音识别结果中可能存在的同音错别字，保持原意不变，只返回修正后的文本，不要有任何解释：\n\n{text}"
+        }
     }
 
     if os.path.exists(CONFIG_FILE):
@@ -895,13 +965,41 @@ def stop_and_recognize():
                     tried_providers.append(provider)
 
     if result and result.strip():
-        # 写入结果文件
+        result_text = result.strip()
+        llm_results = []
+
+        # 尝试 LLM 修正
+        llm_config = config.get("llm", {})
+        if llm_config.get("enabled") and llm_config.get("api_key"):
+            try:
+                notify(msg("voice_input_llm_correcting"), "normal", 2000)
+
+                corrector = LLMCorrector(
+                    api_base=llm_config.get("api_base", "https://api.openai.com/v1"),
+                    api_key=llm_config["api_key"],
+                    model=llm_config.get("model", "gpt-4o-mini"),
+                    prompt_template=llm_config.get("prompt", "请修正以下语音识别结果中可能存在的同音错别字，保持原意不变，只返回修正后的文本，不要有任何解释：\n\n{text}")
+                )
+
+                corrected_text = corrector.correct(result_text)
+
+                # 如果修正结果与原始结果不同，添加为候选项
+                if corrected_text and corrected_text != result_text:
+                    llm_results.append(corrected_text)
+
+            except Exception as e:
+                print(f"LLM correction failed: {e}", file=sys.stderr)
+                # LLM 失败不影响原始结果
+
+        # 写入结果文件：优先使用 LLM 修正结果，否则使用原始结果
+        final_text = llm_results[0] if llm_results else result_text
         with open(RESULT_FILE, 'w') as f:
-            f.write(result.strip())
+            f.write(final_text)
 
-        notify(f"{result.strip()}", "normal", 3000)
+        # 通知
+        notify(f"{final_text}", "normal", 3000)
 
-        print(result.strip())
+        print(final_text)
     else:
         notify(msg("voice_input_failed", providers=", ".join(tried_providers)), "critical", 5000)
 
@@ -914,17 +1012,6 @@ def main():
     else:
         # 未录音，开始录音
         start_recording()
-
-
-# ============================================================================
-# ASR 实现代码
-# ============================================================================
-
-
-
-
-
-
 
 
 if __name__ == "__main__":

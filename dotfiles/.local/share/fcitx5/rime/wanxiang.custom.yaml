@@ -4,4 +4,4 @@ patch:
 
   # 语音输入配置
   voice_input:
-    trigger_key: "Control_R"  # 触发键：右 Ctrl，可改为 F6, Control+grave 等
+    trigger_key: "Control_R"

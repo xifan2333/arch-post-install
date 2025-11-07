@@ -1,0 +1,10 @@
+{
+  "provider": "jianying",
+  "llm": {
+    "enabled": true,
+    "api_base": "https://api.openai.com/v1",
+    "api_key": "YOUR_API_KEY_HERE",
+    "model": "gpt-4o-mini",
+    "prompt": "请修正以下语音识别结果中可能存在的同音错别字，保持原意不变，只返回修正后的文本，不要有任何解释：\n\n{text}"
+  }
+}
