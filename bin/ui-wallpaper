@@ -43,15 +43,33 @@ set_wallpaper() {
 # Download Bing daily wallpaper
 download_bing_wallpaper() {
 
-    # Bing wallpaper API
-    BING_API="https://bing.img.run/rand.php"
+    # Random idx (0-7)
+    RANDOM_IDX=$((RANDOM % 8))
+
+    # Bing wallpaper API (official) - fetch 8 days starting from random idx
+    BING_API="https://www.bing.com/HPImageArchive.aspx?format=js&idx=${RANDOM_IDX}&n=8&mkt=zh-CN"
 
     # Use fixed filename to avoid file redundancy (overwrite on each download)
     FILENAME="bing.jpg"
     WALLPAPER_PATH="$WALLPAPER_DIR/$FILENAME"
 
+    # Random index for selecting from 8 wallpapers (0-7)
+    RANDOM_SELECT=$((RANDOM % 8))
+
+    # Fetch JSON and extract random image URL using jq
+    IMAGE_URL=$(curl -s "$BING_API" | jq -r ".images[${RANDOM_SELECT}].url")
+
+    if [ -z "$IMAGE_URL" ] || [ "$IMAGE_URL" = "null" ]; then
+        notify "${i18n[wallpaper_bing_failed]}"
+        echo "${i18n[wallpaper_bing_error]}" >&2
+        exit 1
+    fi
+
+    # Construct full URL (API returns relative path)
+    FULL_URL="https://www.bing.com${IMAGE_URL}"
+
     # Download wallpaper (overwrite if exists)
-    if ! curl -L -s -o "$WALLPAPER_PATH" "$BING_API"; then
+    if ! curl -L -s -o "$WALLPAPER_PATH" "$FULL_URL"; then
         notify "${i18n[wallpaper_bing_failed]}"
         echo "${i18n[wallpaper_bing_error]}" >&2
         exit 1

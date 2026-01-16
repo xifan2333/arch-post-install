@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=JADX GUI
+Name[zh_CN]=JADX 反编译器
+Comment=Dex to Java decompiler with GUI
+Comment[zh_CN]=Android APK 反编译工具
+Exec=/usr/local/bin/jadx-gui %F
+Icon=jadx
+Terminal=false
+Categories=Development;Java;
+MimeType=application/vnd.android.package-archive;application/java-archive;application/zip;
+Keywords=decompiler;android;apk;dex;java;reverse;
+Keywords[zh_CN]=反编译;安卓;逆向;java;fbyi;

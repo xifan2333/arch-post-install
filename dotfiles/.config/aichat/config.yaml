@@ -1,0 +1,10 @@
+# see https://github.com/sigoden/aichat/blob/main/config.example.yaml
+
+model: bohe:gpt-4.1-mini
+clients:
+- type: openai-compatible
+  name: bohe
+  api_base: https://x666.me/v1
+  api_key: sk-kuM2HnJtbHl8ycCLoYWzUAzYEzJgjhn8zamFiM0Bd4oAlcd5
+  models:
+  - name: gpt-4.1-mini
