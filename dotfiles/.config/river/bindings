@@ -7,7 +7,7 @@ mod="Mod4"  # Super/Windows key
 riverctl map normal $mod Return spawn "uwsm app -- $TERMINAL"                                # Terminal
 riverctl map normal $mod Space spawn "uwsm app -- ui-wofi"                                  # App launcher (wofi)
 riverctl map normal $mod V spawn "uwsm app -- ui-clipboard"                                 # Clipboard history
-riverctl map normal $mod B spawn "uwsm app -- google-chrome-stable"                         # Browser
+riverctl map normal $mod B spawn "uwsm app -- qutebrowser"                                 # Browser
 riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # File manager (GUI)
 riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e lf"                        # File manager (TUI)
 riverctl map normal $mod C spawn "uwsm app -- code"                                         # VSCode
