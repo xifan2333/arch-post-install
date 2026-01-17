@@ -13,10 +13,6 @@ c.url.searchengines = {
 # 设置主页为Gemini
 c.url.start_pages = ['https://gemini.google.com']
 
-# 启用广告拦截
-c.content.blocking.enabled = True
-c.content.blocking.method = 'both'
-
 # 字体大小
 c.fonts.default_size = '12pt'
 
