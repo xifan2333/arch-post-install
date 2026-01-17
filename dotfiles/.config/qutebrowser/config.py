@@ -16,10 +16,6 @@ c.url.start_pages = ['https://gemini.google.com']
 # 字体大小
 c.fonts.default_size = '12pt'
 
-# 暗色模式
-c.colors.webpage.darkmode.enabled = True
-c.colors.webpage.darkmode.policy.images = 'never'
-
 # 自动保存会话
 c.auto_save.session = True
 
