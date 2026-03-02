@@ -28,6 +28,9 @@ c.content.headers.accept_language = 'zh-CN,zh;q=0.9,en;q=0.8'
 # 自动保存会话
 c.auto_save.session = True
 
+# 翻译快捷键
+config.bind('tt', 'spawn --userscript translate')
+
 # 快速访问常用网站
 config.bind(',bl', 'open -t https://www.bilibili.com')
 config.bind(',gm', 'open -t https://gemini.google.com')
