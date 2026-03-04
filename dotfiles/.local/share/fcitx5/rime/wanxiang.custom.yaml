@@ -1,7 +1,1 @@
 patch:
-  engine/processors/+:
-    - lua_processor@*voice-input/processor
-
-  # 语音输入配置
-  voice_input:
-    trigger_key: "Control_R"
