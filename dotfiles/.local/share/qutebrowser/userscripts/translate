@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+import os
+import sys
+import urllib.parse
+import requests
+import json
+from pathlib import Path
+
+CONFIG_FILE = Path.home() / ".config/qutebrowser/translate.json"
+
+def load_config():
+    if not CONFIG_FILE.exists():
+        default_config = {
+            "provider": "openai",
+            "openai": {
+                "base_url": "https://api.openai.com",
+                "api_key": "sk-xxx",
+                "model": "gpt-4o-mini",
+                "target_lang": "Chinese"
+            },
+            "deeplx": {
+                "url": "https://api.deeplx.org/translate",
+                "target_lang": "ZH"
+            }
+        }
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_FILE.write_text(json.dumps(default_config, indent=2, ensure_ascii=False))
+        raise FileNotFoundError(f"Config created at {CONFIG_FILE}. Edit it first.")
+    return json.loads(CONFIG_FILE.read_text())
+
+def js(message):
+    return f"""
+    (function() {{
+        var box = document.createElement('div');
+        box.style.position = 'fixed';
+        box.style.bottom = '10px';
+        box.style.right = '10px';
+        box.style.backgroundColor = 'white';
+        box.style.color = 'black';
+        box.style.borderRadius = '8px';
+        box.style.padding = '10px';
+        box.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+        box.style.zIndex = '10000';
+        box.style.maxWidth = '400px';
+        box.style.fontFamily = 'Sarasa Mono SC, monospace';
+        box.innerText = decodeURIComponent("{message}");
+        document.body.appendChild(box);
+        function removeBox(event) {{
+            if (!box.contains(event.target)) {{
+                box.remove();
+                document.removeEventListener('click', removeBox);
+            }}
+        }}
+        document.addEventListener('click', removeBox);
+    }})();
+    """
+
+def translate_openai(text, config):
+    response = requests.post(
+        f"{config['base_url']}/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": config['model'],
+            "messages": [
+                {"role": "system", "content": f"Translate to {config['target_lang']}. Output only translation."},
+                {"role": "user", "content": text}
+            ]
+        }
+    )
+    return response.json()['choices'][0]['message']['content']
+
+def translate_deeplx(text, config):
+    response = requests.post(
+        config['url'],
+        headers={"Content-Type": "application/json"},
+        json={
+            "text": text,
+            "source_lang": "auto",
+            "target_lang": config['target_lang']
+        }
+    )
+    return response.json()['data']
+
+def main():
+    qute_fifo = os.getenv('QUTE_FIFO')
+    if not qute_fifo:
+        sys.stderr.write(f"Error: {sys.argv[0]} can not be run as a standalone script.\n")
+        sys.exit(1)
+
+    text = os.getenv('QUTE_SELECTED_TEXT', '')
+    if not text:
+        with open(qute_fifo, 'a') as fifo:
+            fifo.write("message-error 'No text selected'\n")
+        sys.exit(1)
+
+    try:
+        config = load_config()
+        provider = config['provider']
+        
+        if provider == 'openai':
+            translated_text = translate_openai(text, config['openai'])
+        elif provider == 'deeplx':
+            translated_text = translate_deeplx(text, config['deeplx'])
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+        
+        js_code = js(urllib.parse.quote(translated_text)).replace('\n', ' ')
+        with open(qute_fifo, 'a') as fifo:
+            fifo.write(f"jseval -q {js_code}\n")
+    except Exception as e:
+        with open(qute_fifo, 'a') as fifo:
+            fifo.write(f"message-error 'Translation failed: {str(e)}'\n")
+
+if __name__ == "__main__":
+    main()

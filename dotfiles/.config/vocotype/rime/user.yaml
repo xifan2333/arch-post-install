@@ -1,0 +1,4 @@
+# VoCoType RIME 用户配置
+# 如需更换输入方案，请修改下面的 previously_selected_schema 值
+var:
+  previously_selected_schema: "wanxiang_charset"
