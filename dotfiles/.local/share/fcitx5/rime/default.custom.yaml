@@ -2,8 +2,6 @@ patch:
   __include: wanxiang_suggestion:/
   __patch:
     key_binder/bindings/+:
-      # Ctrl+Shift 切换中英文
-      - { accept: Control+Shift_L, toggle: ascii_mode, when: always }
       # 候选框翻页
       - { when: composing, accept: minus, send: Page_Up }
       - { when: composing, accept: equal, send: Page_Down }
