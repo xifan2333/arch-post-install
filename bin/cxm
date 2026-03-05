@@ -137,6 +137,11 @@ generate_config() {
         return 1
     fi
 
+    # Auto-append /v1 for config.toml
+    local config_url="$base_url"
+    config_url="${config_url%/}"
+    [[ "$config_url" != */v1 ]] && config_url="$config_url/v1"
+
     cat > "$CODEX_CONFIG" << EOF
 # Codex configuration - managed by cxm
 # Current provider: $provider
@@ -146,7 +151,7 @@ model_provider = "$provider"
 
 [model_providers.$provider]
 name = "$provider"
-base_url = "$base_url"
+base_url = "$config_url"
 wire_api = "$wire_api"
 EOF
 
