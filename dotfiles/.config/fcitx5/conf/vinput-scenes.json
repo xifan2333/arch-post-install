@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "default_scene": "default",
+  "scenes": [
+    {
+      "id": "default",
+      "label_zh": "原样输出",
+      "label_en": "Raw",
+      "llm": false
+    },
+    {
+      "id": "correct_polish",
+      "label_zh": "订正润色",
+      "label_en": "Polish",
+      "llm": true,
+      "prompt": "The input is from speech recognition and may contain misrecognized characters or homophone errors. Correct these recognition errors only — do not polish, rewrite, or change the tone. Pay attention to idioms, slang, and colloquial expressions that may have been garbled, and recover the intended meaning as accurately as possible."
+    },
+    {
+      "id": "correct_to_code",
+      "label_zh": "编程指令",
+      "label_en": "Code",
+      "llm": true,
+      "prompt": "The input is from speech recognition and may contain misrecognized characters or homophone errors. Correct these recognition errors based on context, then rewrite as a clear programming instruction or command. Preserve technical terms, identifiers, paths, package names, and versions."
+    },
+    {
+      "id": "correct_translate_en",
+      "label_zh": "订正翻英",
+      "label_en": "To EN",
+      "llm": true,
+      "prompt": "The input is from speech recognition and may contain misrecognized characters or homophone errors. Correct these recognition errors to recover the intended Chinese meaning, then translate into natural English. Preserve technical terms."
+    }
+  ]
+}
