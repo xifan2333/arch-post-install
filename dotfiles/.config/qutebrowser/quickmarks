@@ -1,0 +1,49 @@
+# AI 服务
+gpt|ai https://chatgpt.com
+gemini|ai https://gemini.google.com
+doubao|ai https://www.doubao.com
+
+# 开发工具
+gh|dev https://github.com
+cf|dev https://dash.cloudflare.com
+npm|dev https://www.npmjs.com
+dh|dev https://hub.docker.com
+dhproxy|dev https://cnb.cool/xifan2333/hubproxy
+so|dev https://stackoverflow.com
+crates|dev https://crates.io
+pypi|dev https://pypi.org
+aur|dev https://aur.archlinux.org
+gopkg|dev https://pkg.go.dev
+aliyun|dev https://homenew.console.aliyun.com
+
+# 文档
+arch|doc https://wiki.archlinux.org
+mdn|doc https://developer.mozilla.org
+
+# 社区论坛
+ld|com https://linux.do
+ff|com https://fanfou.pro
+
+# 娱乐媒体
+bl|ent https://www.bilibili.com
+db|ent https://www.douban.com
+
+# 邮箱
+163|mail https://mail.163.com
+gmail|mail https://mail.google.com
+temp|mail https://mail.xifan.edu.fun
+
+# 云盘
+od|cloud https://onedrive.live.com
+
+# 工具
+curlconvert|tool https://curlconverter.com
+cron|tool https://crontab.guru
+
+# 公益API
+lsh|api https://linshi.kapi.ccwu.cc
+nav|api https://ldoh.105117.xyz
+anr|api https://anyrouter.top
+rnt|api https://runanytime.hxi.me
+wong|api https://wzw.pp.ua
+zdc|api https://zuodachen.zdc.mom

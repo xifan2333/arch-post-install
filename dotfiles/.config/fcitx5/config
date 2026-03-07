@@ -1,0 +1,10 @@
+[Hotkey]
+TriggerKeys=
+EnumerateWithTriggerKeys=True
+EnumerateSkipFirst=False
+
+[Hotkey/TriggerKeys]
+0=Shift_L
+
+[Behavior]
+ShareInputState=No

@@ -56,6 +56,9 @@ if command -v eza &> /dev/null; then
     alias tree='eza --tree --icons'
 fi
 
+# janim - fix OpenGL context error
+alias janim='LIBGL_ALWAYS_SOFTWARE=1 janim'
+
 
 
 # starship prompt (must be at the end)

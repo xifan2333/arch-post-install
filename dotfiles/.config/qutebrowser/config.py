@@ -31,12 +31,12 @@ c.auto_save.session = True
 # 翻译快捷键
 config.bind('tt', 'spawn --userscript translate')
 
-# 快速访问常用网站
-config.bind(',bl', 'open -t https://www.bilibili.com')
-config.bind(',gm', 'open -t https://gemini.google.com')
-config.bind(',gpt', 'open -t https://chatgpt.com')
-config.bind(',ld', 'open -t https://linux.do')
-config.bind(',cf', 'open -t https://dash.cloudflare.com')
-config.bind(',db', 'open -t https://www.douban.com')
-config.bind(',do', 'open -t https://www.doubao.com')
-config.bind(',ff', 'open -t https://fanfou.pro')
+# 快速访问本地服务
+config.bind(',pve', 'open -t http://10.0.0.254')
+config.bind(',rt', 'open -t http://10.0.0.1')
+config.bind(',api', 'open -t http://10.0.0.253:3000')
+config.bind(',ql', 'open -t http://10.0.0.253:5700')
+config.bind(',pr', 'open -t http://10.0.0.1:9090/ui/zashboard')
+config.bind(',cpa', 'open -t http://10.0.0.253:8317/management.html')
+config.bind(',opl', 'open -t http://10.0.0.253:5244')
+config.bind(',ctn', 'open -t http://10.0.0.253:9000')
