@@ -109,12 +109,12 @@ setup_mime_types() {
         "audio/mp4" "audio/x-m4a"
     print_success "Audio player: mpv"
 
-    # Web browser - google-chrome-stable
+    # Web browser - qutebrowser
     print_substep "Configuring web browser"
-    set_mime_default "google-chrome.desktop" \
+    set_mime_default "org.qutebrowser.qutebrowser.desktop" \
         "text/html" "application/xhtml+xml" "x-scheme-handler/http" \
         "x-scheme-handler/https"
-    print_success "Web browser: google-chrome-stable"
+    print_success "Web browser: qutebrowser"
 
     # Archive manager - xarchiver
     print_substep "Configuring archive manager"
