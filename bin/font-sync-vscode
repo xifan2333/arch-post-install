@@ -38,13 +38,15 @@ if ! grep -q '"terminal.integrated.fontFamily"' "$VSCODE_SETTINGS"; then
   "terminal.integrated.fontFamily": "",/}' "$VSCODE_SETTINGS"
 fi
 
-# Update font settings
+# Update font settings with Chinese fallback and monospace fallback
+FONT_WITH_FALLBACK="$FONT_NAME, 'Sarasa Gothic SC', monospace"
+
 sed -i --follow-symlinks -E \
-    "s/(\"editor.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1$FONT_NAME\2/" \
+    "s|(\"editor.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$FONT_WITH_FALLBACK\2|" \
     "$VSCODE_SETTINGS"
 
 sed -i --follow-symlinks -E \
-    "s/(\"terminal.integrated.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1$FONT_NAME\2/" \
+    "s|(\"terminal.integrated.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$FONT_WITH_FALLBACK\2|" \
     "$VSCODE_SETTINGS"
 
 echo "VSCode font updated to: $FONT_NAME"
