@@ -40,8 +40,39 @@ screenrecord_check_deps() {
 }
 
 # Check if recording is active
+screenrecord_list_pids() {
+    pgrep -u "$(id -u)" -x wf-recorder 2>/dev/null
+}
+
+screenrecord_get_pid() {
+    local pid
+    local cmd
+    local fallback_pid
+
+    if [ -f "$PID_FILE" ]; then
+        pid=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            cmd=$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]')
+            if [ "$cmd" = "wf-recorder" ]; then
+                echo "$pid"
+                return 0
+            fi
+        fi
+    fi
+
+    fallback_pid=$(screenrecord_list_pids | head -n 1)
+    if [ -n "$fallback_pid" ] && kill -0 "$fallback_pid" 2>/dev/null; then
+        echo "$fallback_pid" > "$PID_FILE"
+        echo "$fallback_pid"
+        return 0
+    fi
+
+    rm -f "$PID_FILE"
+    return 1
+}
+
 screenrecord_is_active() {
-    [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+    screenrecord_get_pid >/dev/null
 }
 
 # Notify waybar to update screenrecord module

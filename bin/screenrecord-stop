@@ -10,14 +10,36 @@ if ! screenrecord_is_active; then
     exit 1
 fi
 
-# Get PID and send SIGINT to stop recording gracefully
-pid=$(cat "$PID_FILE")
-kill -SIGINT "$pid"
+# Stop all wf-recorder instances for this user to preserve singleton behavior
+pkill -INT -u "$(id -u)" -x wf-recorder 2>/dev/null || true
 
-# Wait for process to finish
-wait "$pid" 2>/dev/null || true
+for _ in $(seq 1 30); do
+    if ! screenrecord_is_active; then
+        break
+    fi
+    sleep 0.1
+done
 
-# Remove PID file immediately after recording stops
+if screenrecord_is_active; then
+    pkill -TERM -u "$(id -u)" -x wf-recorder 2>/dev/null || true
+    for _ in $(seq 1 20); do
+        if ! screenrecord_is_active; then
+            break
+        fi
+        sleep 0.1
+    done
+fi
+
+if screenrecord_is_active; then
+    pkill -KILL -u "$(id -u)" -x wf-recorder 2>/dev/null || true
+    for _ in $(seq 1 10); do
+        if ! screenrecord_is_active; then
+            break
+        fi
+        sleep 0.1
+    done
+fi
+
 rm -f "$PID_FILE"
 
 # Notify waybar to update screenrecord module

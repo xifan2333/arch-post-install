@@ -7,6 +7,14 @@ source i18n-core
 
 screenrecord_check_deps
 
+# Check if already recording
+if screenrecord_is_active; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_notify_already_active)"
+    fi
+    exit 1
+fi
+
 filename=$(screenrecord_filename)
 filepath="$RECORDINGS_DIR/$filename"
 

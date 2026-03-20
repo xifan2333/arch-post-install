@@ -43,6 +43,10 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
+is_valid_git_repo() {
+    git -C "$DOTFILES_TARGET" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
 # Check required tools
 check_tools() {
     for tool in stow rsync git; do
@@ -71,9 +75,14 @@ install_dotfiles() {
 
     # Initialize Git repository if needed
     local git_initiated=false
-    if [ ! -d ".git" ]; then
+    if [ -e ".git" ] && ! is_valid_git_repo; then
+        print_warning "Invalid Git metadata found in $DOTFILES_TARGET/.git, reinitializing"
+        rm -rf .git
+    fi
+
+    if ! is_valid_git_repo; then
         print_substep "Initializing Git repository in $DOTFILES_TARGET"
-        if git init >/dev/null 2>&1; then
+        if git -C "$DOTFILES_TARGET" init >/dev/null 2>&1; then
             print_success "Git repository initialized"
             git_initiated=true
         else
@@ -83,9 +92,9 @@ install_dotfiles() {
     fi
 
     # Configure Git to ignore file mode changes
-    if [ -d ".git" ]; then
+    if is_valid_git_repo; then
         print_substep "Configuring Git (ignore file mode changes)"
-        git config core.filemode false
+        git -C "$DOTFILES_TARGET" config --local core.filemode false
         print_success "Git configured"
     fi
 
@@ -101,11 +110,11 @@ install_dotfiles() {
     fi
 
     # Initial commit if needed
-    if [ -d ".git" ]; then
-        if [ "$git_initiated" = true ] || [ "$(git rev-list --count HEAD 2>/dev/null || echo 0)" -eq 0 ]; then
+    if is_valid_git_repo; then
+        if [ "$git_initiated" = true ] || [ "$(git -C "$DOTFILES_TARGET" rev-list --count HEAD 2>/dev/null || echo 0)" -eq 0 ]; then
             print_substep "Creating initial commit"
-            git add .
-            if git commit -m "Initial commit of dotfiles" >/dev/null 2>&1; then
+            git -C "$DOTFILES_TARGET" add .
+            if git -C "$DOTFILES_TARGET" commit -m "Initial commit of dotfiles" >/dev/null 2>&1; then
                 print_success "Initial commit created"
             else
                 print_warning "No changes to commit"
@@ -147,8 +156,8 @@ install_dotfiles() {
 
     # Check for dynamic changes
     print_substep "Checking for dynamic changes"
-    if [ -d ".git" ]; then
-        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+    if is_valid_git_repo; then
+        if ! git -C "$DOTFILES_TARGET" diff-index --quiet HEAD -- 2>/dev/null; then
             print_warning "Dynamic changes detected"
             print_info "Review changes with: cd ~/.dotfiles && git status"
         else
