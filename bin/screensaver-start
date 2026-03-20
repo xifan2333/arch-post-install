@@ -3,16 +3,14 @@
 # Adapted from omarchy screensaver for River WM
 
 LOGO_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/logo.txt"
-SCREENSAVER_PID_FILE="/tmp/screensaver-$USER.pid"
 
 screensaver_is_running() {
-  [ -f "$SCREENSAVER_PID_FILE" ] && kill -0 "$(cat "$SCREENSAVER_PID_FILE")" 2>/dev/null
+  pgrep -u "$(id -u)" -f "alacritty.*--class Screensaver" >/dev/null 2>&1
 }
 
 exit_screensaver() {
   pkill -x tte 2>/dev/null
   pkill -f "alacritty.*--class Screensaver" 2>/dev/null
-  rm -f "$SCREENSAVER_PID_FILE"
   exit 0
 }
 
@@ -20,9 +18,6 @@ exit_screensaver() {
 if screensaver_is_running; then
   exit 0
 fi
-
-# Save PID
-echo $$ > "$SCREENSAVER_PID_FILE"
 
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 
@@ -38,17 +33,14 @@ alacritty --class Screensaver \
   LOGO_FILE="'"$LOGO_FILE"'"
 
   while true; do
-    # Get random effect from tte
-    effect=$(tte 2>&1 | grep -oP "{\K[^}]+" | tr "," " " | tr " " "\n" | sed -n "/^beams$/,\$p" | sort -u | shuf -n1)
-
-    # Run tte with random effect
+    # Let tte choose a random effect using its supported CLI.
     tte -i "$LOGO_FILE" \
+      --random-effect \
       --frame-rate 240 \
       --canvas-width 0 \
       --canvas-height $(($(tput lines) - 2)) \
       --anchor-canvas c \
-      --anchor-text c \
-      "$effect" 2>/dev/null
+      --anchor-text c 2>/dev/null
 
     # Small delay between effects
     sleep 1

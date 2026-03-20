@@ -4,7 +4,6 @@
 
 # Constants
 MIC_STEP=5  # Volume step for scroll adjustment (percentage)
-STATE_FILE="/tmp/waybar-microphone.state"
 
 # Get default microphone source ID
 mic_get_source() {
