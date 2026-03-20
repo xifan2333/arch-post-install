@@ -86,6 +86,11 @@ reload_apps() {
         theme-sync-eza
     fi
 
+    # Sync dunst theme drop-in before restarting dunst
+    if command -v theme-sync-dunst >/dev/null 2>&1; then
+        theme-sync-dunst
+    fi
+
     # Restart dunst to apply new theme
     if pgrep -x dunst >/dev/null; then
         killall dunst

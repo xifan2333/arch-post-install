@@ -1,0 +1,27 @@
+#!/bin/bash
+# Sync dunst theme configuration using a drop-in override.
+# Usage: theme-sync-dunst
+
+set -e
+
+CURRENT_LINK="$HOME/.config/current"
+DUNST_CONFIG_DIR="$HOME/.config/dunst"
+DUNST_THEME_DROPIN="$DUNST_CONFIG_DIR/dunstrc.d/90-theme.conf"
+
+# Check if current theme link exists
+if [ ! -L "$CURRENT_LINK" ]; then
+    echo "Error: Current theme link not found at $CURRENT_LINK" >&2
+    exit 1
+fi
+
+THEME_CONFIG="$CURRENT_LINK/dunstrc"
+
+mkdir -p "$(dirname "$DUNST_THEME_DROPIN")"
+
+if [ -f "$THEME_CONFIG" ]; then
+    cp "$THEME_CONFIG" "$DUNST_THEME_DROPIN"
+    echo "Dunst theme synced"
+else
+    rm -f "$DUNST_THEME_DROPIN"
+    echo "Dunst theme cleared (no theme-specific config found)"
+fi

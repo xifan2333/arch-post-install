@@ -14,6 +14,9 @@ uwsm app -- waybar &
 uwsm app -- fcitx5 -d &
 
 # Notification daemon - managed by uwsm
+if command -v theme-sync-dunst >/dev/null 2>&1; then
+    theme-sync-dunst
+fi
 uwsm app -- dunst &
 
 # Idle manager (screensaver,dpms) - managed by uwsm
