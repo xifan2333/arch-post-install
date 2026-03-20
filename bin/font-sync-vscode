@@ -12,41 +12,48 @@ fi
 
 VSCODE_SETTINGS="$HOME/.config/Code/User/settings.json"
 
+require_jq() {
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "Warning: jq not installed, cannot sync VSCode font" >&2
+        exit 1
+    fi
+}
+
+ensure_settings_file() {
+    mkdir -p "$(dirname "$VSCODE_SETTINGS")"
+    if [ ! -f "$VSCODE_SETTINGS" ]; then
+        printf '{\n}\n' > "$VSCODE_SETTINGS"
+    fi
+}
+
+normalize_settings_json() {
+    local tmp_file
+    tmp_file=$(mktemp)
+    perl -0pe 's/,\s*([}\]])/\1/g' "$VSCODE_SETTINGS" > "$tmp_file"
+    mv "$tmp_file" "$VSCODE_SETTINGS"
+}
+
+update_settings() {
+    local tmp_file
+    tmp_file=$(mktemp)
+    jq \
+        --arg font "$FONT_WITH_FALLBACK" \
+        '.["editor.fontFamily"] = $font | .["terminal.integrated.fontFamily"] = $font' \
+        "$VSCODE_SETTINGS" > "$tmp_file"
+    mv "$tmp_file" "$VSCODE_SETTINGS"
+}
+
 # Check if VSCode is installed
 if ! command -v code >/dev/null 2>&1; then
     # VSCode not installed, exit silently
     exit 0
 fi
 
-# Create settings directory if it doesn't exist
-mkdir -p "$(dirname "$VSCODE_SETTINGS")"
-
-# Create settings file if it doesn't exist
-if [ ! -f "$VSCODE_SETTINGS" ]; then
-    printf '{\n}\n' > "$VSCODE_SETTINGS"
-fi
-
-# Add editor.fontFamily entry if it doesn't exist
-if ! grep -q '"editor.fontFamily"' "$VSCODE_SETTINGS"; then
-    sed -i --follow-symlinks -E '0,/\{/{s/\{/{\
-  "editor.fontFamily": "",/}' "$VSCODE_SETTINGS"
-fi
-
-# Add terminal.integrated.fontFamily entry if it doesn't exist
-if ! grep -q '"terminal.integrated.fontFamily"' "$VSCODE_SETTINGS"; then
-    sed -i --follow-symlinks -E '0,/\{/{s/\{/{\
-  "terminal.integrated.fontFamily": "",/}' "$VSCODE_SETTINGS"
-fi
-
 # Update font settings with Chinese fallback and monospace fallback
 FONT_WITH_FALLBACK="$FONT_NAME, 'Sarasa Gothic SC', monospace"
-
-sed -i --follow-symlinks -E \
-    "s|(\"editor.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$FONT_WITH_FALLBACK\2|" \
-    "$VSCODE_SETTINGS"
-
-sed -i --follow-symlinks -E \
-    "s|(\"terminal.integrated.fontFamily\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$FONT_WITH_FALLBACK\2|" \
-    "$VSCODE_SETTINGS"
+require_jq
+ensure_settings_file
+normalize_settings_json
+update_settings
 
 echo "VSCode font updated to: $FONT_NAME"

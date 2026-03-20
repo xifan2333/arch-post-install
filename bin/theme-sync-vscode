@@ -7,6 +7,35 @@ set -e
 VSCODE_THEME_FILE="$HOME/.config/current/vscode.json"
 VSCODE_SETTINGS="$HOME/.config/Code/User/settings.json"
 
+require_jq() {
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "Warning: jq not installed, cannot sync VSCode theme" >&2
+        exit 1
+    fi
+}
+
+ensure_settings_file() {
+    mkdir -p "$(dirname "$VSCODE_SETTINGS")"
+    if [ ! -f "$VSCODE_SETTINGS" ]; then
+        printf '{\n}\n' > "$VSCODE_SETTINGS"
+    fi
+}
+
+normalize_settings_json() {
+    local tmp_file
+    tmp_file=$(mktemp)
+    perl -0pe 's/,\s*([}\]])/\1/g' "$VSCODE_SETTINGS" > "$tmp_file"
+    mv "$tmp_file" "$VSCODE_SETTINGS"
+}
+
+update_settings() {
+    local jq_filter="$1"
+    local tmp_file
+    tmp_file=$(mktemp)
+    jq "$jq_filter" "$VSCODE_SETTINGS" > "$tmp_file"
+    mv "$tmp_file" "$VSCODE_SETTINGS"
+}
+
 # Check if VSCode is installed
 if ! command -v code >/dev/null 2>&1; then
     # VSCode not installed, exit silently
@@ -18,16 +47,15 @@ if [ ! -f "$VSCODE_THEME_FILE" ]; then
     # No VSCode theme defined for this theme
     # Remove theme setting from settings.json if it exists
     if [ -f "$VSCODE_SETTINGS" ]; then
-        sed -i --follow-symlinks -E '/"workbench\.colorTheme"[[:space:]]*:[^,}]*,?/d' "$VSCODE_SETTINGS"
+        require_jq
+        normalize_settings_json
+        update_settings 'del(.["workbench.colorTheme"])'
     fi
     exit 0
 fi
 
 # Read theme configuration using jq
-if ! command -v jq >/dev/null 2>&1; then
-    echo "Warning: jq not installed, cannot sync VSCode theme" >&2
-    exit 1
-fi
+require_jq
 
 THEME_NAME=$(jq -r '.name' "$VSCODE_THEME_FILE")
 EXTENSION=$(jq -r '.extension' "$VSCODE_THEME_FILE")
@@ -40,24 +68,8 @@ if [ -n "$EXTENSION" ] && [ "$EXTENSION" != "null" ]; then
     fi
 fi
 
-# Create settings directory if it doesn't exist
-mkdir -p "$(dirname "$VSCODE_SETTINGS")"
-
-# Create settings file if it doesn't exist
-if [ ! -f "$VSCODE_SETTINGS" ]; then
-    printf '{\n}\n' > "$VSCODE_SETTINGS"
-fi
-
-# Add workbench.colorTheme entry if it doesn't exist
-if ! grep -q '"workbench.colorTheme"' "$VSCODE_SETTINGS"; then
-    # Insert "workbench.colorTheme": "" immediately after the first {
-    sed -i --follow-symlinks -E '0,/\{/{s/\{/{\
-  "workbench.colorTheme": "",/}' "$VSCODE_SETTINGS"
-fi
-
-# Update theme setting
-sed -i --follow-symlinks -E \
-    "s/(\"workbench.colorTheme\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1$THEME_NAME\2/" \
-    "$VSCODE_SETTINGS"
+ensure_settings_file
+normalize_settings_json
+update_settings --arg theme "$THEME_NAME" '.["workbench.colorTheme"] = $theme'
 
 echo "VSCode theme updated to: $THEME_NAME"
