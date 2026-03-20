@@ -5,7 +5,6 @@
 # XDG directories
 XDG_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$(xdg-user-dir VIDEOS)}"
 RECORDINGS_DIR="$XDG_VIDEOS_DIR/screenrecords"
-PID_FILE="/tmp/wf-recorder.pid"
 
 # Recording settings (minimal - use wf-recorder defaults)
 AUDIO_SOURCE="rnnoise_source"  # Noise-suppressed audio source
@@ -45,34 +44,24 @@ screenrecord_list_pids() {
 }
 
 screenrecord_get_pid() {
-    local pid
-    local cmd
-    local fallback_pid
-
-    if [ -f "$PID_FILE" ]; then
-        pid=$(cat "$PID_FILE" 2>/dev/null)
-        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            cmd=$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]')
-            if [ "$cmd" = "wf-recorder" ]; then
-                echo "$pid"
-                return 0
-            fi
-        fi
-    fi
-
-    fallback_pid=$(screenrecord_list_pids | head -n 1)
-    if [ -n "$fallback_pid" ] && kill -0 "$fallback_pid" 2>/dev/null; then
-        echo "$fallback_pid" > "$PID_FILE"
-        echo "$fallback_pid"
-        return 0
-    fi
-
-    rm -f "$PID_FILE"
-    return 1
+    pgrep -u "$(id -u)" -o -x wf-recorder 2>/dev/null | head -n 1
 }
 
 screenrecord_is_active() {
-    screenrecord_get_pid >/dev/null
+    [ -n "$(screenrecord_get_pid)" ]
+}
+
+screenrecord_get_duration_seconds() {
+    local pid
+    local duration
+
+    pid=$(screenrecord_get_pid) || return 1
+    [ -n "$pid" ] || return 1
+
+    duration=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+    [ -n "$duration" ] || return 1
+
+    echo "$duration"
 }
 
 # Notify waybar to update screenrecord module
@@ -86,10 +75,7 @@ screenrecord_waybar_status() {
     source i18n-core
 
     if screenrecord_is_active; then
-        # Get recording start time from PID file modification time
-        start_time=$(stat -c %Y "$PID_FILE" 2>/dev/null || echo 0)
-        current_time=$(date +%s)
-        duration=$((current_time - start_time))
+        duration=$(screenrecord_get_duration_seconds 2>/dev/null || echo 0)
 
         # Format duration as MM:SS
         minutes=$((duration / 60))

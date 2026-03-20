@@ -40,8 +40,6 @@ if screenrecord_is_active; then
     done
 fi
 
-rm -f "$PID_FILE"
-
 # Notify waybar to update screenrecord module
 screenrecord_notify_waybar
 
