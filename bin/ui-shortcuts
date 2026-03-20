@@ -9,7 +9,7 @@ RAW_DELIM=$'\x1f'
 
 if [[ "${UI_SHORTCUTS_IN_TERMINAL:-0}" != "1" ]] && { [[ ! -t 0 ]] || [[ ! -t 1 ]]; }; then
     exec terminal-launch \
-        --class="ShortcutHelp" \
+        --class="floating-terminal-shortcuts" \
         --title="$(msg shortcuts_title)" \
         --close \
         -- env UI_SHORTCUTS_IN_TERMINAL=1 ui-shortcuts

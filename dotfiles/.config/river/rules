@@ -15,11 +15,9 @@ riverctl rule-add -app-id "*" ssd
 
 # Floating windows
 riverctl rule-add -app-id "scratchpad" float                        # Scratchpad terminal
-riverctl rule-add -app-id "floating-terminal" float                 # Floating terminal (terminal-launch)
-riverctl rule-add -app-id "floating-terminal" dimensions 960 540   # Default size for floating terminal
+riverctl rule-add -app-id "floating-terminal*" float                # Floating terminal (terminal-launch)
+riverctl rule-add -app-id "floating-terminal*" dimensions 960 540  # Default size for floating terminal family
 riverctl rule-add -app-id "PackageManager" float                    # Package manager terminal
 riverctl rule-add -app-id "PackageManager" dimensions 960 540      # Larger size for package manager
-riverctl rule-add -app-id "ShortcutHelp" float                      # Shortcut help terminal
-riverctl rule-add -app-id "ShortcutHelp" dimensions 1100 680       # Larger size for searchable shortcut list
 riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv)
 riverctl rule-add -title "Screenshot Preview" dimensions 600 400    # Smaller size for reference
