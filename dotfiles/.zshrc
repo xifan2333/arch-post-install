@@ -71,9 +71,3 @@ fi
 if command -v zoxide &> /dev/null; then
     eval "$(zoxide init zsh)"
 fi
-
-# Codex Config Manager - auto-generated
-[[ -f "/home/xifan/.config/codex/env" ]] && source "/home/xifan/.config/codex/env"
-
-# Claude Config Manager - auto-generated
-[[ -f "/home/xifan/.config/claude/env" ]] && source "/home/xifan/.config/claude/env"
