@@ -1,2 +1,3 @@
 dotfiles/.config/rime-voice-input.json
-dotfiles/.config/qutebrowser/translate.json
+dotfiles/.ruff_cache/
+.ace-tool/

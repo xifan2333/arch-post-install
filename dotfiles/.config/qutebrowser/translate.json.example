@@ -1,0 +1,13 @@
+{
+  "provider": "deeplx",
+  "openai": {
+    "base_url": "https://api.openai.com",
+    "api_key": "sk-xxx",
+    "model": "gpt-5",
+    "target_lang": "Chinese"
+  },
+  "deeplx": {
+    "url": "https://api.deeplx.org/translate",
+    "target_lang": "ZH"
+  }
+}
