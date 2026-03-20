@@ -11,7 +11,7 @@ riverctl map normal $mod B spawn "uwsm app -- qutebrowser"                      
 riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # File manager (GUI)
 riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e lf"                        # File manager (TUI)
 riverctl map normal $mod C spawn "uwsm app -- code"                                         # VSCode
-riverctl map normal $mod G spawn "uwsm app -- ui-screenrecord"                              # Screen record
+riverctl map normal $mod G spawn "uwsm app -- screenrecord-toggle-full"                      # Screen record (toggle)
 
 # Window management
 riverctl map normal $mod W close                                    # Close window
@@ -73,8 +73,6 @@ riverctl map normal Control Print spawn "uwsm app -- screenshot-preview-area"   
 riverctl map normal Mod1 Print spawn "uwsm app -- screenshot-temp-area"                    # Screenshot area to temp (copy path)
 
 # Screen recording
-riverctl map normal $mod G spawn "uwsm app -- screenrecord-start-full"                     # Record full screen
-riverctl map normal ${mod}+Control G spawn "uwsm app -- screenrecord-stop"                 # Stop recording
 riverctl map normal ${mod}+Mod1 G spawn "uwsm app -- screenrecord-start-area"              # Record area
 
 # Media keys - Volume

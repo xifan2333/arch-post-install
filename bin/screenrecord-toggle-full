@@ -1,0 +1,10 @@
+#!/bin/bash
+# Toggle full screen recording (start/stop)
+
+source screenrecord-core
+
+if screenrecord_is_active; then
+    exec screenrecord-stop
+else
+    exec screenrecord-start-full
+fi
