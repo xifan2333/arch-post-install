@@ -28,11 +28,15 @@ c.content.headers.accept_language = 'zh-CN,zh;q=0.9,en;q=0.8'
 # 自动保存会话
 c.auto_save.session = True
 
+# 内存优化：限制缓存大小，防止内存占用过高
+c.qt.chromium.low_end_device_mode = 'auto'
+c.content.cache.size = 52428800  # 50MB
+
 # 翻译快捷键
 config.bind('tt', 'spawn --userscript translate')
 
 # 快速访问本地服务
-config.bind(',pve', 'open -t http://10.0.0.254')
+config.bind(',pve', 'open -t https://10.0.0.254:8006')
 config.bind(',rt', 'open -t http://10.0.0.1')
 config.bind(',api', 'open -t http://10.0.0.253:3000')
 config.bind(',ql', 'open -t http://10.0.0.253:5700')
