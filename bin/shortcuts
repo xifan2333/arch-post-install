@@ -7,12 +7,12 @@ source i18n-core
 
 RAW_DELIM=$'\x1f'
 
-if [[ "${UI_SHORTCUTS_IN_TERMINAL:-0}" != "1" ]] && { [[ ! -t 0 ]] || [[ ! -t 1 ]]; }; then
+if [[ "${SHORTCUTS_IN_TERMINAL:-0}" != "1" ]] && { [[ ! -t 0 ]] || [[ ! -t 1 ]]; }; then
     exec terminal-launch \
         --class="floating-terminal-shortcuts" \
         --title="$(msg shortcuts_title)" \
         --close \
-        -- env UI_SHORTCUTS_IN_TERMINAL=1 ui-shortcuts
+        -- env SHORTCUTS_IN_TERMINAL=1 shortcuts
 fi
 
 BINDINGS_FILE="${RIVER_BINDINGS_FILE:-$HOME/.config/river/bindings}"

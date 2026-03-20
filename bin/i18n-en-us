@@ -159,7 +159,7 @@ i18n[packages_manager_remove]="Remove Package"
 i18n[packages_manager_backup]="Backup Package List"
 
 # ============================================================================
-# ui-shortcuts
+# shortcuts
 # ============================================================================
 i18n[shortcuts_title]="Shortcut Help"
 i18n[shortcuts_prompt]="Search Shortcut:"

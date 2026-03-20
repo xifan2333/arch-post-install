@@ -11,7 +11,7 @@ mod="Mod4"  # Super/Windows 键
 # 应用启动
 riverctl map normal $mod Return spawn "uwsm app -- $TERMINAL"                                # 终端
 riverctl map normal $mod Space spawn "uwsm app -- ui-wofi"                                  # 应用启动器
-riverctl map normal $mod slash spawn "uwsm app -- ui-shortcuts"                             # 快捷键提示
+riverctl map normal $mod slash spawn "uwsm app -- shortcuts"                                # 快捷键提示
 riverctl map normal $mod V spawn "uwsm app -- ui-clipboard"                                 # 剪贴板历史
 riverctl map normal $mod B spawn "uwsm app -- qutebrowser"                                 # 浏览器
 riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # 文件管理器（GUI）
