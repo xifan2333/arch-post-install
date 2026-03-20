@@ -1,4 +1,3 @@
 .config/vinput/config.json
-.config/vocotype/rime/user.yaml
 \.example$
 ^\.ruff_cache(/.*)?$
