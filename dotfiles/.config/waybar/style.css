@@ -1,11 +1,11 @@
 /* Waybar style with theme support */
 /* Theme colors loaded from current theme */
 @import url("../current/waybar.css");
+@import url("font.css");
 
 * {
     border: none;
     border-radius: 0;
-    font-family: "CaskaydiaMono Nerd Font Mono", "Symbols Nerd Font", sans-serif;
     font-size: 15px;
     min-height: 0;
 }
@@ -208,4 +208,3 @@ separator {
     background: @color-bg2;
     margin: 4px 8px;
 }
-

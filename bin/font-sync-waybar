@@ -11,6 +11,7 @@ if [ -z "$FONT_NAME" ]; then
 fi
 
 WAYBAR_STYLE="$HOME/.config/waybar/style.css"
+WAYBAR_FONT_STYLE="$HOME/.config/waybar/font.css"
 
 # Check if Waybar config exists
 if [ ! -f "$WAYBAR_STYLE" ]; then
@@ -18,8 +19,12 @@ if [ ! -f "$WAYBAR_STYLE" ]; then
     exit 0
 fi
 
-# Update font family in style.css
-sed -i "s/font-family: .*/font-family: \"$FONT_NAME\", \"Symbols Nerd Font\", sans-serif;/g" "$WAYBAR_STYLE"
+# Update font family in dedicated overlay file
+cat > "$WAYBAR_FONT_STYLE" <<EOF
+* {
+    font-family: "$FONT_NAME", "Symbols Nerd Font", sans-serif;
+}
+EOF
 
 # Restart Waybar if running
 if pgrep -x waybar >/dev/null; then

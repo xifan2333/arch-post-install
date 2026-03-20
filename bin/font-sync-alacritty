@@ -11,6 +11,7 @@ if [ -z "$FONT_NAME" ]; then
 fi
 
 ALACRITTY_CONFIG="$HOME/.config/alacritty/alacritty.toml"
+ALACRITTY_FONT_CONFIG="$HOME/.config/alacritty/font.toml"
 
 # Check if Alacritty config exists
 if [ ! -f "$ALACRITTY_CONFIG" ]; then
@@ -18,8 +19,14 @@ if [ ! -f "$ALACRITTY_CONFIG" ]; then
     exit 0
 fi
 
-# Update font family in config
-sed -i "s/family = \".*\"/family = \"$FONT_NAME\"/g" "$ALACRITTY_CONFIG"
+# Update font family in dedicated overlay file
+cat > "$ALACRITTY_FONT_CONFIG" <<EOF
+[font]
+normal = { family = "$FONT_NAME" }
+bold = { family = "$FONT_NAME" }
+italic = { family = "$FONT_NAME" }
+bold_italic = { family = "$FONT_NAME" }
+EOF
 
 # Trigger reload by touching the file
 touch "$ALACRITTY_CONFIG"

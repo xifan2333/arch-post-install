@@ -58,6 +58,10 @@ sync_fonts() {
 
 sync_fonts
 
+# Persist current font selection for UI helpers.
+mkdir -p "$HOME/.config/font"
+printf '%s\n' "$FONT_NAME" > "$HOME/.config/font/current"
+
 # Send notification if notify-send is available
 if command -v notify-send >/dev/null 2>&1; then
     notify-send "${i18n[font_title]}" "$(msg font_switched_notify font "$FONT_NAME")"
