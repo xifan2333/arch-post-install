@@ -15,8 +15,10 @@ NC='\033[0m' # No Color
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-DOTFILES_SRC="$PROJECT_ROOT/dotfiles"
-DOTFILES_TARGET="$HOME/.dotfiles"
+DOTFILES_PACKAGE="dotfiles"
+DOTFILES_SRC="$PROJECT_ROOT/$DOTFILES_PACKAGE"
+STOW_DIR="$PROJECT_ROOT"
+LEGACY_DOTFILES_TARGET="$HOME/.dotfiles"
 
 # Print functions
 print_step() {
@@ -44,12 +46,34 @@ print_warning() {
 }
 
 is_valid_git_repo() {
-    git -C "$DOTFILES_TARGET" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+cleanup_stale_home_git_link() {
+    local home_git="$HOME/.git"
+    local resolved_target
+
+    if [ -L "$home_git" ]; then
+        resolved_target=$(readlink -f "$home_git" 2>/dev/null || true)
+        if [ "$resolved_target" = "$LEGACY_DOTFILES_TARGET/.git" ]; then
+            print_warning "Removing stale ~/.git symlink left by an earlier stow run"
+            rm -f "$home_git"
+        fi
+    fi
+}
+
+cleanup_legacy_dotfiles_links() {
+    if [ ! -d "$LEGACY_DOTFILES_TARGET" ]; then
+        return 0
+    fi
+
+    print_substep "Cleaning up links from legacy ~/.dotfiles deployment"
+    stow -D -d "$LEGACY_DOTFILES_TARGET" -t "$HOME" . 2>/dev/null || true
 }
 
 # Check required tools
 check_tools() {
-    for tool in stow rsync git; do
+    for tool in stow git; do
         if ! command -v "$tool" &> /dev/null; then
             print_error "$tool is not installed. Please install it."
             exit 1
@@ -69,72 +93,33 @@ install_dotfiles() {
         exit 1
     fi
 
-    # Create and enter target directory
-    mkdir -p "$DOTFILES_TARGET"
-    cd "$DOTFILES_TARGET" || exit 1
-
-    # Initialize Git repository if needed
-    local git_initiated=false
-    if [ -e ".git" ] && ! is_valid_git_repo; then
-        print_warning "Invalid Git metadata found in $DOTFILES_TARGET/.git, reinitializing"
-        rm -rf .git
-    fi
-
+    # Repository root must already be a valid Git repo because it is the source of truth.
     if ! is_valid_git_repo; then
-        print_substep "Initializing Git repository in $DOTFILES_TARGET"
-        if git -C "$DOTFILES_TARGET" init >/dev/null 2>&1; then
-            print_success "Git repository initialized"
-            git_initiated=true
-        else
-            print_error "Failed to initialize Git"
-            exit 1
-        fi
-    fi
-
-    # Configure Git to ignore file mode changes
-    if is_valid_git_repo; then
-        print_substep "Configuring Git (ignore file mode changes)"
-        git -C "$DOTFILES_TARGET" config --local core.filemode false
-        print_success "Git configured"
-    fi
-
-    # Sync dotfiles using rsync
-    print_substep "Syncing dotfiles to $DOTFILES_TARGET"
-    # rsync -a -u: only update files that are older in target
-    # --exclude '*.example': exclude example files
-    if rsync -a -u --exclude '*.example' "$DOTFILES_SRC/" "$DOTFILES_TARGET/"; then
-        print_success "Dotfiles synced"
-    else
-        print_error "Failed to sync dotfiles"
+        print_error "Project root is not a valid Git repository: $PROJECT_ROOT"
         exit 1
     fi
 
-    # Initial commit if needed
-    if is_valid_git_repo; then
-        if [ "$git_initiated" = true ] || [ "$(git -C "$DOTFILES_TARGET" rev-list --count HEAD 2>/dev/null || echo 0)" -eq 0 ]; then
-            print_substep "Creating initial commit"
-            git -C "$DOTFILES_TARGET" add .
-            if git -C "$DOTFILES_TARGET" commit -m "Initial commit of dotfiles" >/dev/null 2>&1; then
-                print_success "Initial commit created"
-            else
-                print_warning "No changes to commit"
-            fi
-        fi
-    fi
+    print_substep "Configuring Git (ignore file mode changes)"
+    git -C "$PROJECT_ROOT" config --local core.filemode false
+    print_success "Git configured"
+
+    # Clean up stale ~/.git symlink if a previous run incorrectly stowed .git.
+    cleanup_stale_home_git_link
+    cleanup_legacy_dotfiles_links
 
     # Unstow first (cleanup previous links)
     print_substep "Cleaning up previous stow links"
-    stow -D -t "$HOME" . 2>/dev/null || true
+    stow -D -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>/dev/null || true
     print_success "Previous links cleaned"
 
     # Check for conflicts
     print_substep "Checking for conflicts"
-    if ! stow -n -t "$HOME" . 2>&1 | grep -q "would cause conflicts"; then
+    if ! stow -n -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>&1 | grep -q "would cause conflicts"; then
         print_success "No conflicts detected"
     else
         print_warning "Conflicts detected, attempting to resolve"
         # Remove conflicting files/symlinks
-        stow -n -t "$HOME" . 2>&1 | grep "existing target" | \
+        stow -n -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>&1 | grep "existing target" | \
             sed 's/.*existing target //' | sed 's/ since.*//' | \
             while read -r conflict; do
                 local target="$HOME/$conflict"
@@ -147,22 +132,20 @@ install_dotfiles() {
 
     # Stow the dotfiles
     print_substep "Deploying dotfiles with stow"
-    if stow -t "$HOME" .; then
-        print_success "Dotfiles deployed: ~/.dotfiles/* -> ~/"
+    if stow -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE"; then
+        print_success "Dotfiles deployed from $DOTFILES_SRC to $HOME"
     else
         print_error "Failed to stow dotfiles"
         exit 1
     fi
 
-    # Check for dynamic changes
-    print_substep "Checking for dynamic changes"
-    if is_valid_git_repo; then
-        if ! git -C "$DOTFILES_TARGET" diff-index --quiet HEAD -- 2>/dev/null; then
-            print_warning "Dynamic changes detected"
-            print_info "Review changes with: cd ~/.dotfiles && git status"
-        else
-            print_success "No dynamic changes"
-        fi
+    # Check for local changes in the source repository after deployment.
+    print_substep "Checking for local changes"
+    if ! git -C "$PROJECT_ROOT" diff-index --quiet HEAD -- 2>/dev/null; then
+        print_warning "Local repository changes detected"
+        print_info "Review changes with: git -C $PROJECT_ROOT status"
+    else
+        print_success "No local changes"
     fi
 
     echo
@@ -173,11 +156,6 @@ install_dotfiles() {
 uninstall_dotfiles() {
     print_step "Uninstalling dotfiles"
 
-    if [ ! -d "$DOTFILES_TARGET" ]; then
-        print_warning "Dotfiles directory does not exist: $DOTFILES_TARGET"
-        exit 0
-    fi
-
     # Check stow is installed
     if ! command -v stow &> /dev/null; then
         print_error "stow is not installed"
@@ -185,10 +163,12 @@ uninstall_dotfiles() {
     fi
 
     # Unstow dotfiles
-    cd "$DOTFILES_TARGET" || exit 1
     print_substep "Removing stow links from $HOME"
 
-    if stow -D -t "$HOME" . 2>/dev/null; then
+    cleanup_stale_home_git_link
+    cleanup_legacy_dotfiles_links
+
+    if stow -D -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>/dev/null; then
         print_success "Dotfiles unstowed"
     else
         print_warning "Some links may not have been removed"
@@ -196,8 +176,10 @@ uninstall_dotfiles() {
 
     echo
     print_success "Dotfiles uninstalled!"
-    print_info "Dotfiles directory still exists at: $DOTFILES_TARGET"
-    print_info "To completely remove: rm -rf $DOTFILES_TARGET"
+    if [ -d "$LEGACY_DOTFILES_TARGET" ]; then
+        print_info "Legacy dotfiles directory still exists at: $LEGACY_DOTFILES_TARGET"
+        print_info "Remove it manually if you no longer need it"
+    fi
 }
 
 # Show usage
@@ -206,15 +188,15 @@ usage() {
     echo
     echo "Commands:"
     echo "  install     Install dotfiles using stow"
-    echo "              - Syncs dotfiles/ to ~/.dotfiles using rsync"
-    echo "              - Creates Git repository for tracking changes"
-    echo "              - Uses stow to create symlinks in \$HOME"
+    echo "              - Uses the repository's dotfiles/ directory as the stow package"
+    echo "              - Creates symlinks in \$HOME directly from the repo"
+    echo "              - Cleans up legacy ~/.dotfiles deployments when found"
     echo
     echo "  uninstall   Uninstall dotfiles"
-    echo "              - Removes all stow symlinks from \$HOME"
-    echo "              - Keeps ~/.dotfiles directory intact"
+    echo "              - Removes stow symlinks created from the repository"
+    echo "              - Also cleans up legacy ~/.dotfiles links when possible"
     echo
-    echo "Required tools: stow, rsync, git"
+    echo "Required tools: stow, git"
     echo
     echo "Example:"
     echo "  $0 install"
