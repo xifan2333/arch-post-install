@@ -1,0 +1,60 @@
+#!/bin/bash
+# Interactive shortcut helper using fzf.
+
+set -euo pipefail
+
+source i18n-core
+
+RAW_DELIM=$'\x1f'
+
+if [[ "${UI_SHORTCUTS_IN_TERMINAL:-0}" != "1" ]] && { [[ ! -t 0 ]] || [[ ! -t 1 ]]; }; then
+    exec terminal-launch \
+        --class="ShortcutHelp" \
+        --title="$(msg shortcuts_title)" \
+        --close \
+        -- env UI_SHORTCUTS_IN_TERMINAL=1 ui-shortcuts
+fi
+
+BINDINGS_FILE="${RIVER_BINDINGS_FILE:-$HOME/.config/river/bindings}"
+MANUAL_FILE="${SHORTCUTS_MANUAL_FILE:-$HOME/.config/shortcuts/manual.tsv}"
+
+if [[ ! -f "$BINDINGS_FILE" ]]; then
+    echo "$(msg shortcuts_missing_bindings "path" "$BINDINGS_FILE")" >&2
+    exit 1
+fi
+
+SHORTCUT_LABEL="$(msg shortcuts_preview_shortcut)"
+SECTION_LABEL="$(msg shortcuts_preview_section)"
+COMMAND_LABEL="$(msg shortcuts_preview_command)"
+SOURCE_LABEL="$(msg shortcuts_preview_source)"
+
+preview_cmd=$'awk -F "\\t" -v shortcut_label="'"$SHORTCUT_LABEL"$'" -v section_label="'"$SECTION_LABEL"$'" -v command_label="'"$COMMAND_LABEL"$'" -v source_label="'"$SOURCE_LABEL"$'" \'{printf "%s\\n\\n%s %s\\n%s %s\\n%s\\n%s\\n%s %s\\n", $2, shortcut_label, $1, section_label, $3, command_label, $4, source_label, $5}\' <<< "{}"'
+
+emit_shortcuts() {
+    river-bindings-list "$BINDINGS_FILE"
+    manual-shortcuts-list "$MANUAL_FILE"
+}
+
+TMP_RAW="$(mktemp)"
+TMP_DISPLAY="$(mktemp)"
+trap 'rm -f "$TMP_RAW" "$TMP_DISPLAY"' EXIT
+
+emit_shortcuts > "$TMP_RAW"
+cut -f1-3 "$TMP_RAW" | column -t -s $'\t' -o '  ' > "$TMP_DISPLAY"
+
+preview_cmd=$'awk -F "\\x1f" -v raw_delim="\\t" -v shortcut_label="'"$SHORTCUT_LABEL"$'" -v section_label="'"$SECTION_LABEL"$'" -v command_label="'"$COMMAND_LABEL"$'" -v source_label="'"$SOURCE_LABEL"$'" \'{split($2, raw, raw_delim); printf "%s\\n\\n%s %s\\n%s %s\\n%s\\n%s\\n%s %s\\n", raw[2], shortcut_label, raw[1], section_label, raw[3], command_label, raw[4], source_label, raw[5]}\' <<< "{}"'
+
+paste -d "$RAW_DELIM" "$TMP_DISPLAY" "$TMP_RAW" | fzf \
+    --delimiter="$RAW_DELIM" \
+    --with-nth=1 \
+    --nth=1 \
+    --prompt="$(msg shortcuts_prompt) " \
+    --preview "$preview_cmd" \
+    --preview-label="$(msg shortcuts_preview_label)" \
+    --preview-label-pos='bottom' \
+    --preview-window='down:65%:wrap' \
+    --bind 'alt-p:toggle-preview' \
+    --bind 'alt-d:preview-half-page-down,alt-u:preview-half-page-up' \
+    --bind 'alt-k:preview-up,alt-j:preview-down' \
+    --color 'pointer:green,marker:green' \
+    >/dev/null

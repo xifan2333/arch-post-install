@@ -1,0 +1,33 @@
+#!/bin/bash
+# Export hand-written shortcut notes as a tab-separated list.
+
+set -euo pipefail
+
+SHORTCUTS_FILE="${1:-${SHORTCUTS_MANUAL_FILE:-$HOME/.config/shortcuts/manual.tsv}}"
+
+if [[ ! -f "$SHORTCUTS_FILE" ]]; then
+    exit 0
+fi
+
+line_no=0
+while IFS= read -r line || [[ -n "$line" ]]; do
+    line_no=$((line_no + 1))
+
+    [[ -z "$line" ]] && continue
+    [[ "$line" == \#* ]] && continue
+
+    IFS=$'\t' read -r shortcut desc section note _ <<< "$line"
+
+    [[ -z "${shortcut:-}" ]] && continue
+    [[ -z "${desc:-}" ]] && continue
+    [[ -z "${section:-}" ]] && section="手写助记"
+    [[ -z "${note:-}" ]] && note="$desc"
+
+    printf '%s\t%s\t%s\t%s\t%s:%s\n' \
+        "$shortcut" \
+        "$desc" \
+        "$section" \
+        "$note" \
+        "$SHORTCUTS_FILE" \
+        "$line_no"
+done < "$SHORTCUTS_FILE"

@@ -1,0 +1,23 @@
+# 手写快捷键助记
+# 格式：快捷键<TAB>描述<TAB>分组<TAB>备注
+# 这里只是助记，不要求和真实配置 100% 一致。
+#
+# tmux 助记
+Prefix C-a	前缀键	Tmux 助记	先按它，再按后续功能键
+Prefix C-a C-a	发送前缀	Tmux 助记	在嵌套 tmux 里把前缀再传进去
+Prefix C-a r	重载 tmux 配置	Tmux 助记	改完配置后立刻生效
+Prefix C-a =	横向分屏	Tmux 助记	左右分出一个新 pane
+Prefix C-a -	纵向分屏	Tmux 助记	上下分出一个新 pane
+Prefix C-a h	切到左侧 pane	Tmux 助记	把焦点切到左边 pane
+Prefix C-a j	切到下方 pane	Tmux 助记	把焦点切到下面 pane
+Prefix C-a k	切到上方 pane	Tmux 助记	把焦点切到上面 pane
+Prefix C-a l	切到右侧 pane	Tmux 助记	把焦点切到右边 pane
+Prefix C-a H	向左扩展 pane	Tmux 助记	让当前 pane 向左变宽
+Prefix C-a J	向下扩展 pane	Tmux 助记	让当前 pane 向下变高
+Prefix C-a K	向上扩展 pane	Tmux 助记	让当前 pane 向上变高
+Prefix C-a L	向右扩展 pane	Tmux 助记	让当前 pane 向右变宽
+Prefix C-a Space	切换 pane 布局	Tmux 助记	在几种分屏布局之间轮换
+Alt+Left	上一个 window	Tmux 助记	切到左边那个 tmux window
+Alt+Right	下一个 window	Tmux 助记	切到右边那个 tmux window
+Prefix C-a ?	查看快捷键列表	Tmux 助记	忘了绑定时直接看 tmux 自带列表
+Prefix C-a /	打开 tmux man 帮助	Tmux 助记	需要查 tmux 用法时快速打开帮助

@@ -1,0 +1,245 @@
+#!/bin/bash
+# Export River keybindings as a tab-separated list for UI helpers.
+
+set -euo pipefail
+
+BINDINGS_FILE="${1:-${RIVER_BINDINGS_FILE:-$HOME/.config/river/bindings}}"
+
+if [[ ! -f "$BINDINGS_FILE" ]]; then
+    echo "Bindings file not found: $BINDINGS_FILE" >&2
+    exit 1
+fi
+
+mapfile -t SOURCE_LINES < "$BINDINGS_FILE"
+
+declare -a SECTION_BY_LINE
+
+current_section="General"
+prev_blank=true
+
+trim() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+normalize_modifier() {
+    case "$1" in
+        Mod4) printf 'Super' ;;
+        Mod1) printf 'Alt' ;;
+        Control) printf 'Ctrl' ;;
+        Shift) printf 'Shift' ;;
+        None) printf '' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+normalize_key() {
+    case "$1" in
+        Return) printf 'Enter' ;;
+        Space) printf 'Space' ;;
+        Escape) printf 'Esc' ;;
+        equal) printf '=' ;;
+        minus) printf '-' ;;
+        Period) printf '.' ;;
+        Comma) printf ',' ;;
+        slash) printf '/' ;;
+        Up) printf 'Up' ;;
+        Down) printf 'Down' ;;
+        Left) printf 'Left' ;;
+        Right) printf 'Right' ;;
+        Print) printf 'Print' ;;
+        BTN_LEFT) printf 'Mouse Left' ;;
+        BTN_RIGHT) printf 'Mouse Right' ;;
+        BTN_MIDDLE) printf 'Mouse Middle' ;;
+        XF86AudioRaiseVolume) printf 'Volume Up' ;;
+        XF86AudioLowerVolume) printf 'Volume Down' ;;
+        XF86AudioMute) printf 'Volume Mute' ;;
+        XF86AudioMicMute) printf 'Mic Mute' ;;
+        XF86MonBrightnessUp) printf 'Brightness Up' ;;
+        XF86MonBrightnessDown) printf 'Brightness Down' ;;
+        XF86AudioPlay) printf 'Play/Pause' ;;
+        XF86AudioNext) printf 'Next Track' ;;
+        XF86AudioPrev) printf 'Previous Track' ;;
+        KP_Page_Up) printf 'Keypad Page Up' ;;
+        KP_Next) printf 'Keypad Page Down' ;;
+        Next) printf 'Page Down' ;;
+        Page_Up) printf 'Page Up' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+format_shortcut() {
+    local modifiers="$1"
+    local key="$2"
+    local -a parts=()
+
+    if [[ "$modifiers" != "None" ]]; then
+        local -a raw_mods
+        IFS='+' read -r -a raw_mods <<< "$modifiers"
+        for modifier in "${raw_mods[@]}"; do
+            local normalized
+            normalized="$(normalize_modifier "$modifier")"
+            [[ -n "$normalized" ]] && parts+=("$normalized")
+        done
+    fi
+
+    parts+=("$(normalize_key "$key")")
+
+    local joined=""
+    local part
+    for part in "${parts[@]}"; do
+        if [[ -n "$joined" ]]; then
+            joined+="+"
+        fi
+        joined+="$part"
+    done
+
+    printf '%s' "$joined"
+}
+
+get_metadata() {
+    local line_no="$1"
+    local section="${SECTION_BY_LINE[$((line_no - 1))]:-General}"
+    local desc=""
+    local hide=0
+    local line="${SOURCE_LINES[$((line_no - 1))]}"
+    local inline=""
+
+    if [[ "$line" == *'#'* ]]; then
+        inline="$(trim "${line#*#}")"
+    fi
+
+    if [[ -n "$inline" ]]; then
+        case "$inline" in
+            @shortcut-hide) hide=1 ;;
+            @shortcut-desc\ *) desc="${inline#@shortcut-desc }" ;;
+            @shortcut-section\ *) section="${inline#@shortcut-section }" ;;
+            *) desc="$inline" ;;
+        esac
+    fi
+
+    local -a block=()
+    local idx trimmed_line
+    for ((idx = line_no - 2; idx >= 0; idx--)); do
+        trimmed_line="$(trim "${SOURCE_LINES[$idx]}")"
+        if [[ -z "$trimmed_line" ]]; then
+            break
+        fi
+        if [[ "$trimmed_line" != \#* ]]; then
+            break
+        fi
+        block=("${trimmed_line#\# }" "${block[@]}")
+    done
+
+    local comment
+    for ((idx = ${#block[@]} - 1; idx >= 0; idx--)); do
+        comment="${block[$idx]}"
+        case "$comment" in
+            @shortcut-hide) hide=1 ;;
+            @shortcut-desc\ *) [[ -z "$desc" ]] && desc="${comment#@shortcut-desc }" ;;
+            @shortcut-section\ *) section="${comment#@shortcut-section }" ;;
+            Note:\ *) ;;
+            *)
+                if [[ -z "$desc" ]]; then
+                    desc="$comment"
+                fi
+                ;;
+        esac
+    done
+
+    METADATA_DESC="$desc"
+    METADATA_SECTION="$section"
+    METADATA_HIDE="$hide"
+}
+
+capture_binding() {
+    local line_no="$1"
+    shift
+
+    local subcommand="$1"
+    shift
+
+    case "$subcommand" in
+        map|map-pointer) ;;
+        *) return 0 ;;
+    esac
+
+    if [[ "${1:-}" == "-repeat" ]]; then
+        shift
+    fi
+
+    local mode="${1:-}"
+    local modifiers="${2:-}"
+    local key="${3:-}"
+    shift 3 || true
+
+    local action="${1:-}"
+    shift || true
+
+    local tail="$*"
+    local command="$action"
+    if [[ -n "$tail" ]]; then
+        command+=" $tail"
+    fi
+
+    get_metadata "$line_no"
+    local desc="$METADATA_DESC"
+    local section="$METADATA_SECTION"
+    local hide="$METADATA_HIDE"
+    [[ "$hide" == "1" ]] && return 0
+
+    local shortcut
+    shortcut="$(format_shortcut "$modifiers" "$key")"
+
+    if [[ -z "$desc" || "$desc" == "$section" ]]; then
+        desc="$(normalize_key "$key")"
+    fi
+
+    if [[ -z "$desc" ]]; then
+        desc="$command"
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s:%s\n' \
+        "$shortcut" \
+        "$desc" \
+        "$section" \
+        "$command" \
+        "$BINDINGS_FILE" \
+        "$line_no"
+}
+
+for idx in "${!SOURCE_LINES[@]}"; do
+    raw_line="${SOURCE_LINES[$idx]}"
+    line="$(trim "$raw_line")"
+
+    if [[ -z "$line" ]]; then
+        prev_blank=true
+        SECTION_BY_LINE[$idx]="$current_section"
+        continue
+    fi
+
+    if [[ "$line" == \#* ]]; then
+        local_comment="${line#\# }"
+        if [[ "$prev_blank" == true && "$raw_line" == \#* && "$local_comment" != @shortcut-* && "$local_comment" != *:* ]]; then
+            current_section="$local_comment"
+        fi
+        SECTION_BY_LINE[$idx]="$current_section"
+        prev_blank=false
+        continue
+    fi
+
+    SECTION_BY_LINE[$idx]="$current_section"
+    prev_blank=false
+done
+
+riverctl() {
+    local caller_info line_no
+    caller_info="$(caller 0)" || return 0
+    line_no="${caller_info%% *}"
+    capture_binding "$line_no" "$@"
+}
+
+# shellcheck disable=SC1090
+source "$BINDINGS_FILE"

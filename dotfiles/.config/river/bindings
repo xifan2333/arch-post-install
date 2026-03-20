@@ -1,136 +1,142 @@
 #!/bin/sh
-# River keybindings
+# River 快捷键
 
-mod="Mod4"  # Super/Windows key
+mod="Mod4"  # Super/Windows 键
 
-# Application launchers
-riverctl map normal $mod Return spawn "uwsm app -- $TERMINAL"                                # Terminal
-riverctl map normal $mod Space spawn "uwsm app -- ui-wofi"                                  # App launcher (wofi)
-riverctl map normal $mod V spawn "uwsm app -- ui-clipboard"                                 # Clipboard history
-riverctl map normal $mod B spawn "uwsm app -- qutebrowser"                                 # Browser
-riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # File manager (GUI)
-riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e lf"                        # File manager (TUI)
+# 快捷键提示生成规则：
+# 顶层且不带 ":" 的注释会被识别为分组
+# 行尾注释或某条绑定正上方最近的注释会被识别为描述
+# 可选覆盖指令：@shortcut-desc ...、@shortcut-hide、@shortcut-section ...
+
+# 应用启动
+riverctl map normal $mod Return spawn "uwsm app -- $TERMINAL"                                # 终端
+riverctl map normal $mod Space spawn "uwsm app -- ui-wofi"                                  # 应用启动器
+riverctl map normal $mod slash spawn "uwsm app -- ui-shortcuts"                             # 快捷键提示
+riverctl map normal $mod V spawn "uwsm app -- ui-clipboard"                                 # 剪贴板历史
+riverctl map normal $mod B spawn "uwsm app -- qutebrowser"                                 # 浏览器
+riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # 文件管理器（GUI）
+riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e lf"                        # 文件管理器（TUI）
 riverctl map normal $mod C spawn "uwsm app -- code"                                         # VSCode
-riverctl map normal $mod G spawn "uwsm app -- screenrecord-toggle-full"                      # Screen record (toggle)
+riverctl map normal $mod G spawn "uwsm app -- screenrecord-toggle-full"                      # 录屏开关
 
-# Window management
-riverctl map normal $mod W close                                    # Close window
-riverctl map normal $mod F toggle-fullscreen                        # Toggle fullscreen
-riverctl map normal None F11 toggle-fullscreen                      # Toggle fullscreen (F11)
-riverctl map normal $mod+Shift Q exit                               # Exit River
-riverctl map normal $mod+Shift R spawn river-reload                 # Reload River config
+# 窗口管理
+riverctl map normal $mod W close                                    # 关闭窗口
+riverctl map normal $mod F toggle-fullscreen                        # 切换全屏
+riverctl map normal None F11 toggle-fullscreen                      # 切换全屏（F11）
+riverctl map normal $mod+Shift Q exit                               # 退出 River
+riverctl map normal $mod+Shift R spawn river-reload                 # 重载 River 配置
 
-# Focus navigation (HJKL)
-riverctl map normal $mod H focus-view left                          # Focus left
-riverctl map normal $mod J focus-view next                          # Focus next window
-riverctl map normal $mod K focus-view previous                      # Focus previous window
-riverctl map normal $mod L focus-view right                         # Focus right
+# 焦点切换 HJKL
+riverctl map normal $mod H focus-view left                          # 焦点到左侧
+riverctl map normal $mod J focus-view next                          # 焦点到下一个窗口
+riverctl map normal $mod K focus-view previous                      # 焦点到上一个窗口
+riverctl map normal $mod L focus-view right                         # 焦点到右侧
 
-# Focus navigation (Arrow keys - same as JK for up/down)
-riverctl map normal $mod Up focus-view previous                     # Focus previous window
-riverctl map normal $mod Down focus-view next                       # Focus next window
+# 焦点切换 方向键
+riverctl map normal $mod Up focus-view previous                     # 焦点到上一个窗口
+riverctl map normal $mod Down focus-view next                       # 焦点到下一个窗口
 
-# Window swap (HJKL)
-riverctl map normal ${mod}+Shift H swap left                        # Swap left
-riverctl map normal ${mod}+Shift J swap next                        # Swap with next
-riverctl map normal ${mod}+Shift K swap previous                    # Swap with previous
-riverctl map normal ${mod}+Shift L swap right                       # Swap right
+# 窗口交换 HJKL
+riverctl map normal ${mod}+Shift H swap left                        # 与左侧交换
+riverctl map normal ${mod}+Shift J swap next                        # 与下一个交换
+riverctl map normal ${mod}+Shift K swap previous                    # 与上一个交换
+riverctl map normal ${mod}+Shift L swap right                       # 与右侧交换
 
-# Window swap (Arrow keys - same as JK for up/down)
-riverctl map normal ${mod}+Shift Up swap previous                   # Swap with previous
-riverctl map normal ${mod}+Shift Down swap next                     # Swap with next
+# 窗口交换 方向键
+riverctl map normal ${mod}+Shift Up swap previous                   # 与上一个交换
+riverctl map normal ${mod}+Shift Down swap next                     # 与下一个交换
 
-# Layout direction (Arrow keys - Left/Right control layout direction)
-riverctl map normal ${mod}+Shift Left send-layout-cmd rivertile "main-location left"   # Horizontal layout
-riverctl map normal ${mod}+Shift Right send-layout-cmd rivertile "main-location top"   # Vertical layout
+# 布局方向
+riverctl map normal ${mod}+Shift Left send-layout-cmd rivertile "main-location left"   # 横向布局
+riverctl map normal ${mod}+Shift Right send-layout-cmd rivertile "main-location top"   # 纵向布局
 
-# Layout control (YUIO keys)
-riverctl map normal $mod Y send-layout-cmd rivertile "main-location left"        # Horizontal layout (main left)
-riverctl map normal $mod U send-layout-cmd rivertile "main-location top"         # Vertical layout (main top)
-riverctl map normal $mod I send-layout-cmd rivertile "main-ratio -0.05"          # Decrease main ratio
-riverctl map normal $mod O send-layout-cmd rivertile "main-ratio +0.05"          # Increase main ratio
+# 布局控制 YUIO
+riverctl map normal $mod Y send-layout-cmd rivertile "main-location left"        # 横向布局（主区域在左）
+riverctl map normal $mod U send-layout-cmd rivertile "main-location top"         # 纵向布局（主区域在上）
+riverctl map normal $mod I send-layout-cmd rivertile "main-ratio -0.05"          # 减小主区域比例
+riverctl map normal $mod O send-layout-cmd rivertile "main-ratio +0.05"          # 增大主区域比例
 
-# Layout control (Arrow keys - Left/Right adjust ratio)
-riverctl map normal $mod Left send-layout-cmd rivertile "main-ratio -0.05"       # Decrease main ratio
-riverctl map normal $mod Right send-layout-cmd rivertile "main-ratio +0.05"      # Increase main ratio
+# 布局控制 方向键
+riverctl map normal $mod Left send-layout-cmd rivertile "main-ratio -0.05"       # 减小主区域比例
+riverctl map normal $mod Right send-layout-cmd rivertile "main-ratio +0.05"      # 增大主区域比例
 
-# Window state
-riverctl map normal $mod P toggle-float                             # Toggle floating
-riverctl map normal $mod+Shift Return zoom                          # Zoom (swap with main)
+# 窗口状态
+riverctl map normal $mod P toggle-float                             # 切换浮动
+riverctl map normal $mod+Shift Return zoom                          # 放大到主区域
 
-# Multi-monitor
-riverctl map normal $mod Period focus-output next                   # Focus next output
-riverctl map normal $mod Comma focus-output previous                # Focus previous output
-riverctl map normal ${mod}+Shift Period send-to-output next         # Send to next output
-riverctl map normal ${mod}+Shift Comma send-to-output previous      # Send to previous output
+# 多显示器
+riverctl map normal $mod Period focus-output next                   # 焦点到下一个显示器
+riverctl map normal $mod Comma focus-output previous                # 焦点到上一个显示器
+riverctl map normal ${mod}+Shift Period send-to-output next         # 发送到下一个显示器
+riverctl map normal ${mod}+Shift Comma send-to-output previous      # 发送到上一个显示器
 
-# Screenshots
-riverctl map normal $mod Print spawn "uwsm app -- screenshot-edit-area"                    # Screenshot area and edit
-riverctl map normal ${mod}+Shift Print spawn "uwsm app -- screenshot-colorpicker"           # Color picker
-riverctl map normal None Print spawn "uwsm app -- screenshot-save-area"                    # Screenshot area
-riverctl map normal Shift Print spawn "uwsm app -- screenshot-save-full"                   # Screenshot full screen
-riverctl map normal Control Print spawn "uwsm app -- screenshot-preview-area"              # Screenshot area and preview
-riverctl map normal Mod1 Print spawn "uwsm app -- screenshot-temp-area"                    # Screenshot area to temp (copy path)
+# 截图
+riverctl map normal $mod Print spawn "uwsm app -- screenshot-edit-area"                    # 区域截图并标注
+riverctl map normal ${mod}+Shift Print spawn "uwsm app -- screenshot-colorpicker"           # 取色器
+riverctl map normal None Print spawn "uwsm app -- screenshot-save-area"                    # 区域截图
+riverctl map normal Shift Print spawn "uwsm app -- screenshot-save-full"                   # 全屏截图
+riverctl map normal Control Print spawn "uwsm app -- screenshot-preview-area"              # 区域截图并预览
+riverctl map normal Mod1 Print spawn "uwsm app -- screenshot-temp-area"                    # 区域截图到临时路径
 
-# Screen recording
-riverctl map normal ${mod}+Mod1 G spawn "uwsm app -- screenrecord-start-area"              # Record area
+# 录屏
+riverctl map normal ${mod}+Mod1 G spawn "uwsm app -- screenrecord-start-area"              # 区域录屏
 
-# Media keys - Volume
+# 媒体键 音量
 riverctl map -repeat normal None XF86AudioRaiseVolume spawn "pamixer -i 5"
 riverctl map -repeat normal None XF86AudioLowerVolume spawn "pamixer -d 5"
 riverctl map normal None XF86AudioMute spawn "pamixer -t"
 riverctl map normal None XF86AudioMicMute spawn "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
 
-# Media keys - Brightness
+# 媒体键 亮度
 riverctl map -repeat normal None XF86MonBrightnessUp spawn "brightnessctl set +5%"
 riverctl map -repeat normal None XF86MonBrightnessDown spawn "brightnessctl set 5%-"
 
-# Media keys - Playback control
+# 媒体键 播放控制
 riverctl map normal None XF86AudioPlay spawn "playerctl play-pause"
 riverctl map normal None XF86AudioNext spawn "playerctl next"
 riverctl map normal None XF86AudioPrev spawn "playerctl previous"
 
-# Screen lock
-riverctl map normal $mod Escape spawn "uwsm app -- screen-lock"                   # Lock screen (Super + ESC)
-riverctl map normal $mod+Shift W spawn "uwsm app -- screen-lock"                  # Lock screen
+# 锁屏
+riverctl map normal $mod Escape spawn "uwsm app -- screen-lock"                   # 锁屏（Super + ESC）
+riverctl map normal $mod+Shift W spawn "uwsm app -- screen-lock"                  # 锁屏
 
-# Input method toggle
-riverctl map normal Control Space spawn "fcitx5-remote -t"          # Toggle input method
+# 输入法
+riverctl map normal Control Space spawn "fcitx5-remote -t"          # 切换输入法
 
-# Tag (workspace) management
-# Switch to tag 1-9
+# 工作区管理
+# 切换到 1 到 9 号工作区
 for i in $(seq 1 9); do
-    # Mod+[1-9]: Focus tag N
+    # Super+[1-9]：聚焦到对应工作区
     riverctl map normal $mod $i spawn "uwsm app -- river-workspace-focus $i"
 
-    # Mod+Shift+[1-9]: Send focused window to tag N
+    # Super+Shift+[1-9]：发送当前窗口到对应工作区
     riverctl map normal ${mod}+Shift $i spawn "uwsm app -- river-workspace-send $i"
 
-    # Mod+Control+[1-9]: Toggle visibility of tag N
+    # Super+Ctrl+[1-9]：切换对应工作区可见性
     riverctl map normal ${mod}+Control $i spawn "uwsm app -- river-workspace-toggle $i"
 
-    # Mod+Alt+[1-9]: Tag focused window with tag N (add, not move)
+    # Super+Alt+[1-9]：给当前窗口追加对应工作区标签
     riverctl map normal ${mod}+Mod1 $i spawn "uwsm app -- river-workspace-tag $i"
 done
 
-# Mod+Equal: View all normal workspaces (1-9 only, excluding scratchpad)
-# Note: Equal key (=) is used because Plus (+) requires Shift
+# Super+=：查看全部普通工作区（1 到 9，不含 scratchpad）
+# 说明：这里用 equal，是因为输入加号需要按 Shift
 riverctl map normal $mod equal spawn "uwsm app -- river-workspace-view-all"
 
-# Mod+Minus: Sticky window (appears on all workspaces 1-9)
+# Super+-：窗口常驻全部普通工作区
 riverctl map normal $mod minus spawn "uwsm app -- river-sticky"
 
-# Scratchpad functionality (using tag 32)
-# Mod+0: Toggle scratchpad visibility
+# Scratchpad
+# Super+0：切换 scratchpad 可见性
 riverctl map normal $mod 0 spawn "uwsm app -- river-scratchpad-toggle"
 
-# Alt+Space: Toggle scratchpad visibility (alternative binding)
+# Alt+Space：切换 scratchpad 可见性（备用）
 riverctl map normal Mod1 Space spawn "uwsm app -- river-scratchpad-toggle"
 
-# Mod+Shift+0: Send focused window to scratchpad
+# Super+Shift+0：发送当前窗口到 scratchpad
 riverctl map normal ${mod}+Shift 0 spawn "uwsm app -- river-scratchpad-send"
 
-# Mouse bindings
-riverctl map-pointer normal $mod BTN_LEFT move-view                 # Move window with mouse
-riverctl map-pointer normal $mod BTN_RIGHT resize-view              # Resize window with mouse
-riverctl map-pointer normal $mod BTN_MIDDLE toggle-float            # Toggle float with middle click
+# 鼠标绑定
+riverctl map-pointer normal $mod BTN_LEFT move-view                 # 用鼠标移动窗口
+riverctl map-pointer normal $mod BTN_RIGHT resize-view              # 用鼠标调整窗口大小
+riverctl map-pointer normal $mod BTN_MIDDLE toggle-float            # 中键切换浮动

@@ -43,12 +43,12 @@ load_i18n() {
 # Usage: msg "key" ["var1" "value1" "var2" "value2" ...]
 msg() {
     local key="$1"
-    local message="${i18n[$key]}"
+    local message="${i18n[$key]-}"
 
     # If message not found, return key as fallback
     if [[ -z "$message" ]]; then
         echo "[$key]"
-        return 1
+        return 0
     fi
 
     # Variable substitution

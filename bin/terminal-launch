@@ -6,6 +6,7 @@ TERMINAL_CLASS="floating-terminal"
 TERMINAL_TITLE="Terminal"
 SHOW_LOGO=false
 SHOW_DONE=false
+CLOSE_ON_EXIT=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -23,6 +24,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --done)
             SHOW_DONE=true
+            shift
+            ;;
+        --close)
+            CLOSE_ON_EXIT=true
             shift
             ;;
         --)
@@ -68,7 +73,7 @@ else
     # Execute command chain
     # If --done is used, terminal closes after user confirmation
     # Otherwise, keep shell open for user to continue working
-    if [ "$SHOW_DONE" = true ]; then
+    if [ "$SHOW_DONE" = true ] || [ "$CLOSE_ON_EXIT" = true ]; then
         setsid -f alacritty --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" -e bash -l -c "$cmd_chain"
     else
         setsid -f alacritty --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" -e bash -l -c "$cmd_chain; exec bash -l"

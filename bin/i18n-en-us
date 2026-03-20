@@ -159,6 +159,18 @@ i18n[packages_manager_remove]="Remove Package"
 i18n[packages_manager_backup]="Backup Package List"
 
 # ============================================================================
+# ui-shortcuts
+# ============================================================================
+i18n[shortcuts_title]="Shortcut Help"
+i18n[shortcuts_prompt]="Search Shortcut:"
+i18n[shortcuts_preview_label]="alt-p: toggle details, alt-j/k: scroll, type to filter"
+i18n[shortcuts_preview_shortcut]="Shortcut:"
+i18n[shortcuts_preview_section]="Section:"
+i18n[shortcuts_preview_command]="Command:"
+i18n[shortcuts_preview_source]="Source:"
+i18n[shortcuts_missing_bindings]="Bindings file not found: {path}"
+
+# ============================================================================
 # package-backup
 # ============================================================================
 i18n[package_backup_title]="Package Backup"

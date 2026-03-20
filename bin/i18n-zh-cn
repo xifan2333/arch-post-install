@@ -158,6 +158,18 @@ i18n[packages_manager_remove]="移除包"
 i18n[packages_manager_backup]="备份包列表"
 
 # ============================================================================
+# ui-shortcuts - 快捷键提示
+# ============================================================================
+i18n[shortcuts_title]="快捷键提示"
+i18n[shortcuts_prompt]="搜索快捷键："
+i18n[shortcuts_preview_label]="alt-p: 切换详情, alt-j/k: 滚动, 输入即可筛选"
+i18n[shortcuts_preview_shortcut]="快捷键："
+i18n[shortcuts_preview_section]="分组："
+i18n[shortcuts_preview_command]="命令："
+i18n[shortcuts_preview_source]="来源："
+i18n[shortcuts_missing_bindings]="未找到 bindings 文件：{path}"
+
+# ============================================================================
 # package-backup - 包备份
 # ============================================================================
 i18n[package_backup_title]="包备份"
