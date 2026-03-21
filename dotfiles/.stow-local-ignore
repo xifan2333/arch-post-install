@@ -1,3 +1,1 @@
-.config/vinput/config.json
 \.example$
-^\.ruff_cache(/.*)?$
