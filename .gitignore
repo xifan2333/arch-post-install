@@ -1,8 +1,3 @@
-dotfiles/.config/rime-voice-input.json
-dotfiles/.config/fcitx5/conf/vinput.conf
-dotfiles/.config/fcitx5/conf/vinput-scenes.json
 dotfiles/.config/vinput/
-dotfiles/.ruff_cache/
-.ace-tool/
 dotfiles/.config/qutebrowser/translate.json
 dotfiles/.config/dunst/dunstrc.d/90-theme.conf
