@@ -5,3 +5,4 @@ dotfiles/.config/vinput/
 dotfiles/.ruff_cache/
 .ace-tool/
 dotfiles/.config/qutebrowser/translate.json
+dotfiles/.config/dunst/dunstrc.d/90-theme.conf
