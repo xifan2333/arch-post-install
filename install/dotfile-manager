@@ -98,6 +98,11 @@ install_dotfiles() {
         exit 1
     fi
 
+    # Create Neovim theme symlink (not managed by stow)
+    print_substep "Linking Neovim theme plugin"
+    ln -sf ~/.config/current/neovim.lua ~/.config/nvim/lua/plugins/theme.lua
+    print_success "Neovim theme linked to current theme"
+
     echo
     print_success "Dotfiles installation completed!"
 }

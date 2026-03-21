@@ -76,6 +76,7 @@ reload_apps() {
         theme-sync-terminal
     fi
 
+
     # Sync VSCode theme
     if command -v theme-sync-vscode >/dev/null 2>&1; then
         theme-sync-vscode

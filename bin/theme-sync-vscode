@@ -29,10 +29,9 @@ normalize_settings_json() {
 }
 
 update_settings() {
-    local jq_filter="$1"
     local tmp_file
     tmp_file=$(mktemp)
-    jq "$jq_filter" "$VSCODE_SETTINGS" > "$tmp_file"
+    jq "$@" "$VSCODE_SETTINGS" > "$tmp_file"
     mv "$tmp_file" "$VSCODE_SETTINGS"
 }
 
