@@ -7,9 +7,10 @@ zsh-cheatsheet() {
   local file="$HOME/.config/zsh/cheatsheet.txt"
   if [[ -f "$file" ]]; then
     local selected
-    selected=$(cat "$file" | fzf --prompt="Cheatsheet: " --print-query | tail -1)
+    selected=$(fzf --prompt="Cheatsheet: " --print-query < "$file" | head -1)
     if [[ -n "$selected" ]]; then
       LBUFFER="$selected"
+      zle accept-line
     fi
   fi
   zle redisplay
