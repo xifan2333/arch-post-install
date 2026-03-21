@@ -4,7 +4,10 @@ return {
     priority = 900,
     lazy = false,
     opts = {
-      explorer = { enabled = true },
+      explorer = {
+        enabled = true,
+        replace_netrw = true,
+      },
       input = { enabled = true },
       notifier = { enabled = true },
       picker = {
@@ -14,6 +17,9 @@ return {
             hidden = true,
             ignored = true,
             git_status = true,
+            trash = {
+              cmd = { "gio", "trash" },
+            },
           },
           files = {
             hidden = true,
