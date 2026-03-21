@@ -59,9 +59,6 @@ locale-gen
 
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 
-echo "export LANG=zh_CN.UTF-8" >> /etc/profile.d/locale.sh
-echo "export LANGUAGE=zh_CN:en_US" >> /etc/profile.d/locale.sh
-
 
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 hwclock --systohc

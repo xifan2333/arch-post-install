@@ -7,6 +7,11 @@ killall -q waybar swaybg fcitx5 dunst swayidle
 # Note: UWSM handles systemd environment import automatically
 # No need to manually import WAYLAND_DISPLAY, XDG_CURRENT_DESKTOP, etc.
 
+# Set Chinese locale for graphical session (TTY keeps en_US from /etc/locale.conf)
+export LANG=zh_CN.UTF-8
+export LANGUAGE=zh_CN:en_US
+systemctl --user import-environment LANG LANGUAGE
+
 # Status bar - managed by uwsm
 uwsm app -- waybar &
 
