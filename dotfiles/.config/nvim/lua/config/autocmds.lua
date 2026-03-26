@@ -1,3 +1,21 @@
+vim.api.nvim_create_autocmd("BufReadCmd", {
+  group = vim.api.nvim_create_augroup("user-xdg-open", { clear = true }),
+  callback = function(args)
+    local file = args.file
+    if not file or file == "" or file:match("^%w+://") then return end
+    local encoding = vim.fn.system("file --mime-encoding -b " .. vim.fn.shellescape(file)):gsub("%s+$", "")
+    if encoding == "binary" then
+      local mime = vim.fn.system("file --mime-type -b " .. vim.fn.shellescape(file)):gsub("%s+$", "")
+      if not mime:match("^image/") then
+        vim.fn.jobstart({ "xdg-open", file }, { detach = true })
+        vim.schedule(function()
+          vim.api.nvim_buf_delete(args.buf, { force = true })
+        end)
+      end
+    end
+  end,
+})
+
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = vim.api.nvim_create_augroup("user-highlight-yank", { clear = true }),
   callback = function()
