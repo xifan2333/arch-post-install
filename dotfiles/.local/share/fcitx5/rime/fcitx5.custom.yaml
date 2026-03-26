@@ -1,0 +1,3 @@
+patch:
+  "app_options/kitty":
+    ascii_mode: true
