@@ -11,6 +11,7 @@ if [ -z "$FONT_NAME" ]; then
 fi
 
 KITTY_CONFIG="$HOME/.config/kitty/kitty.conf"
+KITTY_FONT_CONFIG="$HOME/.config/kitty/font.conf"
 
 # Check if Kitty config exists
 if [ ! -f "$KITTY_CONFIG" ]; then
@@ -18,8 +19,14 @@ if [ ! -f "$KITTY_CONFIG" ]; then
     exit 0
 fi
 
-# Update font family in config
-sed -i "s/^font_family .*/font_family $FONT_NAME/g" "$KITTY_CONFIG"
+# Update font family in dedicated overlay file
+cat > "$KITTY_FONT_CONFIG" <<EOF
+font_family $FONT_NAME
+bold_font $FONT_NAME
+italic_font $FONT_NAME
+bold_italic_font $FONT_NAME
+font_size 10.5
+EOF
 
 # Reload running Kitty instances
 if pgrep -x kitty >/dev/null; then
