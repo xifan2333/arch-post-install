@@ -1,4 +1,7 @@
 patch:
+  schema_list:
+    - schema: wanxiang_pro
+    - schema: wanxiang_english
   __include: wanxiang_suggestion:/
   __patch:
     key_binder/bindings/+:
