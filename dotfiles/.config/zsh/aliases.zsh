@@ -66,3 +66,9 @@ fi
 
 # dotfiles management
 alias dot='cd ~/code/arch-post-install && kiro-cli'
+
+# tools
+alias t='tmux'
+alias lg='lazygit'
+alias cc='claude'
+alias cx='codex'
