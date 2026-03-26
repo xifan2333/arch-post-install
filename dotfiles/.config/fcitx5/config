@@ -36,7 +36,7 @@ ModifierOnlyKeyTimeout=249
 # 默认状态为激活
 ActiveByDefault=True
 # 重新聚焦时重置状态
-resetStateWhenFocusIn=All
+resetStateWhenFocusIn=No
 # 共享输入状态
 ShareInputState=No
 # 在程序中显示预编辑文本
