@@ -1,3 +1,5 @@
 patch:
   "app_options/kitty":
     ascii_mode: true
+  "app_options/org.qutebrowser.qutebrowser":
+    ascii_mode: true
