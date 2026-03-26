@@ -9,34 +9,3 @@ local function set_bg(groups, value)
     end
   end
 end
-
-if vim.o.background == "dark" then
-  set_bg({
-    "Normal",
-    "NormalFloat",
-    "FloatBorder",
-    "Pmenu",
-    "Terminal",
-    "EndOfBuffer",
-    "FoldColumn",
-    "Folded",
-    "SignColumn",
-    "NormalNC",
-    "WhichKeyFloat",
-    "NotifyINFOBody",
-    "NotifyERRORBody",
-    "NotifyWARNBody",
-    "NotifyTRACEBody",
-    "NotifyDEBUGBody",
-    "NotifyINFOTitle",
-    "NotifyERRORTitle",
-    "NotifyWARNTitle",
-    "NotifyTRACETitle",
-    "NotifyDEBUGTitle",
-    "NotifyINFOBorder",
-    "NotifyERRORBorder",
-    "NotifyWARNBorder",
-    "NotifyTRACEBorder",
-    "NotifyDEBUGBorder",
-  }, "none")
-end
