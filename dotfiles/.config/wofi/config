@@ -8,6 +8,6 @@ allow_markup=true
 insensitive=true
 matching=fuzzy
 no_actions=true
-term=alacritty
+term=kitty
 lines=10
 columns=1

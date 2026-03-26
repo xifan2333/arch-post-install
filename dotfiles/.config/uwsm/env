@@ -5,5 +5,5 @@
 export PATH="$HOME/.local/bin:$PATH"
 
 # Default applications
-export TERMINAL="${TERMINAL:-alacritty}"
+export TERMINAL="${TERMINAL:-kitty}"
 export EDITOR="${EDITOR:-nvim}"
