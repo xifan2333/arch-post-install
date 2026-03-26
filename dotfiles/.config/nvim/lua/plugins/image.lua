@@ -1,6 +1,13 @@
 return {
   "3rd/image.nvim",
-  ft = { "png", "jpg", "jpeg", "gif", "webp", "avif" },
+  event = {
+    "BufReadPre *.png",
+    "BufReadPre *.jpg",
+    "BufReadPre *.jpeg",
+    "BufReadPre *.gif",
+    "BufReadPre *.webp",
+    "BufReadPre *.avif",
+  },
   opts = {
     backend = "kitty",
     hijack_file_patterns = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.avif" },
