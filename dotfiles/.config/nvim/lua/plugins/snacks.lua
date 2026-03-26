@@ -27,6 +27,7 @@ return {
           },
         },
       },
+      dashboard = { enabled = true },
       quickfile = { enabled = true },
       scroll = { enabled = false },
       statuscolumn = { enabled = true },
