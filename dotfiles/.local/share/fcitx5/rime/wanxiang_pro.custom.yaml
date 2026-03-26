@@ -1,0 +1,5 @@
+patch:
+  speller/algebra:
+    __patch:
+      - wanxiang_algebra:/pro/小鹤双拼
+      - wanxiang_algebra:/pro/直接辅助
