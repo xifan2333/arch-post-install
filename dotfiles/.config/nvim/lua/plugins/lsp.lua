@@ -8,6 +8,7 @@ return {
   {
     "WhoIsSethDaniel/mason-tool-installer.nvim",
     dependencies = { "mason.nvim" },
+    event = "BufReadPre",
     opts = {
       ensure_installed = {
         -- LSP servers
@@ -32,6 +33,7 @@ return {
   {
     "williamboman/mason-lspconfig.nvim",
     dependencies = { "mason.nvim", "nvim-lspconfig" },
+    event = "BufReadPre",
     opts = {},
   },
   {
