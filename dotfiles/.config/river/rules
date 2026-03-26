@@ -21,3 +21,9 @@ riverctl rule-add -app-id "PackageManager" float                    # Package ma
 riverctl rule-add -app-id "PackageManager" dimensions 960 540      # Larger size for package manager
 riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv)
 riverctl rule-add -title "Screenshot Preview" dimensions 600 400    # Smaller size for reference
+
+# Media viewers - floating
+riverctl rule-add -app-id "imv" float
+riverctl rule-add -app-id "imv" dimensions 960 540
+riverctl rule-add -app-id "mpv" float
+riverctl rule-add -app-id "mpv" dimensions 960 540
