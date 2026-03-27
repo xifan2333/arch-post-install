@@ -31,7 +31,7 @@ riverctl hide-cursor timeout 3000
 riverctl hide-cursor when-typing enabled
 
 # Keyboard layout - swap ESC and Caps Lock
-riverctl keyboard-layout -options caps:swapescape us
+riverctl keyboard-layout -options "${KB_OPTIONS}" "${KB_LAYOUT}"
 
 # Border colors
 riverctl border-color-focused ${RIVER_BORDER_FOCUSED:-0x61afefff}
