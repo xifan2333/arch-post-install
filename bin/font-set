@@ -20,17 +20,9 @@ fi
 
 # Sync fonts across applications
 sync_fonts() {
-    # Sync terminal emulators
-    if command -v font-sync-alacritty >/dev/null 2>&1; then
-        font-sync-alacritty "$FONT_NAME"
-    fi
-
-    if command -v font-sync-kitty >/dev/null 2>&1; then
-        font-sync-kitty "$FONT_NAME"
-    fi
-
-    if command -v font-sync-ghostty >/dev/null 2>&1; then
-        font-sync-ghostty "$FONT_NAME"
+    # Sync terminal emulators - only sync current terminal
+    if command -v "font-sync-${TERMINAL:-kitty}" >/dev/null 2>&1; then
+        "font-sync-${TERMINAL:-kitty}" "$FONT_NAME"
     fi
 
     # Sync GUI applications

@@ -4,7 +4,7 @@
 set -e
 
 # Detect terminal emulator
-TERMINAL="${TERMINAL:-alacritty}"
+TERMINAL="${TERMINAL:-kitty}"
 
 case "$TERMINAL" in
     "alacritty")
