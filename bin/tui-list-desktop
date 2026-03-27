@@ -7,7 +7,7 @@ DESKTOP_DIR="$HOME/.local/share/applications"
 # Find all TUI desktop entries
 TUIS=()
 while IFS= read -r -d '' file; do
-    if grep -q "^Exec=.*\$TERMINAL.*-e" "$file" || grep -q "^Exec=.*alacritty.*-e" "$file"; then
+    if grep -q "^Exec=.*\$TERMINAL.*-e" "$file" || grep -q "^Exec=.*kitty.*-e" "$file" || grep -q "^Exec=.*alacritty.*-e" "$file" || grep -q "^Exec=.*foot.*-e" "$file"; then
         TUIS+=("$(basename "${file%.desktop}")")
     fi
 done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)

@@ -5,4 +5,4 @@
 pkill -x tte 2>/dev/null
 
 # Kill screensaver terminal
-pkill -f "alacritty.*--class Screensaver" 2>/dev/null
+pkill -f "${TERMINAL:-kitty}.*Screensaver" 2>/dev/null
