@@ -48,5 +48,7 @@ ${TERMINAL:-kitty} --class Screensaver \
 ' &
 
 # Wait for screensaver to exit
-wait
-exit_screensaver
+sleep 0.5
+while screensaver_is_running; do
+    sleep 1
+done
