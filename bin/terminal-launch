@@ -70,8 +70,8 @@ if [ -z "$cmd_chain" ]; then
     setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE"
 else
     if [ "$SHOW_DONE" = true ] || [ "$CLOSE_ON_EXIT" = true ]; then
-        setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" bash -l -c "$cmd_chain"
+        setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" "$SHELL" -l -c "$cmd_chain"
     else
-        setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" bash -l -c "$cmd_chain; exec bash -l"
+        setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" "$SHELL" -l -c "$cmd_chain; exec $SHELL -l"
     fi
 fi
