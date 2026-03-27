@@ -19,6 +19,7 @@ local function open_cheatsheet()
   Snacks.picker({
     title = "Cheatsheet",
     items = items,
+    confirm = function() end,
     format = function(item)
       return {
         { "[" .. item.cat .. "]", "Special" },
