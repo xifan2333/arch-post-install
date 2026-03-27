@@ -20,6 +20,7 @@ local function open_cheatsheet()
     title = "Cheatsheet",
     items = items,
     confirm = function() end,
+    preview = "none",
     format = function(item)
       return {
         { "[" .. item.cat .. "]", "Special" },
