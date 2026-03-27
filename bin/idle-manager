@@ -24,5 +24,5 @@ exec swayidle \
     timeout $SCREENSAVER_TIMEOUT "$SCRIPT_DIR/screensaver-start" \
         resume "$SCRIPT_DIR/screensaver-stop" \
     timeout $DPMS_TIMEOUT 'wlopm --off \*' \
-        resume "$SCRIPT_DIR/screensaver-stop && wlopm --on \* && $SCRIPT_DIR/screen-lock" \
-    before-sleep "$SCRIPT_DIR/screensaver-stop && $SCRIPT_DIR/screen-lock"
+        resume "$SCRIPT_DIR/screensaver-stop; wlopm --on \*; $SCRIPT_DIR/screen-lock" \
+    before-sleep "$SCRIPT_DIR/screensaver-stop; $SCRIPT_DIR/screen-lock"
