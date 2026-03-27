@@ -13,10 +13,10 @@ riverctl map normal $mod Return spawn "uwsm app -- $TERMINAL"                   
 riverctl map normal $mod Space spawn "uwsm app -- ui-wofi"                                  # 应用启动器
 riverctl map normal $mod slash spawn "uwsm app -- shortcuts"                                # 快捷键提示
 riverctl map normal $mod V spawn "uwsm app -- ui-clipboard"                                 # 剪贴板历史
-riverctl map normal $mod B spawn "uwsm app -- qutebrowser"                                 # 浏览器
-riverctl map normal $mod E spawn "uwsm app -- pcmanfm"                                      # 文件管理器（GUI）
+riverctl map normal $mod B spawn "uwsm app -- $BROWSER"                                 # 浏览器
+riverctl map normal $mod E spawn "uwsm app -- $FILE_MANAGER"                                # 文件管理器（GUI）
 riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e lf"                         # 文件管理器（TUI）
-riverctl map normal $mod C spawn "uwsm app -- code"                                         # VSCode
+riverctl map normal $mod C spawn "uwsm app -- $CODE_EDITOR"                                  # VSCode
 riverctl map normal $mod G spawn "uwsm app -- screenrecord-toggle-full"                      # 录屏开关
 
 # 窗口管理

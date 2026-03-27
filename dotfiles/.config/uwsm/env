@@ -7,3 +7,7 @@ export PATH="$HOME/.local/bin:$PATH"
 # Default applications
 export TERMINAL="${TERMINAL:-kitty}"
 export EDITOR="${EDITOR:-nvim}"
+export VISUAL="${VISUAL:-nvim}"
+export BROWSER="${BROWSER:-qutebrowser}"
+export FILE_MANAGER="${FILE_MANAGER:-pcmanfm}"
+export CODE_EDITOR="${CODE_EDITOR:-code}"
