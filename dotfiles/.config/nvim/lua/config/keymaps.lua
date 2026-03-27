@@ -27,6 +27,9 @@ map("n", "<leader>bn", "<cmd>BufferLineCycleNext<CR>", { desc = "Next buffer" })
 map("n", "<leader>bp", "<cmd>BufferLineCyclePrev<CR>", { desc = "Prev buffer" })
 map("n", "<leader>bd", "<cmd>bdelete<CR>", { desc = "Close buffer" })
 
+-- Save
+map({ "n", "i", "v" }, "<C-s>", "<cmd>w<CR><Esc>", { desc = "Save file" })
+
 -- Format
 map({ "n", "v" }, "<leader>cf", function()
   require("conform").format({ async = true })
