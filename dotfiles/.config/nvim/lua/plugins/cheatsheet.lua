@@ -20,7 +20,17 @@ local function open_cheatsheet()
     title = "Cheatsheet",
     items = items,
     confirm = function() end,
-    preview = "none",
+    preview = function(ctx)
+      local item = ctx.item
+      local lines = {
+        "  " .. item.desc,
+        "",
+        "  Category : " .. item.cat,
+        "  Mode     : " .. item.mode,
+        "  Key      : " .. item.key,
+      }
+      ctx.preview:set_lines(lines)
+    end,
     format = function(item)
       return {
         { "[" .. item.cat .. "]", "Special" },
