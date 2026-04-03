@@ -35,3 +35,10 @@ ln -sf "$THEME_GTK_FILE" "$GTK3_SETTINGS"
 
 THEME_NAME=$(basename "$(readlink -f "$CURRENT_LINK")")
 echo "GTK theme synced (theme: $THEME_NAME)"
+
+# Notify Qt (QT_QPA_PLATFORMTHEME=gtk3) and other apps via gsettings
+if grep -q "gtk-application-prefer-dark-theme=1" "$THEME_GTK_FILE"; then
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+else
+    gsettings set org.gnome.desktop.interface color-scheme 'default'
+fi
