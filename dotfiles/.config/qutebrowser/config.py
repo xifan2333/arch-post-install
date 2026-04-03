@@ -1,10 +1,10 @@
 # qutebrowser配置
 config.load_autoconfig()
 
-# Google 账户使用 Chrome user agent 避免登录被阻止
-chrome_ua = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-config.set('content.headers.user_agent', chrome_ua, 'https://accounts.google.com/*')
-config.set('content.headers.user_agent', chrome_ua, 'https://*.google.com/*')
+# Google 账户使用 Firefox user agent 避免登录被阻止
+firefox_ua = 'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0'
+config.set('content.headers.user_agent', firefox_ua, 'https://accounts.google.com/*')
+config.set('content.headers.user_agent', firefox_ua, 'https://*.google.com/*')
 
 # 设置搜索引擎
 c.url.searchengines = {
