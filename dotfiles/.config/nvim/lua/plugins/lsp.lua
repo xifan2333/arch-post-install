@@ -61,8 +61,25 @@ return {
         },
         pyright = {},
         taplo = {},
-        ts_ls = {},
-        vue_ls = {},
+        ts_ls = {
+          init_options = {
+            plugins = {
+              {
+                name = "@vue/typescript-plugin",
+                location = vim.fn.expand("$HOME/.local/share/nvim/mason/packages/vue-language-server/node_modules/@vue/language-server"),
+                languages = { "vue" },
+              },
+            },
+          },
+          filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue" },
+        },
+        vue_ls = {
+          init_options = {
+            typescript = {
+              tsdk = vim.fn.expand("$HOME/.local/share/nvim/mason/packages/typescript-language-server/node_modules/typescript/lib"),
+            },
+          },
+        },
         yamlls = {},
       }
 
