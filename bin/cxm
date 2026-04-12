@@ -103,6 +103,18 @@ generate_config() {
     config_url="${config_url%/}"
     [[ "$config_url" != */v1 ]] && config_url="$config_url/v1"
 
+    # Preserve non-provider sections (mcp_servers, projects, etc.)
+    local preserved=""
+    if [[ -f "$CODEX_CONFIG" ]]; then
+        preserved=$(awk '
+            /^\[model_providers\./ { skip=1; next }
+            /^\[/ { skip=0 }
+            skip { next }
+            /^#/ || /^model[[:space:]]*=/ || /^model_provider[[:space:]]*=/ || /^$/ { next }
+            { print }
+        ' "$CODEX_CONFIG")
+    fi
+
     cat > "$CODEX_CONFIG" << EOF
 # Codex configuration - managed by cxm
 # Current provider: $provider
@@ -115,6 +127,12 @@ name = "$provider"
 base_url = "$config_url"
 wire_api = "$wire_api"
 EOF
+
+    # Append preserved sections
+    if [[ -n "$preserved" ]]; then
+        echo "" >> "$CODEX_CONFIG"
+        echo "$preserved" >> "$CODEX_CONFIG"
+    fi
 
     cat > "$AUTH_JSON" << EOF
 {
