@@ -53,6 +53,8 @@ LSP n Space+rn 重命名
 LSP n Space+ca 代码操作
 LSP n Space+fd 诊断列表
 格式化 n/v Space+cf 手动格式化
+路径 n Space+ya 复制文件绝对路径
+路径 n Space+yr 复制文件相对路径
 窗口 n :vs/:sp 垂直/水平分屏
 窗口 n Ctrl+w+h/j/k/l 分屏间移动
 窗口 n :only 只保留当前窗口

@@ -34,3 +34,16 @@ map({ "n", "i", "v" }, "<C-s>", "<cmd>w<CR><Esc>", { desc = "Save file" })
 map({ "n", "v" }, "<leader>cf", function()
   require("conform").format({ async = true })
 end, { desc = "Format" })
+
+-- Copy file path
+map("n", "<leader>ya", function()
+  local path = vim.fn.expand("%:p")
+  vim.fn.setreg("+", path)
+  vim.notify("Copied: " .. path)
+end, { desc = "Copy absolute path" })
+
+map("n", "<leader>yr", function()
+  local path = vim.fn.expand("%:.")
+  vim.fn.setreg("+", path)
+  vim.notify("Copied: " .. path)
+end, { desc = "Copy relative path" })
