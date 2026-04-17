@@ -9,7 +9,7 @@ source i18n-core
 
 # Auto-detect Nerd Font Mono fonts from system
 get_nerd_fonts() {
-    fc-list : family style | grep -i "nerd font mono" | cut -d: -f1 | cut -d, -f1 | sort -u
+    fc-list : family style | cut -d: -f1 | cut -d, -f1 | awk '{rest=substr($0,index($0,$2)); if (tolower(rest) ~ /mono/ && (tolower(rest) ~ /nf/ || tolower(rest) ~ /nerd font/)) print $0}' | sort -u
 }
 
 # Get available fonts
