@@ -5,13 +5,15 @@ vim.api.nvim_create_autocmd("BufReadPre", {
     local file = args.file
     if not file or file == "" or file:match("^%w+://") then return end
     if vim.fn.filereadable(file) == 0 then return end
+    if vim.fn.getfsize(file) == 0 then return end
     local encoding = vim.fn.system("file -L --mime-encoding -b " .. vim.fn.shellescape(file)):gsub("%s+$", "")
     if encoding == "binary" then
       local mime = vim.fn.system("file -L --mime-type -b " .. vim.fn.shellescape(file)):gsub("%s+$", "")
       if not mime:match("^image/") then
+        local bufnr = args.buf
         vim.fn.jobstart({ "xdg-open", file }, { detach = true })
         vim.schedule(function()
-          vim.cmd("bwipeout!")
+          vim.cmd("bwipeout! " .. bufnr)
         end)
       end
     end
