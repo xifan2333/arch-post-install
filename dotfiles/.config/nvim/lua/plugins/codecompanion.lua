@@ -7,6 +7,22 @@ return {
       { "<leader>ac", "<cmd>CodeCompanionChat Toggle<cr>", desc = "AI Chat" },
       { "<leader>aa", "<cmd>CodeCompanionActions<cr>", desc = "AI Actions", mode = { "n", "v" } },
     },
-    opts = {},
+    opts = {
+      adapters = {
+        xifan = function()
+          return require("codecompanion.adapters").extend("openai", {
+            env = { api_key = "OPENAI_API_KEY" },
+            url = "http://10.0.0.253:3000/v1/chat/completions",
+            schema = {
+              model = { default = "gpt-4.1" },
+            },
+          })
+        end,
+      },
+      strategies = {
+        chat = { adapter = "xifan" },
+        inline = { adapter = "xifan" },
+      },
+    },
   },
 }
