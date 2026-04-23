@@ -25,14 +25,9 @@ return {
     opts_extend = { "sources.default" },
   },
   {
-    "supermaven-inc/supermaven-nvim",
+    "milanglacier/minuet-ai.nvim",
     event = "InsertEnter",
-    opts = {
-      keymaps = {
-        accept_suggestion = "<Tab>",
-        clear_suggestion = "<C-]>",
-        accept_word = "<C-j>",
-      },
-    },
+    dependencies = { "nvim-lua/plenary.nvim" },
+    opts = {},
   },
 }
