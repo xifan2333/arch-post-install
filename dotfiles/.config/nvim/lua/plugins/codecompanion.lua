@@ -9,22 +9,24 @@ return {
     },
     opts = {
       adapters = {
-        xifan = function()
-          local auth = vim.fn.readfile(vim.fn.expand("~/.codex/auth.json"))
-          local key = vim.fn.json_decode(table.concat(auth)).OPENAI_API_KEY
-          return require("codecompanion.adapters").extend("openai_compatible", {
-            env = {
-              api_key = key,
-              url = "http://10.0.0.253:3000",
-              chat_url = "/v1/chat/completions",
-            },
-            schema = {
-              model = { default = "gpt-4.1" },
-            },
-          })
-        end,
+        http = {
+          xifan = function()
+            local auth = vim.fn.readfile(vim.fn.expand("~/.codex/auth.json"))
+            local key = vim.fn.json_decode(table.concat(auth)).OPENAI_API_KEY
+            return require("codecompanion.adapters").extend("openai_compatible", {
+              env = {
+                api_key = key,
+                url = "http://10.0.0.253:3000",
+                chat_url = "/v1/chat/completions",
+              },
+              schema = {
+                model = { default = "gpt-4.1" },
+              },
+            })
+          end,
+        },
       },
-      strategies = {
+      interactions = {
         chat = { adapter = "xifan" },
         inline = { adapter = "xifan" },
       },
