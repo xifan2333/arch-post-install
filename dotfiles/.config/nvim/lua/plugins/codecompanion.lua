@@ -20,7 +20,7 @@ return {
                 chat_url = "/v1/chat/completions",
               },
               schema = {
-                model = { default = "gpt-4.1" },
+                model = { default = "gpt-5.4" },
               },
             })
           end,
