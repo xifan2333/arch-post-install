@@ -5,11 +5,12 @@ return {
     opts = {},
   },
   {
-    "kdheepak/lazygit.nvim",
-    cmd = { "LazyGit", "LazyGitCurrentFile", "LazyGitFilterCurrentFile", "LazyGitFilter" },
-    dependencies = { "nvim-lua/plenary.nvim" },
+    "NeogitOrg/neogit",
+    cmd = "Neogit",
+    dependencies = { "nvim-lua/plenary.nvim", "sindrets/diffview.nvim" },
+    opts = {},
     keys = {
-      { "<leader>gg", "<cmd>LazyGit<cr>", desc = "LazyGit" },
+      { "<leader>gg", "<cmd>Neogit<cr>", desc = "Neogit" },
     },
   },
 }
