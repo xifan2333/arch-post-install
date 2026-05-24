@@ -1,6 +1,8 @@
 # zoxide - smarter cd
+# Note: cd is not aliased to z, use z directly for zoxide functionality
 if command -v zoxide &> /dev/null; then
-    alias cd='z'
+    # zoxide is available, but cd remains as original cd command
+    # Use 'z' command directly for zoxide functionality
 fi
 
 # eza - modern ls replacement
