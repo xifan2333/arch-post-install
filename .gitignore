@@ -1,4 +1,3 @@
 dotfiles/.config/vinput/
 dotfiles/.config/qutebrowser/translate.json
 dotfiles/.config/dunst/dunstrc.d/90-theme.conf
-dotfiles/.config/zsh/secrets.zsh
