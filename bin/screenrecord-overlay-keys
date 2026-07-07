@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+# Key overlay for screen recording on Wayland/River.
+# Displays recent key combinations as a non-focusable layer-shell overlay.
+
+import argparse
+import gi
+import queue
+import sys
+import threading
+import time
+
+try:
+    gi.require_version('Gtk', '3.0')
+    gi.require_version('GtkLayerShell', '0.1')
+    from gi.repository import Gtk, GLib, Gdk, GtkLayerShell
+except Exception as exc:
+    print(f"screenrecord-overlay-keys: missing GTK layer-shell dependency: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    from evdev import InputDevice, categorize, ecodes, list_devices
+except Exception as exc:
+    print(f"screenrecord-overlay-keys: missing python-evdev dependency: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+TITLE = 'Screenrecord Overlay Keys'
+
+KEY_NAMES = {
+    'KEY_LEFTCTRL': 'Ctrl', 'KEY_RIGHTCTRL': 'Ctrl',
+    'KEY_LEFTALT': 'Alt', 'KEY_RIGHTALT': 'Alt',
+    'KEY_LEFTSHIFT': 'Shift', 'KEY_RIGHTSHIFT': 'Shift',
+    'KEY_LEFTMETA': 'Super', 'KEY_RIGHTMETA': 'Super',
+    'KEY_SPACE': 'Space', 'KEY_ENTER': 'Enter', 'KEY_BACKSPACE': 'Backspace',
+    'KEY_ESC': 'Esc', 'KEY_TAB': 'Tab',
+    'KEY_UP': '↑', 'KEY_DOWN': '↓', 'KEY_LEFT': '←', 'KEY_RIGHT': '→',
+    'KEY_MINUS': '-', 'KEY_EQUAL': '=', 'KEY_SLASH': '/', 'KEY_BACKSLASH': '\\',
+    'KEY_DOT': '.', 'KEY_COMMA': ',', 'KEY_SEMICOLON': ';', 'KEY_APOSTROPHE': "'",
+    'KEY_GRAVE': '`', 'KEY_LEFTBRACE': '[', 'KEY_RIGHTBRACE': ']',
+}
+MOD_KEYS = {
+    'KEY_LEFTCTRL', 'KEY_RIGHTCTRL', 'KEY_LEFTALT', 'KEY_RIGHTALT',
+    'KEY_LEFTSHIFT', 'KEY_RIGHTSHIFT', 'KEY_LEFTMETA', 'KEY_RIGHTMETA'
+}
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Show a non-focusable key overlay for screen recording.')
+    parser.add_argument('--width', type=int, default=150, help='overlay width in pixels')
+    parser.add_argument('--height', type=int, default=50, help='overlay height in pixels')
+    parser.add_argument('--anchor-x', choices=['left', 'right'], default='right', help='horizontal screen edge')
+    parser.add_argument('--anchor-y', choices=['top', 'bottom'], default='bottom', help='vertical screen edge')
+    parser.add_argument('--margin-x', type=int, default=0, help='margin from horizontal edge')
+    parser.add_argument('--margin-y', type=int, default=150, help='margin from vertical edge')
+    parser.add_argument('--font-size', type=int, default=18, help='label font size')
+    parser.add_argument('--timeout', type=float, default=2.0, help='seconds to keep key text visible')
+    parser.add_argument('--background', default='rgba(0, 0, 0, 0.72)', help='CSS background value')
+    parser.add_argument('--text-color', default='white', help='CSS text color')
+    return parser.parse_args()
+
+
+def pretty(code):
+    if code in KEY_NAMES:
+        return KEY_NAMES[code]
+    if code.startswith('KEY_'):
+        name = code[4:]
+        if len(name) == 1:
+            return name.upper()
+        if name.startswith('F') and name[1:].isdigit():
+            return name
+        return name.title().replace('_', ' ')
+    return code
+
+
+def keyboard_devices():
+    devices = []
+    for path in list_devices():
+        try:
+            dev = InputDevice(path)
+            caps = dev.capabilities().get(ecodes.EV_KEY, [])
+            if ecodes.KEY_A in caps and ecodes.KEY_Z in caps:
+                devices.append(dev)
+            else:
+                dev.close()
+        except Exception:
+            pass
+    return devices
+
+
+class App(Gtk.Application):
+    def __init__(self, args):
+        super().__init__(application_id='works.xifan.screenrecord.overlay.keys')
+        self.args = args
+        self.events = queue.Queue()
+        self.pressed_mods = set()
+        self.last_show = 0
+        self.label = None
+        self.win = None
+
+    def do_activate(self):
+        self.win = Gtk.ApplicationWindow(application=self)
+        self.win.set_title(TITLE)
+        self.win.set_decorated(False)
+        self.win.set_resizable(False)
+        self.win.set_default_size(self.args.width, self.args.height)
+        self.win.set_accept_focus(False)
+        self.win.set_focus_on_map(False)
+        self.win.set_skip_taskbar_hint(True)
+        self.win.set_app_paintable(True)
+
+        screen = self.win.get_screen()
+        visual = screen.get_rgba_visual()
+        if visual:
+            self.win.set_visual(visual)
+
+        GtkLayerShell.init_for_window(self.win)
+        GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.OVERLAY)
+        edge_x = GtkLayerShell.Edge.RIGHT if self.args.anchor_x == 'right' else GtkLayerShell.Edge.LEFT
+        edge_y = GtkLayerShell.Edge.BOTTOM if self.args.anchor_y == 'bottom' else GtkLayerShell.Edge.TOP
+        GtkLayerShell.set_anchor(self.win, edge_x, True)
+        GtkLayerShell.set_anchor(self.win, edge_y, True)
+        GtkLayerShell.set_margin(self.win, edge_x, self.args.margin_x)
+        GtkLayerShell.set_margin(self.win, edge_y, self.args.margin_y)
+        GtkLayerShell.set_exclusive_zone(self.win, -1)
+        GtkLayerShell.set_keyboard_interactivity(self.win, False)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.set_margin_top(6)
+        box.set_margin_bottom(6)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+
+        self.label = Gtk.Label(label='')
+        self.label.get_style_context().add_class('key-label')
+        box.pack_start(self.label, True, True, 0)
+        self.win.add(box)
+
+        css = Gtk.CssProvider()
+        css.load_from_data(f'''
+        window {{
+            background: {self.args.background};
+        }}
+        .key-label {{
+            color: {self.args.text_color};
+            font-family: Sans;
+            font-size: {self.args.font_size}px;
+            font-weight: 700;
+        }}
+        '''.encode())
+        Gtk.StyleContext.add_provider_for_screen(
+            screen, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        # Map once only. Never hide/show, because mapping can steal focus.
+        self.win.set_opacity(0.0)
+        self.win.show_all()
+        threading.Thread(target=self.reader, daemon=True).start()
+        GLib.timeout_add(30, self.update_ui)
+
+    def reader(self):
+        devices = keyboard_devices()
+        if not devices:
+            self.events.put(('text', 'No keyboard permission'))
+            return
+        for dev in devices:
+            threading.Thread(target=self.read_device, args=(dev,), daemon=True).start()
+
+    def read_device(self, dev):
+        try:
+            for event in dev.read_loop():
+                if event.type != ecodes.EV_KEY:
+                    continue
+                key = categorize(event)
+                code = key.keycode
+                if isinstance(code, list):
+                    code = code[0]
+                self.events.put(('key', code, key.keystate))
+        except Exception:
+            self.events.put(('text', 'Input error'))
+
+    def update_ui(self):
+        changed = False
+        text = None
+        while True:
+            try:
+                item = self.events.get_nowait()
+            except queue.Empty:
+                break
+            if item[0] == 'text':
+                text = item[1]
+                changed = True
+                continue
+            _, code, state = item
+            name = pretty(code)
+            if code in MOD_KEYS:
+                if state == 1:
+                    self.pressed_mods.add(name)
+                elif state == 0:
+                    self.pressed_mods.discard(name)
+                continue
+            if state == 1:
+                mods = [m for m in ['Ctrl', 'Alt', 'Shift', 'Super'] if m in self.pressed_mods]
+                text = ' + '.join(mods + [name])
+                changed = True
+        if changed and text:
+            self.label.set_text(text)
+            self.win.set_opacity(1.0)
+            self.last_show = time.monotonic()
+        if self.win and self.win.get_opacity() > 0 and time.monotonic() - self.last_show > self.args.timeout:
+            self.win.set_opacity(0.0)
+        return True
+
+
+if __name__ == '__main__':
+    App(parse_args()).run(None)
