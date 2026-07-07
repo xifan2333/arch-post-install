@@ -45,9 +45,10 @@ GitHub ghwr 触发workflow
 系统 scu systemctl-user
 系统 scr sudo-systemctl-restart
 系统 scs sudo-systemctl-status
-包管理 pi 安装包(fzf)
-包管理 pia 安装AUR包(fzf)
-包管理 pr 删除包(fzf)
+包管理 paci 安装包(fzf)
+包管理 pacr 删除包(fzf)
+包管理 yayi 安装AUR包(fzf)
+包管理 yayr 删除包(fzf)
 编辑 Ctrl+a/Ctrl+e 行首/行尾
 编辑 Ctrl+w 删除前一个词
 编辑 Ctrl+u 删除到行首

@@ -1,6 +1,0 @@
-#!/bin/bash
-# Debug gtklock widget structure
-# Usage: gtklock-debug
-
-# Run gtklock with GTK Inspector enabled
-GTK_DEBUG=interactive gtklock "$@"

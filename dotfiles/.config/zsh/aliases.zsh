@@ -45,9 +45,10 @@ if command -v rg &> /dev/null; then
 fi
 
 # package management
-alias pi='package-install'
-alias pia='package-install-aur'
-alias pr='package-remove'
+alias paci='package-install'
+alias pacr='package-remove'
+alias yayi='package-install-aur'
+alias yayr='package-remove'
 if command -v gh &> /dev/null; then
     alias ghpr='gh pr create'
     alias ghprl='gh pr list'
