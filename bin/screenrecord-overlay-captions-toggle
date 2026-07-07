@@ -3,7 +3,7 @@
 set -e
 source i18n-core
 
-PID=$(pgrep -f "python3.*screenrecord-overlay-captions" | head -1)
+PID=$(pgrep -f "[p]ython3.*screenrecord-overlay-captions" | head -1)
 
 if [ -n "$PID" ]; then
     kill "$PID" 2>/dev/null
