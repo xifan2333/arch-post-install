@@ -97,6 +97,18 @@ i18n[screenrecord_notify_transcode_complete]="Transcode complete: {filename}"
 i18n[waybar_screenrecord_tooltip_recording]="Recording in progress - Click to stop"
 i18n[waybar_screenrecord_tooltip_idle]="Click to start recording"
 
+# screenrecord-overlay-captions
+i18n[screenrecord_overlay_captions_on]="Captions overlay: ON"
+i18n[screenrecord_overlay_captions_off]="Captions overlay: OFF"
+
+# screenrecord-overlay-keys
+i18n[screenrecord_overlay_keys_on]="Keys overlay: ON"
+i18n[screenrecord_overlay_keys_off]="Keys overlay: OFF"
+
+# screenrecord-overlay-camera
+i18n[screenrecord_overlay_camera_on]="Camera overlay: ON"
+i18n[screenrecord_overlay_camera_off]="Camera overlay: OFF"
+
 # waybar-screenshot
 i18n[waybar_screenshot_tooltip]="Take screenshot"
 

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Toggle key overlay on/off
+set -e
+source i18n-core
+
+PID=$(pgrep -f "screenrecord-overlay-keys" | grep -v $$ | head -1)
+
+if [ -n "$PID" ]; then
+    kill "$PID" 2>/dev/null
+    echo "$(msg screenrecord_overlay_keys_off)"
+else
+    nohup screenrecord-overlay-keys &>/dev/null &
+    echo "$(msg screenrecord_overlay_keys_on)"
+fi

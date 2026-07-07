@@ -52,6 +52,8 @@ def parse_args():
     parser.add_argument('--margin-x', type=int, default=0, help='margin from horizontal edge')
     parser.add_argument('--margin-y', type=int, default=150, help='margin from vertical edge')
     parser.add_argument('--font-size', type=int, default=18, help='label font size')
+    parser.add_argument('--font-family', default='monospace', help='label font family')
+    parser.add_argument('--text-shadow', default='none', help='CSS text-shadow value for label stroke/outline')
     parser.add_argument('--timeout', type=float, default=2.0, help='seconds to keep key text visible')
     parser.add_argument('--background', default='rgba(0, 0, 0, 0.72)', help='CSS background value')
     parser.add_argument('--text-color', default='white', help='CSS text color')
@@ -141,9 +143,10 @@ class App(Gtk.Application):
         }}
         .key-label {{
             color: {self.args.text_color};
-            font-family: Sans;
+            font-family: {self.args.font_family};
             font-size: {self.args.font_size}px;
             font-weight: 700;
+            text-shadow: {self.args.text_shadow};
         }}
         '''.encode())
         Gtk.StyleContext.add_provider_for_screen(

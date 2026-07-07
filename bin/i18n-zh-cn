@@ -96,6 +96,18 @@ i18n[screenrecord_notify_transcode_complete]="转码完成：{filename}"
 i18n[waybar_screenrecord_tooltip_recording]="录制中 - 点击停止"
 i18n[waybar_screenrecord_tooltip_idle]="录屏"
 
+# screenrecord-overlay-captions
+i18n[screenrecord_overlay_captions_on]="字幕叠加：已开启"
+i18n[screenrecord_overlay_captions_off]="字幕叠加：已关闭"
+
+# screenrecord-overlay-keys
+i18n[screenrecord_overlay_keys_on]="按键叠加：已开启"
+i18n[screenrecord_overlay_keys_off]="按键叠加：已关闭"
+
+# screenrecord-overlay-camera
+i18n[screenrecord_overlay_camera_on]="摄像头叠加：已开启"
+i18n[screenrecord_overlay_camera_off]="摄像头叠加：已关闭"
+
 # waybar-screenshot
 i18n[waybar_screenshot_tooltip]="截图"
 

@@ -45,8 +45,10 @@ WINDOW_WIDTH = 900
 WINDOW_HEIGHT = 90
 MARGIN_BOTTOM = 46
 FONT_SIZE = 24
+FONT_FAMILY = 'monospace'
 BACKGROUND = 'rgba(0, 0, 0, 0.70)'
 TEXT_COLOR = 'white'
+TEXT_SHADOW = '-1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black'
 
 
 def parse_args():
@@ -56,8 +58,10 @@ def parse_args():
     parser.add_argument('--height', type=int, default=WINDOW_HEIGHT, help='caption window height')
     parser.add_argument('--margin-bottom', type=int, default=MARGIN_BOTTOM, help='bottom screen margin')
     parser.add_argument('--font-size', type=int, default=FONT_SIZE, help='caption font size')
+    parser.add_argument('--font-family', default=FONT_FAMILY, help='caption font family')
     parser.add_argument('--background', default=BACKGROUND, help='CSS background value')
     parser.add_argument('--text-color', default=TEXT_COLOR, help='CSS text color')
+    parser.add_argument('--text-shadow', default=TEXT_SHADOW, help='CSS text-shadow for stroke/outline')
     return parser.parse_args()
 
 
@@ -278,14 +282,16 @@ class CaptionsApp(Gtk.Application):
         }
         .caption-label {
             color: __TEXT_COLOR__;
-            font-family: Sans;
+            font-family: __FONT_FAMILY__;
             font-size: __FONT_SIZE__px;
             font-weight: 700;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+            text-shadow: __TEXT_SHADOW__;
         }
         '''.replace(b'__BACKGROUND__', self.args.background.encode())
            .replace(b'__TEXT_COLOR__', self.args.text_color.encode())
-           .replace(b'__FONT_SIZE__', str(self.args.font_size).encode()))
+           .replace(b'__FONT_FAMILY__', self.args.font_family.encode())
+           .replace(b'__FONT_SIZE__', str(self.args.font_size).encode())
+           .replace(b'__TEXT_SHADOW__', self.args.text_shadow.encode()))
         Gtk.StyleContext.add_provider_for_screen(
             screen, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )

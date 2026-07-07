@@ -80,6 +80,9 @@ riverctl map normal Mod1 Print spawn "uwsm app -- screenshot-temp-area"         
 
 # 录屏
 riverctl map normal ${mod}+Mod1 G spawn "uwsm app -- screenrecord-start-area"              # 区域录屏
+riverctl map normal ${mod}+Mod1 C spawn "screenrecord-overlay-captions-toggle"                # 字幕叠加
+riverctl map normal ${mod}+Mod1 K spawn "screenrecord-overlay-keys-toggle"                    # 按键叠加
+riverctl map normal ${mod}+Mod1 V spawn "screenrecord-overlay-camera-toggle"                  # 摄像头叠加
 
 # 媒体键 音量
 riverctl map -repeat normal None XF86AudioRaiseVolume spawn "pamixer -i 5"

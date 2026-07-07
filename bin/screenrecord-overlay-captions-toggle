@@ -1,0 +1,14 @@
+#!/bin/bash
+# Toggle captions overlay on/off
+set -e
+source i18n-core
+
+PID=$(pgrep -f "screenrecord-overlay-captions" | grep -v $$ | head -1)
+
+if [ -n "$PID" ]; then
+    kill "$PID" 2>/dev/null
+    echo "$(msg screenrecord_overlay_captions_off)"
+else
+    nohup screenrecord-overlay-captions &>/dev/null &
+    echo "$(msg screenrecord_overlay_captions_on)"
+fi

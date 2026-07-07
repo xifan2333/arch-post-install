@@ -1,0 +1,14 @@
+#!/bin/bash
+# Toggle camera overlay on/off
+set -e
+source i18n-core
+
+PID=$(pgrep -f "screenrecord-overlay-camera" | grep -v $$ | head -1)
+
+if [ -n "$PID" ]; then
+    kill "$PID" 2>/dev/null
+    echo "$(msg screenrecord_overlay_camera_off)"
+else
+    nohup screenrecord-overlay-camera &>/dev/null &
+    echo "$(msg screenrecord_overlay_camera_on)"
+fi
