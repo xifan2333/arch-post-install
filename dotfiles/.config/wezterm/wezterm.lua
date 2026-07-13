@@ -207,21 +207,7 @@ config.keys = {
     action = act.ActivateTabRelative(1),
   },
 
-  -- Non-leader new tab
-  {
-    key = "c",
-    mods = "ALT",
-    action = act.SpawnTab("CurrentPaneDomain"),
-  },
-
-  -- Non-leader reload
-  {
-    key = "r",
-    mods = "ALT",
-    action = act.ReloadConfiguration,
-  },
-
-  -- Non-leader pane nav: Alt+hjkl + Alt+方向键 一键切面板，不用先按 C-a
+  -- Non-leader pane nav: Alt+hjkl + Alt+↑↓ 一键切面板，不用先按 C-a
   {
     key = "h",
     mods = "ALT",
@@ -253,49 +239,7 @@ config.keys = {
     action = act.ActivatePaneDirection("Up"),
   },
 
-  -- Non-leader pane resize: Alt+Shift+hjkl 或 Alt+Shift+方向键
-  {
-    key = "h",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Left", 5 }),
-  },
-  {
-    key = "j",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Down", 5 }),
-  },
-  {
-    key = "k",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Up", 5 }),
-  },
-  {
-    key = "l",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Right", 5 }),
-  },
-  {
-    key = "DownArrow",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Down", 5 }),
-  },
-  {
-    key = "UpArrow",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Up", 5 }),
-  },
 
-  -- Non-leader zoom / close pane
-  {
-    key = "Enter",
-    mods = "ALT",
-    action = act.TogglePaneZoomState,
-  },
-  {
-    key = "x",
-    mods = "ALT",
-    action = act.CloseCurrentPane({ confirm = false }),
-  },
 }
 
 -- Send real Ctrl-a through (tmux: bind C-a send-prefix)
