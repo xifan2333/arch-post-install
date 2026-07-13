@@ -207,6 +207,13 @@ config.keys = {
     action = act.ActivateTabRelative(1),
   },
 
+  -- Non-leader reload
+  {
+    key = "r",
+    mods = "ALT",
+    action = act.ReloadConfiguration,
+  },
+
   -- Non-leader pane nav: Alt+hjkl + Alt+方向键 一键切面板，不用先按 C-a
   {
     key = "h",
