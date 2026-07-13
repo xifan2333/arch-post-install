@@ -74,7 +74,6 @@ config.warn_about_missing_glyphs = false
 -- subpixel AA softens edges. (Tradeoff: no per-glyph alpha on text color.)
 config.freetype_load_target = "Light"
 config.freetype_render_target = "HorizontalLcd"
-config.freetype_load_flags = "NO_FORCE_AUTOHINT"
 
 -- Match kitty: bold/italic stay on the same configured family, no ExtraLight dim face.
 config.font_rules = {
