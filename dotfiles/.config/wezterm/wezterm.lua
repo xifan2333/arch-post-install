@@ -34,24 +34,71 @@ if theme and theme.colors then
   config.colors = theme.colors
 end
 
--- Font overlay
+-- Font overlay (written by font-sync-wezterm / font-set)
 local font_cfg = load_lua_table(font_path) or {}
 local font_name = font_cfg.font_family or "CaskaydiaMono Nerd Font Mono"
 local font_size = font_cfg.font_size or 10.5
 
--- Primary Latin/nerd font + monospaced CJK (更纱等宽).
--- Keep CJK on Sarasa Mono so Chinese stays dual-width monospaced, not proportional.
-config.font = wezterm.font_with_fallback({
-  font_name,
-  "Sarasa Mono SC",
-  "Sarasa Mono Slab SC",
-  "Noto Sans Mono CJK SC",
-  "Noto Color Emoji",
-})
+-- Explicit family+weight so WezTerm does not silently pick another Caskaydia*
+-- face (NF / NFP / ExtraLight) or scale Latin against CJK metrics oddly.
+local function latin_font(attrs)
+  attrs = attrs or {}
+  return wezterm.font_with_fallback({
+    {
+      family = font_name,
+      weight = attrs.weight or "Regular",
+      style = attrs.style or "Normal",
+      harfbuzz_features = { "calt=0", "clig=0", "liga=0" },
+    },
+    -- Chinese: monospaced 更纱 only
+    {
+      family = "Sarasa Mono SC",
+      weight = attrs.weight or "Regular",
+      style = attrs.style or "Normal",
+    },
+    "Sarasa Mono SC",
+    "Noto Color Emoji",
+  })
+end
+
+config.font = latin_font({ weight = "Regular", style = "Normal" })
 config.font_size = font_size
-config.use_cap_height_to_scale_fallback_fonts = true
+config.line_height = 1.0
+config.cell_width = 1.0
+config.use_cap_height_to_scale_fallback_fonts = false
 config.allow_square_glyphs_to_overflow_width = "Never"
 config.warn_about_missing_glyphs = false
+config.freetype_load_target = "Normal"
+config.freetype_render_target = "Normal"
+
+-- Match kitty: bold/italic stay on the same configured family, no ExtraLight dim face.
+config.font_rules = {
+  {
+    intensity = "Bold",
+    italic = false,
+    font = latin_font({ weight = "Bold", style = "Normal" }),
+  },
+  {
+    intensity = "Bold",
+    italic = true,
+    font = latin_font({ weight = "Bold", style = "Italic" }),
+  },
+  {
+    intensity = "Normal",
+    italic = true,
+    font = latin_font({ weight = "Regular", style = "Italic" }),
+  },
+  {
+    intensity = "Half",
+    italic = false,
+    font = latin_font({ weight = "Regular", style = "Normal" }),
+  },
+  {
+    intensity = "Half",
+    italic = true,
+    font = latin_font({ weight = "Regular", style = "Italic" }),
+  },
+}
 
 -- Window
 config.window_padding = {
