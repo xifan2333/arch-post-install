@@ -283,8 +283,15 @@ extend_keys(config.keys, leader_bind("j", act.ActivatePaneDirection("Down")))
 extend_keys(config.keys, leader_bind("k", act.ActivatePaneDirection("Up")))
 extend_keys(config.keys, leader_bind("l", act.ActivatePaneDirection("Right")))
 
--- Pane resize mode: C-a R 进入，hjkl 按住连续调大小，Esc/q 退出
-extend_keys(config.keys, leader_bind("R", act.ActivateKeyTable({ name = "resize_mode", one_shot = false })))
+-- Pane resizing (tmux: H J K L by 5)
+extend_keys(config.keys, leader_bind("H", act.AdjustPaneSize({ "Left", 5 })))
+extend_keys(config.keys, leader_bind("J", act.AdjustPaneSize({ "Down", 5 })))
+extend_keys(config.keys, leader_bind("K", act.AdjustPaneSize({ "Up", 5 })))
+extend_keys(config.keys, leader_bind("L", act.AdjustPaneSize({ "Right", 5 })))
+extend_keys(config.keys, leader_bind("h", act.AdjustPaneSize({ "Left", 5 }), "SHIFT"))
+extend_keys(config.keys, leader_bind("j", act.AdjustPaneSize({ "Down", 5 }), "SHIFT"))
+extend_keys(config.keys, leader_bind("k", act.AdjustPaneSize({ "Up", 5 }), "SHIFT"))
+extend_keys(config.keys, leader_bind("l", act.AdjustPaneSize({ "Right", 5 }), "SHIFT"))
 
 -- Layout cycle (tmux: Space next-layout ≈ rotate panes)
 extend_keys(config.keys, leader_bind(" ", act.RotatePanes("Clockwise")))
@@ -332,37 +339,13 @@ add_copy_mode({
   }),
 })
 add_copy_mode({ key = "q", mods = "NONE", action = act.CopyMode("Close") })
--- Resize mode: C-a R 进入，hjkl/方向键按住连续调大小，Esc/q 退出
-local resize_mode = {
-  { key = "h",      mods = "NONE", action = act.AdjustPaneSize({ "Left", 3 }) },
-  { key = "j",      mods = "NONE", action = act.AdjustPaneSize({ "Down", 3 }) },
-  { key = "k",      mods = "NONE", action = act.AdjustPaneSize({ "Up", 3 }) },
-  { key = "l",      mods = "NONE", action = act.AdjustPaneSize({ "Right", 3 }) },
-  { key = "LeftArrow",  mods = "NONE", action = act.AdjustPaneSize({ "Left", 3 }) },
-  { key = "DownArrow",  mods = "NONE", action = act.AdjustPaneSize({ "Down", 3 }) },
-  { key = "UpArrow",    mods = "NONE", action = act.AdjustPaneSize({ "Up", 3 }) },
-  { key = "RightArrow", mods = "NONE", action = act.AdjustPaneSize({ "Right", 3 }) },
-  { key = "Escape", mods = "NONE", action = act.PopKeyTable },
-  { key = "q",      mods = "NONE", action = act.PopKeyTable },
-}
-
 config.key_tables = {
   copy_mode = copy_mode,
-  resize_mode = resize_mode,
 }
 
--- Status bar: show leader / active mode (resize / copy) at bottom right
+-- Status bar: show leader indicator at bottom right
 wezterm.on("update-status", function(window, pane)
-  local mode = window:active_key_table()
-  if mode then
-    local name = mode == "resize_mode" and " RESIZE " or " COPY "
-    window:set_right_status(wezterm.format({
-      { Background = { Color = "#d65d0e" } },
-      { Foreground = { Color = "#1d2021" } },
-      { Attribute = { Intensity = "Bold" } },
-      { Text = name },
-    }))
-  elseif window:leader_is_active() then
+  if window:leader_is_active() then
     window:set_right_status(wezterm.format({
       { Background = { Color = "#458588" } },
       { Foreground = { Color = "#1d2021" } },
