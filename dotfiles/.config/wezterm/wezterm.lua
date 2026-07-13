@@ -145,11 +145,36 @@ config.disable_default_mouse_bindings = false
 local act = wezterm.action
 
 -- tmux prefix is C-a
+-- Longer timeout: people often keep Ctrl held after C-a (tmux muscle memory).
 config.leader = {
   key = "a",
   mods = "CTRL",
-  timeout_milliseconds = 1000,
+  timeout_milliseconds = 2000,
 }
+
+-- Bind both LEADER and LEADER|CTRL so `C-a` then `=` works whether Ctrl
+-- is released or still held (common failure mode that feels "not deployed").
+local function leader_bind(key, action, extra_mods)
+  extra_mods = extra_mods or ""
+  local mods = { "LEADER", "LEADER|CTRL" }
+  if extra_mods ~= "" then
+    mods = {
+      "LEADER|" .. extra_mods,
+      "LEADER|CTRL|" .. extra_mods,
+    }
+  end
+  local bindings = {}
+  for _, m in ipairs(mods) do
+    table.insert(bindings, { key = key, mods = m, action = action })
+  end
+  return bindings
+end
+
+local function extend_keys(list, bindings)
+  for _, b in ipairs(bindings) do
+    table.insert(list, b)
+  end
+end
 
 -- Keys: clipboard + tmux-style leader map from ~/.tmux.conf
 config.keys = {
@@ -170,79 +195,7 @@ config.keys = {
     action = act.SpawnWindow,
   },
 
-  -- Send real Ctrl-a through (tmux: bind C-a send-prefix)
-  {
-    key = "a",
-    mods = "LEADER|CTRL",
-    action = act.SendKey({ key = "a", mods = "CTRL" }),
-  },
-  {
-    key = "a",
-    mods = "LEADER",
-    action = act.SendKey({ key = "a", mods = "CTRL" }),
-  },
-
-  -- Reload (tmux: bind r source-file ...)
-  {
-    key = "r",
-    mods = "LEADER",
-    action = act.ReloadConfiguration,
-  },
-
-  -- Split panes (tmux: = horizontal / - vertical)
-  {
-    key = "=",
-    mods = "LEADER",
-    action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }),
-  },
-  {
-    key = "-",
-    mods = "LEADER",
-    action = act.SplitVertical({ domain = "CurrentPaneDomain" }),
-  },
-
-  -- Pane navigation (tmux: h j k l)
-  { key = "h", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
-  { key = "j", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
-  { key = "k", mods = "LEADER", action = act.ActivatePaneDirection("Up") },
-  { key = "l", mods = "LEADER", action = act.ActivatePaneDirection("Right") },
-
-  -- Pane resizing (tmux: H J K L by 5)
-  { key = "H", mods = "LEADER", action = act.AdjustPaneSize({ "Left", 5 }) },
-  { key = "J", mods = "LEADER", action = act.AdjustPaneSize({ "Down", 5 }) },
-  { key = "K", mods = "LEADER", action = act.AdjustPaneSize({ "Up", 5 }) },
-  { key = "L", mods = "LEADER", action = act.AdjustPaneSize({ "Right", 5 }) },
-
-  -- Layout cycle (tmux: Space next-layout ≈ rotate panes)
-  {
-    key = " ",
-    mods = "LEADER",
-    action = act.RotatePanes("Clockwise"),
-  },
-
-  -- Zoom / close / new tab (common tmux habits)
-  { key = "z", mods = "LEADER", action = act.TogglePaneZoomState },
-  {
-    key = "x",
-    mods = "LEADER",
-    action = act.CloseCurrentPane({ confirm = false }),
-  },
-  {
-    key = "c",
-    mods = "LEADER",
-    action = act.SpawnTab("CurrentPaneDomain"),
-  },
-  {
-    key = "&",
-    mods = "LEADER|SHIFT",
-    action = act.CloseCurrentTab({ confirm = false }),
-  },
-
-  -- Copy mode (tmux mode-keys vi; default prefix [)
-  { key = "[", mods = "LEADER", action = act.ActivateCopyMode },
-  { key = "]", mods = "LEADER", action = act.PasteFrom("PrimarySelection") },
-
-  -- Window/tab navigation (tmux: M-Left / M-Right)
+  -- Non-leader tab nav (tmux: M-Left / M-Right)
   {
     key = "LeftArrow",
     mods = "ALT",
@@ -253,39 +206,77 @@ config.keys = {
     mods = "ALT",
     action = act.ActivateTabRelative(1),
   },
-  {
-    key = "p",
-    mods = "LEADER",
-    action = act.ActivateTabRelative(-1),
-  },
-  {
-    key = "n",
-    mods = "LEADER",
-    action = act.ActivateTabRelative(1),
-  },
-
-  -- Help (tmux: ? list-keys)
-  {
-    key = "?",
-    mods = "LEADER|SHIFT",
-    action = act.ActivateCommandPalette,
-  },
-  {
-    key = "/",
-    mods = "LEADER",
-    action = act.SplitHorizontal({
-      args = { "man", "wezterm" },
-    }),
-  },
 }
+
+-- Send real Ctrl-a through (tmux: bind C-a send-prefix)
+extend_keys(config.keys, leader_bind("a", act.SendKey({ key = "a", mods = "CTRL" })))
+
+-- Reload
+extend_keys(config.keys, leader_bind("r", act.ReloadConfiguration))
+
+-- Split panes (tmux: = horizontal / - vertical)
+extend_keys(
+  config.keys,
+  leader_bind("=", act.SplitHorizontal({ domain = "CurrentPaneDomain" }))
+)
+extend_keys(
+  config.keys,
+  leader_bind("-", act.SplitVertical({ domain = "CurrentPaneDomain" }))
+)
+-- US keyboard muscle memory sometimes hits Shift+= for "plus" when splitting
+extend_keys(
+  config.keys,
+  leader_bind("=", act.SplitHorizontal({ domain = "CurrentPaneDomain" }), "SHIFT")
+)
+extend_keys(
+  config.keys,
+  leader_bind("+", act.SplitHorizontal({ domain = "CurrentPaneDomain" }))
+)
+
+-- Pane navigation (tmux: h j k l)
+extend_keys(config.keys, leader_bind("h", act.ActivatePaneDirection("Left")))
+extend_keys(config.keys, leader_bind("j", act.ActivatePaneDirection("Down")))
+extend_keys(config.keys, leader_bind("k", act.ActivatePaneDirection("Up")))
+extend_keys(config.keys, leader_bind("l", act.ActivatePaneDirection("Right")))
+
+-- Pane resizing (tmux: H J K L by 5)
+extend_keys(config.keys, leader_bind("H", act.AdjustPaneSize({ "Left", 5 })))
+extend_keys(config.keys, leader_bind("J", act.AdjustPaneSize({ "Down", 5 })))
+extend_keys(config.keys, leader_bind("K", act.AdjustPaneSize({ "Up", 5 })))
+extend_keys(config.keys, leader_bind("L", act.AdjustPaneSize({ "Right", 5 })))
+-- Also allow LEADER|SHIFT+h/j/k/l for resize without releasing shift carefully
+extend_keys(config.keys, leader_bind("h", act.AdjustPaneSize({ "Left", 5 }), "SHIFT"))
+extend_keys(config.keys, leader_bind("j", act.AdjustPaneSize({ "Down", 5 }), "SHIFT"))
+extend_keys(config.keys, leader_bind("k", act.AdjustPaneSize({ "Up", 5 }), "SHIFT"))
+extend_keys(config.keys, leader_bind("l", act.AdjustPaneSize({ "Right", 5 }), "SHIFT"))
+
+-- Layout cycle (tmux: Space next-layout ≈ rotate panes)
+extend_keys(config.keys, leader_bind(" ", act.RotatePanes("Clockwise")))
+
+-- Zoom / close / new tab
+extend_keys(config.keys, leader_bind("z", act.TogglePaneZoomState))
+extend_keys(config.keys, leader_bind("x", act.CloseCurrentPane({ confirm = false })))
+extend_keys(config.keys, leader_bind("c", act.SpawnTab("CurrentPaneDomain")))
+extend_keys(config.keys, leader_bind("&", act.CloseCurrentTab({ confirm = false }), "SHIFT"))
+
+-- Copy mode
+extend_keys(config.keys, leader_bind("[", act.ActivateCopyMode))
+extend_keys(config.keys, leader_bind("]", act.PasteFrom("PrimarySelection")))
+
+-- Tab navigation
+extend_keys(config.keys, leader_bind("p", act.ActivateTabRelative(-1)))
+extend_keys(config.keys, leader_bind("n", act.ActivateTabRelative(1)))
+
+-- Help
+extend_keys(config.keys, leader_bind("?", act.ActivateCommandPalette, "SHIFT"))
+extend_keys(
+  config.keys,
+  leader_bind("/", act.SplitHorizontal({ args = { "man", "wezterm" } }))
+)
 
 -- Leader + 1..9 → tab N (1-based, matching tmux base-index 1)
 for i = 1, 9 do
-  table.insert(config.keys, {
-    key = tostring(i),
-    mods = "LEADER",
-    action = act.ActivateTab(i - 1),
-  })
+  extend_keys(config.keys, leader_bind(tostring(i), act.ActivateTab(i - 1)))
 end
 
 -- Keep default copy/search tables; layer vi-ish yank/exit helpers on top.
