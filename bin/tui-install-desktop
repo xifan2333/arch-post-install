@@ -13,17 +13,27 @@ if [ -z "$APP_NAME" ] || [ -z "$APP_EXEC" ]; then
 fi
 
 TERMINAL="${TERMINAL:-kitty}"
+TERMINAL_NAME="$(basename "$TERMINAL")"
 DESKTOP_FILE="$HOME/.local/share/applications/$APP_NAME.desktop"
 
 # Create .desktop file
 mkdir -p "$HOME/.local/share/applications"
+
+case "$TERMINAL_NAME" in
+    wezterm)
+        EXEC_LINE="wezterm start -- $APP_EXEC"
+        ;;
+    *)
+        EXEC_LINE="$TERMINAL -e $APP_EXEC"
+        ;;
+esac
 
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Version=1.0
 Name=$APP_NAME
 Comment=$APP_NAME TUI Application
-Exec=$TERMINAL -e $APP_EXEC
+Exec=$EXEC_LINE
 Terminal=false
 Type=Application
 Categories=System;

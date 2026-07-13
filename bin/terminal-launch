@@ -65,13 +65,37 @@ if [ "$SHOW_DONE" = true ]; then
     fi
 fi
 
+# Build terminal launch args (kitty/alacritty/ghostty vs wezterm)
+TERMINAL_NAME="$(basename "${TERMINAL:-kitty}")"
+launch_terminal() {
+    local prog_args=("$@")
+
+    case "$TERMINAL_NAME" in
+        wezterm)
+            # wezterm start supports --class; window title is controlled by shell/OSC
+            if [ ${#prog_args[@]} -eq 0 ]; then
+                setsid -f uwsm app -- wezterm start --always-new-process --class="$TERMINAL_CLASS"
+            else
+                setsid -f uwsm app -- wezterm start --always-new-process --class="$TERMINAL_CLASS" -- "${prog_args[@]}"
+            fi
+            ;;
+        *)
+            if [ ${#prog_args[@]} -eq 0 ]; then
+                setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE"
+            else
+                setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" "${prog_args[@]}"
+            fi
+            ;;
+    esac
+}
+
 # Launch terminal
 if [ -z "$cmd_chain" ]; then
-    setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE"
+    launch_terminal
 else
     if [ "$SHOW_DONE" = true ] || [ "$CLOSE_ON_EXIT" = true ]; then
-        setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" "$SHELL" -l -c "$cmd_chain"
+        launch_terminal "$SHELL" -l -c "$cmd_chain"
     else
-        setsid -f uwsm app -- "$TERMINAL" --class="$TERMINAL_CLASS" --title="$TERMINAL_TITLE" "$SHELL" -l -c "$cmd_chain; exec $SHELL -l"
+        launch_terminal "$SHELL" -l -c "$cmd_chain; exec $SHELL -l"
     fi
 fi

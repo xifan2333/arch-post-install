@@ -29,6 +29,13 @@ case "$TERMINAL" in
             echo "Ghostty theme reloaded"
         fi
         ;;
+    "wezterm")
+        # WezTerm auto-reloads when the config file is modified
+        if [ -f "$HOME/.config/wezterm/wezterm.lua" ]; then
+            touch "$HOME/.config/wezterm/wezterm.lua"
+            echo "WezTerm config reloaded"
+        fi
+        ;;
     "foot")
         # Foot doesn't support live config reload
         # New instances will use the new theme
