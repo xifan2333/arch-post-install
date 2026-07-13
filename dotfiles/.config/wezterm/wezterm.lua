@@ -207,6 +207,13 @@ config.keys = {
     action = act.ActivateTabRelative(1),
   },
 
+  -- Non-leader new tab
+  {
+    key = "c",
+    mods = "ALT",
+    action = act.SpawnTab("CurrentPaneDomain"),
+  },
+
   -- Non-leader reload
   {
     key = "r",
