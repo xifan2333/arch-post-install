@@ -27,3 +27,9 @@ riverctl rule-add -app-id "imv" float
 riverctl rule-add -app-id "imv" dimensions 960 540
 riverctl rule-add -app-id "mpv" float
 riverctl rule-add -app-id "mpv" dimensions 960 540
+
+# Grok register / CPA mint Chromium (--class=grok-reg)
+# Pin to workspace 9 so it does not steal focus from your current workspace.
+# tags bitfield: workspace N => 1 << (N-1); workspace 9 => 1<<8 = 256
+riverctl rule-add -app-id "grok-reg" tags $((1 << 8))
+riverctl rule-add -app-id "chromium-browser" -title "*x.ai*" tags $((1 << 8))
