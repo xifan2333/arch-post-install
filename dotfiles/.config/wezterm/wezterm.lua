@@ -341,4 +341,20 @@ config.key_tables = {
   resize_mode = resize_mode,
 }
 
+-- Status bar: show active mode (resize / copy) at bottom right
+wezterm.on("update-status", function(window, pane)
+  local mode = window:active_key_table()
+  if mode then
+    local name = mode == "resize_mode" and " RESIZE " or " COPY "
+    window:set_right_status(wezterm.format({
+      { Background = { Color = "#d65d0e" } },
+      { Foreground = { Color = "#1d2021" } },
+      { Attribute = { Intensity = "Bold" } },
+      { Text = name },
+    }))
+  else
+    window:set_right_status("")
+  end
+end)
+
 return config
