@@ -20,10 +20,14 @@ fi
 
 # Sync fonts across applications
 sync_fonts() {
-    # Sync terminal emulators - only sync current terminal
-    if command -v "font-sync-${TERMINAL:-kitty}" >/dev/null 2>&1; then
-        "font-sync-${TERMINAL:-kitty}" "$FONT_NAME"
-    fi
+    # Sync every installed terminal font helper. Each font-sync-* exits
+    # silently when that terminal is not configured, so multi-terminal
+    # setups stay in lockstep with ~/.config/font/current.
+    for term in kitty wezterm alacritty ghostty foot; do
+        if command -v "font-sync-${term}" >/dev/null 2>&1; then
+            "font-sync-${term}" "$FONT_NAME"
+        fi
+    done
 
     # Sync GUI applications
     if command -v font-sync-waybar >/dev/null 2>&1; then

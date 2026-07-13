@@ -5,7 +5,7 @@
 export PATH="$HOME/.local/bin:$PATH"
 
 # Default applications
-export TERMINAL="${TERMINAL:-kitty}"
+export TERMINAL="${TERMINAL:-wezterm}"
 export EDITOR="${EDITOR:-nvim}"
 export VISUAL="${VISUAL:-nvim}"
 export BROWSER="${BROWSER:-qutebrowser}"
