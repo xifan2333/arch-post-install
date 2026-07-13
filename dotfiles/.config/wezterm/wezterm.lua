@@ -195,19 +195,19 @@ config.keys = {
     action = act.SpawnWindow,
   },
 
-  -- Non-leader tab nav (tmux: M-Left / M-Right)
+  -- Non-leader tab nav: Alt+, / Alt+.  (< > 位置，左右切 tab)
   {
-    key = "LeftArrow",
+    key = ",",
     mods = "ALT",
     action = act.ActivateTabRelative(-1),
   },
   {
-    key = "RightArrow",
+    key = ".",
     mods = "ALT",
     action = act.ActivateTabRelative(1),
   },
 
-  -- Non-leader pane nav: Alt+hjkl + Alt+↑↓ 一键切面板，不用先按 C-a
+  -- Non-leader pane nav: Alt+hjkl + Alt+方向键 一键切面板
   {
     key = "h",
     mods = "ALT",
@@ -229,6 +229,11 @@ config.keys = {
     action = act.ActivatePaneDirection("Right"),
   },
   {
+    key = "LeftArrow",
+    mods = "ALT",
+    action = act.ActivatePaneDirection("Left"),
+  },
+  {
     key = "DownArrow",
     mods = "ALT",
     action = act.ActivatePaneDirection("Down"),
@@ -237,6 +242,11 @@ config.keys = {
     key = "UpArrow",
     mods = "ALT",
     action = act.ActivatePaneDirection("Up"),
+  },
+  {
+    key = "RightArrow",
+    mods = "ALT",
+    action = act.ActivatePaneDirection("Right"),
   },
 
 
