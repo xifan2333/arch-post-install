@@ -207,14 +207,14 @@ config.keys = {
     action = act.ActivateTabRelative(1),
   },
 
-  -- Non-leader window nav: Alt+[ / Alt+] 切窗口
+  -- Non-leader window nav: Alt+n / Alt+p 切窗口
   {
-    key = "[",
+    key = "p",
     mods = "ALT",
     action = act.ActivateWindowRelative(-1),
   },
   {
-    key = "]",
+    key = "n",
     mods = "ALT",
     action = act.ActivateWindowRelative(1),
   },
