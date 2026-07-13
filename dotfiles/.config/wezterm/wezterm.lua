@@ -39,12 +39,22 @@ local font_cfg = load_lua_table(font_path) or {}
 local font_name = font_cfg.font_family or "CaskaydiaMono Nerd Font Mono"
 local font_size = font_cfg.font_size or 10.5
 
+-- Primary Latin/nerd font + CJK fallbacks (aligned with fontconfig monospace prefer)
+-- Without explicit CJK fonts, WezTerm may pick random monospaced CJK like Ark Pixel.
 config.font = wezterm.font_with_fallback({
   font_name,
+  "Sarasa Mono SC",
+  "Sarasa Gothic SC",
+  "Source Han Sans CN",
+  "Noto Sans CJK SC",
+  "Noto Sans Mono CJK SC",
   "JetBrains Mono",
-  "Noto Sans Mono",
+  "Noto Color Emoji",
 })
 config.font_size = font_size
+config.use_cap_height_to_scale_fallback_fonts = true
+config.allow_square_glyphs_to_overflow_width = "WhenFollowedBySpace"
+config.warn_about_missing_glyphs = false
 
 -- Window
 config.window_padding = {
@@ -65,7 +75,6 @@ config.hide_mouse_cursor_when_typing = true
 
 -- Wayland / behavior
 config.enable_wayland = true
-config.warn_about_missing_glyphs = false
 config.audible_bell = "Disabled"
 config.check_for_updates = false
 
