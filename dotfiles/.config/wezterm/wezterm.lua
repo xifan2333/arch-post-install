@@ -236,11 +236,6 @@ config.keys = {
     action = act.ActivatePaneDirection("Right"),
   },
   {
-    key = "LeftArrow",
-    mods = "ALT",
-    action = act.ActivatePaneDirection("Left"),
-  },
-  {
     key = "DownArrow",
     mods = "ALT",
     action = act.ActivatePaneDirection("Down"),
@@ -249,11 +244,6 @@ config.keys = {
     key = "UpArrow",
     mods = "ALT",
     action = act.ActivatePaneDirection("Up"),
-  },
-  {
-    key = "RightArrow",
-    mods = "ALT",
-    action = act.ActivatePaneDirection("Right"),
   },
 
   -- Non-leader pane resize: Alt+Shift+hjkl 或 Alt+Shift+方向键
@@ -278,11 +268,6 @@ config.keys = {
     action = act.AdjustPaneSize({ "Right", 5 }),
   },
   {
-    key = "LeftArrow",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Left", 5 }),
-  },
-  {
     key = "DownArrow",
     mods = "ALT|SHIFT",
     action = act.AdjustPaneSize({ "Down", 5 }),
@@ -291,11 +276,6 @@ config.keys = {
     key = "UpArrow",
     mods = "ALT|SHIFT",
     action = act.AdjustPaneSize({ "Up", 5 }),
-  },
-  {
-    key = "RightArrow",
-    mods = "ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Right", 5 }),
   },
 
   -- Non-leader zoom / close pane
