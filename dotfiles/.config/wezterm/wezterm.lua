@@ -39,8 +39,8 @@ local font_cfg = load_lua_table(font_path) or {}
 local font_name = font_cfg.font_family or "Maple Mono NF CN"
 local font_size = font_cfg.font_size or 10.5
 
--- Explicit family+weight so WezTerm does not silently pick another Caskaydia*
--- face (NF / NFP / ExtraLight) or scale Latin against CJK metrics oddly.
+-- Explicit family+weight so WezTerm does not silently pick another face
+-- (ExtraLight / Propo / wrong family) for the configured font.
 local function latin_font(attrs)
   attrs = attrs or {}
   return wezterm.font_with_fallback({
