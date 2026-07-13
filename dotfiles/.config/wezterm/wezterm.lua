@@ -68,8 +68,13 @@ config.cell_width = 1.0
 config.use_cap_height_to_scale_fallback_fonts = false
 config.allow_square_glyphs_to_overflow_width = "Never"
 config.warn_about_missing_glyphs = false
-config.freetype_load_target = "Normal"
-config.freetype_render_target = "Normal"
+
+-- Kitty-like rasterization: Normal FreeType hinting thins strokes and looks
+-- jagged on this Intel/Wayland setup. Light hinting keeps stem weight; LCD
+-- subpixel AA softens edges. (Tradeoff: no per-glyph alpha on text color.)
+config.freetype_load_target = "Light"
+config.freetype_render_target = "HorizontalLcd"
+config.freetype_load_flags = "NO_FORCE_AUTOHINT"
 
 -- Match kitty: bold/italic stay on the same configured family, no ExtraLight dim face.
 config.font_rules = {
