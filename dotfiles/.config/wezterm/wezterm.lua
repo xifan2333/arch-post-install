@@ -112,6 +112,8 @@ config.window_padding = {
   bottom = 15,
 }
 config.window_decorations = "TITLE | RESIZE"
+-- Match kitty: confirm_os_window_close 0
+config.window_close_confirmation = "NeverPrompt"
 config.hide_tab_bar_if_only_one_tab = true
 config.use_fancy_tab_bar = true
 config.scrollback_lines = 10000
