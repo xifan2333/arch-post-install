@@ -341,7 +341,7 @@ config.key_tables = {
   resize_mode = resize_mode,
 }
 
--- Status bar: show active mode (resize / copy) at bottom right
+-- Status bar: show leader / active mode (resize / copy) at bottom right
 wezterm.on("update-status", function(window, pane)
   local mode = window:active_key_table()
   if mode then
@@ -351,6 +351,13 @@ wezterm.on("update-status", function(window, pane)
       { Foreground = { Color = "#1d2021" } },
       { Attribute = { Intensity = "Bold" } },
       { Text = name },
+    }))
+  elseif window:leader_is_active() then
+    window:set_right_status(wezterm.format({
+      { Background = { Color = "#458588" } },
+      { Foreground = { Color = "#1d2021" } },
+      { Attribute = { Intensity = "Bold" } },
+      { Text = " LEADER " },
     }))
   else
     window:set_right_status("")
