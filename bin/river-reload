@@ -4,36 +4,4 @@
 
 set -e
 
-# Re-read UWSM defaults for vars expanded at map-registration time
-# (BROWSER, FILE_MANAGER, ...). Unset first: env uses ${VAR:-default},
-# which would keep a stale session value.
-UWSM_ENV="$HOME/.config/uwsm/env"
-UWSM_ENV_RIVER="$HOME/.config/uwsm/env-river"
-if [[ -f "$UWSM_ENV" ]]; then
-    unset TERMINAL EDITOR VISUAL BROWSER FILE_MANAGER FILE_MANAGER_TUI CODE_EDITOR
-    unset KB_LAYOUT KB_OPTIONS
-    set -a
-    # shellcheck source=/dev/null
-    . "$UWSM_ENV"
-    if [[ -f "$UWSM_ENV_RIVER" ]]; then
-        # shellcheck source=/dev/null
-        . "$UWSM_ENV_RIVER"
-    fi
-    set +a
-
-    # Publish into user activation environment so freshly spawned helpers
-    # (and future tools) see the updated defaults without a full relogin.
-    if command -v systemctl >/dev/null 2>&1; then
-        systemctl --user import-environment \
-            TERMINAL EDITOR VISUAL BROWSER FILE_MANAGER FILE_MANAGER_TUI \
-            CODE_EDITOR KB_LAYOUT KB_OPTIONS PATH 2>/dev/null || true
-    fi
-    if command -v dbus-update-activation-environment >/dev/null 2>&1; then
-        dbus-update-activation-environment --systemd \
-            TERMINAL EDITOR VISUAL BROWSER FILE_MANAGER FILE_MANAGER_TUI \
-            CODE_EDITOR KB_LAYOUT KB_OPTIONS PATH 2>/dev/null || true
-    fi
-fi
-
-# Reload River configuration (re-registers keybindings with current env)
 "$HOME/.config/river/init"

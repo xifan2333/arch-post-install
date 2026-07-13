@@ -20,14 +20,10 @@ fi
 
 # Sync fonts across applications
 sync_fonts() {
-    # Sync every installed terminal font helper. Each font-sync-* exits
-    # silently when that terminal is not configured, so multi-terminal
-    # setups stay in lockstep with ~/.config/font/current.
-    for term in kitty wezterm alacritty ghostty foot; do
-        if command -v "font-sync-${term}" >/dev/null 2>&1; then
-            "font-sync-${term}" "$FONT_NAME"
-        fi
-    done
+    # Only the active terminal (from $TERMINAL / uwsm env)
+    if command -v "font-sync-${TERMINAL:-wezterm}" >/dev/null 2>&1; then
+        "font-sync-${TERMINAL:-wezterm}" "$FONT_NAME"
+    fi
 
     # Sync GUI applications
     if command -v font-sync-waybar >/dev/null 2>&1; then

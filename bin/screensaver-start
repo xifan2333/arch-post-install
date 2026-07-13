@@ -4,13 +4,15 @@
 
 LOGO_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/logo.txt"
 
+TERMINAL="${TERMINAL:-wezterm}"
+
 screensaver_is_running() {
-  pgrep -u "$(id -u)" -f "${TERMINAL:-kitty}.*Screensaver" >/dev/null 2>&1
+  pgrep -u "$(id -u)" -f "${TERMINAL}.*Screensaver" >/dev/null 2>&1
 }
 
 exit_screensaver() {
   pkill -x tte 2>/dev/null
-  pkill -f "${TERMINAL:-kitty}.*Screensaver" 2>/dev/null
+  pkill -f "${TERMINAL}.*Screensaver" 2>/dev/null
   exit 0
 }
 
@@ -28,7 +30,8 @@ if [ ! -f "$LOGO_FILE" ]; then
 fi
 
 # Launch fullscreen terminal with tte animation
-${TERMINAL:-kitty} --class Screensaver \
+# Note: wezterm class flag is different; screensaver currently assumes kitty-style --class.
+${TERMINAL} --class Screensaver \
   "$SHELL" -l -c '
   LOGO_FILE="'"$LOGO_FILE"'"
 

@@ -5,6 +5,9 @@
 export PATH="$HOME/.local/bin:$PATH"
 
 # Default applications
+# TERMINAL is the single source of truth for which terminal River/scripts launch.
+# Change it here, then relogin (or restart River session). Do not hardcode
+# kitty/wezterm elsewhere — read $TERMINAL instead.
 export TERMINAL="${TERMINAL:-wezterm}"
 export EDITOR="${EDITOR:-nvim}"
 export VISUAL="${VISUAL:-nvim}"

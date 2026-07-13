@@ -65,14 +65,14 @@ if [ "$SHOW_DONE" = true ]; then
     fi
 fi
 
-# Build terminal launch args (kitty/alacritty/ghostty vs wezterm)
-TERMINAL_NAME="$(basename "${TERMINAL:-kitty}")"
+# Launch flags differ by terminal; which binary is only $TERMINAL (uwsm/env).
+TERMINAL="${TERMINAL:-wezterm}"
+TERMINAL_NAME="$(basename "$TERMINAL")"
 launch_terminal() {
     local prog_args=("$@")
 
     case "$TERMINAL_NAME" in
         wezterm)
-            # wezterm start supports --class; window title is controlled by shell/OSC
             if [ ${#prog_args[@]} -eq 0 ]; then
                 setsid -f uwsm app -- wezterm start --always-new-process --class="$TERMINAL_CLASS"
             else
