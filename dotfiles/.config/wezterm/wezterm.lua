@@ -114,9 +114,20 @@ config.window_padding = {
 config.window_decorations = "TITLE | RESIZE"
 -- Match kitty: confirm_os_window_close 0
 config.window_close_confirmation = "NeverPrompt"
-config.hide_tab_bar_if_only_one_tab = true
-config.use_fancy_tab_bar = true
 config.scrollback_lines = 10000
+
+-- Mux / tab bar (tmux-like)
+-- Prefer built-in mux over nesting tmux so image protocols work cleanly.
+config.use_fancy_tab_bar = false
+config.tab_bar_at_bottom = true
+config.hide_tab_bar_if_only_one_tab = false
+config.tab_and_split_indices_are_zero_based = false
+config.show_new_tab_button_in_tab_bar = false
+config.switch_to_last_active_tab_when_closing_tab = true
+config.inactive_pane_hsb = {
+  saturation = 0.9,
+  brightness = 0.75,
+}
 
 -- Cursor
 config.default_cursor_style = "BlinkingBar"
@@ -128,23 +139,174 @@ config.enable_wayland = true
 config.audible_bell = "Disabled"
 config.check_for_updates = false
 
--- Keys (aligned with kitty defaults in this setup)
+-- Mouse (tmux: set -g mouse on)
+config.disable_default_mouse_bindings = false
+
+local act = wezterm.action
+
+-- tmux prefix is C-a
+config.leader = {
+  key = "a",
+  mods = "CTRL",
+  timeout_milliseconds = 1000,
+}
+
+-- Keys: clipboard + tmux-style leader map from ~/.tmux.conf
 config.keys = {
+  -- Clipboard (kitty-aligned)
   {
     key = "v",
     mods = "CTRL|SHIFT",
-    action = wezterm.action.PasteFrom("Clipboard"),
+    action = act.PasteFrom("Clipboard"),
   },
   {
     key = "c",
     mods = "CTRL|SHIFT",
-    action = wezterm.action.CopyTo("Clipboard"),
+    action = act.CopyTo("Clipboard"),
   },
   {
     key = "Enter",
     mods = "SUPER|CTRL",
-    action = wezterm.action.SpawnWindow,
+    action = act.SpawnWindow,
   },
+
+  -- Send real Ctrl-a through (tmux: bind C-a send-prefix)
+  {
+    key = "a",
+    mods = "LEADER|CTRL",
+    action = act.SendKey({ key = "a", mods = "CTRL" }),
+  },
+  {
+    key = "a",
+    mods = "LEADER",
+    action = act.SendKey({ key = "a", mods = "CTRL" }),
+  },
+
+  -- Reload (tmux: bind r source-file ...)
+  {
+    key = "r",
+    mods = "LEADER",
+    action = act.ReloadConfiguration,
+  },
+
+  -- Split panes (tmux: = horizontal / - vertical)
+  {
+    key = "=",
+    mods = "LEADER",
+    action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }),
+  },
+  {
+    key = "-",
+    mods = "LEADER",
+    action = act.SplitVertical({ domain = "CurrentPaneDomain" }),
+  },
+
+  -- Pane navigation (tmux: h j k l)
+  { key = "h", mods = "LEADER", action = act.ActivatePaneDirection("Left") },
+  { key = "j", mods = "LEADER", action = act.ActivatePaneDirection("Down") },
+  { key = "k", mods = "LEADER", action = act.ActivatePaneDirection("Up") },
+  { key = "l", mods = "LEADER", action = act.ActivatePaneDirection("Right") },
+
+  -- Pane resizing (tmux: H J K L by 5)
+  { key = "H", mods = "LEADER", action = act.AdjustPaneSize({ "Left", 5 }) },
+  { key = "J", mods = "LEADER", action = act.AdjustPaneSize({ "Down", 5 }) },
+  { key = "K", mods = "LEADER", action = act.AdjustPaneSize({ "Up", 5 }) },
+  { key = "L", mods = "LEADER", action = act.AdjustPaneSize({ "Right", 5 }) },
+
+  -- Layout cycle (tmux: Space next-layout ≈ rotate panes)
+  {
+    key = " ",
+    mods = "LEADER",
+    action = act.RotatePanes("Clockwise"),
+  },
+
+  -- Zoom / close / new tab (common tmux habits)
+  { key = "z", mods = "LEADER", action = act.TogglePaneZoomState },
+  {
+    key = "x",
+    mods = "LEADER",
+    action = act.CloseCurrentPane({ confirm = false }),
+  },
+  {
+    key = "c",
+    mods = "LEADER",
+    action = act.SpawnTab("CurrentPaneDomain"),
+  },
+  {
+    key = "&",
+    mods = "LEADER|SHIFT",
+    action = act.CloseCurrentTab({ confirm = false }),
+  },
+
+  -- Copy mode (tmux mode-keys vi; default prefix [)
+  { key = "[", mods = "LEADER", action = act.ActivateCopyMode },
+  { key = "]", mods = "LEADER", action = act.PasteFrom("PrimarySelection") },
+
+  -- Window/tab navigation (tmux: M-Left / M-Right)
+  {
+    key = "LeftArrow",
+    mods = "ALT",
+    action = act.ActivateTabRelative(-1),
+  },
+  {
+    key = "RightArrow",
+    mods = "ALT",
+    action = act.ActivateTabRelative(1),
+  },
+  {
+    key = "p",
+    mods = "LEADER",
+    action = act.ActivateTabRelative(-1),
+  },
+  {
+    key = "n",
+    mods = "LEADER",
+    action = act.ActivateTabRelative(1),
+  },
+
+  -- Help (tmux: ? list-keys)
+  {
+    key = "?",
+    mods = "LEADER|SHIFT",
+    action = act.ActivateCommandPalette,
+  },
+  {
+    key = "/",
+    mods = "LEADER",
+    action = act.SplitHorizontal({
+      args = { "man", "wezterm" },
+    }),
+  },
+}
+
+-- Leader + 1..9 → tab N (1-based, matching tmux base-index 1)
+for i = 1, 9 do
+  table.insert(config.keys, {
+    key = tostring(i),
+    mods = "LEADER",
+    action = act.ActivateTab(i - 1),
+  })
+end
+
+-- Keep default copy/search tables; layer vi-ish yank/exit helpers on top.
+local copy_mode = {}
+if wezterm.gui then
+  copy_mode = wezterm.gui.default_key_tables().copy_mode
+end
+local function add_copy_mode(binding)
+  table.insert(copy_mode, binding)
+end
+add_copy_mode({
+  key = "y",
+  mods = "NONE",
+  action = act.Multiple({
+    { CopyTo = "ClipboardAndPrimarySelection" },
+    { CopyMode = "Close" },
+  }),
+})
+add_copy_mode({ key = "q", mods = "NONE", action = act.CopyMode("Close") })
+config.key_tables = {
+  copy_mode = copy_mode,
 }
 
 return config
