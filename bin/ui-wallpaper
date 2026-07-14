@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wallpaper switcher with local and network (Bing) modes
+# Wallpaper switcher with local and network (Bing / pixel art) modes
 # Usage: ui-wallpaper
 
 set -e
@@ -80,6 +80,51 @@ download_bing_wallpaper() {
     notify "${i18n[wallpaper_bing_success]}"
 }
 
+# Download random pixel art wallpaper from Wallhaven
+download_pixel_wallpaper() {
+    # Wallhaven public search API — random SFW pixel art at 1080p+
+    WALLHAVEN_API="https://wallhaven.cc/api/v1/search?q=pixel+art&atleast=1920x1080&sorting=random&purity=100"
+
+    RESPONSE=$(curl -s "$WALLHAVEN_API")
+    IMAGE_URL=$(echo "$RESPONSE" | jq -r '.data[0].path // empty')
+    FILE_TYPE=$(echo "$RESPONSE" | jq -r '.data[0].file_type // empty')
+
+    if [ -z "$IMAGE_URL" ] || [ "$IMAGE_URL" = "null" ]; then
+        notify "${i18n[wallpaper_pixel_failed]}"
+        echo "${i18n[wallpaper_pixel_error]}" >&2
+        exit 1
+    fi
+
+    case "$FILE_TYPE" in
+        image/png) EXT="png" ;;
+        image/webp) EXT="webp" ;;
+        *) EXT="jpg" ;;
+    esac
+
+    # Fixed basename; drop stale extensions from previous downloads
+    rm -f "$WALLPAPER_DIR"/pixel.jpg "$WALLPAPER_DIR"/pixel.jpeg \
+        "$WALLPAPER_DIR"/pixel.png "$WALLPAPER_DIR"/pixel.webp
+    FILENAME="pixel.${EXT}"
+    WALLPAPER_PATH="$WALLPAPER_DIR/$FILENAME"
+
+    if ! curl -L -s -o "$WALLPAPER_PATH" "$IMAGE_URL"; then
+        notify "${i18n[wallpaper_pixel_failed]}"
+        echo "${i18n[wallpaper_pixel_error]}" >&2
+        exit 1
+    fi
+
+    # Reject empty / failed downloads
+    if [ ! -s "$WALLPAPER_PATH" ]; then
+        rm -f "$WALLPAPER_PATH"
+        notify "${i18n[wallpaper_pixel_failed]}"
+        echo "${i18n[wallpaper_pixel_error]}" >&2
+        exit 1
+    fi
+
+    set_wallpaper "$WALLPAPER_PATH"
+    notify "${i18n[wallpaper_pixel_success]}"
+}
+
 # Select wallpaper from local directory
 select_local_wallpaper() {
     # Find all image files in wallpaper directory
@@ -104,7 +149,11 @@ select_local_wallpaper() {
 }
 
 # Main menu
-MODE=$(printf "%s\n%s" "${i18n[wallpaper_mode_local]}" "${i18n[wallpaper_mode_bing]}" | ui-wofi --dmenu -p "${i18n[wallpaper_mode_prompt]}")
+MODE=$(printf "%s\n%s\n%s" \
+    "${i18n[wallpaper_mode_local]}" \
+    "${i18n[wallpaper_mode_bing]}" \
+    "${i18n[wallpaper_mode_pixel]}" \
+    | ui-wofi --dmenu -p "${i18n[wallpaper_mode_prompt]}")
 
 # User cancelled
 [ -z "$MODE" ] && exit 0
@@ -115,6 +164,9 @@ case "$MODE" in
         ;;
     "${i18n[wallpaper_mode_bing]}")
         download_bing_wallpaper
+        ;;
+    "${i18n[wallpaper_mode_pixel]}")
+        download_pixel_wallpaper
         ;;
     *)
         echo "${i18n[wallpaper_invalid_mode]}" >&2
