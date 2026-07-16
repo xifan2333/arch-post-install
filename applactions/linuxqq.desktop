@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=QQ
-Exec=env DESKTOPINTEGRATION=false /usr/bin/linuxqq --no-sandbox --enable-wayland-ime --wayland-text-input-version=3 %U
+Exec=env DESKTOPINTEGRATION=false /usr/bin/linuxqq --no-sandbox --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime --wayland-text-input-version=3 %U
 Terminal=false
 Type=Application
 Icon=/usr/share/icons/linuxqq.png
