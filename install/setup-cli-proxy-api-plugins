@@ -1,0 +1,59 @@
+#!/bin/bash
+# CLIProxyAPI Plugin Setup - Enable or disable trusted dynamic-library plugins
+# Usage: setup-cli-proxy-api-plugins [enable|disable]
+
+set -euo pipefail
+
+CONFIG="${HOME}/.cli-proxy-api/config.yaml"
+ACTION="${1:-enable}"
+
+case "$ACTION" in
+    enable) VALUE=true ;;
+    disable) VALUE=false ;;
+    *)
+        echo "Usage: $0 [enable|disable]" >&2
+        exit 2
+        ;;
+esac
+
+if [[ ! -f "$CONFIG" ]]; then
+    echo "[ERROR] CLIProxyAPI config not found: $CONFIG" >&2
+    exit 1
+fi
+
+if ! python3 -c 'import yaml' 2>/dev/null; then
+    echo "[ERROR] Python package PyYAML is required" >&2
+    exit 1
+fi
+
+python3 - "$CONFIG" "$VALUE" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+import yaml
+
+path = Path(sys.argv[1])
+enabled = sys.argv[2] == "true"
+data = yaml.safe_load(path.read_text()) or {}
+plugins = data.setdefault("plugins", {})
+plugins["enabled"] = enabled
+plugins.setdefault("dir", "plugins")
+plugins.setdefault("configs", {})
+
+tmp = path.with_name(path.name + ".tmp")
+tmp.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
+os.chmod(tmp, 0o600)
+os.replace(tmp, path)
+PY
+
+systemctl --user restart cli-proxy-api.service
+sleep 1
+
+if [[ "$(systemctl --user is-active cli-proxy-api.service)" != "active" ]]; then
+    echo "[ERROR] cli-proxy-api.service failed to restart" >&2
+    systemctl --user status cli-proxy-api.service --no-pager >&2 || true
+    exit 1
+fi
+
+echo "[OK] CLIProxyAPI plugins.enabled=${VALUE}"
