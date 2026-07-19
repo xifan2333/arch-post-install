@@ -172,7 +172,27 @@ config.keys = {
     action = act.CloseCurrentTab({ confirm = false }),
   },
 
-  -- Panes (Ctrl+Alt)
+  -- Panes: Alt+arrows (quick) + Ctrl+Alt+hjkl
+  {
+    key = "LeftArrow",
+    mods = "ALT",
+    action = act.ActivatePaneDirection("Left"),
+  },
+  {
+    key = "DownArrow",
+    mods = "ALT",
+    action = act.ActivatePaneDirection("Down"),
+  },
+  {
+    key = "UpArrow",
+    mods = "ALT",
+    action = act.ActivatePaneDirection("Up"),
+  },
+  {
+    key = "RightArrow",
+    mods = "ALT",
+    action = act.ActivatePaneDirection("Right"),
+  },
   {
     key = "h",
     mods = "CTRL|ALT",
