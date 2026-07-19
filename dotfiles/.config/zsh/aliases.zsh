@@ -72,6 +72,7 @@ alias dot='cd ~/code/arch-post-install && kiro-cli'
 
 # tools
 alias t='tmux'
+alias h='herdr'
 alias lg='lazygit'
 alias cc='claude'
 alias cx='codex'
