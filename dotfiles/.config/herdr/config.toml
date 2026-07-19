@@ -39,11 +39,11 @@ switch_tab = "prefix+1..9"
 close_tab = "prefix+shift+x"
 rename_tab = "prefix+shift+t"
 
-# Panes (prefix only)
-focus_pane_left = "prefix+h"
-focus_pane_down = "prefix+j"
-focus_pane_up = "prefix+k"
-focus_pane_right = "prefix+l"
+# Panes: prefix hjkl + direct Alt+arrows (old WezTerm muscle memory)
+focus_pane_left = ["prefix+h", "alt+left"]
+focus_pane_down = ["prefix+j", "alt+down"]
+focus_pane_up = ["prefix+k", "alt+up"]
+focus_pane_right = ["prefix+l", "alt+right"]
 cycle_pane_next = "prefix+tab"
 cycle_pane_previous = "prefix+shift+tab"
 # - 横向分 (down/stack); = 纵向分 (right/side-by-side)
