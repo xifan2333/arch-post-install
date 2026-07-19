@@ -172,7 +172,29 @@ config.keys = {
     action = act.CloseCurrentTab({ confirm = false }),
   },
 
-  -- Panes: Ctrl+Alt only. Do NOT bind bare Alt+arrows — those pass through to Herdr.
+  -- Panes: Ctrl+Alt only. Bare Alt+arrows pass through to Herdr (do not bind here).
+  -- Ctrl+Alt+arrows must be bound, or WezTerm leaks CSI sequences into the shell
+  -- (looks like random < > / cursor glitches).
+  {
+    key = "LeftArrow",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Left"),
+  },
+  {
+    key = "DownArrow",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Down"),
+  },
+  {
+    key = "UpArrow",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Up"),
+  },
+  {
+    key = "RightArrow",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Right"),
+  },
   {
     key = "h",
     mods = "CTRL|ALT",
