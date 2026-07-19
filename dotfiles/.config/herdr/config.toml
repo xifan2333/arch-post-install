@@ -51,6 +51,7 @@ split_horizontal = "prefix+minus"
 split_vertical = "prefix+="
 close_pane = "prefix+x"
 zoom = "prefix+z"
+# Enter resize mode, then hjkl / arrows; Esc to exit (no direct resize chords in Herdr 0.7)
 resize_mode = "prefix+r"
 rename_pane = "prefix+shift+p"
 # Default copy_mode is prefix+[ — move it so tab switching can use [ ]
