@@ -53,7 +53,9 @@ close_pane = "prefix+x"
 zoom = "prefix+z"
 resize_mode = "prefix+r"
 rename_pane = "prefix+shift+p"
-edit_scrollback = "prefix+e"
+# Default copy_mode is prefix+[ — move it so tab switching can use [ ]
+copy_mode = "prefix+e"
+edit_scrollback = "prefix+shift+e"
 
 # Navigate mode only (plain keys OK here)
 navigate_workspace_up = "up"
