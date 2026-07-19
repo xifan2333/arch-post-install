@@ -101,6 +101,8 @@ manage_ssh_config = true
 [experimental]
 allow_nested = false
 pane_history = false
+# Local Kitty graphics in attached clients (WezTerm supports the protocol).
+kitty_graphics = true
 
 [advanced]
 scrollback_limit_bytes = 10000000
