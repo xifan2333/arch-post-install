@@ -236,28 +236,7 @@ config.keys = {
     mods = "CTRL|ALT",
     action = act.CloseCurrentPane({ confirm = false }),
   },
-
-  -- Resize panes (Ctrl+Alt+Shift+arrows)
-  {
-    key = "LeftArrow",
-    mods = "CTRL|ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Left", 3 }),
-  },
-  {
-    key = "DownArrow",
-    mods = "CTRL|ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Down", 3 }),
-  },
-  {
-    key = "UpArrow",
-    mods = "CTRL|ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Up", 3 }),
-  },
-  {
-    key = "RightArrow",
-    mods = "CTRL|ALT|SHIFT",
-    action = act.AdjustPaneSize({ "Right", 3 }),
-  },
+  -- Pane resize: mouse drag on split borders (no keyboard chords)
 }
 
 -- Ctrl+Alt+1..9 → tab N
