@@ -1,0 +1,104 @@
+# Herdr — layout / agents / sessions
+# Outer WezTerm: font, theme colors, clipboard only (Ctrl+Alt free for apps).
+# Prefix: Ctrl+a (tmux-style). Direct chords: Ctrl+Alt (safe vs River Super).
+
+onboarding = false
+
+[theme]
+# Follow host terminal ANSI (WezTerm theme). Built-ins have no everforest.
+name = "terminal"
+
+[terminal]
+shell_mode = "auto"
+new_cwd = "follow"
+
+[update]
+channel = "stable"
+
+[keys]
+prefix = "ctrl+a"
+
+help = "prefix+?"
+settings = "prefix+s"
+detach = "prefix+q"
+reload_config = "prefix+shift+r"
+open_notification_target = "prefix+o"
+
+workspace_picker = "prefix+w"
+goto = "prefix+g"
+new_workspace = "prefix+shift+n"
+new_worktree = "prefix+shift+g"
+rename_workspace = "prefix+shift+w"
+close_workspace = "prefix+shift+d"
+toggle_sidebar = "prefix+b"
+
+# Tabs: prefix + official Ctrl+Alt direct chords
+new_tab = ["prefix+c", "ctrl+alt+c"]
+previous_tab = ["prefix+p", "ctrl+alt+["]
+next_tab = ["prefix+n", "ctrl+alt+]"]
+switch_tab = "prefix+1..9"
+close_tab = "prefix+shift+x"
+rename_tab = "prefix+shift+t"
+
+# Panes
+focus_pane_left = ["prefix+h", "ctrl+alt+h"]
+focus_pane_down = ["prefix+j", "ctrl+alt+j"]
+focus_pane_up = ["prefix+k", "ctrl+alt+k"]
+focus_pane_right = ["prefix+l", "ctrl+alt+l"]
+cycle_pane_next = "prefix+tab"
+cycle_pane_previous = "prefix+shift+tab"
+# split_vertical = right; split_horizontal = down (Herdr keyboard docs)
+split_vertical = ["prefix+v", "ctrl+alt+d"]
+split_horizontal = ["prefix+minus", "ctrl+alt+shift+d"]
+close_pane = "prefix+x"
+zoom = ["prefix+z", "ctrl+alt+z"]
+resize_mode = "prefix+r"
+rename_pane = "prefix+shift+p"
+edit_scrollback = "prefix+e"
+
+# Navigate mode only (plain keys OK here)
+navigate_workspace_up = "up"
+navigate_workspace_down = "down"
+navigate_pane_left = "h"
+navigate_pane_down = "j"
+navigate_pane_up = "k"
+navigate_pane_right = "l"
+
+[[keys.command]]
+key = "prefix+alt+g"
+type = "popup"
+command = "lazygit"
+description = "lazygit"
+width = "80%"
+height = "80%"
+
+[ui]
+sidebar_width = 26
+mouse_capture = true
+copy_on_select = true
+confirm_close = true
+prompt_new_tab_name = false
+pane_borders = true
+pane_gaps = true
+hide_tab_bar_when_single_tab = false
+agent_panel_sort = "spaces"
+
+[ui.toast]
+delivery = "herdr"
+delay_seconds = 1
+
+[ui.sound]
+enabled = true
+
+[session]
+resume_agents_on_restore = true
+
+[remote]
+manage_ssh_config = true
+
+[experimental]
+allow_nested = false
+pane_history = false
+
+[advanced]
+scrollback_limit_bytes = 10000000
