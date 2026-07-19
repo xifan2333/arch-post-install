@@ -1,6 +1,5 @@
--- WezTerm: host terminal only (font / theme / clipboard / window).
--- Layout, tabs, panes: Herdr (prefix Ctrl+a; direct chords Ctrl+Alt).
--- Do not bind Ctrl+Alt or Ctrl+a here — leave them for Herdr / apps.
+-- WezTerm host terminal: font / theme / clipboard + Ctrl+Alt layout helpers.
+-- Herdr owns real session layout with prefix Ctrl+a — do not bind Ctrl+a here.
 -- Theme: ~/.config/current/wezterm.lua
 -- Font:  ~/.config/wezterm/font.lua (font-sync-wezterm)
 
@@ -111,11 +110,15 @@ config.window_decorations = "TITLE | RESIZE"
 config.window_close_confirmation = "NeverPrompt"
 config.scrollback_lines = 10000
 
--- Single-window host for Herdr: hide chrome when unused
 config.use_fancy_tab_bar = false
 config.tab_bar_at_bottom = true
 config.hide_tab_bar_if_only_one_tab = true
 config.show_new_tab_button_in_tab_bar = false
+config.switch_to_last_active_tab_when_closing_tab = true
+config.inactive_pane_hsb = {
+  saturation = 0.9,
+  brightness = 0.75,
+}
 
 -- Cursor
 config.default_cursor_style = "BlinkingBar"
@@ -128,9 +131,9 @@ config.audible_bell = "Disabled"
 config.check_for_updates = false
 config.disable_default_mouse_bindings = false
 
--- No leader / layout keys. Clipboard + open new OS window only.
--- Ctrl+Alt* and Ctrl+A pass through to Herdr.
+-- No Ctrl+a leader (Herdr). Layout shortcuts use Ctrl+Alt only.
 config.keys = {
+  -- Clipboard
   {
     key = "v",
     mods = "CTRL|SHIFT",
@@ -146,6 +149,79 @@ config.keys = {
     mods = "SUPER|CTRL",
     action = act.SpawnWindow,
   },
+
+  -- Tabs (Ctrl+Alt)
+  {
+    key = "c",
+    mods = "CTRL|ALT",
+    action = act.SpawnTab("CurrentPaneDomain"),
+  },
+  {
+    key = "[",
+    mods = "CTRL|ALT",
+    action = act.ActivateTabRelative(-1),
+  },
+  {
+    key = "]",
+    mods = "CTRL|ALT",
+    action = act.ActivateTabRelative(1),
+  },
+  {
+    key = "w",
+    mods = "CTRL|ALT",
+    action = act.CloseCurrentTab({ confirm = false }),
+  },
+
+  -- Panes (Ctrl+Alt)
+  {
+    key = "h",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Left"),
+  },
+  {
+    key = "j",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Down"),
+  },
+  {
+    key = "k",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Up"),
+  },
+  {
+    key = "l",
+    mods = "CTRL|ALT",
+    action = act.ActivatePaneDirection("Right"),
+  },
+  {
+    key = "d",
+    mods = "CTRL|ALT",
+    action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }),
+  },
+  {
+    key = "d",
+    mods = "CTRL|ALT|SHIFT",
+    action = act.SplitVertical({ domain = "CurrentPaneDomain" }),
+  },
+  {
+    key = "z",
+    mods = "CTRL|ALT",
+    action = act.TogglePaneZoomState,
+  },
+  {
+    key = "x",
+    mods = "CTRL|ALT",
+    action = act.CloseCurrentPane({ confirm = false }),
+  },
 }
+
+-- Ctrl+Alt+1..9 → tab N
+for i = 1, 9 do
+  table.insert(config.keys, {
+    key = tostring(i),
+    mods = "CTRL|ALT",
+    action = act.ActivateTab(i - 1),
+  })
+end
 
 return config
