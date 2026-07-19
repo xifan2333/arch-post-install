@@ -193,15 +193,16 @@ config.keys = {
     mods = "CTRL|ALT",
     action = act.ActivatePaneDirection("Right"),
   },
+  -- - 横向分 (top/bottom); = 纵向分 (left/right)
   {
-    key = "d",
+    key = "-",
     mods = "CTRL|ALT",
-    action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }),
+    action = act.SplitVertical({ domain = "CurrentPaneDomain" }),
   },
   {
-    key = "d",
-    mods = "CTRL|ALT|SHIFT",
-    action = act.SplitVertical({ domain = "CurrentPaneDomain" }),
+    key = "=",
+    mods = "CTRL|ALT",
+    action = act.SplitHorizontal({ domain = "CurrentPaneDomain" }),
   },
   {
     key = "z",
