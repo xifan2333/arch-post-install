@@ -1,6 +1,5 @@
 # Herdr — layout / agents / sessions
-# Outer WezTerm: font, theme colors, clipboard only (Ctrl+Alt free for apps).
-# Prefix: Ctrl+a (tmux-style). Direct chords: Ctrl+Alt (safe vs River Super).
+# Prefix only: Ctrl+a (tmux-style). Do not bind Ctrl+Alt here — that is WezTerm's layer.
 
 onboarding = false
 
@@ -32,26 +31,26 @@ rename_workspace = "prefix+shift+w"
 close_workspace = "prefix+shift+d"
 toggle_sidebar = "prefix+b"
 
-# Tabs: prefix + official Ctrl+Alt direct chords
-new_tab = ["prefix+c", "ctrl+alt+c"]
-previous_tab = ["prefix+p", "ctrl+alt+["]
-next_tab = ["prefix+n", "ctrl+alt+]"]
+# Tabs (prefix only)
+new_tab = "prefix+c"
+previous_tab = "prefix+p"
+next_tab = "prefix+n"
 switch_tab = "prefix+1..9"
 close_tab = "prefix+shift+x"
 rename_tab = "prefix+shift+t"
 
-# Panes
-focus_pane_left = ["prefix+h", "ctrl+alt+h"]
-focus_pane_down = ["prefix+j", "ctrl+alt+j"]
-focus_pane_up = ["prefix+k", "ctrl+alt+k"]
-focus_pane_right = ["prefix+l", "ctrl+alt+l"]
+# Panes (prefix only)
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+focus_pane_right = "prefix+l"
 cycle_pane_next = "prefix+tab"
 cycle_pane_previous = "prefix+shift+tab"
 # split_vertical = right; split_horizontal = down (Herdr keyboard docs)
-split_vertical = ["prefix+v", "ctrl+alt+d"]
-split_horizontal = ["prefix+minus", "ctrl+alt+shift+d"]
+split_vertical = "prefix+v"
+split_horizontal = "prefix+minus"
 close_pane = "prefix+x"
-zoom = ["prefix+z", "ctrl+alt+z"]
+zoom = "prefix+z"
 resize_mode = "prefix+r"
 rename_pane = "prefix+shift+p"
 edit_scrollback = "prefix+e"
