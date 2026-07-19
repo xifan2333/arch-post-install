@@ -33,8 +33,8 @@ toggle_sidebar = "prefix+b"
 
 # Tabs (prefix only)
 new_tab = "prefix+c"
-previous_tab = "prefix+p"
-next_tab = "prefix+n"
+previous_tab = "prefix+["
+next_tab = "prefix+]"
 switch_tab = "prefix+1..9"
 close_tab = "prefix+shift+x"
 rename_tab = "prefix+shift+t"
