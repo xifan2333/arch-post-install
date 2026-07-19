@@ -172,27 +172,7 @@ config.keys = {
     action = act.CloseCurrentTab({ confirm = false }),
   },
 
-  -- Panes: Alt+arrows (quick) + Ctrl+Alt+hjkl
-  {
-    key = "LeftArrow",
-    mods = "ALT",
-    action = act.ActivatePaneDirection("Left"),
-  },
-  {
-    key = "DownArrow",
-    mods = "ALT",
-    action = act.ActivatePaneDirection("Down"),
-  },
-  {
-    key = "UpArrow",
-    mods = "ALT",
-    action = act.ActivatePaneDirection("Up"),
-  },
-  {
-    key = "RightArrow",
-    mods = "ALT",
-    action = act.ActivatePaneDirection("Right"),
-  },
+  -- Panes: Ctrl+Alt only. Do NOT bind bare Alt+arrows — those pass through to Herdr.
   {
     key = "h",
     mods = "CTRL|ALT",
