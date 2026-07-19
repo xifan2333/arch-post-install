@@ -46,9 +46,9 @@ focus_pane_up = "prefix+k"
 focus_pane_right = "prefix+l"
 cycle_pane_next = "prefix+tab"
 cycle_pane_previous = "prefix+shift+tab"
-# split_vertical = right; split_horizontal = down (Herdr keyboard docs)
-split_vertical = "prefix+v"
+# - 横向分 (down/stack); = 纵向分 (right/side-by-side)
 split_horizontal = "prefix+minus"
+split_vertical = "prefix+="
 close_pane = "prefix+x"
 zoom = "prefix+z"
 resize_mode = "prefix+r"
