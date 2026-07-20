@@ -1,0 +1,4 @@
+# Global uv config: Aliyun PyPI mirror
+[[index]]
+url = "https://mirrors.aliyun.com/pypi/simple/"
+default = true
