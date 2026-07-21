@@ -1,0 +1,39 @@
+#!/bin/bash
+# Sync herdr theme colors from current theme's herdr.toml
+# Usage: theme-sync-herdr
+
+set -e
+
+CURRENT_LINK="$HOME/.config/current"
+CONFIG="$HOME/.config/herdr/config.toml"
+HERDR_THEME="$CURRENT_LINK/herdr.toml"
+
+if [ ! -L "$CURRENT_LINK" ]; then
+    echo "No current theme set" >&2
+    exit 1
+fi
+
+if [ ! -f "$HERDR_THEME" ]; then
+    echo "Current theme has no herdr.toml, skipping" >&2
+    exit 0
+fi
+
+# 1. Delete existing [theme.custom] block (must be last section in config.toml)
+TMP=$(mktemp)
+sed '/^\[theme\.custom\]/,$d' "$CONFIG" > "$TMP"
+
+# 2. Append new theme colors
+cat "$HERDR_THEME" >> "$TMP"
+
+# 3. Ensure trailing newline
+echo "" >> "$TMP"
+
+# 4. Write back (follow symlink to stowed file)
+mv "$TMP" "$CONFIG"
+
+# 5. Reload herdr
+if herdr server reload-config 2>/dev/null; then
+    echo "Herdr theme synced ($(basename "$(readlink "$CURRENT_LINK")"))"
+else
+    echo "Herdr theme updated — herdr not running? ($(basename "$(readlink "$CURRENT_LINK")"))"
+fi

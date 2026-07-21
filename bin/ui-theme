@@ -76,6 +76,10 @@ reload_apps() {
         theme-sync-terminal
     fi
 
+    # Sync herdr theme (terminal workspace manager)
+    if command -v theme-sync-herdr >/dev/null 2>&1; then
+        theme-sync-herdr
+    fi
 
     # Sync VSCode theme
     if command -v theme-sync-vscode >/dev/null 2>&1; then
