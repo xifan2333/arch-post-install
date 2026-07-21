@@ -18,20 +18,17 @@ if [ ! -f "$HERDR_THEME" ]; then
     exit 0
 fi
 
-# 1. Delete existing [theme.custom] block (must be last section in config.toml)
-TMP=$(mktemp)
-sed '/^\[theme\.custom\]/,$d' "$CONFIG" > "$TMP"
+# 1. Clear old content between BEGIN / END markers
+sed -i --follow-symlinks \
+    '/^# --- BEGIN herdr theme ---$/,/^# --- END herdr theme ---$/{ /BEGIN/!{ /END/!d } }' \
+    "$CONFIG"
 
-# 2. Append new theme colors
-cat "$HERDR_THEME" >> "$TMP"
+# 2. Insert new theme colors after BEGIN marker
+sed -i --follow-symlinks \
+    "/^# --- BEGIN herdr theme ---$/r $HERDR_THEME" \
+    "$CONFIG"
 
-# 3. Ensure trailing newline
-echo "" >> "$TMP"
-
-# 4. Write back (follow symlink to stowed file)
-mv "$TMP" "$CONFIG"
-
-# 5. Reload herdr
+# 3. Reload herdr
 if herdr server reload-config 2>/dev/null; then
     echo "Herdr theme synced ($(basename "$(readlink "$CURRENT_LINK")"))"
 else
