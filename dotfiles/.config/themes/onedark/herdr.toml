@@ -1,17 +1,23 @@
 [theme.custom]
+# accent  = river focused border (blue)
+# panel   = primary.background
+# surface = unfocused border / bright.black (normal.black == bg)
+# text    = primary.foreground
+# status  = normal.* ANSI
+# peach   = no orange slot → yellow
 accent = "#61afef"
 panel_bg = "#282c34"
-surface0 = "#282c34"
+surface0 = "#3e4451"
 surface1 = "#5c6370"
-surface_dim = "#23262d"
-overlay0 = "#555a64"
-overlay1 = "#7d838e"
+surface_dim = "#282c34"
+overlay0 = "#5c6370"
+overlay1 = "#abb2bf"
 text = "#abb2bf"
-subtext0 = "#888e98"
+subtext0 = "#5c6370"
 mauve = "#c678dd"
 green = "#98c379"
 yellow = "#e5c07b"
 red = "#e06c75"
 blue = "#61afef"
 teal = "#56b6c2"
-peach = "#e29a78"
+peach = "#e5c07b"

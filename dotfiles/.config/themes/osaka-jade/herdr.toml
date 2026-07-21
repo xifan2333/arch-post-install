@@ -1,16 +1,22 @@
 [theme.custom]
+# accent  = river focused border (cyan)
+# panel   = primary.background
+# surface = normal.black / bright.black
+# text    = primary.foreground
+# status  = normal.* / bright.yellow for gold
+# peach   = bright.yellow
 accent = "#2dd5b7"
 panel_bg = "#111c18"
 surface0 = "#23372b"
 surface1 = "#53685b"
-surface_dim = "#0e1815"
-overlay0 = "#4e5644"
-overlay1 = "#83896a"
+surface_dim = "#111c18"
+overlay0 = "#53685b"
+overlay1 = "#c1c497"
 text = "#c1c497"
-subtext0 = "#9a9c78"
+subtext0 = "#53685b"
 mauve = "#d2689c"
 green = "#549e6a"
-yellow = "#459451"
+yellow = "#e5c736"
 red = "#ff5345"
 blue = "#509475"
 teal = "#2dd5b7"

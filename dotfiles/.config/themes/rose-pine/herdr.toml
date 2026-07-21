@@ -1,11 +1,17 @@
 [theme.custom]
+# accent  = river focused border (red/rose)
+# panel   = primary.background
+# surface = normal.black / bright.black
+# text    = primary.foreground / dim_foreground
+# status  = normal.* ANSI
+# peach   = normal.cyan (rose)
 accent = "#b4637a"
 panel_bg = "#faf4ed"
 surface0 = "#f2e9e1"
 surface1 = "#9893a5"
-surface_dim = "#dcd6d0"
-overlay0 = "#c0bbc4"
-overlay1 = "#908aa1"
+surface_dim = "#faf4ed"
+overlay0 = "#797593"
+overlay1 = "#9893a5"
 text = "#575279"
 subtext0 = "#797593"
 mauve = "#907aa9"
@@ -14,4 +20,4 @@ yellow = "#ea9d34"
 red = "#b4637a"
 blue = "#56949f"
 teal = "#d7827e"
-peach = "#d18253"
+peach = "#d7827e"
