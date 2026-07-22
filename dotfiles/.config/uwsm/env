@@ -21,4 +21,4 @@ export KB_LAYOUT="${KB_LAYOUT:-us}"
 export KB_OPTIONS="${KB_OPTIONS:-caps:swapescape}"
 
 # sudo askpass helper for Wayland
-export SUDO_ASKPASS=/usr/lib/lxqt-openssh-askpass/lxqt-openssh-askpass
+export SUDO_ASKPASS=/usr/bin/lxqt-openssh-askpass
