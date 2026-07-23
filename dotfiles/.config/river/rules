@@ -19,6 +19,8 @@ riverctl rule-add -app-id "floating-terminal*" float                # Floating t
 riverctl rule-add -app-id "floating-terminal*" dimensions 960 540  # Default size for floating terminal family
 riverctl rule-add -app-id "PackageManager" float                    # Package manager terminal
 riverctl rule-add -app-id "PackageManager" dimensions 960 540      # Larger size for package manager
+riverctl rule-add -app-id "lxqt-openssh-askpass" float             # SUDO_ASKPASS password dialog
+riverctl rule-add -app-id "lxqt-openssh-askpass" dimensions 400 200
 riverctl rule-add -title "Screenshot Preview" float                 # Screenshot preview (imv)
 riverctl rule-add -title "Screenshot Preview" dimensions 600 400    # Smaller size for reference
 
