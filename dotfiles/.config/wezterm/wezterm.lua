@@ -133,7 +133,7 @@ config.disable_default_mouse_bindings = false
 
 -- No Ctrl+a leader (Herdr). Layout shortcuts use Ctrl+Alt only.
 config.keys = {
-  { key = 'b', mods = 'CTRL|ALT', action = wezterm.action.SpawnCommandInNewTab {
+  { key = 'B', mods = 'CTRL|ALT', action = wezterm.action.SpawnCommandInNewTab {
     args = { 'herdr', 'plugin', 'action', 'invoke', 'corral.open' },
     set_environment_variables = { HERDR_ENV = '1' },
   } },

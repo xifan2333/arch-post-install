@@ -72,10 +72,10 @@ width = "80%"
 height = "80%"
 
 [[keys.command]]
-key = "prefix+b"
+key = "prefix+Shift+B"
 type = "plugin_action"
 command = "corral.open"
-description = "corral sidebar"
+description = "Corral sidebar"
 
 [ui]
 sidebar_width = 26
