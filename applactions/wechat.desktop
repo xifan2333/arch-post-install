@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=WeChat
+Name[zh_CN]=微信
+Exec=env DESKTOPINTEGRATION=false /usr/bin/wechat --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime --wayland-text-input-version=3 %U
+Terminal=false
+Type=Application
+Icon=/usr/share/icons/wechat.png
+StartupNotify=true
+X-AppImage-Version=4.1.1
+Categories=Utility;
+Comment=Wechat Desktop
+Comment[zh_CN]=微信桌面版
