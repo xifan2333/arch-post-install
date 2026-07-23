@@ -72,7 +72,7 @@ width = "80%"
 height = "80%"
 
 [[keys.command]]
-key = "prefix+x"
+key = "prefix+f"
 type = "plugin_action"
 command = "corral.open"
 description = "Corral sidebar toggle"
