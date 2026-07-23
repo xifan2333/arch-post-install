@@ -131,7 +131,7 @@ config.check_for_updates = false
 config.disable_default_mouse_bindings = false
 
 config.keys = {
-  { key = 'b', mods = 'CTRL|ALT', action = wezterm.action.SpawnCommandInNewTab {
+  { key = 'f', mods = 'CTRL|ALT', action = wezterm.action.SpawnCommandInNewTab {
     args = { 'corral' },
   } },
 
