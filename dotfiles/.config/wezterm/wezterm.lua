@@ -131,8 +131,6 @@ config.check_for_updates = false
 config.disable_default_mouse_bindings = false
 
 config.keys = {
-  } },
-
 
   -- Clipboard
   {
