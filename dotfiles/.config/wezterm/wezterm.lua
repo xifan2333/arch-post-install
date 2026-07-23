@@ -1,5 +1,4 @@
 -- WezTerm host terminal: font / theme / clipboard + Ctrl+Alt layout helpers.
--- Herdr owns real session layout with prefix Ctrl+a — do not bind Ctrl+a here.
 -- Theme: ~/.config/current/wezterm.lua
 -- Font:  ~/.config/wezterm/font.lua (font-sync-wezterm)
 
@@ -131,10 +130,8 @@ config.audible_bell = "Disabled"
 config.check_for_updates = false
 config.disable_default_mouse_bindings = false
 
--- No Ctrl+a leader (Herdr). Layout shortcuts use Ctrl+Alt only.
 config.keys = {
   { key = 'B', mods = 'CTRL|ALT', action = wezterm.action.SpawnCommandInNewTab {
-    set_environment_variables = { HERDR_ENV = '1' },
   } },
 
   -- Clipboard
@@ -176,7 +173,6 @@ config.keys = {
     action = act.CloseCurrentTab({ confirm = false }),
   },
 
-  -- Panes: Ctrl+Alt only. Bare Alt+arrows pass through to Herdr (do not bind here).
   -- Ctrl+Alt+arrows must be bound, or WezTerm leaks CSI sequences into the shell
   -- (looks like random < > / cursor glitches).
   {
