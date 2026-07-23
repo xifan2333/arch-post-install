@@ -1,0 +1,12 @@
+[tools]
+bun = "latest"
+go = "latest"
+herdr = "latest"
+node = "24"
+pnpm = "latest"
+uv = "latest"
+
+[settings]
+idiomatic_version_file_enable_tools = ["python"]
+github.use_git_credentials = true
+minimum_release_age = "0s"
