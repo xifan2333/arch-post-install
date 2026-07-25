@@ -273,7 +273,11 @@ class CaptionsApp(Gtk.Application):
         GtkLayerShell.set_anchor(self.win, GtkLayerShell.Edge.BOTTOM, True)
         GtkLayerShell.set_margin(self.win, GtkLayerShell.Edge.BOTTOM, self.args.margin_bottom)
         GtkLayerShell.set_exclusive_zone(self.win, -1)
-        GtkLayerShell.set_keyboard_interactivity(self.win, False)
+        if hasattr(GtkLayerShell, 'set_keyboard_mode'):
+            GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
+        else:
+            GtkLayerShell.set_keyboard_interactivity(self.win, False)
+        enable_click_through(self.win)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.set_margin_top(12)
