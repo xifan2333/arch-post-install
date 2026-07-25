@@ -39,8 +39,9 @@ def enable_click_through(win):
 def parse_args():
     parser = argparse.ArgumentParser(description='Show a non-focusable webcam overlay for screen recording.')
     parser.add_argument('--device', default='/dev/video0', help='V4L2 camera device')
-    parser.add_argument('--width', type=int, default=320, help='overlay window width in pixels')
-    parser.add_argument('--height', type=int, default=240, help='overlay window height in pixels')
+    # Default display size: same 4:3 aspect as capture, scaled to previous square height (~150)
+    parser.add_argument('--width', type=int, default=200, help='overlay window width in pixels')
+    parser.add_argument('--height', type=int, default=150, help='overlay window height in pixels')
     # Back-compat: --size used to mean square side; map to width/height if provided alone via default handling below
     parser.add_argument('--size', type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--capture-width', type=int, default=320, help='camera capture width')
