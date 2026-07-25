@@ -7,7 +7,7 @@ set -e
 source i18n-core
 
 # Show menu (disable cache to preserve order)
-CHOICE=$(printf "%s\n%s\n%s\n%s\n%s\n%s\n%s" \
+CHOICE=$(printf "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s" \
     "${i18n[screenrecord_start_full]}" \
     "${i18n[screenrecord_start_area]}" \
     "${i18n[screenrecord_stop]}" \
@@ -15,6 +15,8 @@ CHOICE=$(printf "%s\n%s\n%s\n%s\n%s\n%s\n%s" \
     "${i18n[bilive_start_area]}" \
     "${i18n[bilive_stop]}" \
     "${i18n[bilive_set_rtmp]}" \
+    "${i18n[screenrecord_overlay_title_menu_toggle]}" \
+    "${i18n[screenrecord_overlay_title_menu_edit]}" \
     | ui-wofi --dmenu --cache-file=/dev/null -p "${i18n[screenrecord_prompt]}")
 
 # User cancelled
@@ -70,5 +72,11 @@ case "$CHOICE" in
         if command -v notify-send >/dev/null 2>&1; then
             notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_rtmp_saved)"
         fi
+        ;;
+    "${i18n[screenrecord_overlay_title_menu_toggle]}")
+        screenrecord-overlay-title-toggle
+        ;;
+    "${i18n[screenrecord_overlay_title_menu_edit]}")
+        screenrecord-overlay-title-edit
         ;;
 esac

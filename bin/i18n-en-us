@@ -115,6 +115,33 @@ i18n[screenrecord_overlay_keys_off]="Keys overlay: OFF"
 i18n[screenrecord_overlay_camera_on]="Camera overlay: ON"
 i18n[screenrecord_overlay_camera_off]="Camera overlay: OFF"
 
+# screenrecord-overlay-title
+i18n[screenrecord_overlay_title_on]="Title overlay: ON"
+i18n[screenrecord_overlay_title_off]="Title overlay: OFF"
+i18n[screenrecord_overlay_title_saved]="Title settings saved"
+i18n[screenrecord_overlay_title_zenity_missing]="zenity is required to edit title"
+i18n[screenrecord_overlay_title_edit_title]="Floating Title"
+i18n[screenrecord_overlay_title_edit_text]="Adjust live/record title style (applies live)"
+i18n[screenrecord_overlay_title_edit_column]="Action"
+i18n[screenrecord_overlay_title_edit_text_item]="Edit text"
+i18n[screenrecord_overlay_title_edit_font_item]="Font family"
+i18n[screenrecord_overlay_title_edit_size_item]="Font size"
+i18n[screenrecord_overlay_title_edit_color_item]="Text color"
+i18n[screenrecord_overlay_title_edit_bg_item]="Background"
+i18n[screenrecord_overlay_title_edit_pos_item]="Position & margins"
+i18n[screenrecord_overlay_title_edit_toggle_item]="Toggle title overlay"
+i18n[screenrecord_overlay_title_edit_done_item]="Done"
+i18n[screenrecord_overlay_title_prompt_text]="Title text:"
+i18n[screenrecord_overlay_title_prompt_font]="Font family (e.g. sans-serif / Noto Sans CJK SC):"
+i18n[screenrecord_overlay_title_prompt_size]="Font size:"
+i18n[screenrecord_overlay_title_prompt_color]="Pick text color"
+i18n[screenrecord_overlay_title_prompt_bg]="Background CSS (e.g. rgba(0,0,0,0.55) or #000000):"
+i18n[screenrecord_overlay_title_prompt_pos]="Choose anchor position:"
+i18n[screenrecord_overlay_title_prompt_margin_x]="Horizontal margin:"
+i18n[screenrecord_overlay_title_prompt_margin_y]="Vertical margin:"
+i18n[screenrecord_overlay_title_menu_edit]="Edit floating title"
+i18n[screenrecord_overlay_title_menu_toggle]="Toggle floating title"
+
 # ============================================================================
 # ui-bilive - Bilibili live push
 # ============================================================================

@@ -114,6 +114,33 @@ i18n[screenrecord_overlay_keys_off]="按键叠加：已关闭"
 i18n[screenrecord_overlay_camera_on]="摄像头叠加：已开启"
 i18n[screenrecord_overlay_camera_off]="摄像头叠加：已关闭"
 
+# screenrecord-overlay-title
+i18n[screenrecord_overlay_title_on]="标题叠加：已开启"
+i18n[screenrecord_overlay_title_off]="标题叠加：已关闭"
+i18n[screenrecord_overlay_title_saved]="标题设置已保存"
+i18n[screenrecord_overlay_title_zenity_missing]="需要安装 zenity 才能编辑标题"
+i18n[screenrecord_overlay_title_edit_title]="浮动标题"
+i18n[screenrecord_overlay_title_edit_text]="调整直播/录屏标题样式（保存后即时生效）"
+i18n[screenrecord_overlay_title_edit_column]="操作"
+i18n[screenrecord_overlay_title_edit_text_item]="编辑文本"
+i18n[screenrecord_overlay_title_edit_font_item]="字体"
+i18n[screenrecord_overlay_title_edit_size_item]="字号"
+i18n[screenrecord_overlay_title_edit_color_item]="文字颜色"
+i18n[screenrecord_overlay_title_edit_bg_item]="背景颜色"
+i18n[screenrecord_overlay_title_edit_pos_item]="位置与边距"
+i18n[screenrecord_overlay_title_edit_toggle_item]="开关标题叠加"
+i18n[screenrecord_overlay_title_edit_done_item]="完成"
+i18n[screenrecord_overlay_title_prompt_text]="标题文本："
+i18n[screenrecord_overlay_title_prompt_font]="字体族（如 sans-serif / Noto Sans CJK SC）："
+i18n[screenrecord_overlay_title_prompt_size]="字号："
+i18n[screenrecord_overlay_title_prompt_color]="选择文字颜色"
+i18n[screenrecord_overlay_title_prompt_bg]="背景 CSS（如 rgba(0,0,0,0.55) 或 #000000）："
+i18n[screenrecord_overlay_title_prompt_pos]="选择锚点位置："
+i18n[screenrecord_overlay_title_prompt_margin_x]="水平边距："
+i18n[screenrecord_overlay_title_prompt_margin_y]="垂直边距："
+i18n[screenrecord_overlay_title_menu_edit]="编辑浮动标题"
+i18n[screenrecord_overlay_title_menu_toggle]="开关浮动标题"
+
 # ============================================================================
 # ui-bilive - B 站直播推流
 # ============================================================================
