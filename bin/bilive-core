@@ -1,0 +1,348 @@
+#!/bin/bash
+# Bilibili live streaming library - shared functions
+# Source this file in bilive scripts
+
+# XDG paths
+BILIVE_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/bilive"
+BILIVE_RTMP_FILE="$BILIVE_CONFIG_DIR/rtmp.url"
+BILIVE_CONFIG_FILE="$BILIVE_CONFIG_DIR/config"
+BILIVE_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/bilive-$UID}/bilive"
+BILIVE_PID_FILE="$BILIVE_RUNTIME_DIR/pgid"
+BILIVE_MODE_FILE="$BILIVE_RUNTIME_DIR/mode"
+BILIVE_LOG_FILE="$BILIVE_RUNTIME_DIR/bilive.log"
+BILIVE_RUNNER="$BILIVE_RUNTIME_DIR/run.sh"
+
+# Defaults tuned for low-power CPUs (e.g. Sandy Bridge i5)
+AUDIO_SOURCE="rnnoise_source"
+FRAMERATE="25"
+VIDEO_BITRATE="1800k"
+MAXRATE="2200k"
+BUFSIZE="3600k"
+AUDIO_BITRATE="128k"
+PRESET="ultrafast"
+# Max output width; 0 keeps native resolution
+SCALE_WIDTH="1280"
+
+bilive_ensure_dirs() {
+    mkdir -p "$BILIVE_CONFIG_DIR" "$BILIVE_RUNTIME_DIR"
+}
+
+# Load optional key=value config (does not override non-empty env)
+bilive_load_config() {
+    bilive_ensure_dirs
+
+    if [ -f "$BILIVE_CONFIG_FILE" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|\#*) continue ;;
+                *=*)
+                    key="${line%%=*}"
+                    val="${line#*=}"
+                    key="${key// /}"
+                    case "$key" in
+                        RTMP_URL|AUDIO_SOURCE|FRAMERATE|VIDEO_BITRATE|MAXRATE|BUFSIZE|AUDIO_BITRATE|PRESET|SCALE_WIDTH)
+                            eval "current=\${$key-}"
+                            if [ -z "$current" ]; then
+                                export "$key=$val"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+        done < "$BILIVE_CONFIG_FILE"
+    fi
+
+    AUDIO_SOURCE="${AUDIO_SOURCE:-rnnoise_source}"
+    FRAMERATE="${FRAMERATE:-25}"
+    VIDEO_BITRATE="${VIDEO_BITRATE:-1800k}"
+    MAXRATE="${MAXRATE:-2200k}"
+    BUFSIZE="${BUFSIZE:-3600k}"
+    AUDIO_BITRATE="${AUDIO_BITRATE:-128k}"
+    PRESET="${PRESET:-ultrafast}"
+    SCALE_WIDTH="${SCALE_WIDTH:-1280}"
+}
+
+bilive_check_deps() {
+    for cmd in wf-recorder ffmpeg; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "Error: $cmd is not installed" >&2
+            exit 1
+        fi
+    done
+}
+
+# Resolve RTMP URL: env > rtmp.url file
+bilive_get_rtmp_url() {
+    if [ -n "${BILIVE_RTMP_URL:-}" ]; then
+        printf '%s' "$BILIVE_RTMP_URL"
+        return 0
+    fi
+
+    if [ -n "${RTMP_URL:-}" ]; then
+        printf '%s' "$RTMP_URL"
+        return 0
+    fi
+
+    if [ -f "$BILIVE_RTMP_FILE" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|\#*) continue ;;
+                *)
+                    printf '%s' "$line"
+                    return 0
+                    ;;
+            esac
+        done < "$BILIVE_RTMP_FILE"
+    fi
+
+    return 1
+}
+
+bilive_require_rtmp_url() {
+    local url
+    if ! url=$(bilive_get_rtmp_url); then
+        return 1
+    fi
+    if [ -z "$url" ]; then
+        return 1
+    fi
+    printf '%s' "$url"
+}
+
+bilive_set_rtmp_url() {
+    local url="$1"
+    bilive_ensure_dirs
+    printf '%s\n' "$url" > "$BILIVE_RTMP_FILE"
+    chmod 600 "$BILIVE_RTMP_FILE"
+}
+
+bilive_is_active() {
+    local pgid
+    [ -f "$BILIVE_PID_FILE" ] || return 1
+    pgid=$(tr -d '[:space:]' < "$BILIVE_PID_FILE")
+    [ -n "$pgid" ] || return 1
+
+    if kill -0 -- "-$pgid" 2>/dev/null; then
+        return 0
+    fi
+    if kill -0 "$pgid" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+bilive_get_mode() {
+    if [ -f "$BILIVE_MODE_FILE" ]; then
+        tr -d '[:space:]' < "$BILIVE_MODE_FILE"
+    fi
+}
+
+bilive_get_duration_seconds() {
+    local pgid start now
+    [ -f "$BILIVE_PID_FILE" ] || return 1
+    pgid=$(tr -d '[:space:]' < "$BILIVE_PID_FILE")
+    [ -n "$pgid" ] || return 1
+
+    start=$(ps -o lstart= -p "$pgid" 2>/dev/null) || return 1
+    [ -n "$start" ] || return 1
+    start=$(date -d "$start" +%s 2>/dev/null) || return 1
+    now=$(date +%s)
+    echo $((now - start))
+}
+
+bilive_unmute_audio() {
+    if command -v pactl >/dev/null 2>&1; then
+        if pactl list sources 2>/dev/null | grep -A 10 "Name: $AUDIO_SOURCE" | grep -q "Mute: yes"; then
+            pactl set-source-mute "$AUDIO_SOURCE" 0
+        fi
+    fi
+}
+
+# Build optional scale filter for wf-recorder -F
+bilive_video_filter() {
+    if [ -n "$SCALE_WIDTH" ] && [ "$SCALE_WIDTH" != "0" ]; then
+        printf 'scale=w=%s:h=-2:force_original_aspect_ratio=decrease,format=yuv420p' "$SCALE_WIDTH"
+    else
+        printf 'format=yuv420p'
+    fi
+}
+
+# Start streaming pipeline.
+# Args: mode (full|area) [extra wf-recorder args, e.g. -g geometry]
+bilive_start() {
+    local mode="$1"
+    shift
+    local rtmp_url
+    local filter
+    local gop
+    local geo_args=()
+
+    bilive_load_config
+    bilive_check_deps
+    bilive_ensure_dirs
+
+    if bilive_is_active; then
+        return 2
+    fi
+
+    if ! rtmp_url=$(bilive_require_rtmp_url); then
+        return 3
+    fi
+
+    while [ $# -gt 0 ]; do
+        geo_args+=("$1")
+        shift
+    done
+
+    bilive_unmute_audio
+    filter=$(bilive_video_filter)
+    gop=$((FRAMERATE * 2))
+
+    : > "$BILIVE_LOG_FILE"
+    printf '%s\n' "$mode" > "$BILIVE_MODE_FILE"
+
+    # Export values for the runner child
+    export BILIVE_LOG_FILE
+    export BILIVE_AUDIO_SOURCE="$AUDIO_SOURCE"
+    export BILIVE_FRAMERATE="$FRAMERATE"
+    export BILIVE_PRESET="$PRESET"
+    export BILIVE_VIDEO_BITRATE="$VIDEO_BITRATE"
+    export BILIVE_MAXRATE="$MAXRATE"
+    export BILIVE_BUFSIZE="$BUFSIZE"
+    export BILIVE_AUDIO_BITRATE="$AUDIO_BITRATE"
+    export BILIVE_FILTER="$filter"
+    export BILIVE_GOP="$gop"
+    export BILIVE_RTMP_TARGET="$rtmp_url"
+
+    # Optional geometry: store as shell-safe args file
+    : > "$BILIVE_RUNTIME_DIR/wf-extra.args"
+    if [ ${#geo_args[@]} -gt 0 ]; then
+        printf '%s\0' "${geo_args[@]}" > "$BILIVE_RUNTIME_DIR/wf-extra.args"
+    fi
+
+    cat > "$BILIVE_RUNNER" <<'RUNNER'
+#!/bin/bash
+set -e
+exec >>"$BILIVE_LOG_FILE" 2>&1
+
+trap 'pkill -INT -P $$ 2>/dev/null || true; wait 2>/dev/null || true' EXIT INT TERM
+
+extra_args=()
+if [ -s "${XDG_RUNTIME_DIR:-/tmp}/bilive/wf-extra.args" ] || [ -s "${BILIVE_RUNTIME_DIR:-}/wf-extra.args" ]; then
+    args_file=""
+    if [ -n "${BILIVE_RUNTIME_DIR:-}" ] && [ -f "$BILIVE_RUNTIME_DIR/wf-extra.args" ]; then
+        args_file="$BILIVE_RUNTIME_DIR/wf-extra.args"
+    fi
+    if [ -n "$args_file" ] && [ -s "$args_file" ]; then
+        while IFS= read -r -d '' item; do
+            extra_args+=("$item")
+        done < "$args_file"
+    fi
+fi
+
+wf-recorder \
+    "${extra_args[@]}" \
+    --audio="$BILIVE_AUDIO_SOURCE" \
+    -m flv \
+    -c libx264 \
+    -C aac \
+    -r "$BILIVE_FRAMERATE" \
+    -x yuv420p \
+    -D \
+    -b 0 \
+    -F "$BILIVE_FILTER" \
+    -p "preset=$BILIVE_PRESET" \
+    -p "tune=zerolatency" \
+    -p "b=$BILIVE_VIDEO_BITRATE" \
+    -p "maxrate=$BILIVE_MAXRATE" \
+    -p "bufsize=$BILIVE_BUFSIZE" \
+    -p "g=$BILIVE_GOP" \
+    -P "b=$BILIVE_AUDIO_BITRATE" \
+    -f - \
+| ffmpeg -hide_banner -loglevel warning \
+    -i - \
+    -c copy \
+    -f flv \
+    "$BILIVE_RTMP_TARGET"
+RUNNER
+    chmod +x "$BILIVE_RUNNER"
+
+    # Export runtime dir for runner
+    export BILIVE_RUNTIME_DIR
+
+    # New session so bilive_stop can signal the whole pipeline
+    setsid env \
+        BILIVE_LOG_FILE="$BILIVE_LOG_FILE" \
+        BILIVE_RUNTIME_DIR="$BILIVE_RUNTIME_DIR" \
+        BILIVE_AUDIO_SOURCE="$AUDIO_SOURCE" \
+        BILIVE_FRAMERATE="$FRAMERATE" \
+        BILIVE_PRESET="$PRESET" \
+        BILIVE_VIDEO_BITRATE="$VIDEO_BITRATE" \
+        BILIVE_MAXRATE="$MAXRATE" \
+        BILIVE_BUFSIZE="$BUFSIZE" \
+        BILIVE_AUDIO_BITRATE="$AUDIO_BITRATE" \
+        BILIVE_FILTER="$filter" \
+        BILIVE_GOP="$gop" \
+        BILIVE_RTMP_TARGET="$rtmp_url" \
+        "$BILIVE_RUNNER" &
+
+    echo $! > "$BILIVE_PID_FILE"
+
+    # Brief settle: fail fast if pipeline died immediately
+    sleep 1.5
+    if ! bilive_is_active; then
+        return 4
+    fi
+
+    return 0
+}
+
+bilive_stop() {
+    local pgid
+    local i
+
+    bilive_ensure_dirs
+
+    if [ ! -f "$BILIVE_PID_FILE" ]; then
+        return 1
+    fi
+
+    pgid=$(tr -d '[:space:]' < "$BILIVE_PID_FILE")
+    if [ -z "$pgid" ]; then
+        rm -f "$BILIVE_PID_FILE" "$BILIVE_MODE_FILE"
+        return 1
+    fi
+
+    kill -INT -- "-$pgid" 2>/dev/null || kill -INT "$pgid" 2>/dev/null || true
+
+    for i in $(seq 1 30); do
+        if ! bilive_is_active; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    if bilive_is_active; then
+        kill -TERM -- "-$pgid" 2>/dev/null || kill -TERM "$pgid" 2>/dev/null || true
+        for i in $(seq 1 20); do
+            if ! bilive_is_active; then
+                break
+            fi
+            sleep 0.1
+        done
+    fi
+
+    if bilive_is_active; then
+        kill -KILL -- "-$pgid" 2>/dev/null || kill -KILL "$pgid" 2>/dev/null || true
+        for i in $(seq 1 10); do
+            if ! bilive_is_active; then
+                break
+            fi
+            sleep 0.1
+        done
+    fi
+
+    # Also clean up any leftover recorder/ffmpeg from this user if orphaned by mode marker
+    rm -f "$BILIVE_PID_FILE" "$BILIVE_MODE_FILE"
+    return 0
+}

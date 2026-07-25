@@ -113,6 +113,26 @@ i18n[screenrecord_overlay_keys_off]="Keys overlay: OFF"
 i18n[screenrecord_overlay_camera_on]="Camera overlay: ON"
 i18n[screenrecord_overlay_camera_off]="Camera overlay: OFF"
 
+# ============================================================================
+# ui-bilive - Bilibili live push
+# ============================================================================
+i18n[bilive_prompt]="Bilibili Live:"
+i18n[bilive_start_full]="Stream Full Screen"
+i18n[bilive_start_area]="Stream Area"
+i18n[bilive_stop]="Stop Stream"
+i18n[bilive_set_rtmp]="Set RTMP URL"
+i18n[bilive_set_rtmp_text]="Paste full RTMP URL (including key):"
+i18n[bilive_notify_title]="Bilibili Live"
+i18n[bilive_notify_started_full]="Full-screen stream started"
+i18n[bilive_notify_started_area]="Area stream started"
+i18n[bilive_notify_stopped]="Stream stopped"
+i18n[bilive_notify_already_active]="Stream already in progress"
+i18n[bilive_notify_not_active]="No active stream"
+i18n[bilive_notify_missing_rtmp]="RTMP URL not configured"
+i18n[bilive_notify_start_failed]="Failed to start stream; check log"
+i18n[bilive_notify_rtmp_saved]="RTMP URL saved"
+i18n[bilive_notify_zenity_missing]="zenity is required to set RTMP URL"
+
 # waybar-screenshot
 i18n[waybar_screenshot_tooltip]="Take screenshot"
 

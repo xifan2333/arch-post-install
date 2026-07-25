@@ -112,6 +112,26 @@ i18n[screenrecord_overlay_keys_off]="按键叠加：已关闭"
 i18n[screenrecord_overlay_camera_on]="摄像头叠加：已开启"
 i18n[screenrecord_overlay_camera_off]="摄像头叠加：已关闭"
 
+# ============================================================================
+# ui-bilive - B 站直播推流
+# ============================================================================
+i18n[bilive_prompt]="B 站直播："
+i18n[bilive_start_full]="全屏推流"
+i18n[bilive_start_area]="区域推流"
+i18n[bilive_stop]="停止推流"
+i18n[bilive_set_rtmp]="设置推流地址"
+i18n[bilive_set_rtmp_text]="粘贴完整 RTMP 地址（含 key）："
+i18n[bilive_notify_title]="B 站直播"
+i18n[bilive_notify_started_full]="已开始全屏推流"
+i18n[bilive_notify_started_area]="已开始区域推流"
+i18n[bilive_notify_stopped]="已停止推流"
+i18n[bilive_notify_already_active]="推流已在进行中"
+i18n[bilive_notify_not_active]="当前没有推流"
+i18n[bilive_notify_missing_rtmp]="未配置推流地址，请先设置 RTMP"
+i18n[bilive_notify_start_failed]="推流启动失败，请查看日志"
+i18n[bilive_notify_rtmp_saved]="推流地址已保存"
+i18n[bilive_notify_zenity_missing]="需要安装 zenity 才能设置推流地址"
+
 # waybar-screenshot
 i18n[waybar_screenshot_tooltip]="截图"
 
