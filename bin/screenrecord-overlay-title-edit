@@ -190,8 +190,7 @@ PY
                 notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_overlay_title_saved)"
             fi
             # Ensure overlay is visible after editing so user sees result
-            if ! pgrep -f "[s]creenrecord-overlay-title($| )" >/dev/null 2>&1 \
-                && ! pgrep -f "[p]ython3.*screenrecord-overlay-title" >/dev/null 2>&1; then
+            if ! pgrep -f "python3 .*/screenrecord-overlay-title$" >/dev/null 2>&1; then
                 nohup screenrecord-overlay-title &>/dev/null &
             fi
             exit 0
