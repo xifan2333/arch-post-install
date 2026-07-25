@@ -1,8 +1,12 @@
 [tools]
 bun = "latest"
+"github:earendil-works/pi" = "latest"
+"github:iOfficeAI/OfficeCLI" = "latest"
 go = "latest"
 herdr = "latest"
 node = "24"
+"npm:@earendil-works/pi-coding-agent" = "latest"
+pi = "latest"
 pnpm = "latest"
 uv = "latest"
 

@@ -33,7 +33,7 @@ TogglePreedit=
 ModifierOnlyKeyTimeout=249
 
 [Behavior]
-# 默认状态为激活
+# 默认激活输入法
 ActiveByDefault=True
 # 重新聚焦时重置状态
 resetStateWhenFocusIn=No
@@ -49,7 +49,7 @@ showInputMethodInformationWhenFocusIn=False
 CompactInputMethodInformation=True
 # 显示第一个输入法的信息
 ShowFirstInputMethodInformation=True
-# 默认页大小
+# 缺省每页候选词
 DefaultPageSize=5
 # 覆盖 XKB 选项
 OverrideXkbOption=False
