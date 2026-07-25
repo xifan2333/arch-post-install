@@ -7,6 +7,7 @@ import signal
 import sys
 import threading
 
+import cairo
 import gi
 
 try:
@@ -23,10 +24,25 @@ except Exception as exc:
 WINDOW_TITLE = 'Screenrecord Overlay Camera'
 
 
+def enable_click_through(win):
+    def apply(_widget=None, *_args):
+        gdk_win = win.get_window()
+        if gdk_win is None:
+            return False
+        gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
+        return False
+
+    win.connect('realize', apply)
+    win.connect('size-allocate', lambda *a: apply())
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Show a non-focusable webcam overlay for screen recording.')
     parser.add_argument('--device', default='/dev/video0', help='V4L2 camera device')
-    parser.add_argument('--size', type=int, default=150, help='square overlay size in pixels')
+    parser.add_argument('--width', type=int, default=320, help='overlay window width in pixels')
+    parser.add_argument('--height', type=int, default=240, help='overlay window height in pixels')
+    # Back-compat: --size used to mean square side; map to width/height if provided alone via default handling below
+    parser.add_argument('--size', type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument('--capture-width', type=int, default=320, help='camera capture width')
     parser.add_argument('--capture-height', type=int, default=240, help='camera capture height')
     parser.add_argument('--fps', type=int, default=30, help='camera capture framerate')
@@ -37,7 +53,12 @@ def parse_args():
     parser.add_argument('--border-width', type=float, default=1.5, help='subtle border width; 0 disables border')
     parser.add_argument('--mirror', dest='mirror', action='store_true', default=True, help='mirror camera horizontally')
     parser.add_argument('--no-mirror', dest='mirror', action='store_false', help='do not mirror camera')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.size is not None:
+        # legacy square mode if someone still passes --size
+        args.width = args.size
+        args.height = args.size
+    return args
 
 
 class CameraOverlay(Gtk.Application):
@@ -57,7 +78,7 @@ class CameraOverlay(Gtk.Application):
         self.win.set_title(WINDOW_TITLE)
         self.win.set_decorated(False)
         self.win.set_resizable(False)
-        self.win.set_default_size(self.args.size, self.args.size)
+        self.win.set_default_size(self.args.width, self.args.height)
         self.win.set_accept_focus(False)
         self.win.set_focus_on_map(False)
         self.win.set_skip_taskbar_hint(True)
@@ -77,10 +98,14 @@ class CameraOverlay(Gtk.Application):
         GtkLayerShell.set_margin(self.win, edge_x, self.args.margin_x)
         GtkLayerShell.set_margin(self.win, edge_y, self.args.margin_y)
         GtkLayerShell.set_exclusive_zone(self.win, -1)
-        GtkLayerShell.set_keyboard_interactivity(self.win, False)
+        if hasattr(GtkLayerShell, 'set_keyboard_mode'):
+            GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
+        else:
+            GtkLayerShell.set_keyboard_interactivity(self.win, False)
+        enable_click_through(self.win)
 
         self.area = Gtk.DrawingArea()
-        self.area.set_size_request(self.args.size, self.args.size)
+        self.area.set_size_request(self.args.width, self.args.height)
         self.area.connect('draw', self.on_draw)
         self.win.add(self.area)
 
@@ -176,11 +201,8 @@ class CameraOverlay(Gtk.Application):
             stride,
         )
 
-        cr.rectangle(0, 0, width, height)
-        cr.clip()
-
-        # Center-crop to fill a square window.
-        scale = max(width / src_w, height / src_h)
+        # Fit whole frame into window (letterbox/pillarbox), no square crop.
+        scale = min(width / src_w, height / src_h)
         draw_w = src_w * scale
         draw_h = src_h * scale
         offset_x = (width - draw_w) / 2

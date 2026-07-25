@@ -15,15 +15,29 @@ import sys
 import threading
 import time
 
+import cairo
 import gi
 
 try:
     gi.require_version('Gtk', '3.0')
+    gi.require_version('Gdk', '3.0')
     gi.require_version('GtkLayerShell', '0.1')
     from gi.repository import Gtk, GLib, Gdk, GtkLayerShell
 except Exception as exc:
     print(f"screenrecord-overlay-captions: missing GTK layer-shell dependency: {exc}", file=sys.stderr)
     sys.exit(1)
+
+
+def enable_click_through(win):
+    def apply(_widget=None, *_args):
+        gdk_win = win.get_window()
+        if gdk_win is None:
+            return False
+        gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
+        return False
+
+    win.connect('realize', apply)
+    win.connect('size-allocate', lambda *a: apply())
 
 WINDOW_TITLE = 'Screenrecord Overlay Captions'
 AUDIO_SOURCE = os.environ.get('SCREENRECORD_OVERLAY_CAPTIONS_SOURCE', 'rnnoise_source')
