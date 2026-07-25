@@ -6,6 +6,7 @@ source screenrecord-core
 source i18n-core
 
 screenrecord_check_deps
+screenrecord_resolve_audio_source
 
 # Check if already recording or live streaming
 if screenrecord_is_live; then

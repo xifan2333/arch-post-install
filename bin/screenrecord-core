@@ -7,7 +7,30 @@ XDG_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$(xdg-user-dir VIDEOS)}"
 RECORDINGS_DIR="$XDG_VIDEOS_DIR/screenrecords"
 
 # Recording settings (minimal - use wf-recorder defaults)
-AUDIO_SOURCE="rnnoise_source"  # Noise-suppressed audio source
+# Prefer record_mix.monitor (mic+system) when available; else rnnoise_source
+AUDIO_SOURCE="rnnoise_source"
+
+screenrecord_resolve_audio_source() {
+    if command -v record-audio-core >/dev/null 2>&1 || [ -f "$HOME/.local/bin/record-audio-core" ]; then
+        # shellcheck disable=SC1091
+        source record-audio-core 2>/dev/null || source "$HOME/.local/bin/record-audio-core" 2>/dev/null || true
+        if declare -F record_audio_capture_source >/dev/null 2>&1; then
+            local src
+            src=$(record_audio_capture_source 2>/dev/null || true)
+            if [ -n "$src" ]; then
+                AUDIO_SOURCE="$src"
+                return 0
+            fi
+        fi
+    fi
+    # Keep existing AUDIO_SOURCE if source exists
+    if command -v pactl >/dev/null 2>&1; then
+        if pactl list short sources 2>/dev/null | awk '{print $2}' | grep -qx "$AUDIO_SOURCE"; then
+            return 0
+        fi
+        AUDIO_SOURCE=$(pactl get-default-source 2>/dev/null || echo rnnoise_source)
+    fi
+}
 
 # YouTube-standard transcode settings (高质量转码，符合社交媒体标准)
 AUTO_TRANSCODE="true"       # Auto-transcode to true CFR after recording stops (set to "false" to disable)

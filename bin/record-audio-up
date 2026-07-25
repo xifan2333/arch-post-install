@@ -1,0 +1,6 @@
+#!/bin/bash
+# Bring up record_mix (mic + system monitor)
+set -e
+source record-audio-core
+record_audio_up
+echo "record_mix ready: $RECORD_AUDIO_SOURCE_NAME"

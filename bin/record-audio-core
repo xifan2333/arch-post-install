@@ -1,0 +1,331 @@
+#!/bin/bash
+# Shared helpers for record-mix virtual audio (mic + system, optional ducking)
+
+RECORD_AUDIO_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/screenrecord"
+RECORD_AUDIO_CONFIG="$RECORD_AUDIO_CONFIG_DIR/audio.conf"
+RECORD_AUDIO_STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/record-audio-$UID}/record-audio"
+RECORD_AUDIO_MODULES_FILE="$RECORD_AUDIO_STATE_DIR/modules"
+RECORD_AUDIO_SINK_NAME="record_mix"
+RECORD_AUDIO_SOURCE_NAME="record_mix.monitor"
+RECORD_AUDIO_MIC_MEDIA="record-mix-mic"
+RECORD_AUDIO_SYS_MEDIA="record-mix-system"
+
+# Defaults (overridden by audio.conf / env)
+RECORD_MIC_SOURCE="rnnoise_source"
+RECORD_SYSTEM_SOURCE=""   # empty = default sink monitor
+RECORD_MIC_VOLUME="100%"  # into mix
+RECORD_SYSTEM_VOLUME="55%" # static mix level (also ducking baseline)
+RECORD_DUCKING="true"
+RECORD_DUCK_VOLUME="18%"  # system level while speaking
+RECORD_DUCK_THRESHOLD="500" # mic peak 0-32767-ish from s16
+RECORD_DUCK_ATTACK_MS="80"
+RECORD_DUCK_RELEASE_MS="450"
+RECORD_LATENCY_MS="30"
+
+record_audio_ensure_dirs() {
+    mkdir -p "$RECORD_AUDIO_CONFIG_DIR" "$RECORD_AUDIO_STATE_DIR"
+}
+
+record_audio_load_config() {
+    record_audio_ensure_dirs
+    if [ -f "$RECORD_AUDIO_CONFIG" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|\#*) continue ;;
+                *=*)
+                    key="${line%%=*}"
+                    val="${line#*=}"
+                    key="${key// /}"
+                    case "$key" in
+                        RECORD_MIC_SOURCE|RECORD_SYSTEM_SOURCE|RECORD_MIC_VOLUME|RECORD_SYSTEM_VOLUME|RECORD_DUCKING|RECORD_DUCK_VOLUME|RECORD_DUCK_THRESHOLD|RECORD_DUCK_ATTACK_MS|RECORD_DUCK_RELEASE_MS|RECORD_LATENCY_MS|AUDIO_SOURCE)
+                            eval "cur=\${$key-}"
+                            if [ -z "$cur" ]; then
+                                export "$key=$val"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+        done < "$RECORD_AUDIO_CONFIG"
+    fi
+
+    RECORD_MIC_SOURCE="${RECORD_MIC_SOURCE:-rnnoise_source}"
+    RECORD_SYSTEM_SOURCE="${RECORD_SYSTEM_SOURCE:-}"
+    RECORD_MIC_VOLUME="${RECORD_MIC_VOLUME:-100%}"
+    RECORD_SYSTEM_VOLUME="${RECORD_SYSTEM_VOLUME:-55%}"
+    RECORD_DUCKING="${RECORD_DUCKING:-true}"
+    RECORD_DUCK_VOLUME="${RECORD_DUCK_VOLUME:-18%}"
+    RECORD_DUCK_THRESHOLD="${RECORD_DUCK_THRESHOLD:-500}"
+    RECORD_DUCK_ATTACK_MS="${RECORD_DUCK_ATTACK_MS:-80}"
+    RECORD_DUCK_RELEASE_MS="${RECORD_DUCK_RELEASE_MS:-450}"
+    RECORD_LATENCY_MS="${RECORD_LATENCY_MS:-30}"
+}
+
+record_audio_write_default_config() {
+    record_audio_ensure_dirs
+    if [ -f "$RECORD_AUDIO_CONFIG" ]; then
+        return 0
+    fi
+    cat > "$RECORD_AUDIO_CONFIG" <<'EOF'
+# Record mix configuration
+# Mic (preferably rnnoise) + system sink monitor -> record_mix.monitor
+
+RECORD_MIC_SOURCE=rnnoise_source
+# Empty = auto: $(pactl get-default-sink).monitor
+RECORD_SYSTEM_SOURCE=
+
+# Static mix gains
+RECORD_MIC_VOLUME=100%
+RECORD_SYSTEM_VOLUME=55%
+
+# Ducking: when mic is active, lower system audio in the mix
+RECORD_DUCKING=true
+RECORD_DUCK_VOLUME=18%
+RECORD_DUCK_THRESHOLD=500
+RECORD_DUCK_ATTACK_MS=80
+RECORD_DUCK_RELEASE_MS=450
+
+RECORD_LATENCY_MS=30
+EOF
+}
+
+record_audio_default_system_source() {
+    local sink
+    sink=$(pactl get-default-sink 2>/dev/null || true)
+    if [ -n "$sink" ]; then
+        printf '%s.monitor' "$sink"
+        return 0
+    fi
+    return 1
+}
+
+record_audio_resolve_system_source() {
+    if [ -n "$RECORD_SYSTEM_SOURCE" ]; then
+        printf '%s' "$RECORD_SYSTEM_SOURCE"
+        return 0
+    fi
+    record_audio_default_system_source
+}
+
+record_audio_source_exists() {
+    local name="$1"
+    pactl list short sources 2>/dev/null | awk '{print $2}' | grep -qx "$name"
+}
+
+record_audio_sink_exists() {
+    local name="$1"
+    pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -qx "$name"
+}
+
+record_audio_is_up() {
+    record_audio_sink_exists "$RECORD_AUDIO_SINK_NAME" \
+        && record_audio_source_exists "$RECORD_AUDIO_SOURCE_NAME"
+}
+
+# Preferred capture source for record/live scripts
+record_audio_capture_source() {
+    record_audio_load_config
+    if record_audio_is_up; then
+        printf '%s' "$RECORD_AUDIO_SOURCE_NAME"
+        return 0
+    fi
+    if record_audio_source_exists "${RECORD_MIC_SOURCE:-rnnoise_source}"; then
+        printf '%s' "${RECORD_MIC_SOURCE:-rnnoise_source}"
+        return 0
+    fi
+    pactl get-default-source 2>/dev/null
+}
+
+record_audio_save_module() {
+    local id="$1"
+    local tag="$2"
+    [ -n "$id" ] || return 0
+    record_audio_ensure_dirs
+    echo "$tag $id" >> "$RECORD_AUDIO_MODULES_FILE"
+}
+
+record_audio_load_module() {
+    local tag="$1"
+    shift
+    local id
+    id=$(pactl load-module "$@" 2>/dev/null) || return 1
+    id=$(printf '%s' "$id" | tr -d '[:space:]')
+    [ -n "$id" ] || return 1
+    record_audio_save_module "$id" "$tag"
+}
+
+record_audio_find_sink_input_by_media() {
+    local media="$1"
+    local id
+    id=$(pactl list sink-inputs 2>/dev/null | awk -v m="$media" '
+        /^Sink Input #/ {
+            if (found) { print id; exit }
+            id=$3; gsub("#","",id); media=""; app=""; found=0
+        }
+        /media.name = / {
+            val=$0; sub(/^[^=]*= "/,"",val); sub(/"$/,"",val); media=val
+            if (media == m) found=1
+        }
+        /application.name = / {
+            val=$0; sub(/^[^=]*= "/,"",val); sub(/"$/,"",val); app=val
+            if (app == m) found=1
+        }
+        END { if (found) print id }
+    ')
+    if [ -n "$id" ]; then
+        printf '%s\n' "$id"
+        return 0
+    fi
+    return 1
+}
+
+record_audio_set_sink_input_volume() {
+    local media="$1"
+    local vol="$2"
+    local id
+    if id=$(record_audio_find_sink_input_by_media "$media"); then
+        pactl set-sink-input-volume "$id" "$vol" 2>/dev/null || true
+    fi
+}
+
+record_audio_up() {
+    local sys_src mic_src
+    local have_mic=0 have_sys=0
+
+    record_audio_load_config
+    record_audio_write_default_config
+    record_audio_ensure_dirs
+
+    if ! command -v pactl >/dev/null 2>&1; then
+        echo "Error: pactl not found" >&2
+        return 1
+    fi
+
+    mic_src="$RECORD_MIC_SOURCE"
+    if ! record_audio_source_exists "$mic_src"; then
+        mic_src=$(pactl get-default-source 2>/dev/null || true)
+    fi
+    if [ -z "$mic_src" ]; then
+        echo "Error: no microphone source" >&2
+        return 1
+    fi
+
+    sys_src=$(record_audio_resolve_system_source) || true
+    if [ -z "$sys_src" ] || ! record_audio_source_exists "$sys_src"; then
+        echo "Error: system monitor source not found" >&2
+        return 1
+    fi
+
+    if record_audio_find_sink_input_by_media "$RECORD_AUDIO_MIC_MEDIA" >/dev/null 2>&1; then
+        have_mic=1
+    fi
+    if record_audio_find_sink_input_by_media "$RECORD_AUDIO_SYS_MEDIA" >/dev/null 2>&1; then
+        have_sys=1
+    fi
+    if record_audio_sink_exists "$RECORD_AUDIO_SINK_NAME" && [ "$have_mic" -eq 1 ] && [ "$have_sys" -eq 1 ]; then
+        record_audio_set_sink_input_volume "$RECORD_AUDIO_MIC_MEDIA" "$RECORD_MIC_VOLUME"
+        record_audio_set_sink_input_volume "$RECORD_AUDIO_SYS_MEDIA" "$RECORD_SYSTEM_VOLUME"
+        return 0
+    fi
+
+    # Incomplete or missing graph -> rebuild cleanly
+    record_audio_down
+    : > "$RECORD_AUDIO_MODULES_FILE"
+
+    if ! record_audio_load_module sink module-null-sink \
+        sink_name="$RECORD_AUDIO_SINK_NAME" \
+        sink_properties=device.description=RecordMix \
+        rate=48000 \
+        channels=2; then
+        echo "Error: failed to create $RECORD_AUDIO_SINK_NAME" >&2
+        return 1
+    fi
+
+    if ! record_audio_load_module mic module-loopback \
+        source="$mic_src" \
+        sink="$RECORD_AUDIO_SINK_NAME" \
+        latency_msec="$RECORD_LATENCY_MS" \
+        source_dont_move=true \
+        sink_dont_move=true \
+        sink_input_properties="media.name=$RECORD_AUDIO_MIC_MEDIA" \
+        source_output_properties="media.name=$RECORD_AUDIO_MIC_MEDIA"; then
+        echo "Error: failed to loopback mic ($mic_src)" >&2
+        return 1
+    fi
+
+    if ! record_audio_load_module sys module-loopback \
+        source="$sys_src" \
+        sink="$RECORD_AUDIO_SINK_NAME" \
+        latency_msec="$RECORD_LATENCY_MS" \
+        source_dont_move=true \
+        sink_dont_move=true \
+        sink_input_properties="media.name=$RECORD_AUDIO_SYS_MEDIA" \
+        source_output_properties="media.name=$RECORD_AUDIO_SYS_MEDIA"; then
+        echo "Error: failed to loopback system ($sys_src)" >&2
+        return 1
+    fi
+
+    sleep 0.3
+    record_audio_set_sink_input_volume "$RECORD_AUDIO_MIC_MEDIA" "$RECORD_MIC_VOLUME"
+    record_audio_set_sink_input_volume "$RECORD_AUDIO_SYS_MEDIA" "$RECORD_SYSTEM_VOLUME"
+
+    if [ "$(pactl get-default-sink 2>/dev/null)" = "$RECORD_AUDIO_SINK_NAME" ]; then
+        local prev
+        prev=$(pactl list short sinks | awk -v m="$RECORD_AUDIO_SINK_NAME" '$2 != m { print $2; exit }')
+        [ -n "$prev" ] && pactl set-default-sink "$prev" 2>/dev/null || true
+    fi
+
+    if ! record_audio_find_sink_input_by_media "$RECORD_AUDIO_MIC_MEDIA" >/dev/null 2>&1 \
+        || ! record_audio_find_sink_input_by_media "$RECORD_AUDIO_SYS_MEDIA" >/dev/null 2>&1; then
+        echo "Error: record_mix graph incomplete" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+record_audio_down() {
+    local id tag
+    record_audio_ensure_dirs
+
+    if [ -f "$RECORD_AUDIO_MODULES_FILE" ]; then
+        while read -r tag id; do
+            [ -n "$id" ] && pactl unload-module "$id" 2>/dev/null || true
+        done < "$RECORD_AUDIO_MODULES_FILE"
+        rm -f "$RECORD_AUDIO_MODULES_FILE"
+    fi
+
+    # Fallback cleanup by module args
+    pactl list short modules 2>/dev/null | while read -r mid rest; do
+        case "$rest" in
+            *sink_name=$RECORD_AUDIO_SINK_NAME*|*sink=$RECORD_AUDIO_SINK_NAME*|*media.name=$RECORD_AUDIO_MIC_MEDIA*|*media.name=$RECORD_AUDIO_SYS_MEDIA*)
+                pactl unload-module "$mid" 2>/dev/null || true
+                ;;
+        esac
+    done
+}
+
+record_audio_status() {
+    record_audio_load_config
+    echo "config: $RECORD_AUDIO_CONFIG"
+    echo "sink: $RECORD_AUDIO_SINK_NAME ($(record_audio_sink_exists "$RECORD_AUDIO_SINK_NAME" && echo up || echo down))"
+    echo "source: $RECORD_AUDIO_SOURCE_NAME ($(record_audio_source_exists "$RECORD_AUDIO_SOURCE_NAME" && echo up || echo down))"
+    echo "mic: $RECORD_MIC_SOURCE"
+    echo "system: $(record_audio_resolve_system_source 2>/dev/null || echo none)"
+    echo "ducking: $RECORD_DUCKING"
+    echo "capture: $(record_audio_capture_source)"
+    if [ -f "$RECORD_AUDIO_MODULES_FILE" ]; then
+        echo "modules:"
+        cat "$RECORD_AUDIO_MODULES_FILE"
+    fi
+    if record_audio_find_sink_input_by_media "$RECORD_AUDIO_MIC_MEDIA" >/dev/null 2>&1; then
+        echo "loopback-mic: yes"
+    else
+        echo "loopback-mic: no"
+    fi
+    if record_audio_find_sink_input_by_media "$RECORD_AUDIO_SYS_MEDIA" >/dev/null 2>&1; then
+        echo "loopback-system: yes"
+    else
+        echo "loopback-system: no"
+    fi
+}

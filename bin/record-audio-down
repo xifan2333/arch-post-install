@@ -1,0 +1,11 @@
+#!/bin/bash
+# Tear down record_mix modules
+set -e
+source record-audio-core
+# stop daemon first if running
+if pgrep -f "python3 .*/record-audio-daemon$" >/dev/null 2>&1; then
+    pkill -f "python3 .*/record-audio-daemon$" 2>/dev/null || true
+    sleep 0.2
+fi
+record_audio_down
+echo "record_mix down"

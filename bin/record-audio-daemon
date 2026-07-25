@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""Keep record_mix (mic + system) alive and optionally duck system audio while speaking."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+SINK_NAME = "record_mix"
+SOURCE_NAME = "record_mix.monitor"
+MIC_MEDIA = "record-mix-mic"
+SYS_MEDIA = "record-mix-system"
+
+
+def env_bool(name: str, default: bool) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_config() -> dict:
+    cfg_path = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord" / "audio.conf"
+    data = {
+        "RECORD_MIC_SOURCE": "rnnoise_source",
+        "RECORD_SYSTEM_SOURCE": "",
+        "RECORD_MIC_VOLUME": "100%",
+        "RECORD_SYSTEM_VOLUME": "55%",
+        "RECORD_DUCKING": "true",
+        "RECORD_DUCK_VOLUME": "18%",
+        "RECORD_DUCK_THRESHOLD": "500",
+        "RECORD_DUCK_ATTACK_MS": "80",
+        "RECORD_DUCK_RELEASE_MS": "450",
+        "RECORD_LATENCY_MS": "30",
+    }
+    if cfg_path.is_file():
+        for line in cfg_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip()
+            if key in data:
+                data[key] = val
+    # env overrides
+    for key in list(data):
+        if key in os.environ and os.environ[key] != "":
+            data[key] = os.environ[key]
+    return data
+
+
+def run(cmd: list[str], check: bool = False) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, check=check, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+def ensure_mix() -> None:
+    # Prefer shell helper for module load / fallback cleanup
+    helper = shutil.which("record-audio-up")
+    if helper:
+        proc = run([helper])
+        if proc.returncode != 0:
+            print(proc.stderr or proc.stdout, file=sys.stderr)
+            raise RuntimeError("record-audio-up failed")
+        return
+    # Fallback inline via bash core
+    core = shutil.which("record-audio-core")
+    if not core:
+        raise RuntimeError("record-audio-up/core not found")
+    script = f"source '{core}'; record_audio_up"
+    proc = run(["bash", "-lc", script])
+    if proc.returncode != 0:
+        print(proc.stderr or proc.stdout, file=sys.stderr)
+        raise RuntimeError("record_audio_up failed")
+
+
+def mix_is_up() -> bool:
+    proc = run(["pactl", "list", "short", "sources"])
+    return any(SOURCE_NAME == line.split()[1] for line in proc.stdout.splitlines() if line.strip())
+
+
+def find_sink_input(media_name: str) -> str | None:
+    proc = run(["pactl", "list", "sink-inputs"])
+    current_id = None
+    media = ""
+    for raw in proc.stdout.splitlines():
+        line = raw.strip()
+        if line.startswith("Sink Input #"):
+            if current_id is not None and media == media_name:
+                return current_id
+            current_id = line.split("#", 1)[1].strip()
+            media = ""
+        elif "media.name =" in line:
+            media = line.split("=", 1)[1].strip().strip('"')
+    if current_id is not None and media == media_name:
+        return current_id
+    return None
+
+
+def set_volume(media_name: str, volume: str) -> None:
+    sink_input = find_sink_input(media_name)
+    if sink_input:
+        run(["pactl", "set-sink-input-volume", sink_input, volume])
+
+
+def mic_source(cfg: dict) -> str:
+    preferred = cfg.get("RECORD_MIC_SOURCE") or "rnnoise_source"
+    proc = run(["pactl", "list", "short", "sources"])
+    names = [line.split()[1] for line in proc.stdout.splitlines() if line.strip()]
+    if preferred in names:
+        return preferred
+    default = run(["pactl", "get-default-source"]).stdout.strip()
+    return default
+
+
+def peak_from_chunk(chunk: bytes) -> int:
+    if len(chunk) < 2:
+        return 0
+    count = len(chunk) // 2
+    fmt = "<" + "h" * count
+    samples = struct.unpack(fmt, chunk[: count * 2])
+    peak = 0
+    for sample in samples:
+        value = abs(sample)
+        if value > peak:
+            peak = value
+    return peak
+
+
+class Daemon:
+    def __init__(self) -> None:
+        self.cfg = load_config()
+        self.running = True
+        self.ducking = env_bool("RECORD_DUCKING", self.cfg.get("RECORD_DUCKING", "true").lower() in {"1", "true", "yes", "on"})
+        self.base_vol = self.cfg.get("RECORD_SYSTEM_VOLUME", "55%")
+        self.duck_vol = self.cfg.get("RECORD_DUCK_VOLUME", "18%")
+        self.threshold = int(float(self.cfg.get("RECORD_DUCK_THRESHOLD", "500")))
+        self.attack_ms = int(float(self.cfg.get("RECORD_DUCK_ATTACK_MS", "80")))
+        self.release_ms = int(float(self.cfg.get("RECORD_DUCK_RELEASE_MS", "450")))
+        self.ducked = False
+        self.last_voice = 0.0
+        self.parec: subprocess.Popen | None = None
+
+    def stop(self, *_args) -> None:
+        self.running = False
+
+    def ensure(self) -> None:
+        if not mix_is_up():
+            ensure_mix()
+            time.sleep(0.3)
+            set_volume(MIC_MEDIA, self.cfg.get("RECORD_MIC_VOLUME", "100%"))
+            set_volume(SYS_MEDIA, self.base_vol)
+
+    def start_parec(self) -> None:
+        if self.parec and self.parec.poll() is None:
+            return
+        source = mic_source(self.cfg)
+        self.parec = subprocess.Popen(
+            [
+                "parec",
+                "--raw",
+                f"--device={source}",
+                "--rate=48000",
+                "--channels=1",
+                "--format=s16le",
+                "--latency-msec=50",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def duck_loop(self) -> None:
+        assert self.parec and self.parec.stdout
+        # 50ms frames
+        frame_bytes = 48000 * 2 // 20
+        while self.running:
+            self.ensure()
+            chunk = self.parec.stdout.read(frame_bytes)
+            if not chunk:
+                time.sleep(0.05)
+                self.start_parec()
+                continue
+            peak = peak_from_chunk(chunk)
+            now = time.monotonic()
+            if peak >= self.threshold:
+                self.last_voice = now
+                if not self.ducked:
+                    set_volume(SYS_MEDIA, self.duck_vol)
+                    self.ducked = True
+            else:
+                # release after silence
+                if self.ducked and (now - self.last_voice) * 1000 >= self.release_ms:
+                    set_volume(SYS_MEDIA, self.base_vol)
+                    self.ducked = False
+
+    def idle_loop(self) -> None:
+        while self.running:
+            self.ensure()
+            set_volume(MIC_MEDIA, self.cfg.get("RECORD_MIC_VOLUME", "100%"))
+            set_volume(SYS_MEDIA, self.base_vol)
+            time.sleep(2.0)
+
+    def run(self) -> int:
+        signal.signal(signal.SIGINT, self.stop)
+        signal.signal(signal.SIGTERM, self.stop)
+        self.ensure()
+        set_volume(MIC_MEDIA, self.cfg.get("RECORD_MIC_VOLUME", "100%"))
+        set_volume(SYS_MEDIA, self.base_vol)
+        print("record-audio-daemon: mix ready", SOURCE_NAME, flush=True)
+        try:
+            if self.ducking:
+                self.start_parec()
+                self.duck_loop()
+            else:
+                self.idle_loop()
+        finally:
+            if self.parec and self.parec.poll() is None:
+                self.parec.terminate()
+                try:
+                    self.parec.wait(timeout=1)
+                except Exception:
+                    self.parec.kill()
+            # leave mix modules loaded (clean persistent virtual device)
+        return 0
+
+
+def main() -> int:
+    try:
+        return Daemon().run()
+    except Exception as exc:
+        print(f"record-audio-daemon: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

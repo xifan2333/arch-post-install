@@ -14,6 +14,7 @@ BILIVE_RUNNER="$BILIVE_RUNTIME_DIR/run.sh"
 BILIVE_EXTRA_ARGS="$BILIVE_RUNTIME_DIR/wf-extra.args"
 
 # Defaults tuned for low-power CPUs (e.g. Sandy Bridge i5)
+# Prefer record_mix.monitor when available (mic + system + optional ducking)
 AUDIO_SOURCE="rnnoise_source"
 FRAMERATE="25"
 VIDEO_BITRATE="1800k"
@@ -54,6 +55,15 @@ bilive_load_config() {
     fi
 
     AUDIO_SOURCE="${AUDIO_SOURCE:-rnnoise_source}"
+    # Prefer virtual record mix when enabled
+    if command -v record-audio-core >/dev/null 2>&1 || [ -f "$HOME/.local/bin/record-audio-core" ]; then
+        # shellcheck disable=SC1091
+        source record-audio-core 2>/dev/null || source "$HOME/.local/bin/record-audio-core" 2>/dev/null || true
+        if declare -F record_audio_capture_source >/dev/null 2>&1; then
+            _cap=$(record_audio_capture_source 2>/dev/null || true)
+            [ -n "$_cap" ] && AUDIO_SOURCE="$_cap"
+        fi
+    fi
     FRAMERATE="${FRAMERATE:-25}"
     VIDEO_BITRATE="${VIDEO_BITRATE:-1800k}"
     MAXRATE="${MAXRATE:-2200k}"
