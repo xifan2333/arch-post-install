@@ -143,7 +143,7 @@ i18n[screenrecord_overlay_title_menu_edit]="Edit floating title"
 i18n[screenrecord_overlay_title_menu_toggle]="Toggle floating title"
 
 # ============================================================================
-# ui-bilive - Bilibili live push
+# bilive / ui-screenrecord - Bilibili live push
 # ============================================================================
 i18n[bilive_prompt]="Bilibili Live:"
 i18n[bilive_start_full]="Stream Full Screen"

@@ -142,7 +142,7 @@ i18n[screenrecord_overlay_title_menu_edit]="编辑浮动标题"
 i18n[screenrecord_overlay_title_menu_toggle]="开关浮动标题"
 
 # ============================================================================
-# ui-bilive - B 站直播推流
+# bilive / ui-screenrecord - B 站直播推流
 # ============================================================================
 i18n[bilive_prompt]="B 站直播："
 i18n[bilive_start_full]="全屏推流"
