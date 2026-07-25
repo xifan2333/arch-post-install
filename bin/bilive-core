@@ -11,6 +11,7 @@ BILIVE_PID_FILE="$BILIVE_RUNTIME_DIR/pgid"
 BILIVE_MODE_FILE="$BILIVE_RUNTIME_DIR/mode"
 BILIVE_LOG_FILE="$BILIVE_RUNTIME_DIR/bilive.log"
 BILIVE_RUNNER="$BILIVE_RUNTIME_DIR/run.sh"
+BILIVE_EXTRA_ARGS="$BILIVE_RUNTIME_DIR/wf-extra.args"
 
 # Defaults tuned for low-power CPUs (e.g. Sandy Bridge i5)
 AUDIO_SOURCE="rnnoise_source"
@@ -20,8 +21,8 @@ MAXRATE="2200k"
 BUFSIZE="3600k"
 AUDIO_BITRATE="128k"
 PRESET="ultrafast"
-# Max output width; 0 keeps native resolution
-SCALE_WIDTH="1280"
+# Max output width; 0 = keep native desktop/area resolution
+SCALE_WIDTH="0"
 
 bilive_ensure_dirs() {
     mkdir -p "$BILIVE_CONFIG_DIR" "$BILIVE_RUNTIME_DIR"
@@ -59,7 +60,7 @@ bilive_load_config() {
     BUFSIZE="${BUFSIZE:-3600k}"
     AUDIO_BITRATE="${AUDIO_BITRATE:-128k}"
     PRESET="${PRESET:-ultrafast}"
-    SCALE_WIDTH="${SCALE_WIDTH:-1280}"
+    SCALE_WIDTH="${SCALE_WIDTH:-0}"
 }
 
 bilive_check_deps() {
@@ -158,7 +159,8 @@ bilive_unmute_audio() {
     fi
 }
 
-# Build optional scale filter for wf-recorder -F
+# Build video filter for wf-recorder -F
+# SCALE_WIDTH=0 keeps native desktop/area geometry (only ensure yuv420p)
 bilive_video_filter() {
     if [ -n "$SCALE_WIDTH" ] && [ "$SCALE_WIDTH" != "0" ]; then
         printf 'scale=w=%s:h=-2:force_original_aspect_ratio=decrease,format=yuv420p' "$SCALE_WIDTH"
@@ -201,23 +203,10 @@ bilive_start() {
     : > "$BILIVE_LOG_FILE"
     printf '%s\n' "$mode" > "$BILIVE_MODE_FILE"
 
-    # Export values for the runner child
-    export BILIVE_LOG_FILE
-    export BILIVE_AUDIO_SOURCE="$AUDIO_SOURCE"
-    export BILIVE_FRAMERATE="$FRAMERATE"
-    export BILIVE_PRESET="$PRESET"
-    export BILIVE_VIDEO_BITRATE="$VIDEO_BITRATE"
-    export BILIVE_MAXRATE="$MAXRATE"
-    export BILIVE_BUFSIZE="$BUFSIZE"
-    export BILIVE_AUDIO_BITRATE="$AUDIO_BITRATE"
-    export BILIVE_FILTER="$filter"
-    export BILIVE_GOP="$gop"
-    export BILIVE_RTMP_TARGET="$rtmp_url"
-
-    # Optional geometry: store as shell-safe args file
-    : > "$BILIVE_RUNTIME_DIR/wf-extra.args"
+    # Optional geometry: store as shell-safe NUL-separated args
+    : > "$BILIVE_EXTRA_ARGS"
     if [ ${#geo_args[@]} -gt 0 ]; then
-        printf '%s\0' "${geo_args[@]}" > "$BILIVE_RUNTIME_DIR/wf-extra.args"
+        printf '%s\0' "${geo_args[@]}" > "$BILIVE_EXTRA_ARGS"
     fi
 
     cat > "$BILIVE_RUNNER" <<'RUNNER'
@@ -225,21 +214,21 @@ bilive_start() {
 set -e
 exec >>"$BILIVE_LOG_FILE" 2>&1
 
-trap 'pkill -INT -P $$ 2>/dev/null || true; wait 2>/dev/null || true' EXIT INT TERM
+cleanup() {
+    pkill -INT -P $$ 2>/dev/null || true
+    wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
 extra_args=()
-if [ -s "${XDG_RUNTIME_DIR:-/tmp}/bilive/wf-extra.args" ] || [ -s "${BILIVE_RUNTIME_DIR:-}/wf-extra.args" ]; then
-    args_file=""
-    if [ -n "${BILIVE_RUNTIME_DIR:-}" ] && [ -f "$BILIVE_RUNTIME_DIR/wf-extra.args" ]; then
-        args_file="$BILIVE_RUNTIME_DIR/wf-extra.args"
-    fi
-    if [ -n "$args_file" ] && [ -s "$args_file" ]; then
-        while IFS= read -r -d '' item; do
-            extra_args+=("$item")
-        done < "$args_file"
-    fi
+if [ -n "${BILIVE_RUNTIME_DIR:-}" ] && [ -s "$BILIVE_RUNTIME_DIR/wf-extra.args" ]; then
+    while IFS= read -r -d '' item; do
+        extra_args+=("$item")
+    done < "$BILIVE_RUNTIME_DIR/wf-extra.args"
 fi
 
+# IMPORTANT: wf-recorder treats "-f -" as a file named "-", not stdout.
+# Use /dev/stdout so the pipe to ffmpeg actually works.
 wf-recorder \
     "${extra_args[@]}" \
     --audio="$BILIVE_AUDIO_SOURCE" \
@@ -258,7 +247,7 @@ wf-recorder \
     -p "bufsize=$BILIVE_BUFSIZE" \
     -p "g=$BILIVE_GOP" \
     -P "b=$BILIVE_AUDIO_BITRATE" \
-    -f - \
+    -f /dev/stdout \
 | ffmpeg -hide_banner -loglevel warning \
     -i - \
     -c copy \
@@ -266,9 +255,6 @@ wf-recorder \
     "$BILIVE_RTMP_TARGET"
 RUNNER
     chmod +x "$BILIVE_RUNNER"
-
-    # Export runtime dir for runner
-    export BILIVE_RUNTIME_DIR
 
     # New session so bilive_stop can signal the whole pipeline
     setsid env \
@@ -294,6 +280,18 @@ RUNNER
         return 4
     fi
 
+    # Must actually be talking to the RTMP server, not just sitting on a local pipe
+    if ! pgrep -u "$(id -u)" -af 'ffmpeg.*live-push|ffmpeg.*rtmp://' >/dev/null 2>&1; then
+        # still ok if host is not bilivideo (custom RTMP); check any ffmpeg child of our group
+        local pgid
+        pgid=$(tr -d '[:space:]' < "$BILIVE_PID_FILE")
+        if ! pgrep -u "$(id -u)" -P "$pgid" -a ffmpeg >/dev/null 2>&1 \
+            && ! pgrep -u "$(id -u)" -g "$pgid" -a ffmpeg >/dev/null 2>&1; then
+            bilive_stop || true
+            return 4
+        fi
+    fi
+
     return 0
 }
 
@@ -314,6 +312,8 @@ bilive_stop() {
     fi
 
     kill -INT -- "-$pgid" 2>/dev/null || kill -INT "$pgid" 2>/dev/null || true
+    # Also interrupt recorder directly (it may ignore group signal timing)
+    pkill -INT -u "$(id -u)" -x wf-recorder 2>/dev/null || true
 
     for i in $(seq 1 30); do
         if ! bilive_is_active; then
@@ -324,6 +324,7 @@ bilive_stop() {
 
     if bilive_is_active; then
         kill -TERM -- "-$pgid" 2>/dev/null || kill -TERM "$pgid" 2>/dev/null || true
+        pkill -TERM -u "$(id -u)" -x wf-recorder 2>/dev/null || true
         for i in $(seq 1 20); do
             if ! bilive_is_active; then
                 break
@@ -334,6 +335,8 @@ bilive_stop() {
 
     if bilive_is_active; then
         kill -KILL -- "-$pgid" 2>/dev/null || kill -KILL "$pgid" 2>/dev/null || true
+        pkill -KILL -u "$(id -u)" -x wf-recorder 2>/dev/null || true
+        pkill -KILL -u "$(id -u)" -f 'ffmpeg.*live-push|ffmpeg.*rtmp://' 2>/dev/null || true
         for i in $(seq 1 10); do
             if ! bilive_is_active; then
                 break
@@ -342,7 +345,6 @@ bilive_stop() {
         done
     fi
 
-    # Also clean up any leftover recorder/ffmpeg from this user if orphaned by mode marker
     rm -f "$BILIVE_PID_FILE" "$BILIVE_MODE_FILE"
     return 0
 }
