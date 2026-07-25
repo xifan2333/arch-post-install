@@ -15,6 +15,13 @@ if bilive_is_active; then
     exit 1
 fi
 
+if bilive_local_recording_active; then
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_recording_active)"
+    fi
+    exit 1
+fi
+
 if ! bilive_require_rtmp_url >/dev/null; then
     if command -v notify-send >/dev/null 2>&1; then
         notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_missing_rtmp)"
@@ -42,6 +49,12 @@ case "$rc" in
     3)
         if command -v notify-send >/dev/null 2>&1; then
             notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_missing_rtmp)"
+        fi
+        exit 1
+        ;;
+    5)
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_recording_active)"
         fi
         exit 1
         ;;

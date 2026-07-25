@@ -19,6 +19,7 @@ riverctl map normal $mod E spawn "uwsm app -- $FILE_MANAGER"                    
 riverctl map normal $mod+Shift E spawn "uwsm app -- $TERMINAL -e $FILE_MANAGER_TUI"          # 文件管理器（TUI）
 riverctl map normal $mod C spawn "uwsm app -- $CODE_EDITOR"                                  # VSCode
 riverctl map normal $mod G spawn "uwsm app -- screenrecord-toggle-full"                      # 录屏开关
+riverctl map normal ${mod}+Shift G spawn "uwsm app -- bilive-toggle-full"                    # B 站直播开关
 
 # 窗口管理
 riverctl map normal $mod W close                                    # 关闭窗口

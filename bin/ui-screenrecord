@@ -1,23 +1,25 @@
 #!/bin/bash
-# Interactive screen recording menu with wofi
+# Interactive screen recording + Bilibili live menu with wofi
 # Usage: ui-screenrecord
 
 set -e
 
-# Load i18n
 source i18n-core
 
 # Show menu (disable cache to preserve order)
-CHOICE=$(printf "%s\n%s\n%s" \
+CHOICE=$(printf "%s\n%s\n%s\n%s\n%s\n%s\n%s" \
     "${i18n[screenrecord_start_full]}" \
     "${i18n[screenrecord_start_area]}" \
     "${i18n[screenrecord_stop]}" \
+    "${i18n[bilive_start_full]}" \
+    "${i18n[bilive_start_area]}" \
+    "${i18n[bilive_stop]}" \
+    "${i18n[bilive_set_rtmp]}" \
     | ui-wofi --dmenu --cache-file=/dev/null -p "${i18n[screenrecord_prompt]}")
 
 # User cancelled
 [ -z "$CHOICE" ] && exit 0
 
-# Execute based on choice
 case "$CHOICE" in
     "${i18n[screenrecord_start_area]}")
         screenrecord-start-area
@@ -27,5 +29,46 @@ case "$CHOICE" in
         ;;
     "${i18n[screenrecord_stop]}")
         screenrecord-stop
+        ;;
+    "${i18n[bilive_start_full]}")
+        bilive-start-full
+        ;;
+    "${i18n[bilive_start_area]}")
+        bilive-start-area
+        ;;
+    "${i18n[bilive_stop]}")
+        bilive-stop
+        ;;
+    "${i18n[bilive_set_rtmp]}")
+        source bilive-core
+        bilive_load_config
+
+        current=""
+        if current=$(bilive_get_rtmp_url 2>/dev/null); then
+            :
+        else
+            current=""
+        fi
+
+        if ! command -v zenity >/dev/null 2>&1; then
+            if command -v notify-send >/dev/null 2>&1; then
+                notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_zenity_missing)"
+            fi
+            exit 1
+        fi
+
+        new_url=$(zenity --entry \
+            --title="$(msg bilive_notify_title)" \
+            --text="$(msg bilive_set_rtmp_text)" \
+            --entry-text="$current" \
+            --width=640) || exit 0
+
+        [ -z "$new_url" ] && exit 0
+
+        bilive_set_rtmp_url "$new_url"
+
+        if command -v notify-send >/dev/null 2>&1; then
+            notify-send "$(msg bilive_notify_title)" "$(msg bilive_notify_rtmp_saved)"
+        fi
         ;;
 esac

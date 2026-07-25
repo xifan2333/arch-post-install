@@ -72,6 +72,7 @@
         "format": "{icon} {text}",
         "format-icons": {
             "recording": "󰑋",
+            "live": "󰐻",
             "idle": "󰑊"
         }
     },

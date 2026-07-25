@@ -139,16 +139,18 @@ bilive_get_mode() {
 }
 
 bilive_get_duration_seconds() {
-    local pgid start now
+    local pgid duration
     [ -f "$BILIVE_PID_FILE" ] || return 1
     pgid=$(tr -d '[:space:]' < "$BILIVE_PID_FILE")
     [ -n "$pgid" ] || return 1
 
-    start=$(ps -o lstart= -p "$pgid" 2>/dev/null) || return 1
-    [ -n "$start" ] || return 1
-    start=$(date -d "$start" +%s 2>/dev/null) || return 1
-    now=$(date +%s)
-    echo $((now - start))
+    duration=$(ps -o etimes= -p "$pgid" 2>/dev/null | tr -d '[:space:]')
+    if [ -z "$duration" ]; then
+        # Fallback: first wf-recorder owned by this user while live
+        duration=$(ps -o etimes= -C wf-recorder 2>/dev/null | head -1 | tr -d '[:space:]')
+    fi
+    [ -n "$duration" ] || return 1
+    echo "$duration"
 }
 
 bilive_unmute_audio() {
@@ -157,6 +159,19 @@ bilive_unmute_audio() {
             pactl set-source-mute "$AUDIO_SOURCE" 0
         fi
     fi
+}
+
+# Reuse screenrecord waybar module (signal 8)
+bilive_notify_waybar() {
+    pkill -SIGRTMIN+8 waybar 2>/dev/null || true
+}
+
+# True when local file recording owns wf-recorder (not bilive)
+bilive_local_recording_active() {
+    if bilive_is_active; then
+        return 1
+    fi
+    pgrep -u "$(id -u)" -x wf-recorder >/dev/null 2>&1
 }
 
 # Build video filter for wf-recorder -F
@@ -185,6 +200,10 @@ bilive_start() {
 
     if bilive_is_active; then
         return 2
+    fi
+
+    if bilive_local_recording_active; then
+        return 5
     fi
 
     if ! rtmp_url=$(bilive_require_rtmp_url); then
@@ -292,6 +311,7 @@ RUNNER
         fi
     fi
 
+    bilive_notify_waybar
     return 0
 }
 
@@ -346,5 +366,6 @@ bilive_stop() {
     fi
 
     rm -f "$BILIVE_PID_FILE" "$BILIVE_MODE_FILE"
+    bilive_notify_waybar
     return 0
 }

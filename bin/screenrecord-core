@@ -38,7 +38,30 @@ screenrecord_check_deps() {
     done
 }
 
-# Check if recording is active
+# bilive also uses wf-recorder; load its helpers when available
+screenrecord_load_bilive() {
+    if declare -F bilive_is_active >/dev/null 2>&1; then
+        return 0
+    fi
+    if command -v bilive-core >/dev/null 2>&1; then
+        # shellcheck disable=SC1091
+        source bilive-core
+        return 0
+    fi
+    if [ -f "$HOME/.local/bin/bilive-core" ]; then
+        # shellcheck disable=SC1091
+        source "$HOME/.local/bin/bilive-core"
+        return 0
+    fi
+    return 1
+}
+
+screenrecord_is_live() {
+    screenrecord_load_bilive || return 1
+    bilive_is_active
+}
+
+# Check if local file recording is active (excludes bilive push)
 screenrecord_list_pids() {
     pgrep -u "$(id -u)" -x wf-recorder 2>/dev/null
 }
@@ -48,12 +71,22 @@ screenrecord_get_pid() {
 }
 
 screenrecord_is_active() {
+    # Live stream owns wf-recorder when bilive is running
+    if screenrecord_is_live; then
+        return 1
+    fi
     [ -n "$(screenrecord_get_pid)" ]
 }
 
 screenrecord_get_duration_seconds() {
     local pid
     local duration
+
+    if screenrecord_is_live; then
+        screenrecord_load_bilive || return 1
+        bilive_get_duration_seconds
+        return $?
+    fi
 
     pid=$(screenrecord_get_pid) || return 1
     [ -n "$pid" ] || return 1
@@ -70,31 +103,37 @@ screenrecord_notify_waybar() {
 }
 
 # Waybar module: output status JSON
+# States: idle | recording (local file) | live (Bilibili push)
 screenrecord_waybar_status() {
-    # Load i18n for tooltips
     source i18n-core
 
-    if screenrecord_is_active; then
-        duration=$(screenrecord_get_duration_seconds 2>/dev/null || echo 0)
+    local duration minutes seconds time_str tooltip
 
-        # Format duration as MM:SS
+    if screenrecord_is_live; then
+        duration=$(screenrecord_get_duration_seconds 2>/dev/null || echo 0)
         minutes=$((duration / 60))
         seconds=$((duration % 60))
-        time_str=$(printf "%02d:%02d" $minutes $seconds)
-
-        # Output JSON for waybar
+        time_str=$(printf "%02d:%02d" "$minutes" "$seconds")
+        tooltip=$(msg "waybar_screenrecord_tooltip_live")
+        echo "{\"text\":\"$time_str\",\"alt\":\"live\",\"class\":\"live\",\"tooltip\":\"$tooltip\"}"
+    elif screenrecord_is_active; then
+        duration=$(screenrecord_get_duration_seconds 2>/dev/null || echo 0)
+        minutes=$((duration / 60))
+        seconds=$((duration % 60))
+        time_str=$(printf "%02d:%02d" "$minutes" "$seconds")
         tooltip=$(msg "waybar_screenrecord_tooltip_recording")
         echo "{\"text\":\"$time_str\",\"alt\":\"recording\",\"class\":\"recording\",\"tooltip\":\"$tooltip\"}"
     else
-        # Not recording
         tooltip=$(msg "waybar_screenrecord_tooltip_idle")
         echo "{\"text\":\"\",\"alt\":\"idle\",\"class\":\"idle\",\"tooltip\":\"$tooltip\"}"
     fi
 }
 
-
+# Click: stop whatever is active; idle starts local full recording (Super+G habit)
 screenrecord_waybar_click() {
-    if screenrecord_is_active; then
+    if screenrecord_is_live; then
+        bilive-stop
+    elif screenrecord_is_active; then
         screenrecord-stop
     else
         screenrecord-start-full

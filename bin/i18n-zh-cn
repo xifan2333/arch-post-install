@@ -86,18 +86,20 @@ i18n[screenshot_notify_path_copied]="路径已复制：{filepath}"
 # ============================================================================
 # ui-screenrecord - 录屏工具
 # ============================================================================
-i18n[screenrecord_prompt]="录屏："
+i18n[screenrecord_prompt]="录屏/直播："
 i18n[screenrecord_start_area]="区域录制"
 i18n[screenrecord_start_full]="全屏录制"
 i18n[screenrecord_stop]="停止录制"
 i18n[screenrecord_notify_title]="录屏"
 i18n[screenrecord_notify_stopped]="已保存：{filename}"
 i18n[screenrecord_notify_already_active]="录制已在进行中"
+i18n[screenrecord_notify_live_active]="B 站直播进行中，请先停止直播"
 i18n[screenrecord_notify_transcoding]="正在转码为恒定帧率视频..."
 i18n[screenrecord_notify_transcode_complete]="转码完成：{filename}"
 
 # waybar-screenrecord
 i18n[waybar_screenrecord_tooltip_recording]="录制中 - 点击停止"
+i18n[waybar_screenrecord_tooltip_live]="直播中 - 点击停止推流"
 i18n[waybar_screenrecord_tooltip_idle]="录屏"
 
 # screenrecord-overlay-captions
@@ -126,6 +128,7 @@ i18n[bilive_notify_started_full]="已开始全屏推流"
 i18n[bilive_notify_started_area]="已开始区域推流"
 i18n[bilive_notify_stopped]="已停止推流"
 i18n[bilive_notify_already_active]="推流已在进行中"
+i18n[bilive_notify_recording_active]="本地录屏进行中，请先停止录屏"
 i18n[bilive_notify_not_active]="当前没有推流"
 i18n[bilive_notify_missing_rtmp]="未配置推流地址，请先设置 RTMP"
 i18n[bilive_notify_start_failed]="推流启动失败，请查看日志"

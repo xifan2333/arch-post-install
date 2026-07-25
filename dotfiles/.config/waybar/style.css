@@ -144,6 +144,11 @@ window#waybar {
     animation: blink 1s linear infinite;
 }
 
+#custom-screenrecord.live {
+    color: @accent-primary;
+    animation: blink 1s linear infinite;
+}
+
 #custom-screenrecord:hover {
     color: @accent-primary;
 }
