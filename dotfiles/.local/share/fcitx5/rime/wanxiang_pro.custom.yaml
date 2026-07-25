@@ -1,5 +1,9 @@
+# 万象PRO自定义配置 - 小鹤双拼 + 直接辅助码
 patch:
   speller/algebra:
     __patch:
       - wanxiang_algebra:/pro/小鹤双拼
+      # 可选输入方案名称：自然码, 自然龙, 小鹤双拼, 搜狗双拼, 微软双拼, 智能ABC, 紫光双拼, 国标双拼
       - wanxiang_algebra:/pro/直接辅助
+      # 辅助码升级为：直接辅助和间接辅助两种类型
+  menu/page_size: 6

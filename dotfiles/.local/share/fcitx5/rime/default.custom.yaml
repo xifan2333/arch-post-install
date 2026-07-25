@@ -1,13 +1,11 @@
 patch:
   schema_list:
-    - schema: wanxiang_pro
+    - schema: wanxiang
     - schema: wanxiang_english
   __include: wanxiang_suggestion:/
   __patch:
     key_binder/bindings/+:
-      # 候选框翻页
       - { when: composing, accept: minus, send: Page_Up }
       - { when: composing, accept: equal, send: Page_Down }
-      # 开启逗号句号翻页
       - { when: paging, accept: comma, send: Page_Up }
       - { when: has_menu, accept: period, send: Page_Down }
