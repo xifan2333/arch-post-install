@@ -1,12 +1,11 @@
 [tools]
 bun = "latest"
-"github:earendil-works/pi" = "latest"
 "github:iOfficeAI/OfficeCLI" = "latest"
+"github:xifan2333/pi-baseline" = { version = "latest", matching = "baseline" }
 go = "latest"
 herdr = "latest"
 node = "24"
-"npm:@earendil-works/pi-coding-agent" = "latest"
-pi = "latest"
+"npm:@jshookmcp/jshook" = "0.3.4"
 pnpm = "latest"
 uv = "latest"
 
