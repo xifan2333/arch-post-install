@@ -54,7 +54,7 @@ Arch Linux 个人桌面环境配置管理项目。
 | `screenrecord-*` | 录屏功能 | `screenrecord-start-full`, `screenrecord-stop` |
 | `waybar-status-*` | Waybar 状态模块（输出 JSON） | `waybar-status-screenrecord` |
 | `waybar-event-*` | Waybar 点击事件处理 | `waybar-event-screenrecord` |
-| `package-*` | 包管理操作 | `package-install`, `package-backup` |
+| `package-*` | 包管理操作 | `package-install` |
 | `webapp-*` | Web 应用管理 | `webapp-install-desktop`, `webapp-launch` |
 | `tui-*` | TUI 应用管理 | `tui-install-desktop`, `tui-list-desktop` |
 | `component-*` | 可复用的 UI 组件 | `component-show-logo`, `component-show-done` |
