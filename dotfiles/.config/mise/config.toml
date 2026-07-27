@@ -6,6 +6,7 @@ go = "latest"
 herdr = "latest"
 node = "24"
 "npm:@jshookmcp/jshook" = "0.3.4"
+"npm:defuddle" = "latest"
 pnpm = "latest"
 uv = "latest"
 

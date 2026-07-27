@@ -112,26 +112,26 @@ scrollback_limit_bytes = 10000000
 
 # --- BEGIN herdr theme ---
 [theme.custom]
-# accent  = river focused border (green)
+# accent  = river focused border (blue)
 # panel   = primary.background
-# surface = unfocused border / normal.black
+# surface = unfocused border / bright.black (normal.black == bg)
 # text    = primary.foreground
 # status  = normal.* ANSI
-# peach   = no orange slot → yellow (warmest available)
-accent = "#a7c080"
-panel_bg = "#2d353b"
-surface0 = "#3d484d"
-surface1 = "#475258"
-surface_dim = "#2d353b"
-overlay0 = "#475258"
-overlay1 = "#d3c6aa"
-text = "#d3c6aa"
-subtext0 = "#475258"
-mauve = "#d699b6"
-green = "#a7c080"
-yellow = "#dbbc7f"
-red = "#e67e80"
-blue = "#7fbbb3"
-teal = "#83c092"
-peach = "#dbbc7f"
+# peach   = no orange slot → yellow
+accent = "#61afef"
+panel_bg = "#282c34"
+surface0 = "#3e4451"
+surface1 = "#5c6370"
+surface_dim = "#282c34"
+overlay0 = "#5c6370"
+overlay1 = "#abb2bf"
+text = "#abb2bf"
+subtext0 = "#5c6370"
+mauve = "#c678dd"
+green = "#98c379"
+yellow = "#e5c07b"
+red = "#e06c75"
+blue = "#61afef"
+teal = "#56b6c2"
+peach = "#e5c07b"
 # --- END herdr theme ---
