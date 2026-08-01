@@ -1,16 +1,18 @@
 [tools]
+aube = "latest"
 bun = "latest"
 "github:iOfficeAI/OfficeCLI" = "latest"
-"github:xifan2333/pi-baseline" = { version = "latest", matching = "baseline" }
 go = "latest"
 herdr = "latest"
 node = "24"
-"npm:@jshookmcp/jshook" = "0.3.4"
+"npm:@earendil-works/pi-coding-agent" = "latest"
 "npm:defuddle" = "latest"
 pnpm = "latest"
 uv = "latest"
 
 [settings]
-idiomatic_version_file_enable_tools = ["python"]
+idiomatic_version_file_enable_tools = ["python", "node"]
 github.use_git_credentials = true
 minimum_release_age = "0s"
+
+[env]
