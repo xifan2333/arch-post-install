@@ -1,10 +1,11 @@
 #!/bin/bash
-# Lightweight askpass using wofi with current theme.
+# Lightweight askpass using ui-wofi with current theme and i18n.
 # Usage: SUDO_ASKPASS=/path/to/this-script sudo -A <command>
+#
+# The disabled label entry identifies the dialog purpose
+# without being selectable. User types password and presses Enter.
 
-THEME_CSS="$HOME/.config/current/wofi.css"
-if [[ -f $THEME_CSS ]]; then
-  exec wofi --dmenu --password --prompt="Password" --lines=1 -s "$THEME_CSS" 2>/dev/null
-else
-  exec wofi --dmenu --password --prompt="Password" --lines=1 2>/dev/null
-fi
+source i18n-core
+
+printf '%s\0non-selectable\n' "${i18n[askpass_prompt]:-Password}" |
+  ui-wofi --dmenu --password --lines=1 2>/dev/null
