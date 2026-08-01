@@ -1,22 +1,11 @@
 #!/bin/bash
-# Askpass for sudo -A: try keyring first, fall back to wofi prompt.
+# Lightweight askpass using ui-wofi with current theme and i18n.
 # Usage: SUDO_ASKPASS=/path/to/this-script sudo -A <command>
+#
+# The disabled label entry identifies the dialog purpose
+# without being selectable. User types password and presses Enter.
 
-# 1. Try gnome-keyring via secret-tool
-PASS=$(secret-tool lookup service sudo username "$USER" 2>/dev/null)
-if [ -n "$PASS" ]; then
-    printf '%s\n' "$PASS"
-    exit 0
-fi
-
-# 2. Fall back to wofi prompt
 source i18n-core
 
-WOBI_PASS=$(printf '%s\0non-selectable\n' "${i18n[askpass_prompt]:-Password}" |
-  ui-wofi --dmenu --password --lines=1 2>/dev/null)
-
-if [ -n "$WOBI_PASS" ]; then
-    printf '%s\n' "$WOBI_PASS"
-else
-    exit 1
-fi
+printf '%s\0non-selectable\n' "${i18n[askpass_prompt]:-Password}" |
+  ui-wofi --dmenu --password --lines=1 2>/dev/null
