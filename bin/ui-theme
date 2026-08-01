@@ -25,4 +25,4 @@ SELECTED=$(get_themes | ui-wofi --dmenu -p "${i18n[theme_prompt]}")
 [ -z "$SELECTED" ] && exit 0
 
 # Delegate to set-theme for rendering and hot-reload
-exec set-theme "$SELECTED"
+exec theme-set "$SELECTED"
