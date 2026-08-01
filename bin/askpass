@@ -1,5 +1,10 @@
 #!/bin/bash
-# Lightweight askpass using wofi (Wayland-native, won't break fcitx5).
+# Lightweight askpass using wofi with current theme.
 # Usage: SUDO_ASKPASS=/path/to/this-script sudo -A <command>
 
-exec wofi --dmenu --password --prompt="Password" --lines=1 2>/dev/null
+THEME_CSS="$HOME/.config/current/wofi.css"
+if [[ -f $THEME_CSS ]]; then
+  exec wofi --dmenu --password --prompt="Password" --lines=1 -s "$THEME_CSS" 2>/dev/null
+else
+  exec wofi --dmenu --password --prompt="Password" --lines=1 2>/dev/null
+fi
