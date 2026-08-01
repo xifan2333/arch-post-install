@@ -66,23 +66,7 @@ fi
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
 
-# Copy theme-specific files (not templates)
-for f in "$THEME_DIR"/*; do
-  name=$(basename "$f")
-  # Skip directories, colors.toml, and files that have templates
-  case "$name" in
-    colors.toml) ;;
-    waybar.css|alacritty.toml|wezterm.lua|kitty.conf|wofi.css|fuzzel.ini|dunstrc|swayosd.css|riverrc)
-      ;; # rendered from templates
-    *)
-      if [[ -f $f ]]; then
-        cp "$f" "$STAGING/$name"
-      fi
-      ;;
-  esac
-done
-
-# ── render templates ─────────────────────────────────────────────
+# ── render templates first (theme-specific files override later) ──
 
 sed_script=$(mktemp)
 for key in "${!COLORS[@]}"; do
@@ -92,14 +76,20 @@ done
 shopt -s nullglob
 for tpl in "$TEMPLATES_DIR"/*.tpl; do
   name=$(basename "$tpl" .tpl)
-  # Don't overwrite theme-specific override if already in staging
-  if [[ ! -f $STAGING/$name ]]; then
-    sed -f "$sed_script" "$tpl" > "$STAGING/$name"
-    # Clean up unreplaced placeholders (missing keys)
-    sed -i 's|{{ [^}]* }}||g' "$STAGING/$name"
-  fi
+  sed -f "$sed_script" "$tpl" > "$STAGING/$name"
+  # Clean up unreplaced placeholders (missing keys)
+  sed -i 's|{{ [^}]* }}||g' "$STAGING/$name"
 done
 rm "$sed_script"
+
+# Copy ALL theme files on top — theme-specific files override templates
+for f in "$THEME_DIR"/*; do
+  name=$(basename "$f")
+  [[ $name == colors.toml ]] && continue
+  if [[ -f $f ]]; then
+    cp "$f" "$STAGING/$name"
+  fi
+done
 
 # ── atomic swap ──────────────────────────────────────────────────
 
@@ -122,10 +112,45 @@ if pgrep -x waybar >/dev/null 2>&1; then
   pkill -SIGUSR2 waybar 2>/dev/null || true
 fi
 
-# dunst: send SIGUSR1 to reload
+# dunst: copy theme config to drop-in + reload
+if [[ -f $CURRENT/dunstrc ]]; then
+  mkdir -p "$HOME/.config/dunst/dunstrc.d"
+  cp "$CURRENT/dunstrc" "$HOME/.config/dunst/dunstrc.d/90-theme.conf"
+fi
 if pgrep -x dunst >/dev/null 2>&1; then
   killall -SIGUSR1 dunst 2>/dev/null || true
 fi
+
+# swaylock
+if [[ -f $CURRENT/swaylock.conf ]]; then
+  mkdir -p "$HOME/.config/swaylock"
+  cp "$CURRENT/swaylock.conf" "$HOME/.config/swaylock/config"
+fi
+
+# swayosd
+if [[ -f $CURRENT/swayosd.css ]]; then
+  mkdir -p "$HOME/.config/swayosd"
+  cp "$CURRENT/swayosd.css" "$HOME/.config/swayosd/style.css"
+fi
+
+# btop
+if [[ -f $CURRENT/btop.theme ]]; then
+  mkdir -p "$HOME/.config/btop/themes"
+  cp "$CURRENT/btop.theme" "$HOME/.config/btop/themes/$THEME_NAME.theme"
+  if [[ -f $HOME/.config/btop/btop.conf ]]; then
+    sed -i --follow-symlinks "s/^color_theme = .*/color_theme = \"$THEME_NAME\"/" "$HOME/.config/btop/btop.conf"
+  fi
+  if pgrep -x btop >/dev/null 2>&1; then
+    pkill -SIGUSR2 btop 2>/dev/null || true
+  fi
+fi
+
+# Run legacy theme-sync scripts for other apps
+for sync_script in theme-sync-gtk theme-sync-herdr theme-sync-eza theme-sync-vscode; do
+  if command -v "$sync_script" >/dev/null 2>&1; then
+    "$sync_script" 2>/dev/null || true
+  fi
+done
 
 # wezterm: touch config to trigger auto-reload
 if [[ -f $HOME/.config/wezterm/wezterm.lua ]]; then
