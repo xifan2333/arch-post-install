@@ -1,5 +1,11 @@
 #!/bin/bash
-# Lightweight askpass for Wayland using zenity (GTK-native, no fcitx5 issues)
+# Lightweight askpass for Wayland using zenity.
+# After the password dialog closes, restore fcitx5 input context so
+# the input method keeps working (modal dialogs steal focus on Wayland).
 # Usage: SUDO_ASKPASS=/path/to/this-script sudo -A <command>
 
-exec zenity --password --title="Authentication" 2>/dev/null
+zenity --password --title="Authentication" 2>/dev/null
+rc=$?
+# Restore fcitx5 input context that was lost to the modal dialog
+fcitx5-remote -o 2>/dev/null || true
+exit $rc
