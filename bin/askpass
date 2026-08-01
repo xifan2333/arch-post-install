@@ -1,0 +1,5 @@
+#!/bin/bash
+# Lightweight askpass for Wayland using zenity (GTK-native, no fcitx5 issues)
+# Usage: SUDO_ASKPASS=/path/to/this-script sudo -A <command>
+
+exec zenity --password --title="Authentication" 2>/dev/null
