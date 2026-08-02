@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=River
-Comment=A dynamic tiling Wayland compositor
-Exec=uwsm start -F -o river.desktop -- river
-Type=Application
-DesktopNames=River

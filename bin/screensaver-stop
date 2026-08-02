@@ -1,8 +1,0 @@
-#!/bin/bash
-# Stop screensaver
-
-# Kill tte processes
-pkill -x tte 2>/dev/null
-
-# Kill screensaver terminal
-pkill -f "${TERMINAL:-wezterm}.*Screensaver" 2>/dev/null

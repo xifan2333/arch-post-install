@@ -1,7 +1,0 @@
-#!/bin/bash
-# Reload River WM configuration
-# Usage: river-reload
-
-set -e
-
-"$HOME/.config/river/init"
