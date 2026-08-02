@@ -1,7 +1,0 @@
-#!/bin/bash
-
-set -e
-
-# Remove --disable notificationitem from default fcitx5 autostart
-sed -i 's/exec-once = uwsm-app -- fcitx5 --disable notificationitem/exec-once = uwsm-app -- fcitx5/' \
-    ~/.local/share/omarchy/default/hypr/autostart.conf
