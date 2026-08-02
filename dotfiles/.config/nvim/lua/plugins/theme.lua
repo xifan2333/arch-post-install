@@ -1,1 +1,0 @@
-/home/xifan/.config/current/neovim.lua

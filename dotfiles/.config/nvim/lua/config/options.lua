@@ -1,5 +1,8 @@
 local opt = vim.opt
 
+-- OSC52/tmux clipboard: yanks broadcast to attached clients, paste prefers local Wayland clipboard
+require('config.remote_clipboard').setup()
+
 opt.number = true
 opt.relativenumber = false
 opt.mouse = "a"
