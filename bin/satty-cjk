@@ -1,0 +1,15 @@
+#!/bin/bash
+# satty wrapper: 使用含中文字形的字体渲染标注文字
+# satty 的文字渲染栈（glyphon/cosmic-text）对 CJK 自动回退有缺陷，
+# 默认字体会把中文显示为方块，这里显式指定 Sarasa Mono SC（更纱黑体等宽）。
+# 其余参数与 omarchy-capture-screenshot 调用 satty 的默认行为保持一致。
+#
+# 通过 OMARCHY_SCREENSHOT_EDITOR=satty-cjk 接入 Omarchy 截图流程。
+
+exec satty \
+  --font-family "Sarasa Mono SC" \
+  --filename "$1" \
+  --output-filename "$1" \
+  --actions-on-enter save-to-clipboard \
+  --save-after-copy \
+  --copy-command 'wl-copy'

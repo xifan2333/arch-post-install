@@ -1,0 +1,145 @@
+#!/bin/bash
+# Sync fcitx5 theme with current Omarchy theme
+# fcitx5 classicui only supports solid #RRGGBB colors (no alpha),
+# so we simulate "accent with transparency" by blending accent into background.
+set -e
+
+FCITX5_THEME_DIR="$HOME/.local/share/fcitx5/themes/custom"
+FCITX5_THEME_LINK="$FCITX5_THEME_DIR/theme.conf"
+FCITX5_CLASSICUI="$HOME/.config/fcitx5/conf/classicui.conf"
+GENERATED_THEME="$HOME/.config/omarchy/current/theme/fcitx5-theme.conf"
+COLORS="$HOME/.config/omarchy/current/theme/colors.toml"
+
+[[ -f $COLORS ]] || exit 0
+
+# Read a color value from colors.toml
+get_color() {
+    grep "^$1 " "$COLORS" | head -1 | cut -d'"' -f2
+}
+
+# Blend two hex colors: blend <base> <overlay> <overlay_ratio 0-100>
+blend() {
+    local base="${1#\#}" over="${2#\#}" ratio="$3"
+    local br=$((16#${base:0:2})) bg=$((16#${base:2:2})) bb=$((16#${base:4:2}))
+    local or=$((16#${over:0:2})) og=$((16#${over:2:2})) ob=$((16#${over:4:2}))
+    printf "#%02x%02x%02x" \
+        $(( br + (or - br) * ratio / 100 )) \
+        $(( bg + (og - bg) * ratio / 100 )) \
+        $(( bb + (ob - bb) * ratio / 100 ))
+}
+
+BACKGROUND=$(get_color background)
+FOREGROUND=$(get_color foreground)
+ACCENT=$(get_color accent)
+COLOR0=$(get_color color0)
+
+# Selected background: accent blended into background at 18% (simulates transparency)
+HIGHLIGHT_BG=$(blend "$BACKGROUND" "$ACCENT" 18)
+
+# Generate theme
+cat > "$GENERATED_THEME" <<EOF
+[Metadata]
+Name=Omarchy
+ScaleWithDPI=True
+
+[InputPanel]
+Font=Sans 12
+NormalColor=$FOREGROUND
+HighlightCandidateColor=$ACCENT
+HighlightColor=$ACCENT
+
+[InputPanel/TextMargin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+
+[InputPanel/ContentMargin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[InputPanel/Background]
+Color=$BACKGROUND
+BorderColor=$ACCENT
+BorderWidth=2
+
+[InputPanel/Background/Margin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[InputPanel/Highlight]
+Color=$HIGHLIGHT_BG
+
+[InputPanel/Highlight/Margin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+
+[Menu]
+NormalColor=$FOREGROUND
+HighlightCandidateColor=$ACCENT
+
+[Menu/ContentMargin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[Menu/Background]
+Color=$BACKGROUND
+BorderColor=$ACCENT
+BorderWidth=2
+
+[Menu/Background/Margin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[Menu/Highlight]
+Color=$HIGHLIGHT_BG
+
+[Menu/Highlight/Margin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+
+[Menu/Separator]
+Color=$COLOR0
+
+[Menu/TextMargin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+EOF
+
+# One-time setup: symlink + classicui config
+mkdir -p "$FCITX5_THEME_DIR"
+if [[ ! -L $FCITX5_THEME_LINK ]] || [[ $(readlink "$FCITX5_THEME_LINK") != "$GENERATED_THEME" ]]; then
+    ln -sf "$GENERATED_THEME" "$FCITX5_THEME_LINK"
+fi
+
+if [[ ! -f $FCITX5_CLASSICUI ]]; then
+    mkdir -p "$(dirname "$FCITX5_CLASSICUI")"
+    cat > "$FCITX5_CLASSICUI" <<'EOF'
+Vertical Candidate List=False
+Font=Sans 12
+Theme=custom
+EOF
+fi
+
+# Reload classicui addon (verified working method)
+if pgrep -x fcitx5 >/dev/null; then
+    gdbus call --session \
+        --dest org.fcitx.Fcitx5 \
+        --object-path /controller \
+        --method org.fcitx.Fcitx.Controller1.ReloadAddonConfig \
+        "classicui" >/dev/null
+fi
