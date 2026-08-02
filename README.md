@@ -1,5 +1,8 @@
 # Arch Linux Post-Install Setup
 
+> ⚠️ **迁移中**：系统已切换到 [Omarchy](https://omarchy.org/)（Arch + Hyprland）。
+> 本文档描述的旧 River 方案已废弃，待全面重写，请以 CLAUDE.md 为准。
+
 一键配置 Arch Linux 系统，提供开箱即用的中文环境和 Wayland 桌面。
 
 ## 特性
