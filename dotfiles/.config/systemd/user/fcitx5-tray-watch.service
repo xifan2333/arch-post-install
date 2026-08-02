@@ -1,0 +1,12 @@
+[Unit]
+Description=Ensure fcitx5 tray icon (notificationitem) stays enabled
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/fcitx5-tray-watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

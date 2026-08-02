@@ -1,8 +1,0 @@
-#!/bin/bash
-# Enable the fcitx5 tray icon (StatusNotifierItem).
-#
-# Omarchy's default autostart launches fcitx5 with `--disable notificationitem`.
-# post-boot hooks run AFTER startup config (autostart.conf does `sleep 2 &&
-# omarchy-hook post-boot`), so the tray-less instance is already up and we can
-# deterministically replace it with a tray-enabled one — no upstream edits.
-pgrep -x fcitx5 >/dev/null && uwsm-app -- fcitx5 -r &
