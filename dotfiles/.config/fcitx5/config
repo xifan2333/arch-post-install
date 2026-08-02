@@ -1,6 +1,4 @@
 [Hotkey]
-# 切换输入法
-TriggerKeys=
 # 按住切换键的修饰键时进行轮换切换
 EnumerateWithTriggerKeys=True
 # 激活输入法
@@ -30,7 +28,10 @@ NextCandidate=
 # 切换是否使用嵌入预编辑
 TogglePreedit=
 # 触发修饰键快捷键的时限 (毫秒)
-ModifierOnlyKeyTimeout=249
+ModifierOnlyKeyTimeout=250
+
+[Hotkey/TriggerKeys]
+0=Control+space
 
 [Behavior]
 # 默认激活输入法

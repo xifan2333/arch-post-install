@@ -1,3 +1,4 @@
 dotfiles/.config/vinput/
 dotfiles/.config/qutebrowser/translate.json
 __pycache__/
+dotfiles/.config/fcitx5/conf/cached_layouts
