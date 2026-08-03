@@ -1,18 +1,9 @@
 [tools]
 aube = "latest"
-bun = "latest"
-"github:iOfficeAI/OfficeCLI" = "latest"
-go = "latest"
 herdr = "latest"
-node = "24"
+hunk = "latest"
+node = "26.5.0"
 "npm:@earendil-works/pi-coding-agent" = "latest"
-"npm:defuddle" = "latest"
-pnpm = "latest"
-uv = "latest"
 
 [settings]
-idiomatic_version_file_enable_tools = ["python", "node"]
-github.use_git_credentials = true
-minimum_release_age = "0s"
-
-[env]
+idiomatic_version_file_enable_tools = ["node"]
