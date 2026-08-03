@@ -71,27 +71,10 @@ install_dotfiles() {
     stow -D -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>/dev/null || true
     print_success "Previous links cleaned"
 
-    # Check for conflicts
-    print_substep "Checking for conflicts"
-    if ! stow -n -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>&1 | grep -q "would cause conflicts"; then
-        print_success "No conflicts detected"
-    else
-        print_warning "Conflicts detected, attempting to resolve"
-        # Remove conflicting files/symlinks
-        stow -n -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE" 2>&1 | grep "existing target" | \
-            sed 's/.*existing target //' | sed 's/ since.*//' | \
-            while read -r conflict; do
-                local target="$HOME/$conflict"
-                if [ -e "$target" ] && [ ! -d "$target" ]; then
-                    print_warning "Removing conflict: $conflict"
-                    rm -f "$target"
-                fi
-            done
-    fi
-
-    # Stow the dotfiles
-    print_substep "Deploying dotfiles with stow"
-    if stow -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE"; then
+    # Stow the dotfiles (--adopt: live files win — their content is pulled
+    # into the repo first, then replaced with symlinks; nothing is lost)
+    print_substep "Deploying dotfiles with stow (--adopt)"
+    if stow --adopt -d "$STOW_DIR" -t "$HOME" "$DOTFILES_PACKAGE"; then
         print_success "Dotfiles deployed from $DOTFILES_SRC to $HOME"
     else
         print_error "Failed to stow dotfiles"
@@ -100,8 +83,13 @@ install_dotfiles() {
 
     # Create Neovim theme symlink (not managed by stow)
     print_substep "Linking Neovim theme plugin"
-    ln -sf ~/.config/current/neovim.lua ~/.config/nvim/lua/plugins/theme.lua
-    print_success "Neovim theme linked to current theme"
+    if [ -f ~/.config/omarchy/current/theme/neovim.lua ]; then
+        mkdir -p ~/.config/nvim/lua/plugins
+        ln -sf ~/.config/omarchy/current/theme/neovim.lua ~/.config/nvim/lua/plugins/theme.lua
+        print_success "Neovim theme linked to current theme"
+    else
+        print_warning "Omarchy theme neovim.lua not found, skipping"
+    fi
 
     echo
     print_success "Dotfiles installation completed!"
