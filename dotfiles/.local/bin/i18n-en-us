@@ -44,5 +44,6 @@ i18n[livestream_cfg_add]="+ Add Platform"
 # ============================================================================
 # record-audio
 # ============================================================================
+i18n[record_audio_notify_title]="Record Audio"
 i18n[record_audio_enabled]="Mic + system mix enabled"
 i18n[record_audio_disabled]="Audio mix disabled"

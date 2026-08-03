@@ -22,7 +22,7 @@ enable)
     fi
 
     if command -v notify-send >/dev/null 2>&1; then
-        notify-send "Record Audio" "$(msg record_audio_enabled)${RECORD_DUCKING:+（+ ducking）}"
+        notify-send "$(msg record_audio_notify_title)" "$(msg record_audio_enabled)${RECORD_DUCKING:+（+ ducking）}"
     fi
     record_audio_status
     ;;
@@ -42,7 +42,7 @@ disable)
     fi
 
     if command -v notify-send >/dev/null 2>&1; then
-        notify-send "Record Audio" "$(msg record_audio_disabled)"
+        notify-send "$(msg record_audio_notify_title)" "$(msg record_audio_disabled)"
     fi
     echo "record audio disabled"
     ;;
