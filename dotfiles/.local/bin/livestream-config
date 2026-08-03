@@ -81,13 +81,13 @@ class PlatformRow(Gtk.Box):
         self.pack_start(self.key_entry, True, True, 0)
 
         show_btn = Gtk.Button.new_from_icon_name(
-            "document-properties", Gtk.IconSize.SMALL_TOOLBAR)
+            "view-reveal", Gtk.IconSize.SMALL_TOOLBAR)
         show_btn.set_tooltip_text("Show/hide key")
         show_btn.connect("clicked", self._toggle_key_visibility)
         self.pack_start(show_btn, False, False, 0)
 
         remove_btn = Gtk.Button.new_from_icon_name(
-            "list-remove", Gtk.IconSize.SMALL_TOOLBAR)
+            "edit-delete", Gtk.IconSize.SMALL_TOOLBAR)
         remove_btn.set_tooltip_text("Remove")
         remove_btn.connect("clicked", lambda b: on_remove(self))
         self.pack_start(remove_btn, False, False, 0)
