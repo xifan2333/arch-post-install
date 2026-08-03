@@ -1,0 +1,48 @@
+#!/bin/bash
+# 简体中文翻译文件
+# Chinese Simplified Translation
+
+# ============================================================================
+# 通用
+# ============================================================================
+i18n[cancel]="取消"
+i18n[confirm]="确认"
+
+# ============================================================================
+# screenrecord — 叠加层
+# ============================================================================
+i18n[screenrecord_notify_title]="录屏"
+i18n[screenrecord_overlay_camera_on]="摄像头叠加：已开启"
+i18n[screenrecord_overlay_camera_off]="摄像头叠加：已关闭"
+i18n[screenrecord_overlay_captions_on]="字幕叠加：已开启"
+i18n[screenrecord_overlay_captions_off]="字幕叠加：已关闭"
+i18n[screenrecord_overlay_keys_on]="按键叠加：已开启"
+i18n[screenrecord_overlay_keys_off]="按键叠加：已关闭"
+i18n[screenrecord_overlay_title_on]="标题叠加：已开启"
+i18n[screenrecord_overlay_title_off]="标题叠加：已关闭"
+i18n[screenrecord_overlay_title_edit_title]="浮动标题"
+i18n[screenrecord_overlay_title_edit_text_item]="编辑文本"
+i18n[screenrecord_overlay_title_edit_size_item]="字号"
+
+# ============================================================================
+# livestream — 直播推流
+# ============================================================================
+i18n[livestream_notify_title]="直播推流"
+i18n[livestream_notify_started_full]="已开始全屏推流"
+i18n[livestream_notify_stopped]="已停止推流"
+i18n[livestream_notify_already_active]="推流已在进行中"
+i18n[livestream_notify_recording_active]="本地录屏进行中，请先停止录屏"
+i18n[livestream_notify_not_active]="当前没有推流"
+i18n[livestream_notify_missing_rtmp]="未配置推流地址，请先设置 RTMP"
+i18n[livestream_notify_start_failed]="推流启动失败，请查看日志"
+i18n[livestream_cfg_title]="推流配置"
+i18n[livestream_cfg_name]="名称"
+i18n[livestream_cfg_server]="服务器"
+i18n[livestream_cfg_key]="密钥"
+i18n[livestream_cfg_add]="+ 添加平台"
+
+# ============================================================================
+# record-audio
+# ============================================================================
+i18n[record_audio_enabled]="已启用：麦克风 + 系统声混音"
+i18n[record_audio_disabled]="已关闭混音，录屏将回退到麦克风"

@@ -1,0 +1,374 @@
+#!/bin/bash
+# Live stream streaming library - shared functions
+# Source this file in livestream scripts
+
+# XDG paths
+LIVESTREAM_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
+LIVESTREAM_PLATFORMS_FILE="$LIVESTREAM_CONFIG_DIR/platforms.conf"
+LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config"
+LIVESTREAM_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/livestream-$UID}/livestream"
+LIVESTREAM_PID_FILE="$LIVESTREAM_RUNTIME_DIR/pgid"
+LIVESTREAM_MODE_FILE="$LIVESTREAM_RUNTIME_DIR/mode"
+LIVESTREAM_LOG_FILE="$LIVESTREAM_RUNTIME_DIR/livestream.log"
+LIVESTREAM_RUNNER="$LIVESTREAM_RUNTIME_DIR/run.sh"
+LIVESTREAM_EXTRA_ARGS="$LIVESTREAM_RUNTIME_DIR/wf-extra.args"
+
+# Defaults tuned for low-power CPUs (e.g. Sandy Bridge i5)
+# Prefer record_mix.monitor when available (mic + system + optional ducking)
+AUDIO_SOURCE="rnnoise_source"
+FRAMERATE="25"
+VIDEO_BITRATE="1800k"
+MAXRATE="2200k"
+BUFSIZE="3600k"
+AUDIO_BITRATE="128k"
+PRESET="ultrafast"
+# Max output width; 0 = keep native desktop/area resolution
+SCALE_WIDTH="0"
+
+livestream_ensure_dirs() {
+    mkdir -p "$LIVESTREAM_CONFIG_DIR" "$LIVESTREAM_RUNTIME_DIR"
+}
+
+# Load optional key=value config (does not override non-empty env)
+livestream_load_config() {
+    livestream_ensure_dirs
+
+    if [ -f "$LIVESTREAM_CONFIG_FILE" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            case "$line" in
+                ''|\#*) continue ;;
+                *=*)
+                    key="${line%%=*}"
+                    val="${line#*=}"
+                    key="${key// /}"
+                    case "$key" in
+                        AUDIO_SOURCE|FRAMERATE|VIDEO_BITRATE|MAXRATE|BUFSIZE|AUDIO_BITRATE|PRESET|SCALE_WIDTH)
+                            eval "current=\${$key-}"
+                            if [ -z "$current" ]; then
+                                export "$key=$val"
+                            fi
+                            ;;
+                    esac
+                    ;;
+            esac
+        done < "$LIVESTREAM_CONFIG_FILE"
+    fi
+
+    AUDIO_SOURCE="${AUDIO_SOURCE:-rnnoise_source}"
+    # Prefer virtual record mix when enabled
+    if command -v record-audio-core >/dev/null 2>&1 || [ -f "$HOME/.local/bin/record-audio-core" ]; then
+        # shellcheck disable=SC1091
+        source record-audio-core 2>/dev/null || source "$HOME/.local/bin/record-audio-core" 2>/dev/null || true
+        if declare -F record_audio_capture_source >/dev/null 2>&1; then
+            _cap=$(record_audio_capture_source 2>/dev/null || true)
+            [ -n "$_cap" ] && AUDIO_SOURCE="$_cap"
+        fi
+    fi
+    FRAMERATE="${FRAMERATE:-25}"
+    VIDEO_BITRATE="${VIDEO_BITRATE:-1800k}"
+    MAXRATE="${MAXRATE:-2200k}"
+    BUFSIZE="${BUFSIZE:-3600k}"
+    AUDIO_BITRATE="${AUDIO_BITRATE:-128k}"
+    PRESET="${PRESET:-ultrafast}"
+    SCALE_WIDTH="${SCALE_WIDTH:-0}"
+}
+
+livestream_check_deps() {
+    for cmd in wf-recorder ffmpeg; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            echo "Error: $cmd is not installed" >&2
+            exit 1
+        fi
+    done
+}
+
+# Resolve platform RTMP URLs from platforms.conf (INI format).
+# Each section: [Name] server=... key=... → rtmp://server/key
+# Outputs one URL per line; returns non-zero if no platforms configured.
+livestream_get_platform_urls() {
+    local file="${1:-$LIVESTREAM_PLATFORMS_FILE}"
+    [ -f "$file" ] || return 1
+
+    python3 - "$file" <<'PY'
+import configparser, sys
+cfg = configparser.ConfigParser()
+cfg.read(sys.argv[1], encoding="utf-8")
+for name in cfg.sections():
+    srv = cfg[name].get("server", "").strip()
+    key = cfg[name].get("key", "").strip()
+    if not srv:
+        continue
+    url = f"rtmp://{srv}/{key}" if not srv.startswith("rtmp://") else f"{srv}/{key}"
+    print(url)
+PY
+}
+
+livestream_require_platforms() {
+    local urls
+    urls=$(livestream_get_platform_urls) || return 1
+    [ -n "$urls" ] || return 1
+    printf '%s' "$urls"
+}
+
+livestream_is_active() {
+    local pgid
+    [ -f "$LIVESTREAM_PID_FILE" ] || return 1
+    pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
+    [ -n "$pgid" ] || return 1
+
+    if kill -0 -- "-$pgid" 2>/dev/null; then
+        return 0
+    fi
+    if kill -0 "$pgid" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+livestream_get_mode() {
+    if [ -f "$LIVESTREAM_MODE_FILE" ]; then
+        tr -d '[:space:]' < "$LIVESTREAM_MODE_FILE"
+    fi
+}
+
+livestream_get_duration_seconds() {
+    local pgid duration
+    [ -f "$LIVESTREAM_PID_FILE" ] || return 1
+    pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
+    [ -n "$pgid" ] || return 1
+
+    duration=$(ps -o etimes= -p "$pgid" 2>/dev/null | tr -d '[:space:]')
+    if [ -z "$duration" ]; then
+        # Fallback: first wf-recorder owned by this user while live
+        duration=$(ps -o etimes= -C wf-recorder 2>/dev/null | head -1 | tr -d '[:space:]')
+    fi
+    [ -n "$duration" ] || return 1
+    echo "$duration"
+}
+
+livestream_unmute_audio() {
+    if command -v pactl >/dev/null 2>&1; then
+        if pactl list sources 2>/dev/null | grep -A 10 "Name: $AUDIO_SOURCE" | grep -q "Mute: yes"; then
+            pactl set-source-mute "$AUDIO_SOURCE" 0
+        fi
+    fi
+}
+
+# Reuse screenrecord waybar module (signal 8)
+livestream_notify_waybar() {
+    pkill -SIGRTMIN+8 waybar 2>/dev/null || true
+}
+
+# True when local file recording owns wf-recorder (not livestream)
+livestream_local_recording_active() {
+    if livestream_is_active; then
+        return 1
+    fi
+    pgrep -u "$(id -u)" -x wf-recorder >/dev/null 2>&1
+}
+
+# Build video filter for wf-recorder -F
+# SCALE_WIDTH=0 keeps native desktop/area geometry (only ensure yuv420p)
+livestream_video_filter() {
+    if [ -n "$SCALE_WIDTH" ] && [ "$SCALE_WIDTH" != "0" ]; then
+        printf 'scale=w=%s:h=-2:force_original_aspect_ratio=decrease,format=yuv420p' "$SCALE_WIDTH"
+    else
+        printf 'format=yuv420p'
+    fi
+}
+
+# Start streaming pipeline.
+# Args: mode (full|area) [extra wf-recorder args, e.g. -g geometry]
+livestream_start() {
+    local mode="$1"
+    shift
+    local platform_urls
+    local filter
+    local gop
+    local geo_args=()
+
+    livestream_load_config
+    livestream_check_deps
+    livestream_ensure_dirs
+
+    if livestream_is_active; then
+        return 2
+    fi
+
+    if livestream_local_recording_active; then
+        return 5
+    fi
+
+    if ! platform_urls=$(livestream_require_platforms); then
+        return 3
+    fi
+
+    while [ $# -gt 0 ]; do
+        geo_args+=("$1")
+        shift
+    done
+
+    livestream_unmute_audio
+    filter=$(livestream_video_filter)
+    gop=$((FRAMERATE * 2))
+
+    : > "$LIVESTREAM_LOG_FILE"
+    printf '%s\n' "$mode" > "$LIVESTREAM_MODE_FILE"
+
+    # Optional geometry: store as shell-safe NUL-separated args
+    : > "$LIVESTREAM_EXTRA_ARGS"
+    if [ ${#geo_args[@]} -gt 0 ]; then
+        printf '%s\0' "${geo_args[@]}" > "$LIVESTREAM_EXTRA_ARGS"
+    fi
+
+    cat > "$LIVESTREAM_RUNNER" <<'RUNNER'
+#!/bin/bash
+set -e
+exec >>"$LIVESTREAM_LOG_FILE" 2>&1
+
+cleanup() {
+    pkill -INT -P $$ 2>/dev/null || true
+    wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+extra_args=()
+if [ -n "${LIVESTREAM_RUNTIME_DIR:-}" ] && [ -s "$LIVESTREAM_RUNTIME_DIR/wf-extra.args" ]; then
+    while IFS= read -r -d '' item; do
+        extra_args+=("$item")
+    done < "$LIVESTREAM_RUNTIME_DIR/wf-extra.args"
+fi
+
+# Build ffmpeg output args from newline-separated RTMP URLs
+ffmpeg_output_args=()
+while IFS= read -r url; do
+    [ -n "$url" ] && ffmpeg_output_args+=(-f flv "$url")
+done <<< "$LIVESTREAM_RTMP_TARGETS"
+
+if [ ${#ffmpeg_output_args[@]} -eq 0 ]; then
+    echo "FATAL: no RTMP targets configured" >&2
+    exit 1
+fi
+
+# IMPORTANT: wf-recorder treats "-f -" as a file named "-", not stdout.
+# Use /dev/stdout so the pipe to ffmpeg actually works.
+wf-recorder \
+    "${extra_args[@]}" \
+    --audio="$LIVESTREAM_AUDIO_SOURCE" \
+    -m flv \
+    -c libx264 \
+    -C aac \
+    -r "$LIVESTREAM_FRAMERATE" \
+    -x yuv420p \
+    -D \
+    -b 0 \
+    -F "$LIVESTREAM_FILTER" \
+    -p "preset=$LIVESTREAM_PRESET" \
+    -p "tune=zerolatency" \
+    -p "b=$LIVESTREAM_VIDEO_BITRATE" \
+    -p "maxrate=$LIVESTREAM_MAXRATE" \
+    -p "bufsize=$LIVESTREAM_BUFSIZE" \
+    -p "g=$LIVESTREAM_GOP" \
+    -P "b=$LIVESTREAM_AUDIO_BITRATE" \
+    -f /dev/stdout \
+| ffmpeg -hide_banner -loglevel warning \
+    -i - \
+    -c copy \
+    "${ffmpeg_output_args[@]}"
+RUNNER
+    chmod +x "$LIVESTREAM_RUNNER"
+
+    # New session so livestream_stop can signal the whole pipeline
+    setsid env \
+        LIVESTREAM_LOG_FILE="$LIVESTREAM_LOG_FILE" \
+        LIVESTREAM_RUNTIME_DIR="$LIVESTREAM_RUNTIME_DIR" \
+        LIVESTREAM_AUDIO_SOURCE="$AUDIO_SOURCE" \
+        LIVESTREAM_FRAMERATE="$FRAMERATE" \
+        LIVESTREAM_PRESET="$PRESET" \
+        LIVESTREAM_VIDEO_BITRATE="$VIDEO_BITRATE" \
+        LIVESTREAM_MAXRATE="$MAXRATE" \
+        LIVESTREAM_BUFSIZE="$BUFSIZE" \
+        LIVESTREAM_AUDIO_BITRATE="$AUDIO_BITRATE" \
+        LIVESTREAM_FILTER="$filter" \
+        LIVESTREAM_GOP="$gop" \
+        LIVESTREAM_RTMP_TARGETS="$platform_urls" \
+        "$LIVESTREAM_RUNNER" &
+
+    echo $! > "$LIVESTREAM_PID_FILE"
+
+    # Brief settle: fail fast if pipeline died immediately
+    sleep 1.5
+    if ! livestream_is_active; then
+        return 4
+    fi
+
+    # Must actually be pushing to an RTMP server, not just sitting on a local pipe
+    if ! pgrep -u "$(id -u)" -af 'ffmpeg.*rtmp://' >/dev/null 2>&1; then
+        # check any ffmpeg child of our process group
+        local pgid
+        pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
+        if ! pgrep -u "$(id -u)" -P "$pgid" -a ffmpeg >/dev/null 2>&1 \
+            && ! pgrep -u "$(id -u)" -g "$pgid" -a ffmpeg >/dev/null 2>&1; then
+            livestream_stop || true
+            return 4
+        fi
+    fi
+
+    livestream_notify_waybar
+    return 0
+}
+
+livestream_stop() {
+    local pgid
+    local i
+
+    livestream_ensure_dirs
+
+    if [ ! -f "$LIVESTREAM_PID_FILE" ]; then
+        return 1
+    fi
+
+    pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
+    if [ -z "$pgid" ]; then
+        rm -f "$LIVESTREAM_PID_FILE" "$LIVESTREAM_MODE_FILE"
+        return 1
+    fi
+
+    kill -INT -- "-$pgid" 2>/dev/null || kill -INT "$pgid" 2>/dev/null || true
+    # Also interrupt recorder directly (it may ignore group signal timing)
+    pkill -INT -u "$(id -u)" -x wf-recorder 2>/dev/null || true
+
+    for i in $(seq 1 30); do
+        if ! livestream_is_active; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    if livestream_is_active; then
+        kill -TERM -- "-$pgid" 2>/dev/null || kill -TERM "$pgid" 2>/dev/null || true
+        pkill -TERM -u "$(id -u)" -x wf-recorder 2>/dev/null || true
+        for i in $(seq 1 20); do
+            if ! livestream_is_active; then
+                break
+            fi
+            sleep 0.1
+        done
+    fi
+
+    if livestream_is_active; then
+        kill -KILL -- "-$pgid" 2>/dev/null || kill -KILL "$pgid" 2>/dev/null || true
+        pkill -KILL -u "$(id -u)" -x wf-recorder 2>/dev/null || true
+        pkill -KILL -u "$(id -u)" -f 'ffmpeg.*rtmp://' 2>/dev/null || true
+        for i in $(seq 1 10); do
+            if ! livestream_is_active; then
+                break
+            fi
+            sleep 0.1
+        done
+    fi
+
+    rm -f "$LIVESTREAM_PID_FILE" "$LIVESTREAM_MODE_FILE"
+    livestream_notify_waybar
+    return 0
+}

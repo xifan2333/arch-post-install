@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Toggle Corral sidebar via Herdr plugin action
-herdr plugin action invoke corral.open

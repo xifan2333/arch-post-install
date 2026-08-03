@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Live stream platform configurator — add/remove/edit RTMP targets."""
+
+import configparser
+import os
+import subprocess
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib
+
+CONFIG_FILE = Path(GLib.get_user_config_dir()) / "livestream" / "platforms.conf"
+
+
+def t(key, fallback=""):
+    try:
+        r = subprocess.run(
+            ["bash", "-c",
+             f'source "$HOME/.local/bin/i18n-core" 2>/dev/null && msg {key}'],
+            env={**os.environ, "PATH": os.path.expanduser("~/.local/bin") + ":"
+                 + os.environ.get("PATH", "")},
+            capture_output=True, text=True, timeout=2,
+        )
+        out = r.stdout.strip()
+        return out if out else fallback
+    except Exception:
+        return fallback
+
+
+def load_platforms():
+    cfg = configparser.ConfigParser()
+    if CONFIG_FILE.exists():
+        cfg.read(CONFIG_FILE, encoding="utf-8")
+    platforms = []
+    for section in cfg.sections():
+        platforms.append({
+            "name": section,
+            "server": cfg[section].get("server", ""),
+            "key": cfg[section].get("key", ""),
+        })
+    return platforms
+
+
+def save_platforms(platforms):
+    cfg = configparser.ConfigParser()
+    for p in platforms:
+        name = p["name"].strip()
+        if not name:
+            continue
+        cfg[name] = {"server": p.get("server", "").strip(),
+                     "key": p.get("key", "").strip()}
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        cfg.write(f)
+
+
+class PlatformRow(Gtk.Box):
+    def __init__(self, data, on_remove):
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.data = data
+
+        self.name_entry = Gtk.Entry()
+        self.name_entry.set_placeholder_text(t("livestream_cfg_name", "Name"))
+        self.name_entry.set_text(data["name"])
+        self.name_entry.set_width_chars(10)
+        self.pack_start(self.name_entry, False, False, 0)
+
+        self.server_entry = Gtk.Entry()
+        self.server_entry.set_placeholder_text(t("livestream_cfg_server", "Server"))
+        self.server_entry.set_text(data["server"])
+        self.server_entry.set_width_chars(26)
+        self.pack_start(self.server_entry, True, True, 0)
+
+        self.key_entry = Gtk.Entry()
+        self.key_entry.set_placeholder_text(t("livestream_cfg_key", "Key"))
+        self.key_entry.set_text(data["key"])
+        self.key_entry.set_visibility(False)
+        self.key_entry.set_width_chars(18)
+        self.pack_start(self.key_entry, True, True, 0)
+
+        show_btn = Gtk.Button.new_from_icon_name(
+            "document-properties", Gtk.IconSize.SMALL_TOOLBAR)
+        show_btn.set_tooltip_text("Show/hide key")
+        show_btn.connect("clicked", self._toggle_key_visibility)
+        self.pack_start(show_btn, False, False, 0)
+
+        remove_btn = Gtk.Button.new_from_icon_name(
+            "list-remove", Gtk.IconSize.SMALL_TOOLBAR)
+        remove_btn.set_tooltip_text("Remove")
+        remove_btn.connect("clicked", lambda b: on_remove(self))
+        self.pack_start(remove_btn, False, False, 0)
+
+    def _toggle_key_visibility(self, btn):
+        vis = self.key_entry.get_visibility()
+        self.key_entry.set_visibility(not vis)
+
+    def collect(self):
+        return {
+            "name": self.name_entry.get_text(),
+            "server": self.server_entry.get_text(),
+            "key": self.key_entry.get_text(),
+        }
+
+
+class LivestreamConfigDialog(Gtk.Dialog):
+    def __init__(self, platforms):
+        super().__init__(
+            title=t("livestream_cfg_title", "Live Stream Config"),
+            modal=True,
+        )
+        self.set_default_size(600, 300)
+        self.set_border_width(12)
+
+        content = self.get_content_area()
+        content.set_spacing(8)
+
+        # ── header row ───────────────────────────────────────────────
+        header = Gtk.Box(spacing=6)
+        for label_text, width in [
+            (t("livestream_cfg_name", "Name"), 10),
+            (t("livestream_cfg_server", "Server"), 26),
+            (t("livestream_cfg_key", "Key"), 18),
+        ]:
+            lbl = Gtk.Label(label=f"<b>{label_text}</b>", use_markup=True)
+            lbl.set_halign(Gtk.Align.START)
+            lbl.set_width_chars(width)
+            header.pack_start(lbl, False, False, 0)
+        content.pack_start(header, False, False, 0)
+
+        # ── scrollable row list ──────────────────────────────────────
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_min_content_height(160)
+
+        self.rows_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.rows_box.set_border_width(4)
+        self.rows = []
+
+        for p in platforms:
+            self._add_row(p)
+
+        scrolled.add(self.rows_box)
+        content.pack_start(scrolled, True, True, 0)
+
+        # ── add button ───────────────────────────────────────────────
+        add_btn = Gtk.Button(label=t("livestream_cfg_add", "+ Add Platform"))
+        add_btn.set_halign(Gtk.Align.START)
+        add_btn.connect("clicked", lambda b: self._add_row({}))
+        content.pack_start(add_btn, False, False, 0)
+
+        # ── dialog buttons ───────────────────────────────────────────
+        self.add_button(t("cancel", "Cancel"), Gtk.ResponseType.CANCEL)
+        ok = self.add_button(t("confirm", "OK"), Gtk.ResponseType.OK)
+        ok.get_style_context().add_class("suggested-action")
+
+        content.show_all()
+
+    def _add_row(self, data):
+        row = PlatformRow(
+            {"name": data.get("name", ""),
+             "server": data.get("server", ""),
+             "key": data.get("key", "")},
+            on_remove=self._remove_row,
+        )
+        self.rows_box.pack_start(row, False, False, 0)
+        self.rows.append(row)
+        row.show_all()
+
+    def _remove_row(self, row):
+        self.rows_box.remove(row)
+        self.rows.remove(row)
+        row.destroy()
+
+    def collect_all(self):
+        return [r.collect() for r in self.rows]
+
+
+def main():
+    platforms = load_platforms()
+    dialog = LivestreamConfigDialog(platforms)
+    response = dialog.run()
+
+    if response == Gtk.ResponseType.OK:
+        save_platforms(dialog.collect_all())
+
+    dialog.destroy()
+
+
+if __name__ == "__main__":
+    main()

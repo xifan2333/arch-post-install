@@ -1,0 +1,61 @@
+#!/bin/bash
+# Record audio mix control — mic + system audio (+ optional ducking)
+# Usage: record-audio {enable|disable|status}
+set -e
+
+export PATH="$HOME/.local/bin:$PATH"
+source record-audio-core
+source i18n-core 2>/dev/null || true
+
+cmd="${1:-status}"
+
+case "$cmd" in
+enable)
+    record_audio_write_default_config
+    record_audio_up
+
+    if pgrep -f "python3 .*/record-audio-daemon$" >/dev/null 2>&1; then
+        echo "record-audio daemon already running"
+    else
+        nohup record-audio-daemon >/tmp/record-audio-daemon.log 2>&1 &
+        sleep 0.4
+    fi
+
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "Record Audio" "$(msg record_audio_enabled)${RECORD_DUCKING:+（+ ducking）}"
+    fi
+    record_audio_status
+    ;;
+disable)
+    if pgrep -f "python3 .*/record-audio-daemon$" >/dev/null 2>&1; then
+        pkill -f "python3 .*/record-audio-daemon$" 2>/dev/null || true
+        sleep 0.2
+    fi
+    record_audio_down
+
+    # Safety net: restore default source if it was pointed at the mix
+    if command -v pactl >/dev/null 2>&1 && \
+       [ "$(pactl get-default-source 2>/dev/null)" = "$RECORD_AUDIO_SOURCE_NAME" ]; then
+        if pactl list short sources 2>/dev/null | awk '{print $2}' | grep -qx "rnnoise_source"; then
+            pactl set-default-source rnnoise_source
+        fi
+    fi
+
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "Record Audio" "$(msg record_audio_disabled)"
+    fi
+    echo "record audio disabled"
+    ;;
+status)
+    record_audio_status
+    if pgrep -f "python3 .*/record-audio-daemon$" >/dev/null 2>&1; then
+        echo "daemon: running"
+    else
+        echo "daemon: stopped"
+    fi
+    ;;
+*)
+    echo "Usage: record-audio {enable|disable|status|up}"
+    exit 1
+    ;;
+esac

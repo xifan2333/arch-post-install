@@ -1,0 +1,48 @@
+#!/bin/bash
+# English Translation
+# US English
+
+# ============================================================================
+# Common
+# ============================================================================
+i18n[cancel]="Cancel"
+i18n[confirm]="OK"
+
+# ============================================================================
+# screenrecord — overlays
+# ============================================================================
+i18n[screenrecord_notify_title]="Screen Record"
+i18n[screenrecord_overlay_camera_on]="Camera overlay: ON"
+i18n[screenrecord_overlay_camera_off]="Camera overlay: OFF"
+i18n[screenrecord_overlay_captions_on]="Captions overlay: ON"
+i18n[screenrecord_overlay_captions_off]="Captions overlay: OFF"
+i18n[screenrecord_overlay_keys_on]="Keys overlay: ON"
+i18n[screenrecord_overlay_keys_off]="Keys overlay: OFF"
+i18n[screenrecord_overlay_title_on]="Title overlay: ON"
+i18n[screenrecord_overlay_title_off]="Title overlay: OFF"
+i18n[screenrecord_overlay_title_edit_title]="Floating Title"
+i18n[screenrecord_overlay_title_edit_text_item]="Edit text"
+i18n[screenrecord_overlay_title_edit_size_item]="Font size"
+
+# ============================================================================
+# livestream
+# ============================================================================
+i18n[livestream_notify_title]="Live Stream"
+i18n[livestream_notify_started_full]="Full-screen stream started"
+i18n[livestream_notify_stopped]="Stream stopped"
+i18n[livestream_notify_already_active]="Stream already in progress"
+i18n[livestream_notify_recording_active]="Local recording is active; stop recording first"
+i18n[livestream_notify_not_active]="No active stream"
+i18n[livestream_notify_missing_rtmp]="RTMP URL not configured"
+i18n[livestream_notify_start_failed]="Failed to start stream; check log"
+i18n[livestream_cfg_title]="Live Stream Config"
+i18n[livestream_cfg_name]="Name"
+i18n[livestream_cfg_server]="Server"
+i18n[livestream_cfg_key]="Key"
+i18n[livestream_cfg_add]="+ Add Platform"
+
+# ============================================================================
+# record-audio
+# ============================================================================
+i18n[record_audio_enabled]="Mic + system mix enabled"
+i18n[record_audio_disabled]="Audio mix disabled"

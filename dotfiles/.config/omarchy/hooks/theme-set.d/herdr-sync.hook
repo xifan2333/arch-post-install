@@ -1,0 +1,5 @@
+#!/bin/bash
+# Sync herdr terminal workspace theme with the current Omarchy theme
+set -e
+
+theme-sync-herdr

@@ -1,0 +1,2 @@
+#!/bin/bash
+exec env GTK_IM_MODULE=fcitx GSK_RENDERER=cairo /usr/bin/walker "$@"
