@@ -1,0 +1,3 @@
+#!/bin/bash
+# SUDO_ASKPASS helper using zenity (Wayland native)
+zenity --password --title="Authentication" 2>/dev/null
