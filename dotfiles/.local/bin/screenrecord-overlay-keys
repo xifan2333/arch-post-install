@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # Key overlay for screen recording on Wayland/River.
 # Displays recent key combinations as a non-focusable layer-shell overlay.
 

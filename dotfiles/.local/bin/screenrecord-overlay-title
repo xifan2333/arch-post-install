@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # Static title/text overlay for screen recording / live on Wayland/River.
 # Non-focusable layer-shell window; style loaded from config and hot-reloaded.
 
