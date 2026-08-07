@@ -314,7 +314,7 @@ class CaptionsApp(Gtk.Application):
             screen, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
-        self.win.set_opacity(0.0)
+        self.win.set_opacity(1.0)
         self.win.show_all()
 
     def start_audio_capture(self):
@@ -478,14 +478,12 @@ class CaptionsApp(Gtk.Application):
 
         if visible_text:
             self.label.set_text(visible_text)
-            self.win.set_opacity(1.0)
-
-        if self.win.get_opacity() > 0:
-            if self.last_final_at and now - self.last_final_at > DISPLAY_SECONDS_AFTER_FINAL:
-                self.win.set_opacity(0.0)
-                self.last_final_at = 0
-            elif not self.last_final_at and self.last_event_at and now - self.last_event_at > 6.0:
-                self.win.set_opacity(0.0)
+        
+        if self.last_final_at and now - self.last_final_at > DISPLAY_SECONDS_AFTER_FINAL:
+            self.label.set_text('')
+            self.last_final_at = 0
+        elif not self.last_final_at and self.last_event_at and now - self.last_event_at > 6.0:
+            self.label.set_text('')
 
         return True
 
