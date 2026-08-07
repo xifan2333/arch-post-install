@@ -1,7 +1,10 @@
 [tools]
 aube = "latest"
+"github:go-musicfox/go-musicfox" = "latest"
+"github:iOfficeAI/OfficeCLI" = "latest"
 herdr = "latest"
 node = "26.5.0"
+"npm:skills" = "latest"
 pi = "latest"
 python = "latest"
 uv = "latest"
