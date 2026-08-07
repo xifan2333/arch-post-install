@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python
 # Camera overlay for screen recording on Wayland/River.
 # Renders a webcam feed as a non-focusable layer-shell overlay.
 

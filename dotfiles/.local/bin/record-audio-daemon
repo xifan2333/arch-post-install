@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 """Keep record_mix (mic + system) alive and optionally duck system audio while speaking."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 """Live stream platform configurator — add/remove/edit RTMP targets."""
 
 import configparser
