@@ -1,21 +1,11 @@
 #!/bin/bash
 # Toggle title overlay on/off
-set -e
-source i18n-core
 
 # Match the overlay process only (not this *-toggle / *-edit helper)
-PID=$(pgrep -f "python3 .*/screenrecord-overlay-title$" | head -1)
+PID=$(pgrep -f "python .*/screenrecord-overlay-title$" | head -1)
 
 if [ -n "$PID" ]; then
     kill "$PID" 2>/dev/null || true
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_overlay_title_off)"
-    fi
-    echo "$(msg screenrecord_overlay_title_off)"
 else
     nohup screenrecord-overlay-title &>/dev/null &
-    if command -v notify-send >/dev/null 2>&1; then
-        notify-send "$(msg screenrecord_notify_title)" "$(msg screenrecord_overlay_title_on)"
-    fi
-    echo "$(msg screenrecord_overlay_title_on)"
 fi

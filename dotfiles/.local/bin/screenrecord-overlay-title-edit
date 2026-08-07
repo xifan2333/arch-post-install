@@ -67,7 +67,7 @@ def save_config(cfg):
 def ensure_overlay_visible():
     try:
         subprocess.run(
-            ["pgrep", "-f", "python3 .*/screenrecord-overlay-title$"],
+            ["pgrep", "-f", "python .*/screenrecord-overlay-title$"],
             check=True, capture_output=True,
         )
     except subprocess.CalledProcessError:
