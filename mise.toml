@@ -3,6 +3,13 @@ min_version = "2026.8.2"
 [settings]
 dotfiles.default_mode = "symlink"
 
+# Provides /usr/lib/ladspa/librnnoise_ladspa.so, which is loaded by the
+# PipeWire noise-canceling source configuration.
+[bootstrap.packages]
+"pacman:noise-suppression-for-voice" = "latest"
+"pacman:yay" = "latest"
+"pacman:zenity" = "latest"
+
 # Preserve per-file linking without scanning all of $HOME:
 # shared directories are recreated and each managed file is linked
 # individually, while files not owned by this repository remain untouched.
@@ -38,8 +45,48 @@ dotfiles.default_mode = "symlink"
 
 # Imperative leftovers that are not static dotfiles. This task runs after
 # tools are installed, so every operation here must remain idempotent.
+[tasks.aur]
+description = "Install required AUR applications"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+packages=(
+  dmnotifier-bin
+  fcitx5-vinput-bin
+  flac1.3
+  herdr-corral-bin
+  karing-bin
+  linuxqq-appimage
+  listen1
+  ttf-wps-fonts
+  unibarrage-bin
+  wechat-appimage
+  wps-office-365-edu
+  wps-office-365-edu-fonts
+)
+missing=()
+
+for package in "${packages[@]}"; do
+  pacman -Q "$package" &>/dev/null || missing+=("$package")
+done
+
+if [[ -z "${missing[*]-}" ]]; then
+  printf 'AUR applications are already installed\n'
+  exit 0
+fi
+
+if ! command -v yay &>/dev/null; then
+  printf 'yay is required to install: %s\n' "${missing[*]}" >&2
+  exit 1
+fi
+
+yay -S --needed --noconfirm "${missing[@]}"
+'''
+
 [tasks.bootstrap]
-description = "Apply idempotent post-bootstrap links"
+description = "Apply post-bootstrap setup"
+depends = ["aur"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
