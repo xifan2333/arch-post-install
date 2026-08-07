@@ -1,0 +1,86 @@
+min_version = "2026.8.2"
+
+[settings]
+dotfiles.default_mode = "symlink"
+
+# Preserve per-file linking without scanning all of $HOME:
+# shared directories are recreated and each managed file is linked
+# individually, while files not owned by this repository remain untouched.
+[dotfiles]
+"~/.zshrc" = { source = "dotfiles/.zshrc" }
+"~/.tmux.conf" = { source = "dotfiles/.tmux.conf" }
+"~/.config/electron-flags.conf" = { source = "dotfiles/.config/electron-flags.conf" }
+"~/.config/mimeapps.list" = { source = "dotfiles/.config/mimeapps.list" }
+"~/.config/starship.toml" = { source = "dotfiles/.config/starship.toml" }
+
+"~/.config/autostart" = { source = "dotfiles/.config/autostart", mode = "symlink-each" }
+"~/.config/elephant" = { source = "dotfiles/.config/elephant", mode = "symlink-each" }
+"~/.config/environment.d" = { source = "dotfiles/.config/environment.d", mode = "symlink-each" }
+"~/.config/fcitx5" = { source = "dotfiles/.config/fcitx5", mode = "symlink-each" }
+"~/.config/fontconfig" = { source = "dotfiles/.config/fontconfig", mode = "symlink-each" }
+"~/.config/git" = { source = "dotfiles/.config/git", mode = "symlink-each" }
+"~/.config/herdr" = { source = "dotfiles/.config/herdr", mode = "symlink-each" }
+"~/.config/hypr" = { source = "dotfiles/.config/hypr", mode = "symlink-each", exclude = ["monitors.conf"] }
+"~/.config/kitty" = { source = "dotfiles/.config/kitty", mode = "symlink-each" }
+"~/.config/mise" = { source = "dotfiles/.config/mise", mode = "symlink-each" }
+"~/.config/nvim" = { source = "dotfiles/.config/nvim", mode = "symlink-each" }
+"~/.config/omarchy" = { source = "dotfiles/.config/omarchy", mode = "symlink-each" }
+"~/.config/pipewire" = { source = "dotfiles/.config/pipewire", mode = "symlink-each" }
+"~/.config/qutebrowser" = { source = "dotfiles/.config/qutebrowser", mode = "symlink-each", exclude = ["*.example"] }
+"~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
+"~/.config/uv" = { source = "dotfiles/.config/uv", mode = "symlink-each" }
+"~/.config/zsh" = { source = "dotfiles/.config/zsh", mode = "symlink-each" }
+
+"~/.local/bin" = { source = "dotfiles/.local/bin", mode = "symlink-each" }
+"~/.local/share/applications" = { source = "dotfiles/.local/share/applications", mode = "symlink-each" }
+"~/.local/share/fcitx5" = { source = "dotfiles/.local/share/fcitx5", mode = "symlink-each" }
+"~/.local/share/qutebrowser" = { source = "dotfiles/.local/share/qutebrowser", mode = "symlink-each" }
+
+# Imperative leftovers that are not static dotfiles. This task runs after
+# tools are installed, so every operation here must remain idempotent.
+[tasks.bootstrap]
+description = "Apply idempotent post-bootstrap links"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+theme="$HOME/.config/omarchy/current/theme/neovim.lua"
+target="$HOME/.config/nvim/lua/plugins/theme.lua"
+
+if [[ -f "$theme" ]]; then
+  mkdir -p "$(dirname "$target")"
+  if [[ -L "$target" ]]; then
+    ln -sfn "$theme" "$target"
+  elif [[ ! -e "$target" ]]; then
+    ln -s "$theme" "$target"
+  else
+    printf 'bootstrap: preserving unmanaged file: %s\n' "$target" >&2
+  fi
+fi
+'''
+
+[tasks.wps]
+description = "Ensure WPS uses multi-component mode"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+cfg="$HOME/.config/Kingsoft/Office.conf"
+mkdir -p "$(dirname "$cfg")"
+touch "$cfg"
+
+keys=(
+  'wpsoffice\Application%20Settings\AppComponentMode'
+  'wpsoffice\Application%20Settings\AppComponentModeInstall'
+)
+
+for key in "${keys[@]}"; do
+  if grep -qF "${key}=" "$cfg"; then
+    sed -i "s|^${key}=.*|${key}=prome_independ|" "$cfg"
+    printf '[updated] %s=prome_independ\n' "$key"
+  else
+    printf '%s=prome_independ\n' "$key" >> "$cfg"
+    printf '[added] %s=prome_independ\n' "$key"
+  fi
+done
+'''

@@ -1,39 +1,99 @@
 # arch-post-install
 
-个人 Arch Linux 安装后配置，基于 [GNU Stow](https://www.gnu.org/software/stow/) 管理 home 目录下的 dotfiles。
+个人 Arch Linux 安装后配置，使用 [mise bootstrap](https://mise.jdx.dev/bootstrap.html) 声明式管理 dotfiles、开发工具和安装后的收尾任务。
 
 ## 结构
 
-```
+```text
 arch-post-install/
-├── dotfiles/          # stow 包，映射到 ~/ 的配置文件
-│   ├── .config/       # hypr, nvim, zsh, tmux/kitty, fcitx5, ...
-│   ├── .local/        # 自定义脚本、desktop 文件
-│   ├── .zshrc
-│   └── .tmux.conf
-└── install/
-    └── dotfile-manager  # 一键安装/卸载脚本
+├── mise.toml                         # bootstrap、dotfiles 映射和 tasks
+├── mise/
+│   └── config.toml                   # 指向全局 tools 配置的项目入口
+└── dotfiles/                         # 映射到 $HOME 的配置源
+    ├── .config/
+    ├── .local/
+    ├── .zshrc
+    └── .tmux.conf
 ```
 
-## 安装
+## 首次安装
 
-依赖：[stow](https://www.gnu.org/software/stow/)
+依赖：`git`、`curl`。
+
+先安装支持自更新的官方 mise：
 
 ```bash
-git clone git@github.com:<user>/arch-post-install.git
-cd arch-post-install
-./install/dotfile-manager install
+curl https://mise.run | sh
 ```
 
-脚本会将 `dotfiles/` 下的文件通过符号链接映射到 `$HOME`。如果目标位置已有同名文件，`stow --adopt` 会先把已有内容拉进仓库再替换为符号链接，不会丢数据。
-
-## 卸载
+然后克隆仓库并执行 bootstrap：
 
 ```bash
-./install/dotfile-manager uninstall
+git clone https://github.com/xifan2333/arch-post-install.git ~/code/arch-post-install
+cd ~/code/arch-post-install
+~/.local/bin/mise trust
+~/.local/bin/mise bootstrap --dry-run
+~/.local/bin/mise bootstrap --yes
 ```
 
-移除所有 stow 创建的符号链接，恢复干净状态。
+bootstrap 会依次应用 dotfiles、安装 `[tools]` 中缺少的工具，并运行幂等的收尾任务。
+
+已有同名真文件时，mise 默认拒绝覆盖。确认仓库内容应当成为配置源后，可显式使用：
+
+```bash
+mise bootstrap --force-dotfiles --yes
+```
+
+## 日常使用
+
+命令需要在仓库目录中运行，也可以使用 `mise -C ~/code/arch-post-install ...`。
+
+```bash
+# 检查整体状态
+mise bootstrap status
+mise bootstrap status --missing
+
+# 预览并同步全部配置
+mise bootstrap --dry-run
+mise bootstrap --yes
+
+# 只同步 dotfiles
+mise bootstrap --only dotfiles --yes
+
+# 只安装或更新缺少的开发工具
+mise bootstrap --only tools --yes
+
+# 更新 mise 自身
+mise self-update
+```
+
+修改 `$HOME` 下的受管配置会直接修改仓库源文件，因为目标是符号链接。
+
+## Dotfiles 行为
+
+共享目录使用 `symlink-each`：mise 只管理仓库中的文件，不会删除目录里由其他程序创建的文件。例如 `~/.local/bin/mise`、`~/.local/bin/codex` 和 Neovim 的本地状态会保留。
+
+以下文件被有意排除：
+
+- `~/.config/hypr/monitors.conf`：本机显示器配置
+- `*.example`：示例配置
+
+卸载前建议先预览：
+
+```bash
+mise bootstrap dotfiles unapply --dry-run
+mise bootstrap dotfiles unapply --yes
+```
+
+`unapply` 只移除 mise 记录的受管链接，并保留共享目录中的非受管文件。
+
+## 专项任务
+
+WPS 多组件模式逻辑直接定义在 `mise.toml` 中：
+
+```bash
+mise run wps
+```
 
 ## 主要内容
 
@@ -48,9 +108,4 @@ cd arch-post-install
 | 主题 | Omarchy 主题系统 hook，切换主题时同步 fcitx5/herdr 配色 |
 | 录制 | 音频录制、屏幕录制叠加层（摄像头/按键/标题） |
 | 翻译 | i18n 脚本、qutebrowser 翻译 userscript |
-| 其他 | Git、Starship 提示符、PipeWire 降噪、Mise 版本管理 |
-
-## 日常使用
-
-- 修改配置后直接 `git add` + `commit` 即可，stow 符号链接指向仓库实际文件
-- `dotfile-manager install` 可重复执行（幂等）
+| 工具 | mise 管理 Node、Python、uv、pi 等开发工具 |
