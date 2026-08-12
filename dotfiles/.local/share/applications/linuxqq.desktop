@@ -5,6 +5,6 @@ Terminal=false
 Type=Application
 Icon=/usr/share/icons/linuxqq.png
 StartupWMClass=QQ
-X-AppImage-Version=51102
+X-AppImage-Version=52194
 Categories=Network;
 Comment=QQ

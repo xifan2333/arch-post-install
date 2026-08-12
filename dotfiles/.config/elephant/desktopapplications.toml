@@ -1,0 +1,8 @@
+show_actions = false
+only_search_title = false
+history = false
+
+[aliases]
+"wx" = "wechat.desktop"
+"weixin" = "wechat.desktop"
+"qq" = "linuxqq.desktop"

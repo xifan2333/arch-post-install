@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linuxqq-appimage
+
+[Action]
+Description = Re-apply Wayland IME flags to linuxqq.desktop
+When = PostTransaction
+Exec = /bin/sh -c "sed -i 's#/usr/bin/linuxqq --no-sandbox %U#/usr/bin/linuxqq --no-sandbox --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime --wayland-text-input-version=3 %U#' /usr/share/applications/linuxqq.desktop"

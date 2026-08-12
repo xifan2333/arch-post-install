@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = wechat-appimage
+
+[Action]
+Description = Re-apply Wayland IME flags to wechat.desktop
+When = PostTransaction
+Exec = /bin/sh -c "sed -i 's#/usr/bin/wechat %U#/usr/bin/wechat --enable-features=UseOzonePlatform --ozone-platform=wayland --enable-wayland-ime --wayland-text-input-version=3 %U#' /usr/share/applications/wechat.desktop"

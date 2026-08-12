@@ -176,3 +176,36 @@ for key in "${keys[@]}"; do
   fi
 done
 '''
+
+[tasks.hooks]
+description = "Deploy pacman hooks for re-applying Wayland IME flags to QQ/WeChat desktop entries"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+src="$PWD/mise/hooks"
+dst="/etc/pacman.d/hooks"
+
+if [[ ! -d "$src" ]]; then
+  printf 'hooks dir not found: %s (run from project root)\n' "$src" >&2
+  exit 1
+fi
+
+install_hook() {
+  local file="$1"
+  if cmp -s "$src/$file" "$dst/$file" 2>/dev/null; then
+    printf '[ok] %s up to date\n' "$dst/$file"
+  else
+    if [[ $EUID -ne 0 ]]; then
+      sudo install -Dm644 "$src/$file" "$dst/$file"
+    else
+      install -Dm644 "$src/$file" "$dst/$file"
+    fi
+    printf '[installed] %s\n' "$dst/$file"
+  fi
+}
+
+mkdir -p "$dst"
+install_hook linuxqq-appimage-ime.hook
+install_hook wechat-appimage-ime.hook
+'''
