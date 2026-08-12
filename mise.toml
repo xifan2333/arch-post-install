@@ -7,6 +7,7 @@ dotfiles.default_mode = "symlink"
 # PipeWire noise-canceling source configuration.
 [bootstrap.packages]
 "pacman:noise-suppression-for-voice" = "latest"
+"pacman:ttf-sarasa-gothic" = "latest"
 "pacman:yay" = "latest"
 "pacman:zenity" = "latest"
 
@@ -104,6 +105,50 @@ if [[ -f "$theme" ]]; then
     printf 'bootstrap: preserving unmanaged file: %s\n' "$target" >&2
   fi
 fi
+'''
+
+[tasks.fonts]
+description = "Install latest pixel fonts for pi-undefined-video"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+for command in gh unzip fc-cache; do
+  if ! command -v "$command" &>/dev/null; then
+    printf '%s is required to install pixel fonts\n' "$command" >&2
+    exit 1
+  fi
+done
+
+dest="$HOME/.local/share/fonts"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$dest" "$tmp/fusion" "$tmp/uranus" "$tmp/boutique"
+
+# Download the latest stable releases rather than pinning release tags.
+gh release download --repo TakWolf/fusion-pixel-font \
+  --pattern 'fusion-pixel-font-12px-monospaced-ttf-v*.zip' \
+  --dir "$tmp/fusion"
+rm -f "$dest"/fusion-pixel-12px-monospaced-*.ttf
+unzip -oj "$tmp/fusion"/*.zip -d "$dest" >/dev/null
+printf 'Fusion Pixel 12px updated\n'
+
+gh release download --repo scott0107000/Uranus-Pixel \
+  --pattern 'Uranus_Pixel.zip' \
+  --dir "$tmp/uranus"
+rm -f "$dest"/Uranus_Pixel*.ttf
+unzip -oj "$tmp/uranus"/*.zip -d "$dest" >/dev/null
+printf 'Uranus Pixel 11Px updated\n'
+
+gh release download --repo scott0107000/BoutiqueBitmap7x7 \
+  --pattern 'BoutiqueBitmap7x7_[0-9]*.ttf' \
+  --dir "$tmp/boutique"
+rm -f "$dest"/BoutiqueBitmap7x7_*.ttf
+install -m 0644 "$tmp/boutique"/BoutiqueBitmap7x7_*.ttf "$dest/"
+printf 'BoutiqueBitmap7x7 updated\n'
+
+fc-cache -f "$dest"
+printf 'Pixel fonts setup complete.\n'
 '''
 
 [tasks.wps]
