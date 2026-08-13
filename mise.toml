@@ -57,6 +57,7 @@ mode = "0644"
 "~/.config/omarchy" = { source = "dotfiles/.config/omarchy", mode = "symlink-each" }
 "~/.config/pipewire" = { source = "dotfiles/.config/pipewire", mode = "symlink-each" }
 "~/.config/qutebrowser" = { source = "dotfiles/.config/qutebrowser", mode = "symlink-each", exclude = ["*.example"] }
+"~/.config/retroarch" = { source = "dotfiles/.config/retroarch", mode = "symlink-each" }
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/uv" = { source = "dotfiles/.config/uv", mode = "symlink-each" }
 "~/.config/zsh" = { source = "dotfiles/.config/zsh", mode = "symlink-each" }

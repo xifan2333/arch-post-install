@@ -225,5 +225,6 @@ mise run fonts
 | 终端 | Kitty 配置 |
 | 主题 | 切换 Omarchy 主题时同步其他程序的配色 |
 | 录制 | 音频录制和屏幕录制叠加层 |
+| 模拟器 | RetroArch 配置与全局着色器预设 |
 | 翻译 | 翻译脚本和 qutebrowser userscript |
 | 工具 | Node、Python、uv、pi 等命令行工具 |
