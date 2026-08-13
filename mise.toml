@@ -109,7 +109,7 @@ yay -S --needed --noconfirm "${missing[@]}"
 
 [tasks.bootstrap]
 description = "Apply post-bootstrap setup"
-depends = ["aur"]
+depends = ["aur", "wps"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail

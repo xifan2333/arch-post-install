@@ -195,7 +195,7 @@ mise run aur
 
 ## WPS 多组件模式
 
-执行：
+`mise bootstrap` 每次都会运行这一步（bootstrap 任务依赖 `wps`），也可以单独执行：
 
 ```bash
 mise run wps
