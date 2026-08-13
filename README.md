@@ -58,6 +58,7 @@ cd ~/code/arch-post-install
 - `noise-suppression-for-voice`：麦克风降噪插件；
 - `zenity`：sudo 图形密码窗口；
 - `yay`：安装 AUR 软件；
+- `unzip`：解压像素字体安装包；
 - 当前机器上显式安装的 AUR/外来包，完整清单见下文。
 
 另外会通过 mise 安装 `gh` 等命令行工具（清单见 `~/.config/mise/config.toml`），并把 QQ/微信的 Wayland 输入法 pacman 钩子声明为 `[bootstrap.files]`，随 bootstrap 自动收敛到 `/etc/pacman.d/hooks`。
@@ -201,6 +202,16 @@ mise run wps
 ```
 
 它会把 WPS 的两个相关设置改成 `prome_independ`。重复执行也没关系：已有设置会更新，缺少的设置会补上，不会重复添加。
+
+## 像素字体
+
+为 pi-undefined-video 的字幕渲染安装像素字体（Fusion Pixel 12px、Uranus Pixel、BoutiqueBitmap7x7）。字体只服务于按需渲染，不随 bootstrap 自动安装，需要时执行：
+
+```bash
+mise run fonts
+```
+
+每次运行都会下载对应 GitHub 项目的最新 release 并刷新字体缓存。脚本依赖 `gh` 和 `unzip`，两者分别由 `~/.config/mise/config.toml` 的 `[tools]` 和 `[bootstrap.packages]` 提供。
 
 ## 仓库包含什么
 

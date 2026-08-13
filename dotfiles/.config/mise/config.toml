@@ -1,5 +1,6 @@
 [tools]
 aube = "latest"
+gh = "latest"
 "github:go-musicfox/go-musicfox" = "latest"
 "github:iOfficeAI/OfficeCLI" = "latest"
 herdr = "latest"

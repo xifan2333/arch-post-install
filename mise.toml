@@ -8,6 +8,7 @@ dotfiles.default_mode = "symlink"
 [bootstrap.packages]
 "pacman:noise-suppression-for-voice" = "latest"
 "pacman:ttf-sarasa-gothic" = "latest"
+"pacman:unzip" = "latest"
 "pacman:yay" = "latest"
 "pacman:zenity" = "latest"
 
