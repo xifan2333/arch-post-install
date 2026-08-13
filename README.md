@@ -60,6 +60,8 @@ cd ~/code/arch-post-install
 - `yay`：安装 AUR 软件；
 - 当前机器上显式安装的 AUR/外来包，完整清单见下文。
 
+另外会通过 mise 安装 `gh` 等命令行工具（清单见 `~/.config/mise/config.toml`），并把 QQ/微信的 Wayland 输入法 pacman 钩子声明为 `[bootstrap.files]`，随 bootstrap 自动收敛到 `/etc/pacman.d/hooks`。
+
 mise 本身不能直接安装 AUR 包，所以最后会调用 yay。已经安装的包会直接跳过，不会每次重新下载。
 
 这条命令可以反复运行。已经设置好的内容会跳过，只处理缺少或发生变化的部分，不会每次都从头重装。技术文档里常说的“幂等”，指的就是这个意思。
