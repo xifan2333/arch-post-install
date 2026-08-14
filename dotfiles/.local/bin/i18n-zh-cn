@@ -28,7 +28,7 @@ i18n[screenrecord_overlay_title_edit_size_item]="字号"
 # livestream — 直播推流
 # ============================================================================
 i18n[livestream_notify_title]="直播推流"
-i18n[livestream_notify_started_full]="已开始全屏推流"
+i18n[livestream_notify_started_full]="已开始直播推流"
 i18n[livestream_notify_stopped]="已停止推流"
 i18n[livestream_notify_already_active]="推流已在进行中"
 i18n[livestream_notify_recording_active]="本地录屏进行中，请先停止录屏"

@@ -30,7 +30,7 @@ if ! livestream_require_platforms >/dev/null; then
 fi
 
 set +e
-livestream_start full
+livestream_start "${1:-portal}"
 rc=$?
 set -e
 

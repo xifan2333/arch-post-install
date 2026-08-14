@@ -28,7 +28,7 @@ i18n[screenrecord_overlay_title_edit_size_item]="Font size"
 # livestream
 # ============================================================================
 i18n[livestream_notify_title]="Live Stream"
-i18n[livestream_notify_started_full]="Full-screen stream started"
+i18n[livestream_notify_started_full]="Live stream started"
 i18n[livestream_notify_stopped]="Stream stopped"
 i18n[livestream_notify_already_active]="Stream already in progress"
 i18n[livestream_notify_recording_active]="Local recording is active; stop recording first"

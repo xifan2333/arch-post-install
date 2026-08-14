@@ -203,13 +203,31 @@ livestream_gsr_scale_args() {
     fi
 }
 
+# Normalize a capture target to a gsr -w value.
+#   portal              → -w portal (xdg-desktop-portal picker: window/screen/region)
+#   full|screen         → -w screen (first monitor, native resolution)
+#   monitor:NAME        → -w monitor:NAME
+#   region:WxH+X+Y      → -w region:WxH+X+Y
+# Anything else is passed through unchanged.
+livestream_capture_target() {
+    local t="${1:-portal}"
+    case "$t" in
+        full) printf '%s\n' "screen" ;;
+        *)    printf '%s\n' "$t" ;;
+    esac
+}
+
 # Start streaming pipeline.
-# Args: mode (full|area) [ignored legacy extra args]
+# Args: target (portal|screen|monitor:NAME|region:WxH+X+Y); default portal
 livestream_start() {
-    local mode="$1"
+    local target="$1"
+    [ -n "$target" ] || target="portal"
     shift
     local platform_urls
     local scale_args=()
+    local capture_target
+
+    capture_target=$(livestream_capture_target "$target")
 
     livestream_load_config
     livestream_check_deps
@@ -231,7 +249,7 @@ livestream_start() {
     mapfile -t scale_args < <(livestream_gsr_scale_args)
 
     : > "$LIVESTREAM_LOG_FILE"
-    printf '%s\n' "$mode" > "$LIVESTREAM_MODE_FILE"
+    printf '%s\n' "$capture_target" > "$LIVESTREAM_MODE_FILE"
 
     cat > "$LIVESTREAM_RUNNER" <<'RUNNER'
 #!/bin/bash
@@ -250,7 +268,7 @@ pids=()
 while IFS= read -r url; do
     [ -n "$url" ] || continue
     gpu-screen-recorder \
-        -w screen \
+        -w "$LIVESTREAM_CAPTURE_TARGET" \
         -c flv \
         -f "$LIVESTREAM_FRAMERATE" \
         -bm cbr \
@@ -291,6 +309,7 @@ RUNNER
         LIVESTREAM_BITRATE="$BITRATE" \
         LIVESTREAM_AUDIO_BITRATE="$AUDIO_BITRATE" \
         LIVESTREAM_KEYINT="$KEYINT" \
+        LIVESTREAM_CAPTURE_TARGET="$capture_target" \
         LIVESTREAM_GSR_SCALE_ARGS="${scale_args[*]}" \
         LIVESTREAM_RTMP_TARGETS="$platform_urls" \
         "$LIVESTREAM_RUNNER" &
