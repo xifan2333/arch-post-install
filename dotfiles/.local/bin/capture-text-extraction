@@ -1,0 +1,94 @@
+#!/bin/bash
+# Omarchy-compatible region OCR using the native Rust nbocr CLI.
+
+set -o pipefail
+
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/i18n-core"
+
+PID=""
+WORK_DIR=$(mktemp -d)
+IMAGE="$WORK_DIR/selection.png"
+RESULT="$WORK_DIR/result.json"
+
+cleanup() {
+    if [ -n "$PID" ]; then
+        kill "$PID" 2>/dev/null || true
+        wait "$PID" 2>/dev/null || true
+    fi
+    rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT INT TERM
+
+ocr_notify() {
+    command -v notify-send >/dev/null 2>&1 || return 0
+    notify-send -u "${2:-normal}" "$(msg ocr_notify_title)" "$1"
+}
+
+NBOCR=$(command -v nbocr 2>/dev/null || true)
+if [ -z "$NBOCR" ] && command -v mise >/dev/null 2>&1; then
+    NBOCR_ROOT=$(mise where github:zibo-chen/newbee-ocr-cli 2>/dev/null || true)
+    [ -x "$NBOCR_ROOT/nbocr" ] && NBOCR="$NBOCR_ROOT/nbocr"
+fi
+if [ -z "$NBOCR" ]; then
+    ocr_notify "$(msg ocr_notify_backend_missing)" critical
+    exit 1
+fi
+
+# Freeze the selected frame only until grim has captured it.
+hyprpicker -r -z >/dev/null 2>&1 &
+PID=$!
+sleep 0.1
+SELECTION=$(slurp 2>/dev/null)
+[ -n "$SELECTION" ] || exit 0
+
+grim -g "$SELECTION" "$IMAGE" || {
+    ocr_notify "$(msg ocr_notify_failed)" critical
+    exit 1
+}
+
+kill "$PID" 2>/dev/null || true
+wait "$PID" 2>/dev/null || true
+PID=""
+
+"$NBOCR" recognize "$IMAGE" \
+    --language zh \
+    --format json \
+    --output "$RESULT" \
+    >/dev/null 2>&1 || {
+        ocr_notify "$(msg ocr_notify_failed)" critical
+        exit 1
+    }
+
+# Restore approximate visual reading order from the OCR bounding boxes. Nearby
+# boxes on the same row are joined with spaces; low-confidence icon noise is
+# discarded.
+TEXT=$(jq -r --argjson minimum 0.60 '
+    def median: sort as $sorted
+        | $sorted[(($sorted | length) / 2 | floor)];
+    [.results[] | select(.confidence >= $minimum)] as $items
+    | if ($items | length) == 0 then ""
+      else ($items | map(.bbox.height) | median) as $height
+      | (($height * 0.65) | if . < 8 then 8 else . end) as $row_height
+      | $items
+      | map(. + {
+          row: (((.bbox.y + (.bbox.height / 2)) / $row_height) | floor)
+        })
+      | sort_by(.row, .bbox.x)
+      | group_by(.row)
+      | map(sort_by(.bbox.x) | map(.text) | join(" "))
+      | join("\n")
+      end
+' "$RESULT") || {
+    ocr_notify "$(msg ocr_notify_failed)" critical
+    exit 1
+}
+
+[ -n "$TEXT" ] || {
+    ocr_notify "$(msg ocr_notify_failed)" critical
+    exit 1
+}
+
+printf '%s' "$TEXT" | wl-copy
+ocr_notify "$(msg ocr_notify_copied)"
