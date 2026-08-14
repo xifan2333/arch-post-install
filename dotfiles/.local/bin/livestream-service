@@ -1,0 +1,734 @@
+#!/usr/bin/python
+"""Session D-Bus service and client for multi-platform RTMP streaming."""
+
+from __future__ import annotations
+
+import argparse
+import configparser
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+import warnings
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+
+def translate(key, fallback="", **values):
+    """Resolve a message through the shared shell i18n catalogue."""
+    command = [
+        "bash",
+        "-c",
+        'source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; msg "$@"',
+        "livestream-i18n",
+        key,
+    ]
+    for name, value in values.items():
+        command.extend([name, str(value)])
+
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        message = result.stdout.strip()
+        if result.returncode == 0 and message and message != f"[{key}]":
+            return message
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+    try:
+        return fallback.format(**values)
+    except (KeyError, ValueError):
+        return fallback
+
+
+def translated_state(state):
+    return translate(f"livestream_state_{state}", state)
+
+
+BUS_NAME = "com.xifan.Livestream"
+OBJECT_PATH = "/com/xifan/Livestream"
+INTERFACE = "com.xifan.Livestream"
+INTROSPECTION_XML = f"""
+<node>
+  <interface name="{INTERFACE}">
+    <method name="GetStatus">
+      <arg type="s" name="status_json" direction="out"/>
+    </method>
+    <method name="Stop">
+      <arg type="b" name="accepted" direction="out"/>
+    </method>
+    <signal name="StatusChanged">
+      <arg type="s" name="status_json"/>
+    </signal>
+  </interface>
+</node>
+"""
+
+
+def bounded_int(section, key, fallback, minimum, maximum):
+    try:
+        value = section.getint(key, fallback=int(fallback))
+    except (TypeError, ValueError):
+        value = int(fallback)
+    return value if minimum <= value <= maximum else int(fallback)
+
+
+@dataclass
+class Platform:
+    name: str
+    server: str
+    stream_key: str
+    url: str
+    video_bitrate: int
+    audio_bitrate: int
+    process: subprocess.Popen | None = None
+    state: str = "connecting"
+    baseline_acked: int | None = None
+    last_acked: int | None = None
+    last_progress: float | None = None
+    ever_sending: bool = False
+    disconnect_notified: bool = False
+    log_thread: threading.Thread | None = field(default=None, repr=False)
+
+
+def load_platforms(path, default_video, default_audio):
+    config_path = Path(path)
+    if not config_path.is_file():
+        return []
+
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.read(config_path, encoding="utf-8")
+    platforms = []
+    for name in cfg.sections():
+        section = cfg[name]
+        server = section.get("server", "").strip().rstrip("/")
+        stream_key = section.get("key", "").strip().lstrip("/")
+        if not server or any(char in server + stream_key for char in "\t\r\n"):
+            continue
+        if not server.startswith(("rtmp://", "rtmps://")):
+            server = f"rtmp://{server}"
+        url = f"{server}/{stream_key}" if stream_key else server
+        platforms.append(
+            Platform(
+                name=name.replace("\t", " ").replace("\r", " ").replace("\n", " "),
+                server=server,
+                stream_key=stream_key,
+                url=url,
+                video_bitrate=bounded_int(
+                    section, "video_bitrate", default_video, 100, 50000
+                ),
+                audio_bitrate=bounded_int(
+                    section, "audio_bitrate", default_audio, 32, 320
+                ),
+            )
+        )
+    return platforms
+
+
+def offline_status():
+    return {
+        "state": "offline",
+        "mode": "",
+        "duration_seconds": 0,
+        "platforms": [],
+    }
+
+
+def get_proxy():
+    try:
+        proxy = Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION,
+            Gio.DBusProxyFlags.DO_NOT_AUTO_START,
+            None,
+            BUS_NAME,
+            OBJECT_PATH,
+            INTERFACE,
+            None,
+        )
+    except GLib.Error:
+        return None
+    return proxy if proxy.get_name_owner() else None
+
+
+def get_remote_status():
+    proxy = get_proxy()
+    if proxy is None:
+        return None
+    try:
+        result = proxy.call_sync(
+            "GetStatus", None, Gio.DBusCallFlags.NONE, 2000, None
+        )
+        return json.loads(result.unpack()[0])
+    except (GLib.Error, json.JSONDecodeError, TypeError, IndexError):
+        return None
+
+
+def platform_status_lines(status):
+    default_platform = translate("livestream_platform_default", "Platform")
+    for platform in status.get("platforms", []):
+        state = platform.get("state", "connecting")
+        values = {
+            "platform": platform.get("name", default_platform),
+            "state": translated_state(state),
+            "video": platform.get("video_bitrate", "?"),
+            "audio": platform.get("audio_bitrate", "?"),
+        }
+        yield translate(
+            "livestream_status_platform",
+            "{platform}: {state} — video {video} kbps, audio {audio} kbps",
+            **values,
+        )
+
+
+def print_human_status(status):
+    state = translated_state(status.get("state", "offline"))
+    print(translate("livestream_status_connection", "Connection: {state}", state=state))
+    for line in platform_status_lines(status):
+        print(line)
+
+
+class LivestreamService:
+    def __init__(self, args):
+        self.args = args
+        self.platforms = load_platforms(
+            args.platforms_file, args.default_video, args.default_audio
+        )
+        self.started_at = time.monotonic()
+        self.loop = GLib.MainLoop()
+        self.connection = None
+        self.registration_id = 0
+        self.owner_id = 0
+        self.name_acquired = False
+        self.stopping = False
+        self.stop_started_at = None
+        self.all_dead_since = None
+        self.last_signature = None
+        self.log_lock = threading.Lock()
+        self.log_handle = self._open_log(args.log_file)
+        self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
+
+    @staticmethod
+    def _open_log(path):
+        log_path = Path(path)
+        log_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(log_path.parent, 0o700)
+        fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        return os.fdopen(fd, "w", encoding="utf-8", buffering=1)
+
+    def log(self, message):
+        with self.log_lock:
+            self.log_handle.write(f"{time.strftime('%F %T')} {message}\n")
+
+    def safe_log_line(self, platform, line):
+        safe = line.rstrip("\n").replace(platform.url, "<redacted-rtmp-url>")
+        if platform.stream_key:
+            safe = safe.replace(platform.stream_key, "<redacted-stream-key>")
+        self.log(f"[{platform.name}] {safe}")
+
+    def read_process_log(self, platform):
+        stream = platform.process.stdout if platform.process else None
+        if stream is None:
+            return
+        for line in stream:
+            self.safe_log_line(platform, line)
+
+    def gsr_command(self, platform):
+        command = [
+            "gpu-screen-recorder",
+            "-w",
+            self.args.target,
+            "-c",
+            "flv",
+            "-f",
+            str(self.args.framerate),
+            "-bm",
+            "cbr",
+            "-q",
+            str(platform.video_bitrate),
+            "-keyint",
+            str(self.args.keyint),
+            "-ab",
+            str(platform.audio_bitrate),
+            "-a",
+            self.args.audio_source,
+            "-fallback-cpu-encoding",
+            "yes",
+        ]
+        if self.args.scale_width:
+            command.extend(["-s", f"{self.args.scale_width}x0"])
+        command.extend(["-o", platform.url])
+        return command
+
+    def start_platforms(self):
+        if not self.platforms:
+            self.log("No valid RTMP platforms configured")
+            self.emit_status(force=True)
+            self.all_dead_since = time.monotonic()
+            return
+
+        for platform in self.platforms:
+            try:
+                platform.process = subprocess.Popen(
+                    self.gsr_command(platform),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+            except OSError as error:
+                platform.state = "failed"
+                self.log(f"[{platform.name}] failed to start: {error}")
+                continue
+
+            self.log(
+                f"[{platform.name}] encoder started at "
+                f"{platform.video_bitrate}/{platform.audio_bitrate} kbps"
+            )
+            platform.log_thread = threading.Thread(
+                target=self.read_process_log,
+                args=(platform,),
+                daemon=True,
+            )
+            platform.log_thread.start()
+
+        self.emit_status(force=True)
+
+    @staticmethod
+    def socket_snapshot():
+        try:
+            result = subprocess.run(
+                ["ss", "-Htinp", "state", "established"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return {}
+
+        lines = result.stdout.splitlines()
+        sockets = {}
+        for index, line in enumerate(lines):
+            pids = [int(value) for value in re.findall(r"pid=(\d+),", line)]
+            if not pids:
+                continue
+            details = line
+            if index + 1 < len(lines) and not re.search(r"pid=\d+,", lines[index + 1]):
+                details += " " + lines[index + 1]
+            ack_match = re.search(r"bytes_acked:(\d+)", details)
+            last_send_match = re.search(r"lastsnd:(\d+)", details)
+            if not ack_match:
+                continue
+            acked = int(ack_match.group(1))
+            last_send_ms = int(last_send_match.group(1)) if last_send_match else None
+            for pid in pids:
+                previous = sockets.get(pid)
+                if previous is None or acked > previous[0]:
+                    sockets[pid] = (acked, last_send_ms)
+        return sockets
+
+    def update_platform(self, platform, sockets, now):
+        process = platform.process
+        old_state = platform.state
+        if process is None or process.poll() is not None:
+            platform.state = "failed"
+        else:
+            socket_data = sockets.get(process.pid)
+            if socket_data is None:
+                platform.state = "connecting"
+            else:
+                acked, last_send_ms = socket_data
+                if platform.last_acked is None or acked < platform.last_acked:
+                    platform.baseline_acked = acked
+                    platform.last_acked = acked
+                    platform.last_progress = None
+                elif acked > platform.last_acked:
+                    platform.last_acked = acked
+                    platform.last_progress = now
+
+                baseline = platform.baseline_acked
+                delta = acked - baseline if baseline is not None else 0
+                recent_send = (
+                    last_send_ms is None or last_send_ms <= 5000
+                ) and (
+                    platform.last_progress is not None
+                    and now - platform.last_progress <= 5
+                )
+                if delta >= 65536 and recent_send:
+                    platform.state = "sending"
+                    platform.ever_sending = True
+                    platform.disconnect_notified = False
+                elif delta >= 65536:
+                    platform.state = "stalled"
+                else:
+                    platform.state = "connecting"
+
+        if (
+            old_state == "sending"
+            and platform.state != "sending"
+            and platform.ever_sending
+            and not platform.disconnect_notified
+            and not self.stopping
+        ):
+            platform.disconnect_notified = True
+            self.notify(
+                "livestream_notify_disconnected",
+                "{platform}: RTMP is no longer sending ({state})",
+                platform=platform.name,
+                state=translated_state(platform.state),
+            )
+
+    def aggregate_state(self):
+        if self.stopping:
+            return "stopping"
+        states = [platform.state for platform in self.platforms]
+        if not states:
+            return "failed"
+        if all(state == "sending" for state in states):
+            return "sending"
+        if any(state == "sending" for state in states):
+            return "degraded"
+        if any(state == "connecting" for state in states):
+            return "connecting"
+        if any(state == "stalled" for state in states):
+            return "stalled"
+        return "failed"
+
+    def status(self):
+        now = time.monotonic()
+        return {
+            "state": self.aggregate_state(),
+            "mode": self.args.target,
+            "duration_seconds": max(0, int(now - self.started_at)),
+            "platforms": [
+                {
+                    "name": platform.name,
+                    "video_bitrate": platform.video_bitrate,
+                    "audio_bitrate": platform.audio_bitrate,
+                    "state": platform.state,
+                    "acknowledged_bytes": max(
+                        0,
+                        (platform.last_acked or 0)
+                        - (platform.baseline_acked or 0),
+                    ),
+                }
+                for platform in self.platforms
+            ],
+        }
+
+    def status_json(self):
+        return json.dumps(self.status(), ensure_ascii=False, separators=(",", ":"))
+
+    def status_signature(self):
+        return self.aggregate_state(), tuple(
+            platform.state for platform in self.platforms
+        )
+
+    @staticmethod
+    def refresh_waybar():
+        subprocess.run(
+            ["pkill", "-SIGRTMIN+8", "waybar"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+    @staticmethod
+    def notify(key, fallback, **values):
+        title = translate("livestream_notify_title", "Live Stream")
+        body = translate(key, fallback, **values)
+        try:
+            subprocess.Popen(
+                ["notify-send", "-u", "critical", title, body],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass
+
+    def emit_status(self, force=False):
+        signature = self.status_signature()
+        if not force and signature == self.last_signature:
+            return
+        self.last_signature = signature
+        payload = self.status_json()
+        if self.connection is not None:
+            try:
+                self.connection.emit_signal(
+                    None,
+                    OBJECT_PATH,
+                    INTERFACE,
+                    "StatusChanged",
+                    GLib.Variant("(s)", (payload,)),
+                )
+            except GLib.Error:
+                pass
+        self.refresh_waybar()
+
+    def monitor(self):
+        now = time.monotonic()
+        sockets = self.socket_snapshot()
+        for platform in self.platforms:
+            self.update_platform(platform, sockets, now)
+        self.emit_status()
+
+        all_dead = not self.platforms or all(
+            platform.process is None or platform.process.poll() is not None
+            for platform in self.platforms
+        )
+        if self.stopping:
+            if all_dead:
+                self.finish()
+                return GLib.SOURCE_REMOVE
+            elapsed = now - (self.stop_started_at or now)
+            if elapsed >= 5:
+                for platform in self.platforms:
+                    if platform.process and platform.process.poll() is None:
+                        platform.process.kill()
+            elif elapsed >= 3:
+                for platform in self.platforms:
+                    if platform.process and platform.process.poll() is None:
+                        platform.process.terminate()
+        elif all_dead:
+            if self.all_dead_since is None:
+                self.all_dead_since = now
+            elif now - self.all_dead_since >= 3:
+                self.finish()
+                return GLib.SOURCE_REMOVE
+        else:
+            self.all_dead_since = None
+
+        return GLib.SOURCE_CONTINUE
+
+    def request_stop(self):
+        if self.stopping:
+            return
+        self.stopping = True
+        self.stop_started_at = time.monotonic()
+        for platform in self.platforms:
+            if platform.process and platform.process.poll() is None:
+                try:
+                    platform.process.send_signal(signal.SIGINT)
+                except ProcessLookupError:
+                    pass
+        self.emit_status(force=True)
+
+    def handle_method_call(
+        self,
+        connection,
+        sender,
+        object_path,
+        interface_name,
+        method_name,
+        parameters,
+        invocation,
+    ):
+        if method_name == "GetStatus":
+            invocation.return_value(GLib.Variant("(s)", (self.status_json(),)))
+        elif method_name == "Stop":
+            accepted = not self.stopping
+            self.request_stop()
+            invocation.return_value(GLib.Variant("(b)", (accepted,)))
+        else:
+            invocation.return_dbus_error(
+                f"{INTERFACE}.UnknownMethod", f"Unknown method: {method_name}"
+            )
+
+    def on_bus_acquired(self, connection, name):
+        self.connection = connection
+        self.registration_id = connection.register_object(
+            OBJECT_PATH,
+            self.node_info.interfaces[0],
+            self.handle_method_call,
+            None,
+            None,
+        )
+
+    def on_name_acquired(self, connection, name):
+        self.name_acquired = True
+        self.log(f"D-Bus service acquired {name}")
+        self.start_platforms()
+        GLib.timeout_add(500, self.monitor)
+
+    def on_name_lost(self, connection, name):
+        if not self.name_acquired:
+            self.log(f"D-Bus name already owned: {name}")
+        self.finish()
+
+    def finish(self):
+        self.refresh_waybar()
+        if self.loop.is_running():
+            self.loop.quit()
+
+    def run(self):
+        signal.signal(signal.SIGINT, lambda *_: GLib.idle_add(self.request_stop))
+        signal.signal(signal.SIGTERM, lambda *_: GLib.idle_add(self.request_stop))
+        self.owner_id = Gio.bus_own_name(
+            Gio.BusType.SESSION,
+            BUS_NAME,
+            Gio.BusNameOwnerFlags.NONE,
+            self.on_bus_acquired,
+            self.on_name_acquired,
+            self.on_name_lost,
+        )
+        self.loop.run()
+
+        if self.registration_id and self.connection is not None:
+            self.connection.unregister_object(self.registration_id)
+        if self.owner_id:
+            Gio.bus_unown_name(self.owner_id)
+        for platform in self.platforms:
+            if platform.process and platform.process.poll() is None:
+                platform.process.kill()
+        for platform in self.platforms:
+            if platform.process:
+                try:
+                    platform.process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+            if platform.log_thread:
+                platform.log_thread.join(timeout=1)
+        self.log_handle.close()
+        return 0 if self.name_acquired else 2
+
+
+def wait_ready(timeout):
+    started = time.monotonic()
+    candidate = None
+    candidate_since = None
+    seen_service = False
+    last_status = None
+
+    while time.monotonic() - started < timeout:
+        status = get_remote_status()
+        if status is None:
+            if seen_service or time.monotonic() - started >= 3:
+                return 4
+            time.sleep(0.2)
+            continue
+
+        seen_service = True
+        last_status = status
+        state = status.get("state")
+        if state in {"sending", "degraded"}:
+            if state != candidate:
+                candidate = state
+                candidate_since = time.monotonic()
+            elif time.monotonic() - candidate_since >= 2:
+                return 0 if state == "sending" else 6
+        elif state in {"failed", "stalled"}:
+            return 4
+        else:
+            candidate = None
+            candidate_since = None
+        time.sleep(0.2)
+
+    if last_status and any(
+        platform.get("state") == "sending"
+        for platform in last_status.get("platforms", [])
+    ):
+        return 6
+    return 4
+
+
+def stop_remote(timeout):
+    proxy = get_proxy()
+    if proxy is None:
+        return 1
+    try:
+        proxy.call_sync("Stop", None, Gio.DBusCallFlags.NONE, 2000, None)
+    except GLib.Error:
+        return 1
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if get_proxy() is None:
+            return 0
+        time.sleep(0.1)
+    return 4
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    run = sub.add_parser("run")
+    run.add_argument("--platforms-file", required=True)
+    run.add_argument("--target", default="portal")
+    run.add_argument("--audio-source", required=True)
+    run.add_argument("--framerate", type=int, default=25)
+    run.add_argument("--default-video", type=int, default=1800)
+    run.add_argument("--default-audio", type=int, default=128)
+    run.add_argument("--keyint", type=int, default=2)
+    run.add_argument("--scale-width", type=int, default=0)
+    run.add_argument("--log-file", required=True)
+
+    validate = sub.add_parser("validate")
+    validate.add_argument("--platforms-file", required=True)
+    validate.add_argument("--default-video", type=int, default=1800)
+    validate.add_argument("--default-audio", type=int, default=128)
+
+    status = sub.add_parser("status")
+    status.add_argument("--json", action="store_true")
+    status.add_argument("--platforms-only", action="store_true")
+
+    field_parser = sub.add_parser("field")
+    field_parser.add_argument("field", choices=["state", "mode", "duration_seconds"])
+
+    wait_parser = sub.add_parser("wait-ready")
+    wait_parser.add_argument("--timeout", type=float, default=30)
+
+    stop_parser = sub.add_parser("stop")
+    stop_parser.add_argument("--timeout", type=float, default=7)
+
+    sub.add_parser("is-active")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    if args.command == "run":
+        return LivestreamService(args).run()
+    if args.command == "validate":
+        platforms = load_platforms(
+            args.platforms_file, args.default_video, args.default_audio
+        )
+        return 0 if platforms else 3
+    if args.command == "is-active":
+        return 0 if get_proxy() is not None else 1
+    if args.command == "wait-ready":
+        return wait_ready(args.timeout)
+    if args.command == "stop":
+        return stop_remote(args.timeout)
+
+    status = get_remote_status() or offline_status()
+    if args.command == "field":
+        print(status.get(args.field, ""))
+    elif args.platforms_only:
+        for line in platform_status_lines(status):
+            print(line)
+    elif args.json:
+        print(json.dumps(status, ensure_ascii=False, separators=(",", ":")))
+    else:
+        print_human_status(status)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

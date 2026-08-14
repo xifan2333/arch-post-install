@@ -1,20 +1,19 @@
 --
 -- Screenrecord overlay suite menu for Elephant/Walker
--- Toggles camera/captions/keys/title overlays.
--- (record audio mix is managed by the livestream streaming flow, not this menu)
+-- Status and toggles both go through capture-router so process detection stays shared.
 --
 Name = "screenrecord"
 NamePretty = "Screenrecord Overlays"
 HideFromProviderlist = true
 
-local function running(pattern)
-  local handle = io.popen("pgrep -f '" .. pattern .. "' 2>/dev/null")
+local function running(name)
+  local handle = io.popen("capture-router overlay pid " .. name .. " 2>/dev/null")
   if not handle then
     return false
   end
   local out = handle:read("*l")
   handle:close()
-  return out ~= nil and out ~= ""
+  return out ~= nil and out:match("%S") ~= nil
 end
 
 local function state(on)
@@ -22,35 +21,35 @@ local function state(on)
 end
 
 function GetEntries()
-  local camera = running("python3.*screenrecord-overlay-camera")
-  local captions = running("python3.*screenrecord-overlay-captions")
-  local keys = running("python3.*screenrecord-overlay-keys")
-  local title = running("python3 .*/screenrecord-overlay-title$")
+  local camera = running("camera")
+  local captions = running("captions")
+  local keys = running("keys")
+  local title = running("title")
   return {
     {
       Text = "󰄀  Camera Overlay",
       Subtext = state(camera),
-      Actions = { activate = "screenrecord-overlay-camera-toggle" },
+      Actions = { activate = "capture-router overlay camera" },
     },
     {
       Text = "󰨜  Captions Overlay",
       Subtext = state(captions),
-      Actions = { activate = "screenrecord-overlay-captions-toggle" },
+      Actions = { activate = "capture-router overlay captions" },
     },
     {
       Text = "󰌌  Keys Overlay",
       Subtext = state(keys),
-      Actions = { activate = "screenrecord-overlay-keys-toggle" },
+      Actions = { activate = "capture-router overlay keys" },
     },
     {
       Text = "󰗊  Title Overlay",
       Subtext = state(title),
-      Actions = { activate = "screenrecord-overlay-title-toggle" },
+      Actions = { activate = "capture-router overlay title" },
     },
     {
       Text = "󰏫  Edit Title Overlay",
       Subtext = "Text / font / color / position",
-      Actions = { activate = "screenrecord-overlay-title-edit" },
+      Actions = { activate = "capture-router overlay edit" },
     },
   }
 end

@@ -305,6 +305,78 @@ record_audio_down() {
     done
 }
 
+record_audio_daemon_running() {
+    pgrep -u "$(id -u)" -f '(^|/)record-audio-daemon( |$)' >/dev/null 2>&1
+}
+
+record_audio_start_daemon() {
+    local bin log waited
+    if record_audio_daemon_running; then
+        return 0
+    fi
+
+    bin=$(command -v record-audio-daemon 2>/dev/null || true)
+    if [ -z "$bin" ] && [ -x "$HOME/.local/bin/record-audio-daemon" ]; then
+        bin="$HOME/.local/bin/record-audio-daemon"
+    fi
+    if [ -z "$bin" ]; then
+        echo "Error: record-audio-daemon not found" >&2
+        return 1
+    fi
+
+    record_audio_ensure_dirs
+    log="${RECORD_AUDIO_STATE_DIR}/daemon.log"
+    nohup "$bin" >>"$log" 2>&1 &
+
+    waited=0
+    while [ "$waited" -lt 20 ]; do
+        if record_audio_daemon_running; then
+            return 0
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+
+    echo "Error: record-audio-daemon failed to start" >&2
+    return 1
+}
+
+record_audio_stop_daemon() {
+    if ! record_audio_daemon_running; then
+        return 0
+    fi
+    pkill -u "$(id -u)" -f '(^|/)record-audio-daemon( |$)' 2>/dev/null || true
+
+    local waited=0
+    while [ "$waited" -lt 20 ]; do
+        if ! record_audio_daemon_running; then
+            return 0
+        fi
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+    return 1
+}
+
+# Bring up the shared mix graph and optional ducking daemon without UI side
+# effects. Returns 0 when record_mix.monitor is ready for capture clients.
+record_audio_ducking_enabled() {
+    case "${RECORD_DUCKING:-true}" in
+        1|true|yes|on|TRUE|YES|ON) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+record_audio_enable_shared() {
+    record_audio_write_default_config
+    record_audio_load_config
+    record_audio_up || return 1
+    if record_audio_ducking_enabled; then
+        record_audio_start_daemon || return 1
+    fi
+    record_audio_is_up
+}
+
 record_audio_status() {
     record_audio_load_config
     echo "config: $RECORD_AUDIO_CONFIG"
@@ -314,6 +386,11 @@ record_audio_status() {
     echo "system: $(record_audio_resolve_system_source 2>/dev/null || echo none)"
     echo "ducking: $RECORD_DUCKING"
     echo "capture: $(record_audio_capture_source)"
+    if record_audio_daemon_running; then
+        echo "daemon: running"
+    else
+        echo "daemon: stopped"
+    fi
     if [ -f "$RECORD_AUDIO_MODULES_FILE" ]; then
         echo "modules:"
         cat "$RECORD_AUDIO_MODULES_FILE"

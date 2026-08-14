@@ -65,16 +65,25 @@ def save_config(cfg):
 
 
 def ensure_overlay_visible():
+    # Share process discovery with capture-router so python/python3 and
+    # title-edit exclusion stay consistent.
     try:
-        subprocess.run(
-            ["pgrep", "-f", "python .*/screenrecord-overlay-title$"],
-            check=True, capture_output=True,
+        result = subprocess.run(
+            ["capture-router", "overlay", "pid", "title"],
+            check=False,
+            capture_output=True,
+            text=True,
         )
-    except subprocess.CalledProcessError:
-        subprocess.Popen(
-            ["screenrecord-overlay-title"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        if result.stdout.strip():
+            return
+    except OSError:
+        pass
+
+    subprocess.Popen(
+        ["screenrecord-overlay-title"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 class TitleDialog(Gtk.Dialog):

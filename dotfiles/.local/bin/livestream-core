@@ -1,40 +1,35 @@
 #!/bin/bash
-# Live stream streaming library - shared functions
-# Source this file in livestream scripts
-#
-# Pipeline: gpu-screen-recorder single process → RTMP.
-#   - h264_vaapi hardware encoding (i965 on Sandy Bridge+), CBR bitrate
-#   - keyint in seconds (Bilibili requires GOP <= 2s)
-#   - multiple audio sources mixed by gsr itself (mic | system monitor)
-#   - no wf-recorder→ffmpeg pipe, so network backpressure cannot corrupt audio
+# Shared client helpers for the Session D-Bus livestream service.
+# One gpu-screen-recorder process is used per RTMP platform.
 
-# XDG paths
+SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/record-audio-core"
+LIVESTREAM_SERVICE="$SCRIPT_DIR/livestream-service"
 LIVESTREAM_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
 LIVESTREAM_PLATFORMS_FILE="$LIVESTREAM_CONFIG_DIR/platforms.conf"
 LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config"
 LIVESTREAM_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/livestream-$UID}/livestream"
-LIVESTREAM_PID_FILE="$LIVESTREAM_RUNTIME_DIR/pgid"
-LIVESTREAM_MODE_FILE="$LIVESTREAM_RUNTIME_DIR/mode"
 LIVESTREAM_LOG_FILE="$LIVESTREAM_RUNTIME_DIR/livestream.log"
-LIVESTREAM_RUNNER="$LIVESTREAM_RUNTIME_DIR/run.sh"
+LIVESTREAM_AUDIO_OWN_FILE="$LIVESTREAM_RUNTIME_DIR/audio-owned"
 
-# Defaults tuned for low-power CPUs (e.g. Sandy Bridge i5): GPU encoding.
-# BITRATE is in kbps (gsr -q for CBR mode). KEYINT is in seconds.
-AUDIO_SOURCE=""                  # empty = auto (see livestream_load_config)
-FRAMERATE="25"
-BITRATE="1800"
-AUDIO_BITRATE="128"
-KEYINT="2"
-# Max output width; 0 = keep native desktop resolution
-SCALE_WIDTH="0"
+# Empty values may be filled by ~/.config/livestream/config. Non-empty
+# environment variables take precedence over that file.
+AUDIO_SOURCE="${AUDIO_SOURCE-}"
+FRAMERATE="${FRAMERATE-}"
+BITRATE="${BITRATE-}"
+AUDIO_BITRATE="${AUDIO_BITRATE-}"
+KEYINT="${KEYINT-}"
+SCALE_WIDTH="${SCALE_WIDTH-}"
 
 livestream_ensure_dirs() {
-    mkdir -p "$LIVESTREAM_CONFIG_DIR" "$LIVESTREAM_RUNTIME_DIR"
+    install -d -m 700 "$LIVESTREAM_CONFIG_DIR" "$LIVESTREAM_RUNTIME_DIR"
 }
 
-# Load optional key=value config (does not override non-empty env)
 livestream_load_config() {
     livestream_ensure_dirs
+    [ -f "$LIVESTREAM_PLATFORMS_FILE" ] && chmod 600 "$LIVESTREAM_PLATFORMS_FILE"
+    [ -f "$LIVESTREAM_CONFIG_FILE" ] && chmod 600 "$LIVESTREAM_CONFIG_FILE"
 
     if [ -f "$LIVESTREAM_CONFIG_FILE" ]; then
         while IFS= read -r line || [ -n "$line" ]; do
@@ -63,132 +58,124 @@ livestream_load_config() {
     KEYINT="${KEYINT:-2}"
     SCALE_WIDTH="${SCALE_WIDTH:-0}"
 
-    # Audio source resolution:
-    #   1. explicit AUDIO_SOURCE config wins (may be gsr "a|b" syntax)
-    #   2. record_mix.monitor when the record-audio daemon graph is up
-    #   3. default: mic (rnnoise) + default sink monitor, mixed by gsr
+    if ! [[ "$FRAMERATE" =~ ^[0-9]+$ ]] || ((FRAMERATE < 1 || FRAMERATE > 240)); then
+        FRAMERATE=25
+    fi
+    if ! [[ "$BITRATE" =~ ^[0-9]+$ ]] || ((BITRATE < 100 || BITRATE > 50000)); then
+        BITRATE=1800
+    fi
+    if ! [[ "$AUDIO_BITRATE" =~ ^[0-9]+$ ]] \
+        || ((AUDIO_BITRATE < 32 || AUDIO_BITRATE > 320)); then
+        AUDIO_BITRATE=128
+    fi
+    if ! [[ "$KEYINT" =~ ^[0-9]+$ ]] || ((KEYINT < 1 || KEYINT > 10)); then
+        KEYINT=2
+    fi
+    if ! [[ "$SCALE_WIDTH" =~ ^[0-9]+$ ]] || ((SCALE_WIDTH > 16384)); then
+        SCALE_WIDTH=0
+    fi
+
+    # Default capture path is the shared record_mix graph so ducking applies.
+    # Explicit AUDIO_SOURCE still wins for advanced overrides.
     if [ -z "$AUDIO_SOURCE" ]; then
-        if command -v record-audio-core >/dev/null 2>&1 || [ -f "$HOME/.local/bin/record-audio-core" ]; then
-            # shellcheck disable=SC1091
-            source record-audio-core 2>/dev/null || source "$HOME/.local/bin/record-audio-core" 2>/dev/null || true
-            if declare -F record_audio_capture_source >/dev/null 2>&1; then
-                _cap=$(record_audio_capture_source 2>/dev/null || true)
-                # A bare mic fallback gets system audio appended by gsr mixing
-                case "$_cap" in
-                    "$RECORD_AUDIO_SOURCE_NAME"|"")
-                        AUDIO_SOURCE="$_cap"
-                        ;;
-                    *)
-                        local _sys
-                        _sys=$(pactl get-default-sink 2>/dev/null || true)
-                        if [ -n "$_sys" ]; then
-                            AUDIO_SOURCE="device:${_cap}|device:${_sys}.monitor"
-                        else
-                            AUDIO_SOURCE="device:${_cap}"
-                        fi
-                        ;;
-                esac
-            fi
+        AUDIO_SOURCE="device:${RECORD_AUDIO_SOURCE_NAME:-record_mix.monitor}"
+    fi
+}
+
+# Strategy B: share the record-audio mix/daemon with other capture tools.
+# Livestream only tears down pieces it started for this session.
+livestream_prepare_shared_audio() {
+    local mix_was_up=0 daemon_was_up=0
+
+    livestream_ensure_dirs
+    rm -f "$LIVESTREAM_AUDIO_OWN_FILE"
+
+    if record_audio_is_up; then
+        mix_was_up=1
+    fi
+    if record_audio_daemon_running; then
+        daemon_was_up=1
+    fi
+
+    if ! record_audio_enable_shared; then
+        # Roll back only what this attempt may have created.
+        if [ "$daemon_was_up" -eq 0 ]; then
+            record_audio_stop_daemon || true
         fi
-        AUDIO_SOURCE="${AUDIO_SOURCE:-device:rnnoise_source}"
+        if [ "$mix_was_up" -eq 0 ]; then
+            record_audio_down || true
+        fi
+        return 1
+    fi
+
+    {
+        printf 'mix_owned=%s\n' "$((1 - mix_was_up))"
+        printf 'daemon_owned=%s\n' "$((1 - daemon_was_up))"
+    } >"$LIVESTREAM_AUDIO_OWN_FILE"
+    chmod 600 "$LIVESTREAM_AUDIO_OWN_FILE" 2>/dev/null || true
+
+    AUDIO_SOURCE="device:${RECORD_AUDIO_SOURCE_NAME}"
+    return 0
+}
+
+livestream_release_shared_audio() {
+    local mix_owned=0 daemon_owned=0
+
+    if [ -f "$LIVESTREAM_AUDIO_OWN_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$LIVESTREAM_AUDIO_OWN_FILE"
+        rm -f "$LIVESTREAM_AUDIO_OWN_FILE"
+    fi
+
+    if [ "${daemon_owned:-0}" = 1 ]; then
+        record_audio_stop_daemon || true
+    fi
+    if [ "${mix_owned:-0}" = 1 ]; then
+        # Keep the graph if another client still needs it (e.g. local recording).
+        if ! livestream_local_recording_active; then
+            record_audio_down || true
+        fi
     fi
 }
 
 livestream_check_deps() {
-    for cmd in gpu-screen-recorder pactl; do
+    local cmd
+    for cmd in gpu-screen-recorder pactl ss "$LIVESTREAM_SERVICE"; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
-            echo "Error: $cmd is not installed" >&2
-            exit 1
+            printf 'Error: %s is not installed\n' "$cmd" >&2
+            return 1
         fi
     done
 }
 
-# Resolve platform RTMP URLs from platforms.conf (INI format).
-# Each section: [Name] server=... key=... → rtmp://server/key
-# Outputs one URL per line; returns non-zero if no platforms configured.
-livestream_get_platform_urls() {
-    local file="${1:-$LIVESTREAM_PLATFORMS_FILE}"
-    [ -f "$file" ] || return 1
-
-    python3 - "$file" <<'PY'
-import configparser, sys
-cfg = configparser.ConfigParser()
-cfg.read(sys.argv[1], encoding="utf-8")
-for name in cfg.sections():
-    srv = cfg[name].get("server", "").strip()
-    key = cfg[name].get("key", "").strip()
-    if not srv:
-        continue
-    url = f"rtmp://{srv}/{key}" if not srv.startswith("rtmp://") else f"{srv}/{key}"
-    print(url)
-PY
-}
-
-livestream_require_platforms() {
-    local urls
-    urls=$(livestream_get_platform_urls) || return 1
-    [ -n "$urls" ] || return 1
-    printf '%s' "$urls"
-}
-
 livestream_is_active() {
-    local pgid
-    [ -f "$LIVESTREAM_PID_FILE" ] || return 1
-    pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
-    [ -n "$pgid" ] || return 1
-
-    if kill -0 -- "-$pgid" 2>/dev/null; then
-        return 0
-    fi
-    if kill -0 "$pgid" 2>/dev/null; then
-        return 0
-    fi
-    return 1
+    "$LIVESTREAM_SERVICE" is-active >/dev/null 2>&1
 }
 
 livestream_get_mode() {
-    if [ -f "$LIVESTREAM_MODE_FILE" ]; then
-        tr -d '[:space:]' < "$LIVESTREAM_MODE_FILE"
-    fi
+    "$LIVESTREAM_SERVICE" field mode 2>/dev/null
 }
 
 livestream_get_duration_seconds() {
-    local pgid duration
-    [ -f "$LIVESTREAM_PID_FILE" ] || return 1
-    pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
-    [ -n "$pgid" ] || return 1
-
-    duration=$(ps -o etimes= -p "$pgid" 2>/dev/null | tr -d '[:space:]')
-    if [ -z "$duration" ]; then
-        # Fallback: first gpu-screen-recorder owned by this user while live
-        # (pgrep -f matches the full cmdline; comm is truncated to 15 chars)
-        pid=$(pgrep -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null | head -1)
-        [ -n "$pid" ] && duration=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]')
-    fi
-    [ -n "$duration" ] || return 1
-    echo "$duration"
+    "$LIVESTREAM_SERVICE" field duration_seconds 2>/dev/null
 }
 
-livestream_unmute_audio() {
-    if command -v pactl >/dev/null 2>&1; then
-        local source
-        source=$(printf '%s' "$AUDIO_SOURCE" | sed -n 's/^device:\([^|]*\).*/\1/p')
-        if [ -n "$source" ]; then
-            if pactl list sources 2>/dev/null | grep -A 10 "Name: $source" | grep -q "Mute: yes"; then
-                pactl set-source-mute "$source" 0
-            fi
-        fi
-    fi
+livestream_connection_state() {
+    "$LIVESTREAM_SERVICE" field state 2>/dev/null || printf '%s\n' offline
 }
 
-# Reuse screenrecord waybar module (signal 8)
+livestream_platform_status_text() {
+    "$LIVESTREAM_SERVICE" status --platforms-only 2>/dev/null
+}
+
+livestream_status_report() {
+    "$LIVESTREAM_SERVICE" status 2>/dev/null
+}
+
 livestream_notify_waybar() {
     pkill -SIGRTMIN+8 waybar 2>/dev/null || true
 }
 
-# True when a local file recording owns gpu-screen-recorder (not livestream)
-# Note: pgrep -x matches comm which is truncated to 15 chars, so match the
-# full cmdline with -f '^gpu-screen-recorder ' instead.
 livestream_local_recording_active() {
     if livestream_is_active; then
         return 1
@@ -196,220 +183,91 @@ livestream_local_recording_active() {
     pgrep -u "$(id -u)" -f '^gpu-screen-recorder ' >/dev/null 2>&1
 }
 
-# Build gsr extra args for output scaling; empty when SCALE_WIDTH=0
-livestream_gsr_scale_args() {
-    if [ -n "$SCALE_WIDTH" ] && [ "$SCALE_WIDTH" != "0" ]; then
-        printf '%s\n' "-s" "${SCALE_WIDTH}x0"
+livestream_unmute_audio() {
+    if command -v pactl >/dev/null 2>&1; then
+        local source
+        source=$(printf '%s' "$AUDIO_SOURCE" | sed -n 's/^device:\([^|]*\).*/\1/p')
+        if [ -n "$source" ]; then
+            if pactl list sources 2>/dev/null \
+                | grep -A 10 "Name: $source" \
+                | grep -q "Mute: yes"; then
+                pactl set-source-mute "$source" 0
+            fi
+        fi
     fi
 }
 
-# Normalize a capture target to a gsr -w value.
-#   portal              → -w portal (xdg-desktop-portal picker: window/screen/region)
-#   full|screen         → -w screen (first monitor, native resolution)
-#   monitor:NAME        → -w monitor:NAME
-#   region:WxH+X+Y      → -w region:WxH+X+Y
-# Anything else is passed through unchanged.
 livestream_capture_target() {
-    local t="${1:-portal}"
-    case "$t" in
-        full) printf '%s\n' "screen" ;;
-        *)    printf '%s\n' "$t" ;;
+    local target="${1:-portal}"
+    case "$target" in
+        full) printf '%s\n' screen ;;
+        *) printf '%s\n' "$target" ;;
     esac
 }
 
-# Start streaming pipeline.
-# Args: target (portal|screen|monitor:NAME|region:WxH+X+Y); default portal
 livestream_start() {
-    local target="$1"
-    [ -n "$target" ] || target="portal"
-    shift
-    local platform_urls
-    local scale_args=()
-    local capture_target
-
-    capture_target=$(livestream_capture_target "$target")
+    local target="${1:-portal}"
+    local capture_target rc
 
     livestream_load_config
-    livestream_check_deps
-    livestream_ensure_dirs
+    livestream_check_deps || return 4
+    capture_target=$(livestream_capture_target "$target")
 
     if livestream_is_active; then
         return 2
     fi
-
     if livestream_local_recording_active; then
         return 5
     fi
+    "$LIVESTREAM_SERVICE" validate \
+        --platforms-file "$LIVESTREAM_PLATFORMS_FILE" \
+        --default-video "$BITRATE" \
+        --default-audio "$AUDIO_BITRATE" >/dev/null 2>&1 || return 3
 
-    if ! platform_urls=$(livestream_require_platforms); then
-        return 3
+    # Default path uses the shared mix + ducking. An explicit AUDIO_SOURCE
+    # override keeps full control and skips ownership of the shared graph.
+    if [[ "$AUDIO_SOURCE" == device:${RECORD_AUDIO_SOURCE_NAME} \
+        || "$AUDIO_SOURCE" == "${RECORD_AUDIO_SOURCE_NAME}" ]]; then
+        if ! livestream_prepare_shared_audio; then
+            livestream_release_shared_audio
+            return 4
+        fi
     fi
 
     livestream_unmute_audio
-    mapfile -t scale_args < <(livestream_gsr_scale_args)
+    setsid "$LIVESTREAM_SERVICE" run \
+        --platforms-file "$LIVESTREAM_PLATFORMS_FILE" \
+        --target "$capture_target" \
+        --audio-source "$AUDIO_SOURCE" \
+        --framerate "$FRAMERATE" \
+        --default-video "$BITRATE" \
+        --default-audio "$AUDIO_BITRATE" \
+        --keyint "$KEYINT" \
+        --scale-width "$SCALE_WIDTH" \
+        --log-file "$LIVESTREAM_LOG_FILE" \
+        >/dev/null 2>&1 &
 
-    : > "$LIVESTREAM_LOG_FILE"
-    printf '%s\n' "$capture_target" > "$LIVESTREAM_MODE_FILE"
-
-    cat > "$LIVESTREAM_RUNNER" <<'RUNNER'
-#!/bin/bash
-set -e
-exec >>"$LIVESTREAM_LOG_FILE" 2>&1
-
-cleanup() {
-    pkill -INT -P $$ 2>/dev/null || true
-    wait 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-# One gpu-screen-recorder instance per RTMP target, all in this process group.
-# SIGINT (from livestream_stop) makes gsr finalize and exit cleanly.
-pids=()
-while IFS= read -r url; do
-    [ -n "$url" ] || continue
-    gpu-screen-recorder \
-        -w "$LIVESTREAM_CAPTURE_TARGET" \
-        -c flv \
-        -f "$LIVESTREAM_FRAMERATE" \
-        -bm cbr \
-        -q "$LIVESTREAM_BITRATE" \
-        -keyint "$LIVESTREAM_KEYINT" \
-        -ab "$LIVESTREAM_AUDIO_BITRATE" \
-        -a "$LIVESTREAM_AUDIO_SOURCE" \
-        -fallback-cpu-encoding yes \
-        ${LIVESTREAM_GSR_SCALE_ARGS} \
-        -o "$url" &
-    pids+=("$!")
-done <<< "$LIVESTREAM_RTMP_TARGETS"
-
-if [ ${#pids[@]} -eq 0 ]; then
-    echo "FATAL: no RTMP targets configured" >&2
-    exit 1
-fi
-
-# Exit if the first encoder dies (e.g. encoder unavailable at startup)
-for i in $(seq 1 15); do
-    if ! kill -0 "${pids[0]}" 2>/dev/null; then
-        echo "FATAL: gpu-screen-recorder exited early" >&2
-        cleanup
-        exit 1
-    fi
-    sleep 0.1
-done
-
-wait
-RUNNER
-    chmod +x "$LIVESTREAM_RUNNER"
-
-    # New session so livestream_stop can signal the whole pipeline
-    setsid env \
-        LIVESTREAM_LOG_FILE="$LIVESTREAM_LOG_FILE" \
-        LIVESTREAM_AUDIO_SOURCE="$AUDIO_SOURCE" \
-        LIVESTREAM_FRAMERATE="$FRAMERATE" \
-        LIVESTREAM_BITRATE="$BITRATE" \
-        LIVESTREAM_AUDIO_BITRATE="$AUDIO_BITRATE" \
-        LIVESTREAM_KEYINT="$KEYINT" \
-        LIVESTREAM_CAPTURE_TARGET="$capture_target" \
-        LIVESTREAM_GSR_SCALE_ARGS="${scale_args[*]}" \
-        LIVESTREAM_RTMP_TARGETS="$platform_urls" \
-        "$LIVESTREAM_RUNNER" &
-
-    echo $! > "$LIVESTREAM_PID_FILE"
-
-    # Settle: portal mode must wait for the user's picker selection (gsr logs
-    # 'new state: "streaming"' once PipeWire actually starts delivering
-    # frames). Direct-capture targets (screen/region/monitor) start fast.
-    if [ "$capture_target" = "portal" ]; then
-        local waited=0
-        while [ "$waited" -lt 120 ]; do
-            if ! livestream_is_active; then
-                # gsr exited: user cancelled the picker, or it crashed
-                rm -f "$LIVESTREAM_PID_FILE" "$LIVESTREAM_MODE_FILE"
-                return 4
-            fi
-            if grep -q 'new state: "streaming"' "$LIVESTREAM_LOG_FILE" 2>/dev/null; then
-                break
-            fi
-            sleep 0.2
-            waited=$((waited + 1))
-        done
-        if ! grep -q 'new state: "streaming"' "$LIVESTREAM_LOG_FILE" 2>/dev/null; then
-            livestream_stop || true
+    "$LIVESTREAM_SERVICE" wait-ready --timeout 30
+    rc=$?
+    case "$rc" in
+        0|6)
+            livestream_notify_waybar
+            return "$rc"
+            ;;
+        *)
+            "$LIVESTREAM_SERVICE" stop --timeout 7 >/dev/null 2>&1 || true
+            livestream_release_shared_audio
+            livestream_notify_waybar
             return 4
-        fi
-    else
-        sleep 1.5
-        if ! livestream_is_active; then
-            return 4
-        fi
-
-        # Must actually be pushing to an RTMP server, not just sitting idle
-        if ! pgrep -u "$(id -u)" -af 'gpu-screen-recorder.*rtmp://' >/dev/null 2>&1; then
-            local pgid
-            pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
-            if ! pgrep -u "$(id -u)" -P "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1 \
-                && ! pgrep -u "$(id -u)" -g "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1; then
-                livestream_stop || true
-                return 4
-            fi
-        fi
-    fi
-
-    livestream_notify_waybar
-    return 0
+            ;;
+    esac
 }
 
 livestream_stop() {
-    local pgid
-    local i
-
-    livestream_ensure_dirs
-
-    if [ ! -f "$LIVESTREAM_PID_FILE" ]; then
-        return 1
-    fi
-
-    pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
-    if [ -z "$pgid" ]; then
-        rm -f "$LIVESTREAM_PID_FILE" "$LIVESTREAM_MODE_FILE"
-        return 1
-    fi
-
-    kill -INT -- "-$pgid" 2>/dev/null || kill -INT "$pgid" 2>/dev/null || true
-    # Also interrupt recorder directly (it may ignore group signal timing)
-    pkill -INT -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null || true
-
-    for i in $(seq 1 30); do
-        if ! livestream_is_active; then
-            break
-        fi
-        sleep 0.1
-    done
-
-    if livestream_is_active; then
-        kill -TERM -- "-$pgid" 2>/dev/null || kill -TERM "$pgid" 2>/dev/null || true
-        pkill -TERM -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null || true
-        for i in $(seq 1 20); do
-            if ! livestream_is_active; then
-                break
-            fi
-            sleep 0.1
-        done
-    fi
-
-    if livestream_is_active; then
-        kill -KILL -- "-$pgid" 2>/dev/null || kill -KILL "$pgid" 2>/dev/null || true
-        pkill -KILL -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null || true
-        pkill -KILL -u "$(id -u)" -f 'gpu-screen-recorder.*rtmp://' 2>/dev/null || true
-        for i in $(seq 1 10); do
-            if ! livestream_is_active; then
-                break
-            fi
-            sleep 0.1
-        done
-    fi
-
-    rm -f "$LIVESTREAM_PID_FILE" "$LIVESTREAM_MODE_FILE"
+    local rc
+    "$LIVESTREAM_SERVICE" stop --timeout 7
+    rc=$?
+    livestream_release_shared_audio
     livestream_notify_waybar
-    return 0
+    return "$rc"
 }

@@ -12,25 +12,49 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
 CONFIG_FILE = Path(GLib.get_user_config_dir()) / "livestream" / "platforms.conf"
+DEFAULT_VIDEO_BITRATE = 1800
+DEFAULT_AUDIO_BITRATE = 128
 
 
 def t(key, fallback=""):
     try:
-        r = subprocess.run(
-            ["bash", "-c",
-             f'source "$HOME/.local/bin/i18n-core" 2>/dev/null && msg {key}'],
-            env={**os.environ, "PATH": os.path.expanduser("~/.local/bin") + ":"
-                 + os.environ.get("PATH", "")},
-            capture_output=True, text=True, timeout=2,
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                'source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; '
+                'msg "$1"',
+                "livestream-config",
+                key,
+            ],
+            env={
+                **os.environ,
+                "PATH": os.path.expanduser("~/.local/bin") + ":"
+                + os.environ.get("PATH", ""),
+            },
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
         )
-        out = r.stdout.strip()
-        return out if out else fallback
-    except Exception:
-        return fallback
+        message = result.stdout.strip()
+        if result.returncode == 0 and message and message != f"[{key}]":
+            return message
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return fallback
+
+
+def _get_int(section, key, default, minimum, maximum):
+    try:
+        value = section.getint(key, fallback=default)
+    except (TypeError, ValueError):
+        value = default
+    return value if minimum <= value <= maximum else default
 
 
 def load_platforms():
-    cfg = configparser.ConfigParser()
+    cfg = configparser.ConfigParser(interpolation=None)
     if CONFIG_FILE.exists():
         cfg.read(CONFIG_FILE, encoding="utf-8")
     platforms = []
@@ -39,6 +63,12 @@ def load_platforms():
             "name": section,
             "server": cfg[section].get("server", ""),
             "key": cfg[section].get("key", ""),
+            "video_bitrate": _get_int(
+                cfg[section], "video_bitrate", DEFAULT_VIDEO_BITRATE, 100, 50000
+            ),
+            "audio_bitrate": _get_int(
+                cfg[section], "audio_bitrate", DEFAULT_AUDIO_BITRATE, 32, 320
+            ),
         })
     return platforms
 
@@ -49,58 +79,106 @@ def save_platforms(platforms):
         name = p["name"].strip()
         if not name:
             continue
-        cfg[name] = {"server": p.get("server", "").strip(),
-                     "key": p.get("key", "").strip()}
+        cfg[name] = {
+            "server": p.get("server", "").strip(),
+            "key": p.get("key", "").strip(),
+            "video_bitrate": str(p.get("video_bitrate", DEFAULT_VIDEO_BITRATE)),
+            "audio_bitrate": str(p.get("audio_bitrate", DEFAULT_AUDIO_BITRATE)),
+        }
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(CONFIG_FILE.parent, 0o700)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         cfg.write(f)
+    os.chmod(CONFIG_FILE, 0o600)
 
 
-class PlatformRow(Gtk.Box):
+class PlatformRow:
+    """One editable platform row attached to the dialog's shared grid."""
+
     def __init__(self, data, on_remove):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.data = data
-
         self.name_entry = Gtk.Entry()
         self.name_entry.set_placeholder_text(t("livestream_cfg_name", "Name"))
         self.name_entry.set_text(data["name"])
         self.name_entry.set_width_chars(10)
-        self.pack_start(self.name_entry, False, False, 0)
 
         self.server_entry = Gtk.Entry()
         self.server_entry.set_placeholder_text(t("livestream_cfg_server", "Server"))
         self.server_entry.set_text(data["server"])
         self.server_entry.set_width_chars(26)
-        self.pack_start(self.server_entry, True, True, 0)
+        self.server_entry.set_hexpand(True)
 
         self.key_entry = Gtk.Entry()
         self.key_entry.set_placeholder_text(t("livestream_cfg_key", "Key"))
         self.key_entry.set_text(data["key"])
         self.key_entry.set_visibility(False)
         self.key_entry.set_width_chars(18)
-        self.pack_start(self.key_entry, True, True, 0)
+        self.key_entry.set_hexpand(True)
 
-        show_btn = Gtk.Button.new_from_icon_name(
-            "view-reveal", Gtk.IconSize.SMALL_TOOLBAR)
-        show_btn.set_tooltip_text("Show/hide key")
-        show_btn.connect("clicked", self._toggle_key_visibility)
-        self.pack_start(show_btn, False, False, 0)
+        self.video_bitrate = Gtk.SpinButton.new_with_range(100, 50000, 100)
+        self.video_bitrate.set_value(data["video_bitrate"])
+        self.video_bitrate.set_width_chars(7)
+        self.video_bitrate.set_numeric(True)
+        self.video_bitrate.set_tooltip_text(t(
+            "livestream_cfg_video_tooltip", "Video bitrate in kbps"
+        ))
 
-        remove_btn = Gtk.Button.new_from_icon_name(
-            "edit-delete", Gtk.IconSize.SMALL_TOOLBAR)
-        remove_btn.set_tooltip_text("Remove")
-        remove_btn.connect("clicked", lambda b: on_remove(self))
-        self.pack_start(remove_btn, False, False, 0)
+        self.audio_bitrate = Gtk.SpinButton.new_with_range(32, 320, 8)
+        self.audio_bitrate.set_value(data["audio_bitrate"])
+        self.audio_bitrate.set_width_chars(6)
+        self.audio_bitrate.set_numeric(True)
+        self.audio_bitrate.set_tooltip_text(t(
+            "livestream_cfg_audio_tooltip", "Audio bitrate in kbps"
+        ))
 
-    def _toggle_key_visibility(self, btn):
-        vis = self.key_entry.get_visibility()
-        self.key_entry.set_visibility(not vis)
+        self.show_button = Gtk.Button.new_from_icon_name(
+            "view-reveal", Gtk.IconSize.SMALL_TOOLBAR
+        )
+        self.show_button.set_tooltip_text(t(
+            "livestream_cfg_show_key", "Show or hide stream key"
+        ))
+        self.show_button.connect("clicked", self._toggle_key_visibility)
+
+        self.remove_button = Gtk.Button.new_from_icon_name(
+            "edit-delete", Gtk.IconSize.SMALL_TOOLBAR
+        )
+        self.remove_button.set_tooltip_text(t(
+            "livestream_cfg_remove", "Remove platform"
+        ))
+        self.remove_button.connect("clicked", lambda _button: on_remove(self))
+
+        self.widgets = [
+            self.name_entry,
+            self.server_entry,
+            self.key_entry,
+            self.video_bitrate,
+            self.audio_bitrate,
+            self.show_button,
+            self.remove_button,
+        ]
+
+    def attach(self, grid, row_number):
+        for column, widget in enumerate(self.widgets):
+            grid.attach(widget, column, row_number, 1, 1)
+
+    def detach(self, grid):
+        for widget in self.widgets:
+            if widget.get_parent() is grid:
+                grid.remove(widget)
+
+    def destroy(self):
+        for widget in self.widgets:
+            widget.destroy()
+
+    def _toggle_key_visibility(self, _button):
+        self.key_entry.set_visibility(not self.key_entry.get_visibility())
 
     def collect(self):
         return {
             "name": self.name_entry.get_text(),
             "server": self.server_entry.get_text(),
             "key": self.key_entry.get_text(),
+            "video_bitrate": self.video_bitrate.get_value_as_int(),
+            "audio_bitrate": self.audio_bitrate.get_value_as_int(),
         }
 
 
@@ -110,71 +188,91 @@ class LivestreamConfigDialog(Gtk.Dialog):
             title=t("livestream_cfg_title", "Live Stream Config"),
             modal=True,
         )
-        self.set_default_size(600, 300)
+        self.set_default_size(980, 300)
         self.set_border_width(12)
 
         content = self.get_content_area()
         content.set_spacing(8)
 
-        # ── header row ───────────────────────────────────────────────
-        header = Gtk.Box(spacing=6)
-        for label_text, width in [
-            (t("livestream_cfg_name", "Name"), 10),
-            (t("livestream_cfg_server", "Server"), 26),
-            (t("livestream_cfg_key", "Key"), 18),
-        ]:
-            lbl = Gtk.Label(label=f"<b>{label_text}</b>", use_markup=True)
-            lbl.set_halign(Gtk.Align.START)
-            lbl.set_width_chars(width)
-            header.pack_start(lbl, False, False, 0)
-        content.pack_start(header, False, False, 0)
+        # Headers and controls share one Gtk.Grid, so every label is aligned
+        # with the actual widget below instead of an estimated character width.
+        self.rows_grid = Gtk.Grid(column_spacing=6, row_spacing=6)
+        self.rows_grid.set_border_width(4)
+        self.rows_grid.set_hexpand(True)
+        for column, label_text in enumerate([
+            t("livestream_cfg_name", "Name"),
+            t("livestream_cfg_server", "Server"),
+            t("livestream_cfg_key", "Key"),
+            t("livestream_cfg_video_kbps", "Video (kbps)"),
+            t("livestream_cfg_audio_kbps", "Audio (kbps)"),
+        ]):
+            label = Gtk.Label()
+            label.set_markup(f"<b>{GLib.markup_escape_text(label_text)}</b>")
+            label.set_halign(Gtk.Align.FILL)
+            label.set_xalign(0.0)
+            label.set_margin_bottom(2)
+            self.rows_grid.attach(label, column, 0, 1, 1)
 
-        # ── scrollable row list ──────────────────────────────────────
         scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_policy(
+            Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC
+        )
         scrolled.set_min_content_height(160)
-
-        self.rows_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        self.rows_box.set_border_width(4)
-        self.rows = []
-
-        for p in platforms:
-            self._add_row(p)
-
-        scrolled.add(self.rows_box)
+        scrolled.add(self.rows_grid)
         content.pack_start(scrolled, True, True, 0)
 
-        # ── add button ───────────────────────────────────────────────
-        add_btn = Gtk.Button(label=t("livestream_cfg_add", "+ Add Platform"))
-        add_btn.set_halign(Gtk.Align.START)
-        add_btn.connect("clicked", lambda b: self._add_row({}))
-        content.pack_start(add_btn, False, False, 0)
+        self.rows = []
+        for platform in platforms:
+            self._add_row(platform)
 
-        # ── dialog buttons ───────────────────────────────────────────
+        add_button = Gtk.Button(label=t(
+            "livestream_cfg_add", "+ Add Platform"
+        ))
+        add_button.set_halign(Gtk.Align.START)
+        add_button.connect("clicked", lambda _button: self._add_row({}))
+        content.pack_start(add_button, False, False, 0)
+
         self.add_button(t("cancel", "Cancel"), Gtk.ResponseType.CANCEL)
-        ok = self.add_button(t("confirm", "OK"), Gtk.ResponseType.OK)
-        ok.get_style_context().add_class("suggested-action")
+        confirm_button = self.add_button(
+            t("confirm", "OK"), Gtk.ResponseType.OK
+        )
+        confirm_button.get_style_context().add_class("suggested-action")
 
         content.show_all()
 
     def _add_row(self, data):
         row = PlatformRow(
-            {"name": data.get("name", ""),
-             "server": data.get("server", ""),
-             "key": data.get("key", "")},
+            {
+                "name": data.get("name", ""),
+                "server": data.get("server", ""),
+                "key": data.get("key", ""),
+                "video_bitrate": data.get(
+                    "video_bitrate", DEFAULT_VIDEO_BITRATE
+                ),
+                "audio_bitrate": data.get(
+                    "audio_bitrate", DEFAULT_AUDIO_BITRATE
+                ),
+            },
             on_remove=self._remove_row,
         )
-        self.rows_box.pack_start(row, False, False, 0)
         self.rows.append(row)
-        row.show_all()
+        self._layout_rows()
 
     def _remove_row(self, row):
-        self.rows_box.remove(row)
+        row.detach(self.rows_grid)
         self.rows.remove(row)
         row.destroy()
+        self._layout_rows()
+
+    def _layout_rows(self):
+        for row in self.rows:
+            row.detach(self.rows_grid)
+        for row_number, row in enumerate(self.rows, start=1):
+            row.attach(self.rows_grid, row_number)
+        self.rows_grid.show_all()
 
     def collect_all(self):
-        return [r.collect() for r in self.rows]
+        return [row.collect() for row in self.rows]
 
 
 def main():

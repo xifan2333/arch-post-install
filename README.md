@@ -213,6 +213,36 @@ mise run fonts
 
 每次运行都会下载对应 GitHub 项目的最新 release 并刷新字体缓存。脚本依赖 `gh` 和 `unzip`，两者分别由 `~/.config/mise/config.toml` 的 `[tools]` 和 `[bootstrap.packages]` 提供。
 
+## 录屏与直播
+
+本地录屏和直播通过 `capture-router` 严格互斥，快捷键、Omarchy Capture 菜单和 Waybar 都走同一个运行时锁。正在录屏时启动直播（或反过来）只会提示先停止当前任务，不会自动切换。
+
+常用命令：
+
+```bash
+capture-router menu                              # 统一采集菜单
+capture-router status                            # idle / recording / livestream
+capture-router livestream start|stop|toggle      # 直播
+capture-router livestream status                 # 各平台 RTMP 连接状态与码率
+capture-router recording start|stop|toggle       # 本地录屏
+capture-router overlay camera|captions|keys|title|edit
+capture-router audio enable|disable|status       # 混音 + 人声避让
+```
+
+每个平台在 `~/.config/livestream/platforms.conf` 中独立设置码率，也可以通过 `Super + Shift + R` 打开图形配置：
+
+```ini
+[Bilibili]
+server = live-push.example.com/live
+key = STREAM_KEY
+video_bitrate = 6000
+audio_bitrate = 192
+```
+
+`livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有平台状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。直播只有在对应 `gpu-screen-recorder` 进程持续运行、持有 `ESTABLISHED` TCP 连接，并且 RTMP 服务端已经确认至少 64 KiB 的输出数据后，才会标记为 `RTMP sending`。这能确认本机正在向平台 ingest 发送数据；平台是否已正式开播、是否对观众可见，仍以平台控制台或平台 API 为准。
+
+适配只使用 Omarchy 的公开命令 `omarchy capture screenrecording`，不会修改 `~/.local/share/omarchy`。Waybar 的 `config.jsonc` 是普通文件，只包含采集状态、工作区覆盖和 Omarchy 当前默认配置三个 include。Omarchy 更新迁移若替换该文件，`post-update.d/waybar-capture.hook` 会从用户层模板恢复它；`style.css` 不会被修改。
+
 ## 仓库包含什么
 
 | 类别 | 说明 |

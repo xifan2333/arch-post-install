@@ -9,6 +9,14 @@ i18n[cancel]="取消"
 i18n[confirm]="确认"
 
 # ============================================================================
+# OCR — 文字识别
+# ============================================================================
+i18n[ocr_notify_title]="文字识别"
+i18n[ocr_notify_copied]="识别结果已复制到剪贴板"
+i18n[ocr_notify_failed]="未识别到文字"
+i18n[ocr_notify_backend_missing]="尚未安装本地 OCR CLI"
+
+# ============================================================================
 # screenrecord — 叠加层
 # ============================================================================
 i18n[screenrecord_notify_title]="录屏"
@@ -28,22 +36,56 @@ i18n[screenrecord_overlay_title_edit_size_item]="字号"
 # livestream — 直播推流
 # ============================================================================
 i18n[livestream_notify_title]="直播推流"
-i18n[livestream_notify_started_full]="已开始直播推流"
+i18n[livestream_notify_started_full]="所有平台的 RTMP 均在发送数据"
+i18n[livestream_notify_started_partial]="仅部分平台的 RTMP 在发送数据，请查看 Waybar 提示"
 i18n[livestream_notify_stopped]="已停止推流"
 i18n[livestream_notify_already_active]="推流已在进行中"
 i18n[livestream_notify_recording_active]="本地录屏进行中，请先停止录屏"
 i18n[livestream_notify_not_active]="当前没有推流"
 i18n[livestream_notify_missing_rtmp]="未配置推流地址，请先设置 RTMP"
 i18n[livestream_notify_start_failed]="推流启动失败，请查看日志"
+i18n[livestream_notify_disconnected]="{platform}：RTMP 已停止发送（{state}）"
 i18n[livestream_cfg_title]="推流配置"
 i18n[livestream_cfg_name]="名称"
 i18n[livestream_cfg_server]="服务器"
 i18n[livestream_cfg_key]="密钥"
+i18n[livestream_cfg_video_kbps]="视频码率 (kbps)"
+i18n[livestream_cfg_audio_kbps]="音频码率 (kbps)"
+i18n[livestream_cfg_video_tooltip]="视频码率，单位 kbps"
+i18n[livestream_cfg_audio_tooltip]="音频码率，单位 kbps"
+i18n[livestream_cfg_show_key]="显示或隐藏推流密钥"
+i18n[livestream_cfg_remove]="删除平台"
 i18n[livestream_cfg_add]="+ 添加平台"
+i18n[livestream_platform_default]="平台"
+i18n[livestream_state_offline]="未连接"
+i18n[livestream_state_sending]="RTMP 正在发送"
+i18n[livestream_state_degraded]="部分平台正在发送"
+i18n[livestream_state_connecting]="正在连接"
+i18n[livestream_state_stalled]="已连接但发送停滞"
+i18n[livestream_state_failed]="连接失败"
+i18n[livestream_state_stopping]="正在停止"
+i18n[livestream_status_connection]="连接状态：{state}"
+i18n[livestream_status_platform]="{platform}：{state} — 视频 {video} kbps，音频 {audio} kbps"
+i18n[livestream_waybar_status]="RTMP 状态：{state}"
+
+# ============================================================================
+# capture coordinator — 录制互斥协调
+# ============================================================================
+i18n[capture_notify_title]="屏幕采集"
+i18n[capture_notify_livestream_active]="直播正在进行，请先停止直播再录屏"
+i18n[capture_notify_recording_already_active]="录屏已在进行中"
+i18n[capture_notify_recording_not_active]="当前没有录屏"
+i18n[capture_notify_recording_start_failed]="录屏启动失败"
+i18n[capture_notify_livestream_stop_failed]="直播未能正常停止"
+i18n[capture_notify_action_busy]="上一个采集操作仍在结束中"
+i18n[capture_notify_no_webcam]="未找到摄像头设备"
+i18n[capture_notify_menu_unavailable]="采集菜单不可用"
+i18n[capture_waybar_recording]="本地录屏中 — 点击停止"
 
 # ============================================================================
 # record-audio
 # ============================================================================
 i18n[record_audio_notify_title]="录音混音"
 i18n[record_audio_enabled]="已启用：麦克风 + 系统声混音"
+i18n[record_audio_ducking_suffix]="（同时启用自动压低系统音量）"
 i18n[record_audio_disabled]="已关闭混音，录屏将回退到麦克风"
