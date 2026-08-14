@@ -11,6 +11,9 @@ dotfiles.default_mode = "symlink"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
 "pacman:zenity" = "latest"
+# VAAPI 硬编驱动——仅本机（Intel Sandy Bridge i965）需要；其他硬件请按需取消注释
+# "pacman:libva-intel-driver" = "latest"
+# "pacman:libva-utils" = "latest"
 
 # Pacman hooks that re-apply Wayland IME flags to the QQ/WeChat desktop
 # entries. They live under /etc and need root, so they are declarative

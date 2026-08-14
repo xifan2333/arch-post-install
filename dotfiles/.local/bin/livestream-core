@@ -254,6 +254,7 @@ while IFS= read -r url; do
         -keyint "$LIVESTREAM_KEYINT" \
         -ab "$LIVESTREAM_AUDIO_BITRATE" \
         -a "$LIVESTREAM_AUDIO_SOURCE" \
+        -fallback-cpu-encoding yes \
         ${LIVESTREAM_GSR_SCALE_ARGS} \
         -o "$url" &
     pids+=("$!")
