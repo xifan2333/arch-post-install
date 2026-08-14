@@ -161,7 +161,9 @@ livestream_get_duration_seconds() {
     duration=$(ps -o etimes= -p "$pgid" 2>/dev/null | tr -d '[:space:]')
     if [ -z "$duration" ]; then
         # Fallback: first gpu-screen-recorder owned by this user while live
-        duration=$(ps -o etimes= -C gpu-screen-recorder 2>/dev/null | head -1 | tr -d '[:space:]')
+        # (pgrep -f matches the full cmdline; comm is truncated to 15 chars)
+        pid=$(pgrep -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null | head -1)
+        [ -n "$pid" ] && duration=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]')
     fi
     [ -n "$duration" ] || return 1
     echo "$duration"
@@ -185,11 +187,13 @@ livestream_notify_waybar() {
 }
 
 # True when a local file recording owns gpu-screen-recorder (not livestream)
+# Note: pgrep -x matches comm which is truncated to 15 chars, so match the
+# full cmdline with -f '^gpu-screen-recorder ' instead.
 livestream_local_recording_active() {
     if livestream_is_active; then
         return 1
     fi
-    pgrep -u "$(id -u)" -x gpu-screen-recorder >/dev/null 2>&1
+    pgrep -u "$(id -u)" -f '^gpu-screen-recorder ' >/dev/null 2>&1
 }
 
 # Build gsr extra args for output scaling; empty when SCALE_WIDTH=0
@@ -303,8 +307,8 @@ RUNNER
     if ! pgrep -u "$(id -u)" -af 'gpu-screen-recorder.*rtmp://' >/dev/null 2>&1; then
         local pgid
         pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
-        if ! pgrep -u "$(id -u)" -P "$pgid" -a gpu-screen-recorder >/dev/null 2>&1 \
-            && ! pgrep -u "$(id -u)" -g "$pgid" -a gpu-screen-recorder >/dev/null 2>&1; then
+        if ! pgrep -u "$(id -u)" -P "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1 \
+            && ! pgrep -u "$(id -u)" -g "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1; then
             livestream_stop || true
             return 4
         fi
@@ -332,7 +336,7 @@ livestream_stop() {
 
     kill -INT -- "-$pgid" 2>/dev/null || kill -INT "$pgid" 2>/dev/null || true
     # Also interrupt recorder directly (it may ignore group signal timing)
-    pkill -INT -u "$(id -u)" -x gpu-screen-recorder 2>/dev/null || true
+    pkill -INT -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null || true
 
     for i in $(seq 1 30); do
         if ! livestream_is_active; then
@@ -343,7 +347,7 @@ livestream_stop() {
 
     if livestream_is_active; then
         kill -TERM -- "-$pgid" 2>/dev/null || kill -TERM "$pgid" 2>/dev/null || true
-        pkill -TERM -u "$(id -u)" -x gpu-screen-recorder 2>/dev/null || true
+        pkill -TERM -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null || true
         for i in $(seq 1 20); do
             if ! livestream_is_active; then
                 break
@@ -354,7 +358,7 @@ livestream_stop() {
 
     if livestream_is_active; then
         kill -KILL -- "-$pgid" 2>/dev/null || kill -KILL "$pgid" 2>/dev/null || true
-        pkill -KILL -u "$(id -u)" -x gpu-screen-recorder 2>/dev/null || true
+        pkill -KILL -u "$(id -u)" -f '^gpu-screen-recorder ' 2>/dev/null || true
         pkill -KILL -u "$(id -u)" -f 'gpu-screen-recorder.*rtmp://' 2>/dev/null || true
         for i in $(seq 1 10); do
             if ! livestream_is_active; then
