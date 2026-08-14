@@ -45,5 +45,5 @@ video/x-ogm+ogg=mpv.desktop
 video/x-theora+ogg=mpv.desktop
 application/ogg=mpv.desktop
 x-scheme-handler/mailto=HEY.desktop
-x-scheme-handler/karing=clashmi.desktop
+x-scheme-handler/karing=karing.desktop
 
