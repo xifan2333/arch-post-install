@@ -316,20 +316,42 @@ RUNNER
 
     echo $! > "$LIVESTREAM_PID_FILE"
 
-    # Brief settle: fail fast if pipeline died immediately
-    sleep 1.5
-    if ! livestream_is_active; then
-        return 4
-    fi
-
-    # Must actually be pushing to an RTMP server, not just sitting idle
-    if ! pgrep -u "$(id -u)" -af 'gpu-screen-recorder.*rtmp://' >/dev/null 2>&1; then
-        local pgid
-        pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
-        if ! pgrep -u "$(id -u)" -P "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1 \
-            && ! pgrep -u "$(id -u)" -g "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1; then
+    # Settle: portal mode must wait for the user's picker selection (gsr logs
+    # 'new state: "streaming"' once PipeWire actually starts delivering
+    # frames). Direct-capture targets (screen/region/monitor) start fast.
+    if [ "$capture_target" = "portal" ]; then
+        local waited=0
+        while [ "$waited" -lt 120 ]; do
+            if ! livestream_is_active; then
+                # gsr exited: user cancelled the picker, or it crashed
+                rm -f "$LIVESTREAM_PID_FILE" "$LIVESTREAM_MODE_FILE"
+                return 4
+            fi
+            if grep -q 'new state: "streaming"' "$LIVESTREAM_LOG_FILE" 2>/dev/null; then
+                break
+            fi
+            sleep 0.2
+            waited=$((waited + 1))
+        done
+        if ! grep -q 'new state: "streaming"' "$LIVESTREAM_LOG_FILE" 2>/dev/null; then
             livestream_stop || true
             return 4
+        fi
+    else
+        sleep 1.5
+        if ! livestream_is_active; then
+            return 4
+        fi
+
+        # Must actually be pushing to an RTMP server, not just sitting idle
+        if ! pgrep -u "$(id -u)" -af 'gpu-screen-recorder.*rtmp://' >/dev/null 2>&1; then
+            local pgid
+            pgid=$(tr -d '[:space:]' < "$LIVESTREAM_PID_FILE")
+            if ! pgrep -u "$(id -u)" -P "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1 \
+                && ! pgrep -u "$(id -u)" -g "$pgid" -af '^gpu-screen-recorder ' >/dev/null 2>&1; then
+                livestream_stop || true
+                return 4
+            fi
         fi
     fi
 
