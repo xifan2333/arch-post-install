@@ -217,19 +217,50 @@ mise run fonts
 
 本地录屏和直播通过 `capture-router` 严格互斥，快捷键、Omarchy Capture 菜单和 Waybar 都走同一个运行时锁。正在录屏时启动直播（或反过来）只会提示先停止当前任务，不会自动切换。
 
-常用命令：
+### 常用命令
 
 ```bash
-capture-router menu                              # 统一采集菜单
-capture-router status                            # idle / recording / livestream
-capture-router livestream start|stop|toggle      # 直播
-capture-router livestream status                 # 各平台 RTMP 连接状态与码率
-capture-router recording start|stop|toggle       # 本地录屏
+capture-router menu                                 # 统一采集菜单（英文文案，与 Omarchy 一致）
+capture-router status                               # idle / recording / livestream
+capture-router livestream start|stop|toggle [portal]
+capture-router livestream status                    # 各平台 RTMP 连接状态与码率
+capture-router recording start|stop|toggle [...]    # 本地录屏（转发 omarchy capture screenrecording）
 capture-router overlay camera|captions|keys|title|edit
-capture-router audio enable|disable|status       # 混音 + 人声避让
+capture-router overlay status                       # 叠加层运行状态
+capture-router overlay pid camera|captions|keys|title
+capture-router audio enable|disable|status          # 共享混音 + 人声避让
+capture-text-extraction                             # 选区 OCR（也可 Ctrl+Print）
 ```
 
-每个平台在 `~/.config/livestream/platforms.conf` 中独立设置码率，也可以通过 `Super + Shift + R` 打开图形配置：
+薄包装 `livestream-start/stop/toggle`、`record-audio`、`screenrecord-overlay-*-toggle` 已删除，请统一走 `capture-router`。
+
+### 快捷键（`~/.config/hypr/capture.conf`）
+
+| 快捷键 | 动作 |
+|--------|------|
+| `Alt+Print` | `capture-router menu` |
+| `Super+R` | 本地录屏 toggle（桌面声 + 麦克风） |
+| `Super+Alt+R` | 直播 toggle（默认 portal 选区） |
+| `Super+Shift+R` | 直播平台配置 |
+| `Ctrl+Print` | 选区 OCR |
+| `Super+Alt+V/K/C/T` | 摄像头 / 按键 / 字幕 / 标题叠加层 |
+| `Super+Shift+T` | 标题叠加层编辑 |
+
+Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右键打开菜单；状态由 `capture-router waybar` 提供。
+
+### 音频路径（重要）
+
+| 场景 | 音频从哪来 | 人声避让（ducking） |
+|------|------------|---------------------|
+| **直播**（默认） | 自动准备 `record_mix`（mic + 系统声），推 `device:record_mix.monitor` | **有**：说话时压低混音里的系统声支路 |
+| **本地录屏** | Omarchy `capture screenrecording` 默认音频 | **无**：不会自动 enable `record_mix` |
+| 手动 | `capture-router audio enable` | 拉起共享混音 + daemon；直播停播时若不是自己拉起的会保留 |
+
+直播侧采用共享策略：若开播前混音/daemon 已在跑则复用；停播只清理本次直播拉起的部分。显式设置 `AUDIO_SOURCE` 且不是 `record_mix.monitor` 时，跳过共享混音接管。
+
+### 直播平台
+
+每个平台在 `~/.config/livestream/platforms.conf` 中独立设置码率，也可以通过 `Super+Shift+R` 打开图形配置：
 
 ```ini
 [Bilibili]
@@ -241,7 +272,20 @@ audio_bitrate = 192
 
 `livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有平台状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。直播只有在对应 `gpu-screen-recorder` 进程持续运行、持有 `ESTABLISHED` TCP 连接，并且 RTMP 服务端已经确认至少 64 KiB 的输出数据后，才会标记为 `RTMP sending`。这能确认本机正在向平台 ingest 发送数据；平台是否已正式开播、是否对观众可见，仍以平台控制台或平台 API 为准。
 
-适配只使用 Omarchy 的公开命令 `omarchy capture screenrecording`，不会修改 `~/.local/share/omarchy`。Waybar 的 `config.jsonc` 是普通文件，只包含采集状态、工作区覆盖和 Omarchy 当前默认配置三个 include。Omarchy 更新迁移若替换该文件，`post-update.d/waybar-capture.hook` 会从用户层模板恢复它；`style.css` 不会被修改。
+### 选区 OCR
+
+- 命令：`capture-text-extraction`（`Ctrl+Print`；Omarchy Capture 菜单的 Text Extraction 也会优先走它）
+- 后端：mise 工具 `github:zibo-chen/newbee-ocr-cli`（`nbocr`，内嵌 PP-OCRv6）
+- 流程：冻结帧 → `slurp` 选区 → `grim` → `nbocr` JSON → 按坐标排成行 → `wl-copy`
+- 依赖：`nbocr`、`jq`、`grim`、`slurp`、`hyprpicker`、`wl-copy`
+- 默认语言：`zh`（中英混合界面通常可用）；通知文案走 i18n
+
+### Omarchy 适配边界
+
+- 本地录屏只调用公开命令 `omarchy capture screenrecording`，**不修改** `~/.local/share/omarchy`
+- 用户扩展点：`~/.config/omarchy/extensions/menu.sh`、`hooks/post-update.d/`、环境变量（如 `OMARCHY_SCREENSHOT_EDITOR=satty-cjk`）
+- PATH 保持 Omarchy 默认顺序（`$OMARCHY_PATH/bin` 在 `~/.local/bin` 前）；本仓库用**独立命令名**（`capture-*`），不靠同名覆盖 Omarchy 工具
+- Waybar 的 `config.jsonc` 是普通文件，内容为采集状态 + 工作区覆盖 + Omarchy 默认配置三个 include。迁移若替换该文件，`post-update.d/waybar-capture.hook` 会从用户模板恢复；`style.css` 不改
 
 ## 仓库包含什么
 
