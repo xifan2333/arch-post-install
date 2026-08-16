@@ -1,0 +1,20 @@
+[Desktop Entry]
+Name=WezTerm
+Comment=Wez's Terminal Emulator
+Keywords=shell;prompt;command;commandline;cmd;
+Icon=org.wezfurlong.wezterm
+StartupWMClass=org.wezfurlong.wezterm
+TryExec=wezterm
+Exec=wezterm start
+Type=Application
+Categories=System;TerminalEmulator;Utility;
+Terminal=false
+Actions=New;
+# xdg-terminal-exec: -- separates WezTerm options from the optional command.
+X-TerminalArgExec=--
+X-TerminalArgDir=--cwd
+X-TerminalArgAppId=--class
+
+[Desktop Action New]
+Name=New Window
+Exec=wezterm start

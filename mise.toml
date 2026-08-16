@@ -11,6 +11,9 @@ dotfiles.default_mode = "symlink"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
 "pacman:zenity" = "latest"
+# Official extra/wezterm (2024-02) fails to map windows on Hyprland 0.56 Wayland;
+# archlinuxcn ships a current enough build. Conflicts with pacman:wezterm.
+"pacman:wezterm-git" = "latest"
 # VAAPI 硬编驱动——仅本机（Intel Sandy Bridge i965）需要；其他硬件请按需取消注释
 # "pacman:libva-intel-driver" = "latest"
 # "pacman:libva-utils" = "latest"
@@ -45,6 +48,7 @@ mode = "0644"
 "~/.config/electron-flags.conf" = { source = "dotfiles/.config/electron-flags.conf" }
 "~/.config/mimeapps.list" = { source = "dotfiles/.config/mimeapps.list" }
 "~/.config/starship.toml" = { source = "dotfiles/.config/starship.toml" }
+"~/.config/xdg-terminals.list" = { source = "dotfiles/.config/xdg-terminals.list" }
 
 "~/.config/autostart" = { source = "dotfiles/.config/autostart", mode = "symlink-each" }
 "~/.config/elephant" = { source = "dotfiles/.config/elephant", mode = "symlink-each" }
@@ -56,6 +60,7 @@ mode = "0644"
 "~/.config/hypr" = { source = "dotfiles/.config/hypr", mode = "symlink-each", exclude = ["monitors.conf"] }
 "~/.config/kitty" = { source = "dotfiles/.config/kitty", mode = "symlink-each" }
 "~/.config/mise" = { source = "dotfiles/.config/mise", mode = "symlink-each" }
+"~/.config/wezterm" = { source = "dotfiles/.config/wezterm", mode = "symlink-each" }
 "~/.config/nvim" = { source = "dotfiles/.config/nvim", mode = "symlink-each" }
 "~/.config/omarchy" = { source = "dotfiles/.config/omarchy", mode = "symlink-each" }
 "~/.config/pipewire" = { source = "dotfiles/.config/pipewire", mode = "symlink-each" }

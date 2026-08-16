@@ -1,0 +1,15 @@
+#!/bin/bash
+# Kick WezTerm config reload after Omarchy regenerates current/theme/wezterm.lua.
+# Primary path is wezterm.add_to_config_reload_watch_list; touch is a fallback.
+set -euo pipefail
+
+theme_file="${HOME}/.config/omarchy/current/theme/wezterm.lua"
+main_cfg="${HOME}/.config/wezterm/wezterm.lua"
+
+[[ -f $theme_file ]] || exit 0
+[[ -f $main_cfg ]] || exit 0
+
+# Only bother if a GUI instance is around.
+if pgrep -x wezterm-gui >/dev/null 2>&1; then
+  touch "$main_cfg"
+fi
