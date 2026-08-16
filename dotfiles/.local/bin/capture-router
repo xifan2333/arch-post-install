@@ -309,41 +309,6 @@ capture_overlay_toggle() {
     fi
 }
 
-capture_audio() {
-    local action="${1:-status}"
-    case "$action" in
-        enable|on|start)
-            record_audio_enable_shared || return 1
-            if command -v notify-send >/dev/null 2>&1; then
-                local ducking_suffix=""
-                record_audio_ducking_enabled \
-                    && ducking_suffix=$(msg record_audio_ducking_suffix)
-                notify-send "$(msg record_audio_notify_title)" \
-                    "$(msg record_audio_enabled)${ducking_suffix}"
-            fi
-            record_audio_status
-            ;;
-        disable|off|stop)
-            record_audio_stop_daemon || true
-            record_audio_down
-            if command -v pactl >/dev/null 2>&1 \
-                && [ "$(pactl get-default-source 2>/dev/null)" = "$RECORD_AUDIO_SOURCE_NAME" ]; then
-                if pactl list short sources 2>/dev/null \
-                    | awk '{print $2}' | grep -qx rnnoise_source; then
-                    pactl set-default-source rnnoise_source
-                fi
-            fi
-            if command -v notify-send >/dev/null 2>&1; then
-                notify-send "$(msg record_audio_notify_title)" \
-                    "$(msg record_audio_disabled)"
-            fi
-            printf 'record audio disabled\n'
-            ;;
-        status) record_audio_status ;;
-        *) capture_usage; return 64 ;;
-    esac
-}
-
 capture_usage() {
     cat <<'EOF'
 Usage:
@@ -352,7 +317,6 @@ Usage:
   capture-router livestream start [target]|stop|toggle [target]|status
   capture-router overlay camera|captions|keys|title|edit|status
   capture-router overlay pid camera|captions|keys|title
-  capture-router audio enable|disable|status
 EOF
 }
 
@@ -431,9 +395,6 @@ main() {
                     ;;
                 *) capture_usage; return 64 ;;
             esac
-            ;;
-        audio)
-            capture_audio "$action"
             ;;
         *) capture_usage; return 64 ;;
     esac

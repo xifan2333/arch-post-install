@@ -228,11 +228,8 @@ capture-router recording start|stop|toggle [...]    # 本地录屏（转发 omar
 capture-router overlay camera|captions|keys|title|edit
 capture-router overlay status                       # 叠加层运行状态
 capture-router overlay pid camera|captions|keys|title
-capture-router audio enable|disable|status          # 共享混音 + 人声避让
 capture-text-extraction                             # 选区 OCR（也可 Ctrl+Print）
 ```
-
-薄包装 `livestream-start/stop/toggle`、`record-audio`、`screenrecord-overlay-*-toggle` 已删除，请统一走 `capture-router`。
 
 ### 快捷键（`~/.config/hypr/capture.conf`）
 
@@ -247,16 +244,6 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 | `Super+Shift+T` | 标题叠加层编辑 |
 
 Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右键打开菜单；状态由 `capture-router waybar` 提供。
-
-### 音频路径（重要）
-
-| 场景 | 音频从哪来 | 人声避让（ducking） |
-|------|------------|---------------------|
-| **直播**（默认） | 自动准备 `record_mix`（mic + 系统声），推 `device:record_mix.monitor` | **有**：说话时压低混音里的系统声支路 |
-| **本地录屏** | Omarchy `capture screenrecording` 默认音频 | **无**：不会自动 enable `record_mix` |
-| 手动 | `capture-router audio enable` | 拉起共享混音 + daemon；直播停播时若不是自己拉起的会保留 |
-
-直播侧采用共享策略：若开播前混音/daemon 已在跑则复用；停播只清理本次直播拉起的部分。显式设置 `AUDIO_SOURCE` 且不是 `record_mix.monitor` 时，跳过共享混音接管。
 
 ### 直播平台
 

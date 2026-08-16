@@ -82,10 +82,3 @@ i18n[capture_notify_no_webcam]="未找到摄像头设备"
 i18n[capture_notify_menu_unavailable]="采集菜单不可用"
 i18n[capture_waybar_recording]="本地录屏中 — 点击停止"
 
-# ============================================================================
-# record-audio
-# ============================================================================
-i18n[record_audio_notify_title]="录音混音"
-i18n[record_audio_enabled]="已启用：麦克风 + 系统声混音"
-i18n[record_audio_ducking_suffix]="（同时启用自动压低系统音量）"
-i18n[record_audio_disabled]="已关闭混音，录屏将回退到麦克风"

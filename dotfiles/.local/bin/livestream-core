@@ -3,8 +3,6 @@
 # One gpu-screen-recorder process is used per RTMP platform.
 
 SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/record-audio-core"
 LIVESTREAM_SERVICE="$SCRIPT_DIR/livestream-service"
 LIVESTREAM_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
 # Push targets come from webcast-mate (no platforms.conf).
@@ -12,7 +10,6 @@ LIVESTREAM_PLATFORMS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/webcast-mate/live.j
 LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config"
 LIVESTREAM_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/livestream-$UID}/livestream"
 LIVESTREAM_LOG_FILE="$LIVESTREAM_RUNTIME_DIR/livestream.log"
-LIVESTREAM_AUDIO_OWN_FILE="$LIVESTREAM_RUNTIME_DIR/audio-owned"
 
 # Empty values may be filled by ~/.config/livestream/config. Non-empty
 # environment variables take precedence over that file.
@@ -76,66 +73,10 @@ livestream_load_config() {
         SCALE_WIDTH=0
     fi
 
-    # Default capture path is the shared record_mix graph so ducking applies.
+    # Same path as Omarchy screenrecording: system output + microphone input.
     # Explicit AUDIO_SOURCE still wins for advanced overrides.
     if [ -z "$AUDIO_SOURCE" ]; then
-        AUDIO_SOURCE="device:${RECORD_AUDIO_SOURCE_NAME:-record_mix.monitor}"
-    fi
-}
-
-# Strategy B: share the record-audio mix/daemon with other capture tools.
-# Livestream only tears down pieces it started for this session.
-livestream_prepare_shared_audio() {
-    local mix_was_up=0 daemon_was_up=0
-
-    livestream_ensure_dirs
-    rm -f "$LIVESTREAM_AUDIO_OWN_FILE"
-
-    if record_audio_is_up; then
-        mix_was_up=1
-    fi
-    if record_audio_daemon_running; then
-        daemon_was_up=1
-    fi
-
-    if ! record_audio_enable_shared; then
-        # Roll back only what this attempt may have created.
-        if [ "$daemon_was_up" -eq 0 ]; then
-            record_audio_stop_daemon || true
-        fi
-        if [ "$mix_was_up" -eq 0 ]; then
-            record_audio_down || true
-        fi
-        return 1
-    fi
-
-    {
-        printf 'mix_owned=%s\n' "$((1 - mix_was_up))"
-        printf 'daemon_owned=%s\n' "$((1 - daemon_was_up))"
-    } >"$LIVESTREAM_AUDIO_OWN_FILE"
-    chmod 600 "$LIVESTREAM_AUDIO_OWN_FILE" 2>/dev/null || true
-
-    AUDIO_SOURCE="device:${RECORD_AUDIO_SOURCE_NAME}"
-    return 0
-}
-
-livestream_release_shared_audio() {
-    local mix_owned=0 daemon_owned=0
-
-    if [ -f "$LIVESTREAM_AUDIO_OWN_FILE" ]; then
-        # shellcheck disable=SC1090
-        source "$LIVESTREAM_AUDIO_OWN_FILE"
-        rm -f "$LIVESTREAM_AUDIO_OWN_FILE"
-    fi
-
-    if [ "${daemon_owned:-0}" = 1 ]; then
-        record_audio_stop_daemon || true
-    fi
-    if [ "${mix_owned:-0}" = 1 ]; then
-        # Keep the graph if another client still needs it (e.g. local recording).
-        if ! livestream_local_recording_active; then
-            record_audio_down || true
-        fi
+        AUDIO_SOURCE="default_output|default_input"
     fi
 }
 
@@ -191,16 +132,22 @@ livestream_local_recording_active() {
 }
 
 livestream_unmute_audio() {
-    if command -v pactl >/dev/null 2>&1; then
-        local source
-        source=$(printf '%s' "$AUDIO_SOURCE" | sed -n 's/^device:\([^|]*\).*/\1/p')
-        if [ -n "$source" ]; then
-            if pactl list sources 2>/dev/null \
-                | grep -A 10 "Name: $source" \
-                | grep -q "Mute: yes"; then
-                pactl set-source-mute "$source" 0
-            fi
-        fi
+    if ! command -v pactl >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local source
+    case "$AUDIO_SOURCE" in
+        device:*)
+            source=$(printf '%s' "$AUDIO_SOURCE" | sed -n 's/^device:\([^|]*\).*/\1/p')
+            ;;
+        *default_input*|default_input)
+            source=$(pactl get-default-source 2>/dev/null || true)
+            ;;
+    esac
+
+    if [ -n "$source" ]; then
+        pactl set-source-mute "$source" 0 2>/dev/null || true
     fi
 }
 
@@ -231,16 +178,6 @@ livestream_start() {
         --default-video "$BITRATE" \
         --default-audio "$AUDIO_BITRATE" >/dev/null 2>&1 || return 3
 
-    # Default path uses the shared mix + ducking. An explicit AUDIO_SOURCE
-    # override keeps full control and skips ownership of the shared graph.
-    if [[ "$AUDIO_SOURCE" == device:${RECORD_AUDIO_SOURCE_NAME} \
-        || "$AUDIO_SOURCE" == "${RECORD_AUDIO_SOURCE_NAME}" ]]; then
-        if ! livestream_prepare_shared_audio; then
-            livestream_release_shared_audio
-            return 4
-        fi
-    fi
-
     livestream_unmute_audio
     setsid "$LIVESTREAM_SERVICE" run \
         --platforms-file "$LIVESTREAM_PLATFORMS_FILE" \
@@ -263,7 +200,6 @@ livestream_start() {
             ;;
         *)
             "$LIVESTREAM_SERVICE" stop --timeout 7 >/dev/null 2>&1 || true
-            livestream_release_shared_audio
             livestream_notify_waybar
             return 4
             ;;
@@ -274,7 +210,6 @@ livestream_stop() {
     local rc
     "$LIVESTREAM_SERVICE" stop --timeout 7
     rc=$?
-    livestream_release_shared_audio
     livestream_notify_waybar
     return "$rc"
 }

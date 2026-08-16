@@ -82,10 +82,3 @@ i18n[capture_notify_no_webcam]="No webcam device found"
 i18n[capture_notify_menu_unavailable]="Capture menu is unavailable"
 i18n[capture_waybar_recording]="Local screen recording — click to stop"
 
-# ============================================================================
-# record-audio
-# ============================================================================
-i18n[record_audio_notify_title]="Record Audio"
-i18n[record_audio_enabled]="Mic + system mix enabled"
-i18n[record_audio_ducking_suffix]=" (+ automatic ducking)"
-i18n[record_audio_disabled]="Audio mix disabled"
