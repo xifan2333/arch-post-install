@@ -108,37 +108,78 @@ class Platform:
 
 
 def load_platforms(path, default_video, default_audio):
+    """Load RTMP targets from webcast-mate live.json (or legacy INI)."""
     config_path = Path(path)
     if not config_path.is_file():
         return []
 
-    cfg = configparser.ConfigParser(interpolation=None)
-    cfg.read(config_path, encoding="utf-8")
-    platforms = []
-    for name in cfg.sections():
-        section = cfg[name]
-        server = section.get("server", "").strip().rstrip("/")
-        stream_key = section.get("key", "").strip().lstrip("/")
-        if not server or any(char in server + stream_key for char in "\t\r\n"):
-            continue
+    try:
+        raw = config_path.read_text(encoding="utf-8").lstrip()
+    except OSError:
+        return []
+
+    def make(name, server, stream_key, vb, ab):
+        server = (server or "").strip().rstrip("/")
+        stream_key = (stream_key or "").strip().lstrip("/")
+        if not server or any(c in server + stream_key for c in "\t\r\n"):
+            return None
         if not server.startswith(("rtmp://", "rtmps://")):
             server = f"rtmp://{server}"
         url = f"{server}/{stream_key}" if stream_key else server
-        platforms.append(
-            Platform(
-                name=name.replace("\t", " ").replace("\r", " ").replace("\n", " "),
-                server=server,
-                stream_key=stream_key,
-                url=url,
-                video_bitrate=bounded_int(
-                    section, "video_bitrate", default_video, 100, 50000
-                ),
-                audio_bitrate=bounded_int(
-                    section, "audio_bitrate", default_audio, 32, 320
-                ),
-            )
+        return Platform(
+            name=str(name),
+            server=server,
+            stream_key=stream_key,
+            url=url,
+            video_bitrate=int(vb),
+            audio_bitrate=int(ab),
         )
+
+    platforms = []
+    if raw.startswith("{"):
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        items = data.get("platforms") or {}
+        if isinstance(items, dict):
+            pairs = items.items()
+        elif isinstance(items, list):
+            pairs = ((p.get("name") or p.get("platform") or f"p{i}", p) for i, p in enumerate(items))
+        else:
+            return []
+        for name, p in pairs:
+            if not isinstance(p, dict):
+                continue
+            try:
+                vb = int(p.get("video_bitrate") or default_video)
+            except (TypeError, ValueError):
+                vb = int(default_video)
+            try:
+                ab = int(p.get("audio_bitrate") or default_audio)
+            except (TypeError, ValueError):
+                ab = int(default_audio)
+            item = make(name, p.get("server"), p.get("key") or p.get("stream_key"), vb, ab)
+            if item:
+                platforms.append(item)
+        return platforms
+
+    cfg = configparser.ConfigParser(interpolation=None)
+    cfg.read(config_path, encoding="utf-8")
+    for section_name in cfg.sections():
+        section = cfg[section_name]
+        item = make(
+            section_name,
+            section.get("server", ""),
+            section.get("key", ""),
+            bounded_int(section, "video_bitrate", default_video, 100, 50000),
+            bounded_int(section, "audio_bitrate", default_audio, 32, 320),
+        )
+        if item:
+            platforms.append(item)
     return platforms
+
+
 
 
 def offline_status():
