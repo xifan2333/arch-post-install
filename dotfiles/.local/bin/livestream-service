@@ -304,23 +304,35 @@ class LivestreamService:
         # Passing -o - is treated as a literal filename, so ffmpeg sees EOF on stdin.
         return command
 
-    def tee_command(self):
-        outputs = "|".join(
-            f"[f=flv:onfail=ignore]{platform.url}" for platform in self.platforms
-        )
-        return [
+    @staticmethod
+    def escape_tee_slave(url):
+        # tee splits slaves on '|' and treats '\' as escape. Bilibili-style
+        # query strings (?a=1&b=2) are fine after the option block; only
+        # escape the characters that break slave parsing.
+        return url.replace("\\", "\\\\").replace("|", "\\|")
+
+    def fanout_command(self):
+        # tee cannot auto-select streams; always -map 0. Single target skips
+        # tee entirely so query-string RTMP URLs need no special handling.
+        base = [
             "ffmpeg",
             "-hide_banner",
             "-loglevel",
             "warning",
             "-i",
             "-",
+            "-map",
+            "0",
             "-c",
             "copy",
-            "-f",
-            "tee",
-            outputs,
         ]
+        if len(self.platforms) == 1:
+            return base + ["-f", "flv", self.platforms[0].url]
+        outputs = "|".join(
+            f"[f=flv:onfail=ignore]{self.escape_tee_slave(platform.url)}"
+            for platform in self.platforms
+        )
+        return base + ["-f", "tee", outputs]
 
     def start_stream(self):
         if not self.platforms:
@@ -345,7 +357,7 @@ class LivestreamService:
                 stderr=subprocess.PIPE,
             )
             self.tee_process = subprocess.Popen(
-                self.tee_command(),
+                self.fanout_command(),
                 stdin=self.encoder_process.stdout,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
