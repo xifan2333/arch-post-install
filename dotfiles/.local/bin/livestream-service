@@ -103,9 +103,9 @@ DOUYIN_PRI_DIFF_DEFAULT = -311_040_000
 
 
 def is_douyin_platform(platform: Platform) -> bool:
-    name = (platform.name or "").lower()
-    blob = f"{name} {platform.server} {platform.url}".lower()
-    return "douyin" in blob or "douyincdn.com" in blob
+    # live.json keys are platform ids from webcastmate (e.g. "douyin").
+    # Do not sniff RTMP host/path — Douyin CDNs are not "douyin.com".
+    return (platform.name or "").strip().lower() == "douyin"
 
 
 def stamp_douyin_pri(url: str, now: float | None = None, pri_diff: int = DOUYIN_PRI_DIFF_DEFAULT) -> str:
