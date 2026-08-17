@@ -231,6 +231,7 @@ class LivestreamService:
         self.encoder_process = None  # gpu-screen-recorder (single encode)
         self.tee_process = None      # ffmpeg tee (fan-out to N RTMP)
         self.tee_log_thread = None
+        self.encoder_log_thread = None
         # Single-stream state (shared by all platforms).
         self.stream_state = "connecting"
         self.baseline_acked = None
@@ -259,11 +260,20 @@ class LivestreamService:
                 safe = safe.replace(platform.stream_key, "<redacted-stream-key>")
         self.log(safe)
 
-    def read_tee_log(self):
-        stream = self.tee_process.stderr if self.tee_process else None
+    def read_process_log(self, process):
+        stream = process.stderr if process else None
         if stream is None:
             return
-        for line in stream:
+        # Binary pipes: readline() returns bytes; never iterate the raw stream.
+        while True:
+            raw = stream.readline()
+            if not raw:
+                break
+            line = (
+                raw.decode("utf-8", errors="replace")
+                if isinstance(raw, (bytes, bytearray))
+                else raw
+            )
             self.safe_log_line(line)
 
     def encoder_command(self, video_bitrate, audio_bitrate):
@@ -290,7 +300,8 @@ class LivestreamService:
         ]
         if self.args.scale_width:
             command.extend(["-s", f"{self.args.scale_width}x0"])
-        command.extend(["-o", "-"])  # encode to stdout
+        # Omit -o entirely: gsr writes the container to stdout when -o is absent.
+        # Passing -o - is treated as a literal filename, so ffmpeg sees EOF on stdin.
         return command
 
     def tee_command(self):
@@ -327,19 +338,19 @@ class LivestreamService:
             platform.audio_bitrate = audio_bitrate
 
         try:
+            # Encoder stdout is binary FLV; keep both pipes binary and decode logs.
             self.encoder_process = subprocess.Popen(
                 self.encoder_command(video_bitrate, audio_bitrate),
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
             )
             self.tee_process = subprocess.Popen(
                 self.tee_command(),
                 stdin=self.encoder_process.stdout,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
             )
+            # Allow encoder to receive SIGPIPE if tee exits first.
             self.encoder_process.stdout.close()
         except OSError as error:
             self.log(f"failed to start encoder/tee: {error}")
@@ -352,7 +363,13 @@ class LivestreamService:
             f"single encoder started at {video_bitrate}/{audio_bitrate} kbps "
             f"-> {len(self.platforms)} RTMP target(s)"
         )
-        self.tee_log_thread = threading.Thread(target=self.read_tee_log, daemon=True)
+        self.encoder_log_thread = threading.Thread(
+            target=self.read_process_log, args=(self.encoder_process,), daemon=True
+        )
+        self.tee_log_thread = threading.Thread(
+            target=self.read_process_log, args=(self.tee_process,), daemon=True
+        )
+        self.encoder_log_thread.start()
         self.tee_log_thread.start()
         self.emit_status(force=True)
 
@@ -632,8 +649,9 @@ class LivestreamService:
                     process.wait(timeout=2)
                 except subprocess.TimeoutExpired:
                     pass
-        if self.tee_log_thread:
-            self.tee_log_thread.join(timeout=1)
+        for thread in (self.encoder_log_thread, self.tee_log_thread):
+            if thread:
+                thread.join(timeout=1)
         self.log_handle.close()
         return 0 if self.name_acquired else 2
 
