@@ -86,14 +86,6 @@ INTROSPECTION_XML = f"""
 """
 
 
-def bounded_int(section, key, fallback, minimum, maximum):
-    try:
-        value = section.getint(key, fallback=int(fallback))
-    except (TypeError, ValueError):
-        value = int(fallback)
-    return value if minimum <= value <= maximum else int(fallback)
-
-
 @dataclass
 class Platform:
     name: str
@@ -149,15 +141,7 @@ def load_platforms(path, default_video, default_audio):
         for name, p in pairs:
             if not isinstance(p, dict):
                 continue
-            try:
-                vb = int(p.get("video_bitrate") or default_video)
-            except (TypeError, ValueError):
-                vb = int(default_video)
-            try:
-                ab = int(p.get("audio_bitrate") or default_audio)
-            except (TypeError, ValueError):
-                ab = int(default_audio)
-            item = make(name, p.get("server"), p.get("key") or p.get("stream_key"), vb, ab)
+            item = make(name, p.get("server"), p.get("key") or p.get("stream_key"), default_video, default_audio)
             if item:
                 platforms.append(item)
         return platforms
@@ -170,8 +154,8 @@ def load_platforms(path, default_video, default_audio):
             section_name,
             section.get("server", ""),
             section.get("key", ""),
-            bounded_int(section, "video_bitrate", default_video, 100, 50000),
-            bounded_int(section, "audio_bitrate", default_audio, 32, 320),
+            int(default_video),
+            int(default_audio),
         )
         if item:
             platforms.append(item)
@@ -350,9 +334,9 @@ class LivestreamService:
             self.all_dead_since = time.monotonic()
             return
 
-        # Single encode: all platforms share the highest requested bitrate.
-        video_bitrate = max(platform.video_bitrate for platform in self.platforms)
-        audio_bitrate = max(platform.audio_bitrate for platform in self.platforms)
+        # Single encode at the streaming layer's configured bitrate.
+        video_bitrate = self.args.default_video
+        audio_bitrate = self.args.default_audio
         for platform in self.platforms:
             platform.video_bitrate = video_bitrate
             platform.audio_bitrate = audio_bitrate
