@@ -306,15 +306,28 @@ class LivestreamService:
 
     @staticmethod
     def escape_tee_slave(url):
-        # tee splits slaves on '|' and treats '\' as escape. Bilibili-style
-        # query strings (?a=1&b=2) are fine after the option block; only
-        # escape the characters that break slave parsing.
-        return url.replace("\\", "\\\\").replace("|", "\\|")
+        # Always reuse one encode via ffmpeg tee, even for a single target.
+        # tee splits slaves on '|' and parses option/protocol specials in the
+        # slave filename (ffmpeg-utils quoting). Bilibili keys look like
+        # "?streamname=...&key=..." and must be escaped or tee rejects the
+        # output with "Output file does not contain any stream".
+        special = set("\\'|:[]=?&")
+        out = []
+        for ch in url:
+            if ch in special or ch.isspace():
+                out.append("\\" + ch)
+            else:
+                out.append(ch)
+        return "".join(out)
 
     def fanout_command(self):
-        # tee cannot auto-select streams; always -map 0. Single target skips
-        # tee entirely so query-string RTMP URLs need no special handling.
-        base = [
+        # Reuse path: gsr encodes once -> ffmpeg tee remuxes to N RTMP URLs.
+        # tee cannot auto-select streams; always -map 0.
+        outputs = "|".join(
+            f"[f=flv:onfail=ignore]{self.escape_tee_slave(platform.url)}"
+            for platform in self.platforms
+        )
+        return [
             "ffmpeg",
             "-hide_banner",
             "-loglevel",
@@ -325,14 +338,10 @@ class LivestreamService:
             "0",
             "-c",
             "copy",
+            "-f",
+            "tee",
+            outputs,
         ]
-        if len(self.platforms) == 1:
-            return base + ["-f", "flv", self.platforms[0].url]
-        outputs = "|".join(
-            f"[f=flv:onfail=ignore]{self.escape_tee_slave(platform.url)}"
-            for platform in self.platforms
-        )
-        return base + ["-f", "tee", outputs]
 
     def start_stream(self):
         if not self.platforms:
