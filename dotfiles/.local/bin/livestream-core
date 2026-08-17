@@ -11,14 +11,9 @@ LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config"
 LIVESTREAM_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/livestream-$UID}/livestream"
 LIVESTREAM_LOG_FILE="$LIVESTREAM_RUNTIME_DIR/livestream.log"
 
-# Empty values may be filled by ~/.config/livestream/config. Non-empty
-# environment variables take precedence over that file.
-AUDIO_SOURCE="${AUDIO_SOURCE-}"
-FRAMERATE="${FRAMERATE-}"
+# Only bitrate is user-configurable; the rest are fixed defaults.
 BITRATE="${BITRATE-}"
 AUDIO_BITRATE="${AUDIO_BITRATE-}"
-KEYINT="${KEYINT-}"
-SCALE_WIDTH="${SCALE_WIDTH-}"
 
 livestream_ensure_dirs() {
     install -d -m 700 "$LIVESTREAM_CONFIG_DIR" "$LIVESTREAM_RUNTIME_DIR"
@@ -38,7 +33,7 @@ livestream_load_config() {
                     val="${line#*=}"
                     key="${key// /}"
                     case "$key" in
-                        AUDIO_SOURCE|FRAMERATE|BITRATE|AUDIO_BITRATE|KEYINT|SCALE_WIDTH)
+                        BITRATE|AUDIO_BITRATE)
                             eval "current=\${$key-}"
                             if [ -z "$current" ]; then
                                 export "$key=$val"
@@ -50,15 +45,9 @@ livestream_load_config() {
         done < "$LIVESTREAM_CONFIG_FILE"
     fi
 
-    FRAMERATE="${FRAMERATE:-25}"
     BITRATE="${BITRATE:-1800}"
     AUDIO_BITRATE="${AUDIO_BITRATE:-128}"
-    KEYINT="${KEYINT:-2}"
-    SCALE_WIDTH="${SCALE_WIDTH:-0}"
 
-    if ! [[ "$FRAMERATE" =~ ^[0-9]+$ ]] || ((FRAMERATE < 1 || FRAMERATE > 240)); then
-        FRAMERATE=25
-    fi
     if ! [[ "$BITRATE" =~ ^[0-9]+$ ]] || ((BITRATE < 100 || BITRATE > 50000)); then
         BITRATE=1800
     fi
@@ -66,18 +55,12 @@ livestream_load_config() {
         || ((AUDIO_BITRATE < 32 || AUDIO_BITRATE > 320)); then
         AUDIO_BITRATE=128
     fi
-    if ! [[ "$KEYINT" =~ ^[0-9]+$ ]] || ((KEYINT < 1 || KEYINT > 10)); then
-        KEYINT=2
-    fi
-    if ! [[ "$SCALE_WIDTH" =~ ^[0-9]+$ ]] || ((SCALE_WIDTH > 16384)); then
-        SCALE_WIDTH=0
-    fi
 
-    # Same path as Omarchy screenrecording: system output + microphone input.
-    # Explicit AUDIO_SOURCE still wins for advanced overrides.
-    if [ -z "$AUDIO_SOURCE" ]; then
-        AUDIO_SOURCE="default_output|default_input"
-    fi
+    # Fixed defaults (not user-configurable).
+    FRAMERATE=25
+    KEYINT=2
+    SCALE_WIDTH=0
+    AUDIO_SOURCE="default_output|default_input"
 }
 
 livestream_check_deps() {
