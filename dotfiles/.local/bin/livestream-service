@@ -20,6 +20,7 @@ import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import gi
 
@@ -94,6 +95,36 @@ class Platform:
     video_bitrate: int
     audio_bitrate: int
     state: str = "connecting"
+
+
+# Douyin companion SourceStore.addPriForUrl default offset (seconds).
+# pri = floor(unix_now + pri_diff); stamped once at StartStream, not per-frame.
+DOUYIN_PRI_DIFF_DEFAULT = -311_040_000
+
+
+def is_douyin_platform(platform: Platform) -> bool:
+    name = (platform.name or "").lower()
+    blob = f"{name} {platform.server} {platform.url}".lower()
+    return "douyin" in blob or "douyincdn.com" in blob
+
+
+def stamp_douyin_pri(url: str, now: float | None = None, pri_diff: int = DOUYIN_PRI_DIFF_DEFAULT) -> str:
+    """Append/replace companion-style pri= on a Douyin RTMP URL.
+
+    Mirrors webcast_mate SourceStore.addPriForUrl:
+      pri = floor(Date.now()/1000 + priDiff)
+    Called at push start (and should be re-called on reconnect/restart only).
+    """
+    if not url:
+        return url
+    ts = int((time.time() if now is None else now) + pri_diff)
+    parts = urlsplit(url)
+    # urlsplit keeps rtmp://host/app/key?query in path/query correctly.
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["pri"] = str(ts)
+    # encode with doseq; safe chars for rtmp query
+    new_query = urlencode(query, doseq=True)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
 
 
 def load_platforms(path, default_video, default_audio):
@@ -364,6 +395,14 @@ class LivestreamService:
         for platform in self.platforms:
             platform.video_bitrate = video_bitrate
             platform.audio_bitrate = audio_bitrate
+            # Douyin companion stamps pri at StartStream time (not during push).
+            if is_douyin_platform(platform):
+                before = platform.url
+                platform.url = stamp_douyin_pri(platform.url)
+                if platform.url != before:
+                    self.log(
+                        f"[{platform.name}] stamped companion-style pri on RTMP url"
+                    )
 
         try:
             # Encoder stdout is binary FLV; keep both pipes binary and decode logs.
