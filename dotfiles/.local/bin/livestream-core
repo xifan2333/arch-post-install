@@ -45,19 +45,22 @@ livestream_load_config() {
         done < "$LIVESTREAM_CONFIG_FILE"
     fi
 
+    # Video 6000 stays in companion recommend ladder (~7500 uplink band).
+    # Audio 160 matches webcast_mate SourceStore default bitrateA.
     BITRATE="${BITRATE:-6000}"
-    AUDIO_BITRATE="${AUDIO_BITRATE:-128}"
+    AUDIO_BITRATE="${AUDIO_BITRATE:-160}"
 
     if ! [[ "$BITRATE" =~ ^[0-9]+$ ]] || ((BITRATE < 100 || BITRATE > 50000)); then
         BITRATE=6000
     fi
     if ! [[ "$AUDIO_BITRATE" =~ ^[0-9]+$ ]] \
         || ((AUDIO_BITRATE < 32 || AUDIO_BITRATE > 320)); then
-        AUDIO_BITRATE=128
+        AUDIO_BITRATE=160
     fi
 
     # Fixed defaults (not user-configurable).
-    FRAMERATE=25
+    # fps 30 + gopSec/KEYINT 2s align with companion PushBase / SourceStore.
+    FRAMERATE=30
     KEYINT=2
     SCALE_WIDTH=0
     AUDIO_SOURCE="default_output|default_input"
