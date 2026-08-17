@@ -238,7 +238,6 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 | `Alt+Print` | `capture-router menu` |
 | `Super+R` | 本地录屏 toggle（桌面声 + 麦克风） |
 | `Super+Alt+R` | 直播 toggle（默认 portal 选区） |
-| `Super+Shift+R` | 直播平台配置 |
 | `Ctrl+Print` | 选区 OCR |
 | `Super+Alt+V/K/C/T` | 摄像头 / 按键 / 字幕 / 标题叠加层 |
 | `Super+Shift+T` | 标题叠加层编辑 |
@@ -247,15 +246,7 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
 
 ### 直播平台
 
-每个平台在 `~/.config/livestream/platforms.conf` 中独立设置码率，也可以通过 `Super+Shift+R` 打开图形配置：
-
-```ini
-[Bilibili]
-server = live-push.example.com/live
-key = STREAM_KEY
-video_bitrate = 6000
-audio_bitrate = 192
-```
+RTMP 目标由 `webcastmate` 写入 `~/.config/webcastmate/live.json`（JSON），码率在 `~/.config/livestream/config` 中统一设置（`BITRATE` / `AUDIO_BITRATE`）。`livestream-service` 读 live.json 后单路编码、经 ffmpeg tee 分发到各家 RTMP。
 
 `livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有平台状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。直播只有在对应 `gpu-screen-recorder` 进程持续运行、持有 `ESTABLISHED` TCP 连接，并且 RTMP 服务端已经确认至少 64 KiB 的输出数据后，才会标记为 `RTMP sending`。这能确认本机正在向平台 ingest 发送数据；平台是否已正式开播、是否对观众可见，仍以平台控制台或平台 API 为准。
 

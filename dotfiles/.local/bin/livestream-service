@@ -9,7 +9,6 @@ as one unit; every platform mirrors that shared state.
 from __future__ import annotations
 
 import argparse
-import configparser
 import json
 import os
 import re
@@ -98,7 +97,7 @@ class Platform:
 
 
 def load_platforms(path, default_video, default_audio):
-    """Load RTMP targets from webcastmate live.json (or legacy INI)."""
+    """Load RTMP targets from webcastmate live.json."""
     config_path = Path(path)
     if not config_path.is_file():
         return []
@@ -126,37 +125,23 @@ def load_platforms(path, default_video, default_audio):
         )
 
     platforms = []
-    if raw.startswith("{"):
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        items = data.get("platforms") or {}
-        if isinstance(items, dict):
-            pairs = items.items()
-        elif isinstance(items, list):
-            pairs = ((p.get("name") or p.get("platform") or f"p{i}", p) for i, p in enumerate(items))
-        else:
-            return []
-        for name, p in pairs:
-            if not isinstance(p, dict):
-                continue
-            item = make(name, p.get("server"), p.get("key") or p.get("stream_key"), default_video, default_audio)
-            if item:
-                platforms.append(item)
+    if not raw.startswith("{"):
         return platforms
-
-    cfg = configparser.ConfigParser(interpolation=None)
-    cfg.read(config_path, encoding="utf-8")
-    for section_name in cfg.sections():
-        section = cfg[section_name]
-        item = make(
-            section_name,
-            section.get("server", ""),
-            section.get("key", ""),
-            int(default_video),
-            int(default_audio),
-        )
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    items = data.get("platforms") or {}
+    if isinstance(items, dict):
+        pairs = items.items()
+    elif isinstance(items, list):
+        pairs = ((p.get("name") or p.get("platform") or f"p{i}", p) for i, p in enumerate(items))
+    else:
+        return []
+    for name, p in pairs:
+        if not isinstance(p, dict):
+            continue
+        item = make(name, p.get("server"), p.get("key") or p.get("stream_key"), default_video, default_audio)
         if item:
             platforms.append(item)
     return platforms
