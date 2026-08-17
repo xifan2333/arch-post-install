@@ -285,6 +285,10 @@ class LivestreamService:
             "flv",
             "-f",
             str(self.args.framerate),
+            # Live RTMP needs constant frame timing. gsr defaults to vfr, which
+            # commonly shows up as color/brightness shimmer on platform players.
+            "-fm",
+            "cfr",
             "-bm",
             "cbr",
             "-q",
@@ -293,6 +297,9 @@ class LivestreamService:
             str(self.args.keyint),
             "-ab",
             str(audio_bitrate),
+            # limited = TV range; full often looks washed or crushed on Bilibili.
+            "-cr",
+            "limited",
             "-a",
             self.args.audio_source,
             "-fallback-cpu-encoding",
@@ -742,7 +749,7 @@ def parse_args():
     run.add_argument("--target", default="portal")
     run.add_argument("--audio-source", required=True)
     run.add_argument("--framerate", type=int, default=25)
-    run.add_argument("--default-video", type=int, default=1800)
+    run.add_argument("--default-video", type=int, default=6000)
     run.add_argument("--default-audio", type=int, default=128)
     run.add_argument("--keyint", type=int, default=2)
     run.add_argument("--scale-width", type=int, default=0)
@@ -750,7 +757,7 @@ def parse_args():
 
     validate = sub.add_parser("validate")
     validate.add_argument("--platforms-file", required=True)
-    validate.add_argument("--default-video", type=int, default=1800)
+    validate.add_argument("--default-video", type=int, default=6000)
     validate.add_argument("--default-audio", type=int, default=128)
 
     status = sub.add_parser("status")
