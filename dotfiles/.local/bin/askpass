@@ -1,3 +1,6 @@
 #!/bin/bash
-# SUDO_ASKPASS helper using zenity (Wayland native)
-zenity --password --title="Authentication" 2>/dev/null
+# SUDO_ASKPASS helper using walker password mode.
+# zenity --password was observed to leave fcitx5 unable to switch until
+# another window is focused; walker -x did not in the same sudo -A tests.
+prompt="${1:-Authentication}"
+exec /usr/bin/walker -x -p "$prompt" -e
