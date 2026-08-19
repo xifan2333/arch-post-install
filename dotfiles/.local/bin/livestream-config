@@ -1,0 +1,349 @@
+#!/usr/bin/python
+"""Live stream configurator — one JSON file for bitrate + RTMP targets."""
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib
+
+CONFIG_DIR = Path(GLib.get_user_config_dir()) / "livestream"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+DEFAULT_VIDEO_BITRATE = 6000
+DEFAULT_AUDIO_BITRATE = 160
+
+
+def t(key, fallback=""):
+    try:
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                'source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; '
+                'msg "$1"',
+                "livestream-config",
+                key,
+            ],
+            env={
+                **os.environ,
+                "PATH": os.path.expanduser("~/.local/bin") + ":"
+                + os.environ.get("PATH", ""),
+            },
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        message = result.stdout.strip()
+        if result.returncode == 0 and message and message != f"[{key}]":
+            return message
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return fallback
+
+
+def bounded_int(value, default, minimum, maximum):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return number if minimum <= number <= maximum else default
+
+
+def ensure_migrated():
+    """Reuse service-side one-shot migration from legacy files."""
+    service = Path.home() / ".local/bin/livestream-service"
+    if not service.is_file():
+        here = Path(__file__).resolve().parent / "livestream-service"
+        service = here if here.is_file() else service
+    if not service.is_file():
+        return
+    try:
+        subprocess.run(
+            [str(service), "validate", "--config", str(CONFIG_FILE)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def load_config():
+    ensure_migrated()
+    video = DEFAULT_VIDEO_BITRATE
+    audio = DEFAULT_AUDIO_BITRATE
+    platforms = []
+
+    if not CONFIG_FILE.is_file():
+        return video, audio, platforms
+
+    try:
+        data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return video, audio, platforms
+    if not isinstance(data, dict):
+        return video, audio, platforms
+
+    video = bounded_int(
+        data.get("bitrate", data.get("video_bitrate")),
+        DEFAULT_VIDEO_BITRATE,
+        100,
+        50000,
+    )
+    audio = bounded_int(
+        data.get("audio_bitrate"),
+        DEFAULT_AUDIO_BITRATE,
+        32,
+        320,
+    )
+
+    items = data.get("platforms") or []
+    if isinstance(items, dict):
+        pairs = items.items()
+    elif isinstance(items, list):
+        pairs = (
+            (item.get("name") or item.get("platform") or "", item)
+            for item in items
+            if isinstance(item, dict)
+        )
+    else:
+        pairs = ()
+
+    for name, item in pairs:
+        if not isinstance(item, dict):
+            continue
+        platforms.append({
+            "name": str(name or item.get("name") or "").strip(),
+            "server": str(item.get("server") or "").strip(),
+            "key": str(item.get("key") or item.get("stream_key") or "").strip(),
+        })
+    return video, audio, platforms
+
+
+def save_config(video, audio, platforms):
+    payload = {
+        "bitrate": int(video),
+        "audio_bitrate": int(audio),
+        "platforms": [],
+    }
+    for platform in platforms:
+        name = platform.get("name", "").strip()
+        if not name:
+            continue
+        payload["platforms"].append({
+            "name": name,
+            "server": platform.get("server", "").strip(),
+            "key": platform.get("key", "").strip(),
+        })
+
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    os.chmod(CONFIG_DIR, 0o700)
+    fd = os.open(CONFIG_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.write("\n")
+    os.chmod(CONFIG_FILE, 0o600)
+
+
+class PlatformRow:
+    """One editable platform row: name / server / key only."""
+
+    def __init__(self, data, on_remove):
+        self.name_entry = Gtk.Entry()
+        self.name_entry.set_placeholder_text(t("livestream_cfg_name", "Name"))
+        self.name_entry.set_text(data.get("name", ""))
+        self.name_entry.set_width_chars(10)
+
+        self.server_entry = Gtk.Entry()
+        self.server_entry.set_placeholder_text(t("livestream_cfg_server", "Server"))
+        self.server_entry.set_text(data.get("server", ""))
+        self.server_entry.set_width_chars(28)
+        self.server_entry.set_hexpand(True)
+
+        self.key_entry = Gtk.Entry()
+        self.key_entry.set_placeholder_text(t("livestream_cfg_key", "Key"))
+        self.key_entry.set_text(data.get("key", ""))
+        self.key_entry.set_visibility(False)
+        self.key_entry.set_width_chars(20)
+        self.key_entry.set_hexpand(True)
+
+        self.show_button = Gtk.Button.new_from_icon_name(
+            "view-reveal", Gtk.IconSize.SMALL_TOOLBAR
+        )
+        self.show_button.set_tooltip_text(t(
+            "livestream_cfg_show_key", "Show or hide stream key"
+        ))
+        self.show_button.connect("clicked", self._toggle_key_visibility)
+
+        self.remove_button = Gtk.Button.new_from_icon_name(
+            "edit-delete", Gtk.IconSize.SMALL_TOOLBAR
+        )
+        self.remove_button.set_tooltip_text(t(
+            "livestream_cfg_remove", "Remove platform"
+        ))
+        self.remove_button.connect("clicked", lambda _button: on_remove(self))
+
+        self.widgets = [
+            self.name_entry,
+            self.server_entry,
+            self.key_entry,
+            self.show_button,
+            self.remove_button,
+        ]
+
+    def attach(self, grid, row_number):
+        for column, widget in enumerate(self.widgets):
+            grid.attach(widget, column, row_number, 1, 1)
+
+    def detach(self, grid):
+        for widget in self.widgets:
+            if widget.get_parent() is grid:
+                grid.remove(widget)
+
+    def destroy(self):
+        for widget in self.widgets:
+            widget.destroy()
+
+    def _toggle_key_visibility(self, _button):
+        self.key_entry.set_visibility(not self.key_entry.get_visibility())
+
+    def collect(self):
+        return {
+            "name": self.name_entry.get_text(),
+            "server": self.server_entry.get_text(),
+            "key": self.key_entry.get_text(),
+        }
+
+
+class LivestreamConfigDialog(Gtk.Dialog):
+    def __init__(self, platforms, video_bitrate, audio_bitrate):
+        super().__init__(
+            title=t("livestream_cfg_title", "Live Stream Config"),
+            modal=True,
+        )
+        self.set_default_size(820, 340)
+        self.set_border_width(12)
+
+        content = self.get_content_area()
+        content.set_spacing(10)
+
+        bitrate_grid = Gtk.Grid(column_spacing=10, row_spacing=6)
+        bitrate_grid.set_hexpand(True)
+
+        video_label = Gtk.Label(
+            label=t("livestream_cfg_video_kbps", "Video (kbps)"),
+            xalign=0.0,
+        )
+        self.video_bitrate = Gtk.SpinButton.new_with_range(100, 50000, 100)
+        self.video_bitrate.set_value(video_bitrate)
+        self.video_bitrate.set_numeric(True)
+        self.video_bitrate.set_tooltip_text(t(
+            "livestream_cfg_video_tooltip", "Video bitrate in kbps"
+        ))
+
+        audio_label = Gtk.Label(
+            label=t("livestream_cfg_audio_kbps", "Audio (kbps)"),
+            xalign=0.0,
+        )
+        self.audio_bitrate = Gtk.SpinButton.new_with_range(32, 320, 8)
+        self.audio_bitrate.set_value(audio_bitrate)
+        self.audio_bitrate.set_numeric(True)
+        self.audio_bitrate.set_tooltip_text(t(
+            "livestream_cfg_audio_tooltip", "Audio bitrate in kbps"
+        ))
+
+        bitrate_grid.attach(video_label, 0, 0, 1, 1)
+        bitrate_grid.attach(self.video_bitrate, 1, 0, 1, 1)
+        bitrate_grid.attach(audio_label, 2, 0, 1, 1)
+        bitrate_grid.attach(self.audio_bitrate, 3, 0, 1, 1)
+        content.pack_start(bitrate_grid, False, False, 0)
+
+        content.pack_start(
+            Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0
+        )
+
+        self.rows_grid = Gtk.Grid(column_spacing=6, row_spacing=6)
+        self.rows_grid.set_border_width(4)
+        self.rows_grid.set_hexpand(True)
+        for column, label_text in enumerate([
+            t("livestream_cfg_name", "Name"),
+            t("livestream_cfg_server", "Server"),
+            t("livestream_cfg_key", "Key"),
+        ]):
+            label = Gtk.Label()
+            label.set_markup(f"<b>{GLib.markup_escape_text(label_text)}</b>")
+            label.set_halign(Gtk.Align.FILL)
+            label.set_xalign(0.0)
+            label.set_margin_bottom(2)
+            self.rows_grid.attach(label, column, 0, 1, 1)
+
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_min_content_height(160)
+        scrolled.add(self.rows_grid)
+        content.pack_start(scrolled, True, True, 0)
+
+        self.rows = []
+        for platform in platforms:
+            self._add_row(platform)
+
+        add_button = Gtk.Button(label=t("livestream_cfg_add", "+ Add Platform"))
+        add_button.set_halign(Gtk.Align.START)
+        add_button.connect("clicked", lambda _button: self._add_row({}))
+        content.pack_start(add_button, False, False, 0)
+
+        self.add_button(t("cancel", "Cancel"), Gtk.ResponseType.CANCEL)
+        confirm_button = self.add_button(t("confirm", "OK"), Gtk.ResponseType.OK)
+        confirm_button.get_style_context().add_class("suggested-action")
+
+        content.show_all()
+
+    def _add_row(self, data):
+        row = PlatformRow(data, on_remove=self._remove_row)
+        self.rows.append(row)
+        self._layout_rows()
+
+    def _remove_row(self, row):
+        row.detach(self.rows_grid)
+        self.rows.remove(row)
+        row.destroy()
+        self._layout_rows()
+
+    def _layout_rows(self):
+        for row in self.rows:
+            row.detach(self.rows_grid)
+        for row_number, row in enumerate(self.rows, start=1):
+            row.attach(self.rows_grid, row_number)
+        self.rows_grid.show_all()
+
+    def collect_all(self):
+        return [row.collect() for row in self.rows]
+
+    def collect_bitrate(self):
+        return (
+            self.video_bitrate.get_value_as_int(),
+            self.audio_bitrate.get_value_as_int(),
+        )
+
+
+def main():
+    # Hyprland windowrule matches class ^(livestream-config)$.
+    GLib.set_prgname("livestream-config")
+    video, audio, platforms = load_config()
+    dialog = LivestreamConfigDialog(platforms, video, audio)
+    response = dialog.run()
+
+    if response == Gtk.ResponseType.OK:
+        save_config(*dialog.collect_bitrate(), dialog.collect_all())
+
+    dialog.destroy()
+
+
+if __name__ == "__main__":
+    main()

@@ -9,6 +9,7 @@ as one unit; every platform mirrors that shared state.
 from __future__ import annotations
 
 import argparse
+import configparser
 import json
 import os
 import re
@@ -20,7 +21,9 @@ import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+DEFAULT_VIDEO_BITRATE = 6000
+DEFAULT_AUDIO_BITRATE = 160
 
 import gi
 
@@ -97,85 +100,193 @@ class Platform:
     state: str = "connecting"
 
 
-# Douyin companion SourceStore.addPriForUrl default offset (seconds).
-# pri = floor(unix_now + pri_diff); stamped once at StartStream, not per-frame.
-DOUYIN_PRI_DIFF_DEFAULT = -311_040_000
-
-
-def is_douyin_platform(platform: Platform) -> bool:
-    # live.json keys are platform ids from webcastmate (e.g. "douyin").
-    # Do not sniff RTMP host/path — Douyin CDNs are not "douyin.com".
-    return (platform.name or "").strip().lower() == "douyin"
-
-
-def stamp_douyin_pri(url: str, now: float | None = None, pri_diff: int = DOUYIN_PRI_DIFF_DEFAULT) -> str:
-    """Append/replace companion-style pri= on a Douyin RTMP URL.
-
-    Mirrors webcast_mate SourceStore.addPriForUrl:
-      pri = floor(Date.now()/1000 + priDiff)
-    Called at push start (and should be re-called on reconnect/restart only).
-    """
-    if not url:
-        return url
-    ts = int((time.time() if now is None else now) + pri_diff)
-    parts = urlsplit(url)
-    # urlsplit keeps rtmp://host/app/key?query in path/query correctly.
-    query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    query["pri"] = str(ts)
-    # encode with doseq; safe chars for rtmp query
-    new_query = urlencode(query, doseq=True)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
-
-
-def load_platforms(path, default_video, default_audio):
-    """Load RTMP targets from webcastmate live.json."""
-    config_path = Path(path)
-    if not config_path.is_file():
-        return []
-
+def bounded_int(value, default, minimum, maximum):
     try:
-        raw = config_path.read_text(encoding="utf-8").lstrip()
-    except OSError:
-        return []
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return number if minimum <= number <= maximum else default
 
-    def make(name, server, stream_key, vb, ab):
-        server = (server or "").strip().rstrip("/")
-        stream_key = (stream_key or "").strip().lstrip("/")
-        if not server or any(c in server + stream_key for c in "\t\r\n"):
-            return None
-        if not server.startswith(("rtmp://", "rtmps://")):
-            server = f"rtmp://{server}"
-        url = f"{server}/{stream_key}" if stream_key else server
-        return Platform(
-            name=str(name),
-            server=server,
-            stream_key=stream_key,
-            url=url,
-            video_bitrate=int(vb),
-            audio_bitrate=int(ab),
-        )
 
+def make_platform(name, server, stream_key, video_bitrate, audio_bitrate):
+    name = str(name or "").replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
+    server = (server or "").strip().rstrip("/")
+    stream_key = (stream_key or "").strip().lstrip("/")
+    if not name or not server or any(c in server + stream_key for c in "\t\r\n"):
+        return None
+    if not server.startswith(("rtmp://", "rtmps://")):
+        server = f"rtmp://{server}"
+    url = f"{server}/{stream_key}" if stream_key else server
+    return Platform(
+        name=name,
+        server=server,
+        stream_key=stream_key,
+        url=url,
+        video_bitrate=int(video_bitrate),
+        audio_bitrate=int(audio_bitrate),
+    )
+
+
+def platforms_from_items(items, video_bitrate, audio_bitrate):
     platforms = []
-    if not raw.startswith("{"):
-        return platforms
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return []
-    items = data.get("platforms") or {}
     if isinstance(items, dict):
         pairs = items.items()
     elif isinstance(items, list):
-        pairs = ((p.get("name") or p.get("platform") or f"p{i}", p) for i, p in enumerate(items))
+        pairs = (
+            (item.get("name") or item.get("platform") or f"p{index}", item)
+            for index, item in enumerate(items)
+            if isinstance(item, dict)
+        )
     else:
-        return []
-    for name, p in pairs:
-        if not isinstance(p, dict):
+        return platforms
+
+    for name, item in pairs:
+        if not isinstance(item, dict):
             continue
-        item = make(name, p.get("server"), p.get("key") or p.get("stream_key"), default_video, default_audio)
-        if item:
-            platforms.append(item)
+        platform = make_platform(
+            name,
+            item.get("server"),
+            item.get("key") or item.get("stream_key"),
+            video_bitrate,
+            audio_bitrate,
+        )
+        if platform:
+            platforms.append(platform)
     return platforms
+
+
+def read_legacy_shell_bitrate(path):
+    video = None
+    audio = None
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return video, audio
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if key == "BITRATE":
+            video = bounded_int(value, None, 100, 50000)
+        elif key == "AUDIO_BITRATE":
+            audio = bounded_int(value, None, 32, 320)
+    return video, audio
+
+
+def read_legacy_platforms_ini(path, video_bitrate, audio_bitrate):
+    cfg = configparser.ConfigParser(interpolation=None)
+    try:
+        cfg.read(path, encoding="utf-8")
+    except configparser.Error:
+        return []
+    platforms = []
+    for section_name in cfg.sections():
+        section = cfg[section_name]
+        platform = make_platform(
+            section_name,
+            section.get("server", ""),
+            section.get("key", ""),
+            video_bitrate,
+            audio_bitrate,
+        )
+        if platform:
+            platforms.append(platform)
+    return platforms
+
+
+def migrate_legacy_config(config_path: Path):
+    """One-shot: old config + platforms.conf -> config.json."""
+    if config_path.is_file():
+        return False
+
+    config_dir = config_path.parent
+    legacy_shell = config_dir / "config"
+    legacy_ini = config_dir / "platforms.conf"
+    if not legacy_shell.is_file() and not legacy_ini.is_file():
+        return False
+
+    video = DEFAULT_VIDEO_BITRATE
+    audio = DEFAULT_AUDIO_BITRATE
+    if legacy_shell.is_file():
+        shell_video, shell_audio = read_legacy_shell_bitrate(legacy_shell)
+        if shell_video is not None:
+            video = shell_video
+        if shell_audio is not None:
+            audio = shell_audio
+
+    platforms = []
+    if legacy_ini.is_file():
+        platforms = read_legacy_platforms_ini(legacy_ini, video, audio)
+
+    payload = {
+        "bitrate": video,
+        "audio_bitrate": audio,
+        "platforms": [
+            {
+                "name": platform.name,
+                "server": platform.server,
+                "key": platform.stream_key,
+            }
+            for platform in platforms
+        ],
+    }
+    try:
+        config_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(config_dir, 0o700)
+        fd = os.open(config_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+    except OSError:
+        return False
+    return True
+
+
+def load_stream_config(path):
+    """Load ~/.config/livestream/config.json.
+
+    Shape:
+      {
+        "bitrate": 6000,
+        "audio_bitrate": 160,
+        "platforms": [
+          {"name": "bilibili", "server": "rtmp://...", "key": "..."}
+        ]
+      }
+    """
+    config_path = Path(path)
+    migrate_legacy_config(config_path)
+
+    video = DEFAULT_VIDEO_BITRATE
+    audio = DEFAULT_AUDIO_BITRATE
+    platforms = []
+    if not config_path.is_file():
+        return platforms, video, audio
+
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return platforms, video, audio
+    if not isinstance(data, dict):
+        return platforms, video, audio
+
+    video = bounded_int(
+        data.get("bitrate", data.get("video_bitrate")),
+        DEFAULT_VIDEO_BITRATE,
+        100,
+        50000,
+    )
+    audio = bounded_int(
+        data.get("audio_bitrate"),
+        DEFAULT_AUDIO_BITRATE,
+        32,
+        320,
+    )
+    platforms = platforms_from_items(data.get("platforms") or [], video, audio)
+    return platforms, video, audio
 
 
 def offline_status():
@@ -243,9 +354,10 @@ def print_human_status(status):
 class LivestreamService:
     def __init__(self, args):
         self.args = args
-        self.platforms = load_platforms(
-            args.platforms_file, args.default_video, args.default_audio
-        )
+        platforms, video_bitrate, audio_bitrate = load_stream_config(args.config)
+        self.platforms = platforms
+        self.video_bitrate = video_bitrate
+        self.audio_bitrate = audio_bitrate
         self.started_at = time.monotonic()
         self.loop = GLib.MainLoop()
         self.connection = None
@@ -307,7 +419,7 @@ class LivestreamService:
             )
             self.safe_log_line(line)
 
-    def encoder_command(self, video_bitrate, audio_bitrate):
+    def encoder_command(self, video_bitrate, audio_bitrate, output=None):
         command = [
             "gpu-screen-recorder",
             "-w",
@@ -338,8 +450,11 @@ class LivestreamService:
         ]
         if self.args.scale_width:
             command.extend(["-s", f"{self.args.scale_width}x0"])
-        # Omit -o entirely: gsr writes the container to stdout when -o is absent.
-        # Passing -o - is treated as a literal filename, so ffmpeg sees EOF on stdin.
+        if output is not None:
+            # Single-target direct push: gsr opens the RTMP URL itself.
+            command.extend(["-o", output])
+        # Multi-target path omits -o so gsr writes FLV to stdout for ffmpeg tee.
+        # Passing -o - is treated as a literal filename, so ffmpeg would see EOF.
         return command
 
     @staticmethod
@@ -390,35 +505,48 @@ class LivestreamService:
             return
 
         # Single encode at the streaming layer's configured bitrate.
-        video_bitrate = self.args.default_video
-        audio_bitrate = self.args.default_audio
+        video_bitrate = self.video_bitrate
+        audio_bitrate = self.audio_bitrate
         for platform in self.platforms:
             platform.video_bitrate = video_bitrate
             platform.audio_bitrate = audio_bitrate
-            # Douyin companion stamps pri at StartStream time (not during push).
-            if is_douyin_platform(platform):
-                before = platform.url
-                platform.url = stamp_douyin_pri(platform.url)
-                if platform.url != before:
-                    self.log(
-                        f"[{platform.name}] stamped companion-style pri on RTMP url"
-                    )
 
         try:
-            # Encoder stdout is binary FLV; keep both pipes binary and decode logs.
-            self.encoder_process = subprocess.Popen(
-                self.encoder_command(video_bitrate, audio_bitrate),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            self.tee_process = subprocess.Popen(
-                self.fanout_command(),
-                stdin=self.encoder_process.stdout,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-            )
-            # Allow encoder to receive SIGPIPE if tee exits first.
-            self.encoder_process.stdout.close()
+            if len(self.platforms) == 1:
+                # Direct push: one encode, one RTMP URL, no ffmpeg tee.
+                self.encoder_process = subprocess.Popen(
+                    self.encoder_command(
+                        video_bitrate,
+                        audio_bitrate,
+                        output=self.platforms[0].url,
+                    ),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                self.tee_process = None
+                self.log(
+                    f"direct encoder started at {video_bitrate}/{audio_bitrate} kbps "
+                    f"-> 1 RTMP target"
+                )
+            else:
+                # Multi-target: gsr encodes once -> ffmpeg tee remuxes to N URLs.
+                self.encoder_process = subprocess.Popen(
+                    self.encoder_command(video_bitrate, audio_bitrate),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.tee_process = subprocess.Popen(
+                    self.fanout_command(),
+                    stdin=self.encoder_process.stdout,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                # Allow encoder to receive SIGPIPE if tee exits first.
+                self.encoder_process.stdout.close()
+                self.log(
+                    f"single encoder started at {video_bitrate}/{audio_bitrate} kbps "
+                    f"-> {len(self.platforms)} RTMP target(s) via tee"
+                )
         except OSError as error:
             self.log(f"failed to start encoder/tee: {error}")
             self.stream_state = "failed"
@@ -426,18 +554,15 @@ class LivestreamService:
             self.all_dead_since = time.monotonic()
             return
 
-        self.log(
-            f"single encoder started at {video_bitrate}/{audio_bitrate} kbps "
-            f"-> {len(self.platforms)} RTMP target(s)"
-        )
         self.encoder_log_thread = threading.Thread(
             target=self.read_process_log, args=(self.encoder_process,), daemon=True
         )
-        self.tee_log_thread = threading.Thread(
-            target=self.read_process_log, args=(self.tee_process,), daemon=True
-        )
         self.encoder_log_thread.start()
-        self.tee_log_thread.start()
+        if self.tee_process is not None:
+            self.tee_log_thread = threading.Thread(
+                target=self.read_process_log, args=(self.tee_process,), daemon=True
+            )
+            self.tee_log_thread.start()
         self.emit_status(force=True)
 
     @staticmethod
@@ -471,8 +596,13 @@ class LivestreamService:
                 sockets[pid] = sockets.get(pid, 0) + acked
         return sockets
 
+    def stream_process(self):
+        """Process whose TCP acks represent outbound RTMP progress."""
+        # Multi-target: tee holds the RTMP sockets. Single-target: encoder does.
+        return self.tee_process if self.tee_process is not None else self.encoder_process
+
     def update_stream(self, sockets, now):
-        process = self.tee_process
+        process = self.stream_process()
         old_state = self.stream_state
         if process is None or process.poll() is not None:
             self.stream_state = "failed"
@@ -595,7 +725,12 @@ class LivestreamService:
         self.update_stream(sockets, now)
         self.emit_status()
 
-        all_dead = not self.platforms or self.tee_process is None or self.tee_process.poll() is not None
+        process = self.stream_process()
+        all_dead = (
+            not self.platforms
+            or process is None
+            or process.poll() is not None
+        )
         if self.stopping:
             if all_dead:
                 self.finish()
@@ -784,20 +919,16 @@ def parse_args():
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run")
-    run.add_argument("--platforms-file", required=True)
+    run.add_argument("--config", required=True)
     run.add_argument("--target", default="portal")
     run.add_argument("--audio-source", required=True)
     run.add_argument("--framerate", type=int, default=30)
-    run.add_argument("--default-video", type=int, default=6000)
-    run.add_argument("--default-audio", type=int, default=160)
     run.add_argument("--keyint", type=int, default=2)
     run.add_argument("--scale-width", type=int, default=0)
     run.add_argument("--log-file", required=True)
 
     validate = sub.add_parser("validate")
-    validate.add_argument("--platforms-file", required=True)
-    validate.add_argument("--default-video", type=int, default=6000)
-    validate.add_argument("--default-audio", type=int, default=160)
+    validate.add_argument("--config", required=True)
 
     status = sub.add_parser("status")
     status.add_argument("--json", action="store_true")
@@ -821,9 +952,7 @@ def main():
     if args.command == "run":
         return LivestreamService(args).run()
     if args.command == "validate":
-        platforms = load_platforms(
-            args.platforms_file, args.default_video, args.default_audio
-        )
+        platforms, _video, _audio = load_stream_config(args.config)
         return 0 if platforms else 3
     if args.command == "is-active":
         return 0 if get_proxy() is not None else 1

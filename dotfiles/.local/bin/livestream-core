@@ -5,15 +5,10 @@
 SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 LIVESTREAM_SERVICE="$SCRIPT_DIR/livestream-service"
 LIVESTREAM_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
-# Push targets come from webcastmate live.json.
-LIVESTREAM_PLATFORMS_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/webcastmate/live.json"
-LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config"
+# Single JSON config: global bitrate + platforms[].
+LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config.json"
 LIVESTREAM_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/livestream-$UID}/livestream"
 LIVESTREAM_LOG_FILE="$LIVESTREAM_RUNTIME_DIR/livestream.log"
-
-# Only bitrate is user-configurable; the rest are fixed defaults.
-BITRATE="${BITRATE-}"
-AUDIO_BITRATE="${AUDIO_BITRATE-}"
 
 livestream_ensure_dirs() {
     install -d -m 700 "$LIVESTREAM_CONFIG_DIR" "$LIVESTREAM_RUNTIME_DIR"
@@ -21,45 +16,10 @@ livestream_ensure_dirs() {
 
 livestream_load_config() {
     livestream_ensure_dirs
-    [ -f "$LIVESTREAM_PLATFORMS_FILE" ] && chmod 600 "$LIVESTREAM_PLATFORMS_FILE"
     [ -f "$LIVESTREAM_CONFIG_FILE" ] && chmod 600 "$LIVESTREAM_CONFIG_FILE"
 
-    if [ -f "$LIVESTREAM_CONFIG_FILE" ]; then
-        while IFS= read -r line || [ -n "$line" ]; do
-            case "$line" in
-                ''|\#*) continue ;;
-                *=*)
-                    key="${line%%=*}"
-                    val="${line#*=}"
-                    key="${key// /}"
-                    case "$key" in
-                        BITRATE|AUDIO_BITRATE)
-                            eval "current=\${$key-}"
-                            if [ -z "$current" ]; then
-                                export "$key=$val"
-                            fi
-                            ;;
-                    esac
-                    ;;
-            esac
-        done < "$LIVESTREAM_CONFIG_FILE"
-    fi
-
-    # Video 6000 stays in companion recommend ladder (~7500 uplink band).
-    # Audio 160 matches webcast_mate SourceStore default bitrateA.
-    BITRATE="${BITRATE:-6000}"
-    AUDIO_BITRATE="${AUDIO_BITRATE:-160}"
-
-    if ! [[ "$BITRATE" =~ ^[0-9]+$ ]] || ((BITRATE < 100 || BITRATE > 50000)); then
-        BITRATE=6000
-    fi
-    if ! [[ "$AUDIO_BITRATE" =~ ^[0-9]+$ ]] \
-        || ((AUDIO_BITRATE < 32 || AUDIO_BITRATE > 320)); then
-        AUDIO_BITRATE=160
-    fi
-
     # Fixed defaults (not user-configurable).
-    # fps 30 + gopSec/KEYINT 2s align with companion PushBase / SourceStore.
+    # Bitrate lives in config.json and is read by livestream-service.
     FRAMERATE=30
     KEYINT=2
     SCALE_WIDTH=0
@@ -160,18 +120,14 @@ livestream_start() {
         return 5
     fi
     "$LIVESTREAM_SERVICE" validate \
-        --platforms-file "$LIVESTREAM_PLATFORMS_FILE" \
-        --default-video "$BITRATE" \
-        --default-audio "$AUDIO_BITRATE" >/dev/null 2>&1 || return 3
+        --config "$LIVESTREAM_CONFIG_FILE" >/dev/null 2>&1 || return 3
 
     livestream_unmute_audio
     setsid "$LIVESTREAM_SERVICE" run \
-        --platforms-file "$LIVESTREAM_PLATFORMS_FILE" \
+        --config "$LIVESTREAM_CONFIG_FILE" \
         --target "$capture_target" \
         --audio-source "$AUDIO_SOURCE" \
         --framerate "$FRAMERATE" \
-        --default-video "$BITRATE" \
-        --default-audio "$AUDIO_BITRATE" \
         --keyint "$KEYINT" \
         --scale-width "$SCALE_WIDTH" \
         --log-file "$LIVESTREAM_LOG_FILE" \
