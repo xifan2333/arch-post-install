@@ -636,9 +636,14 @@ class LivestreamService:
             and not self.stopping
         ):
             self.disconnect_notified = True
+            default_platform = translate("livestream_platform_default", "Platform")
+            platform_names = ", ".join(
+                platform.name or default_platform for platform in self.platforms
+            ) or default_platform
             self.notify(
                 "livestream_notify_disconnected",
-                "RTMP stream is no longer sending ({state})",
+                "{platform}: RTMP is no longer sending ({state})",
+                platform=platform_names,
                 state=translated_state(self.stream_state),
             )
 
