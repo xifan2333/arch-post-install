@@ -1,0 +1,27 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Zsh
+        run: sudo apt-get update && sudo apt-get install --yes zsh
+
+      - name: Install mise tools
+        uses: jdx/mise-action@v3
+        with:
+          cache: true
+          install: true
+
+      - name: Run linters
+        run: mise run lint

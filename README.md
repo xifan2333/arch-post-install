@@ -129,6 +129,30 @@ mise self-update
 mise -C ~/code/arch-post-install bootstrap --yes
 ```
 
+## 代码规范与检查
+
+项目按文件类型使用对应工具：Python 用 Ruff，Bash 用 ShellCheck，Lua 和 Zsh 做语法检查，TOML 用 Taplo，JSON/JSONC/YAML 用 Prettier。版本统一固定在根目录的 `mise.toml`。
+
+首次使用先安装工具：
+
+```bash
+mise install
+```
+
+检查所有 Git 已跟踪文件（不会改文件）：
+
+```bash
+mise run lint
+```
+
+自动格式化支持的文件：
+
+```bash
+mise run format
+```
+
+提交前建议至少执行一次 `mise run lint`；GitHub Actions 也会对 push 和 pull request 执行同一检查。
+
 ## 配置文件是怎么连接的
 
 mise 会为仓库中的文件创建软链接。例如：

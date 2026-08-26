@@ -1,0 +1,23 @@
+# Lefthook git hooks. Install with `mise run hooks` (runs `lefthook install`).
+#
+# lint uses `mise run lint` (static checks, no writes) over all tracked files;
+# the pre-commit hook runs it unconditionally rather than per staged file,
+# because the lint script itself scans `git ls-files`.
+#
+# Commit messages follow Conventional Commits via commitlint.
+
+commit-msg:
+  parallel: true
+  commands:
+    commitlint:
+      run: commitlint --edit "$1"
+
+pre-commit:
+  commands:
+    lint:
+      run: mise run lint
+
+pre-push:
+  commands:
+    lint:
+      run: mise run lint

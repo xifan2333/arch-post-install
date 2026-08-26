@@ -1,5 +1,15 @@
 min_version = "2026.8.2"
 
+[tools]
+lefthook = "latest"
+lua = "latest"
+prettier = "latest"
+ruff = "latest"
+shellcheck = "latest"
+shfmt = "latest"
+stylua = "latest"
+taplo = "latest"
+
 [settings]
 dotfiles.default_mode = "symlink"
 
@@ -75,6 +85,18 @@ mode = "0644"
 "~/.local/share/applications" = { source = "dotfiles/.local/share/applications", mode = "symlink-each" }
 "~/.local/share/fcitx5" = { source = "dotfiles/.local/share/fcitx5", mode = "symlink-each" }
 "~/.local/share/qutebrowser" = { source = "dotfiles/.local/share/qutebrowser", mode = "symlink-each" }
+
+[tasks.lint]
+description = "Lint and syntax-check every tracked language"
+run = "scripts/lint"
+
+[tasks.hooks]
+description = "Install or refresh lefthook git hooks"
+run = "lefthook install"
+
+[tasks.format]
+description = "Format tracked Python, Bash, Lua, TOML, JSON, and YAML files"
+run = "scripts/format"
 
 # Imperative leftovers that are not static dotfiles. This task runs after
 # tools are installed, so every operation here must remain idempotent.

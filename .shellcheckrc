@@ -1,0 +1,7 @@
+# Translation dictionaries are excluded by scripts/lint; they are sourced data,
+# not standalone programs.
+severity=warning
+external-sources=true
+source-path=SCRIPTDIR
+# i18n-core intentionally selects a locale file at runtime.
+disable=SC1090
