@@ -2,6 +2,6 @@
   "include": [
     "~/.config/waybar/capture.jsonc",
     "~/.config/waybar/workspaces.jsonc",
-    "~/.local/share/omarchy/config/waybar/config.jsonc"
-  ]
+    "~/.local/share/omarchy/config/waybar/config.jsonc",
+  ],
 }
