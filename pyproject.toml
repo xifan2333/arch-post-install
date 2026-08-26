@@ -10,8 +10,8 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# qutebrowser injects these names and Chinese punctuation is intentional.
-"dotfiles/.config/qutebrowser/config.py" = ["F821", "RUF003"]
+# qutebrowser injects these names when loading config.py.
+"dotfiles/.config/qutebrowser/config.py" = ["F821"]
 # GI imports are selected dynamically and must follow gi.require_version().
 "dotfiles/.local/bin/livestream-config" = ["E402"]
 "dotfiles/.local/bin/livestream-service" = ["E402"]

@@ -1,8 +1,8 @@
-# qutebrowser配置
+# qutebrowser configuration
 config.load_autoconfig()
 
 
-# 设置搜索引擎
+# Search engines
 c.url.searchengines = {
     "DEFAULT": "https://www.google.com/search?q={}",
     "sg": "https://www.google.com/search?q={}",
@@ -11,27 +11,27 @@ c.url.searchengines = {
     "sl": "https://linux.do/search?q={}",
 }
 
-# 设置主页为Gemini
+# Start page
 c.url.start_pages = ["https://gemini.google.com"]
 
-# 字体设置
+# Fonts
 c.fonts.default_size = "12pt"
 c.fonts.default_family = "CaskaydiaMono Nerd Font Mono, Sarasa Mono SC"
 
-# 设置界面语言为中文
+# Prefer Chinese UI content
 c.content.headers.accept_language = "zh-CN,zh;q=0.9,en;q=0.8"
 
-# 自动保存会话
+# Persist sessions automatically
 c.auto_save.session = True
 
-# 内存优化：限制缓存大小，防止内存占用过高
+# Limit the cache to avoid excessive memory usage
 c.qt.chromium.low_end_device_mode = "auto"
 c.content.cache.size = 52428800  # 50MB
 
-# 翻译快捷键
+# Translation shortcut
 config.bind("tt", "spawn --userscript translate")
 
-# 快速访问本地服务
+# Local service shortcuts
 config.bind(",pve", "open -t https://10.0.0.254:8006")
 config.bind(",rt", "open -t http://10.0.0.1")
 config.bind(",api", "open -t http://10.0.0.253:3000")
