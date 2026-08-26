@@ -9,22 +9,30 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
+from gi.repository import GLib, Gtk
 
 
 def t(key, fallback=""):
     """Translate via the bash i18n-core msg() function."""
     try:
         r = subprocess.run(
-            ["bash", "-c",
-             f'source "$HOME/.local/bin/i18n-core" 2>/dev/null && msg {key}'],
-            env={**os.environ, "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", "")},
-            capture_output=True, text=True, timeout=2,
+            ["bash", "-c", f'source "$HOME/.local/bin/i18n-core" 2>/dev/null && msg {key}'],
+            env={
+                **os.environ,
+                "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", ""),
+            },
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
         )
         out = r.stdout.strip()
         return out if out else fallback
-    except Exception:
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        # Missing commands, timeouts, and broken locale decoding all fall back
+        # instead of crashing the floating title text.
         return fallback
+
 
 CONFIG_FILE = Path(GLib.get_user_config_dir()) / "screenrecord" / "title.conf"
 

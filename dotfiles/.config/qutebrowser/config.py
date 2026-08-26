@@ -4,39 +4,39 @@ config.load_autoconfig()
 
 # 设置搜索引擎
 c.url.searchengines = {
-    'DEFAULT': 'https://www.google.com/search?q={}',
-    'sg': 'https://www.google.com/search?q={}',
-    'sb': 'https://search.bilibili.com/all?keyword={}',
-    'sh': 'https://github.com/search?q={}',
-    'sl': 'https://linux.do/search?q={}',
+    "DEFAULT": "https://www.google.com/search?q={}",
+    "sg": "https://www.google.com/search?q={}",
+    "sb": "https://search.bilibili.com/all?keyword={}",
+    "sh": "https://github.com/search?q={}",
+    "sl": "https://linux.do/search?q={}",
 }
 
 # 设置主页为Gemini
-c.url.start_pages = ['https://gemini.google.com']
+c.url.start_pages = ["https://gemini.google.com"]
 
 # 字体设置
-c.fonts.default_size = '12pt'
-c.fonts.default_family = 'CaskaydiaMono Nerd Font Mono, Sarasa Mono SC'
+c.fonts.default_size = "12pt"
+c.fonts.default_family = "CaskaydiaMono Nerd Font Mono, Sarasa Mono SC"
 
 # 设置界面语言为中文
-c.content.headers.accept_language = 'zh-CN,zh;q=0.9,en;q=0.8'
+c.content.headers.accept_language = "zh-CN,zh;q=0.9,en;q=0.8"
 
 # 自动保存会话
 c.auto_save.session = True
 
 # 内存优化：限制缓存大小，防止内存占用过高
-c.qt.chromium.low_end_device_mode = 'auto'
+c.qt.chromium.low_end_device_mode = "auto"
 c.content.cache.size = 52428800  # 50MB
 
 # 翻译快捷键
-config.bind('tt', 'spawn --userscript translate')
+config.bind("tt", "spawn --userscript translate")
 
 # 快速访问本地服务
-config.bind(',pve', 'open -t https://10.0.0.254:8006')
-config.bind(',rt', 'open -t http://10.0.0.1')
-config.bind(',api', 'open -t http://10.0.0.253:3000')
-config.bind(',ql', 'open -t http://10.0.0.253:5700')
-config.bind(',pr', 'open -t http://10.0.0.1:9090/ui/zashboard')
-config.bind(',cpa', 'open -t http://10.0.0.253:8317/management.html')
-config.bind(',opl', 'open -t http://10.0.0.253:5244')
-config.bind(',ctn', 'open -t http://10.0.0.253:9000')
+config.bind(",pve", "open -t https://10.0.0.254:8006")
+config.bind(",rt", "open -t http://10.0.0.1")
+config.bind(",api", "open -t http://10.0.0.253:3000")
+config.bind(",ql", "open -t http://10.0.0.253:5700")
+config.bind(",pr", "open -t http://10.0.0.1:9090/ui/zashboard")
+config.bind(",cpa", "open -t http://10.0.0.253:8317/management.html")
+config.bind(",opl", "open -t http://10.0.0.253:5244")
+config.bind(",ctn", "open -t http://10.0.0.253:9000")

@@ -11,17 +11,17 @@ import cairo
 import gi
 
 try:
-    gi.require_version('Gtk', '3.0')
-    gi.require_version('Gdk', '3.0')
-    gi.require_version('GdkPixbuf', '2.0')
-    gi.require_version('GtkLayerShell', '0.1')
-    gi.require_version('Gst', '1.0')
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("Gdk", "3.0")
+    gi.require_version("GdkPixbuf", "2.0")
+    gi.require_version("GtkLayerShell", "0.1")
+    gi.require_version("Gst", "1.0")
     from gi.repository import Gdk, GdkPixbuf, GLib, Gst, Gtk, GtkLayerShell
-except Exception as exc:
+except (ImportError, ValueError) as exc:
     print(f"screenrecord-overlay-camera: missing dependency: {exc}", file=sys.stderr)
     sys.exit(1)
 
-WINDOW_TITLE = 'Screenrecord Overlay Camera'
+WINDOW_TITLE = "Screenrecord Overlay Camera"
 
 
 def enable_click_through(win):
@@ -32,28 +32,45 @@ def enable_click_through(win):
         gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
         return False
 
-    win.connect('realize', apply)
-    win.connect('size-allocate', lambda *a: apply())
+    win.connect("realize", apply)
+    win.connect("size-allocate", lambda *a: apply())
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Show a non-focusable webcam overlay for screen recording.')
-    parser.add_argument('--device', default='/dev/video0', help='V4L2 camera device')
+    parser = argparse.ArgumentParser(
+        description="Show a non-focusable webcam overlay for screen recording."
+    )
+    parser.add_argument("--device", default="/dev/video0", help="V4L2 camera device")
     # Default display size: same 4:3 aspect as capture, scaled to previous square height (~150)
-    parser.add_argument('--width', type=int, default=200, help='overlay window width in pixels')
-    parser.add_argument('--height', type=int, default=150, help='overlay window height in pixels')
-    # Back-compat: --size used to mean square side; map to width/height if provided alone via default handling below
-    parser.add_argument('--size', type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument('--capture-width', type=int, default=320, help='camera capture width')
-    parser.add_argument('--capture-height', type=int, default=240, help='camera capture height')
-    parser.add_argument('--fps', type=int, default=30, help='camera capture framerate')
-    parser.add_argument('--anchor-x', choices=['left', 'right'], default='right', help='horizontal screen edge')
-    parser.add_argument('--anchor-y', choices=['top', 'bottom'], default='bottom', help='vertical screen edge')
-    parser.add_argument('--margin-x', type=int, default=0, help='margin from horizontal edge')
-    parser.add_argument('--margin-y', type=int, default=0, help='margin from vertical edge')
-    parser.add_argument('--border-width', type=float, default=1.5, help='subtle border width; 0 disables border')
-    parser.add_argument('--mirror', dest='mirror', action='store_true', default=True, help='mirror camera horizontally')
-    parser.add_argument('--no-mirror', dest='mirror', action='store_false', help='do not mirror camera')
+    parser.add_argument("--width", type=int, default=200, help="overlay window width in pixels")
+    parser.add_argument("--height", type=int, default=150, help="overlay window height in pixels")
+    # Back-compat: --size used to mean a square side. Map it to width/height
+    # when provided alone via the default handling below.
+    parser.add_argument("--size", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--capture-width", type=int, default=320, help="camera capture width")
+    parser.add_argument("--capture-height", type=int, default=240, help="camera capture height")
+    parser.add_argument("--fps", type=int, default=30, help="camera capture framerate")
+    parser.add_argument(
+        "--anchor-x", choices=["left", "right"], default="right", help="horizontal screen edge"
+    )
+    parser.add_argument(
+        "--anchor-y", choices=["top", "bottom"], default="bottom", help="vertical screen edge"
+    )
+    parser.add_argument("--margin-x", type=int, default=0, help="margin from horizontal edge")
+    parser.add_argument("--margin-y", type=int, default=0, help="margin from vertical edge")
+    parser.add_argument(
+        "--border-width", type=float, default=1.5, help="subtle border width; 0 disables border"
+    )
+    parser.add_argument(
+        "--mirror",
+        dest="mirror",
+        action="store_true",
+        default=True,
+        help="mirror camera horizontally",
+    )
+    parser.add_argument(
+        "--no-mirror", dest="mirror", action="store_false", help="do not mirror camera"
+    )
     args = parser.parse_args()
     if args.size is not None:
         # legacy square mode if someone still passes --size
@@ -64,7 +81,7 @@ def parse_args():
 
 class CameraOverlay(Gtk.Application):
     def __init__(self, args):
-        super().__init__(application_id='works.xifan.screenrecord.overlay.camera')
+        super().__init__(application_id="works.xifan.screenrecord.overlay.camera")
         self.args = args
         self.win = None
         self.area = None
@@ -92,14 +109,18 @@ class CameraOverlay(Gtk.Application):
 
         GtkLayerShell.init_for_window(self.win)
         GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.OVERLAY)
-        edge_x = GtkLayerShell.Edge.RIGHT if self.args.anchor_x == 'right' else GtkLayerShell.Edge.LEFT
-        edge_y = GtkLayerShell.Edge.BOTTOM if self.args.anchor_y == 'bottom' else GtkLayerShell.Edge.TOP
+        edge_x = (
+            GtkLayerShell.Edge.RIGHT if self.args.anchor_x == "right" else GtkLayerShell.Edge.LEFT
+        )
+        edge_y = (
+            GtkLayerShell.Edge.BOTTOM if self.args.anchor_y == "bottom" else GtkLayerShell.Edge.TOP
+        )
         GtkLayerShell.set_anchor(self.win, edge_x, True)
         GtkLayerShell.set_anchor(self.win, edge_y, True)
         GtkLayerShell.set_margin(self.win, edge_x, self.args.margin_x)
         GtkLayerShell.set_margin(self.win, edge_y, self.args.margin_y)
         GtkLayerShell.set_exclusive_zone(self.win, -1)
-        if hasattr(GtkLayerShell, 'set_keyboard_mode'):
+        if hasattr(GtkLayerShell, "set_keyboard_mode"):
             GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
         else:
             GtkLayerShell.set_keyboard_interactivity(self.win, False)
@@ -107,50 +128,52 @@ class CameraOverlay(Gtk.Application):
 
         self.area = Gtk.DrawingArea()
         self.area.set_size_request(self.args.width, self.args.height)
-        self.area.connect('draw', self.on_draw)
+        self.area.connect("draw", self.on_draw)
         self.win.add(self.area)
 
         self.win.show_all()
         self.start_camera()
 
     def start_camera(self):
-        flip = 'videoflip method=horizontal-flip ! ' if self.args.mirror else ''
+        flip = "videoflip method=horizontal-flip ! " if self.args.mirror else ""
         pipeline_desc = (
-            f'v4l2src device={self.args.device} ! '
-            f'video/x-raw,width={self.args.capture_width},height={self.args.capture_height},framerate={self.args.fps}/1 ! '
-            f'{flip}'
-            'videoconvert ! video/x-raw,format=RGB ! '
-            'appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false'
+            f"v4l2src device={self.args.device} ! "
+            "video/x-raw,"
+            f"width={self.args.capture_width},height={self.args.capture_height},"
+            f"framerate={self.args.fps}/1 ! "
+            f"{flip}"
+            "videoconvert ! video/x-raw,format=RGB ! "
+            "appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
         )
 
         try:
             self.pipeline = Gst.parse_launch(pipeline_desc)
-        except Exception as exc:
+        except GLib.Error as exc:
             print(f"screenrecord-overlay-camera: failed to create pipeline: {exc}", file=sys.stderr)
             self.quit()
             return
 
-        sink = self.pipeline.get_by_name('sink')
-        sink.connect('new-sample', self.on_new_sample)
+        sink = self.pipeline.get_by_name("sink")
+        sink.connect("new-sample", self.on_new_sample)
 
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
-        bus.connect('message', self.on_bus_message)
+        bus.connect("message", self.on_bus_message)
 
         result = self.pipeline.set_state(Gst.State.PLAYING)
         if result == Gst.StateChangeReturn.FAILURE:
-            print('screenrecord-overlay-camera: failed to start camera pipeline', file=sys.stderr)
+            print("screenrecord-overlay-camera: failed to start camera pipeline", file=sys.stderr)
             self.quit()
 
     def on_new_sample(self, sink):
-        sample = sink.emit('pull-sample')
+        sample = sink.emit("pull-sample")
         if not sample:
             return Gst.FlowReturn.ERROR
 
         caps = sample.get_caps()
         info = caps.get_structure(0)
-        width = info.get_value('width')
-        height = info.get_value('height')
+        width = info.get_value("width")
+        height = info.get_value("height")
 
         buffer = sample.get_buffer()
         success, map_info = buffer.map(Gst.MapFlags.READ)
@@ -232,6 +255,6 @@ class CameraOverlay(Gtk.Application):
         Gtk.Application.do_shutdown(self)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     CameraOverlay(parse_args()).run(None)

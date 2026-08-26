@@ -9,7 +9,9 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
+import contextlib
+
+from gi.repository import GLib, Gtk
 
 CONFIG_DIR = Path(GLib.get_user_config_dir()) / "livestream"
 CONFIG_FILE = CONFIG_DIR / "config.json"
@@ -23,15 +25,13 @@ def t(key, fallback=""):
             [
                 "bash",
                 "-c",
-                'source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; '
-                'msg "$1"',
+                ('source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; msg "$1"'),
                 "livestream-config",
                 key,
             ],
             env={
                 **os.environ,
-                "PATH": os.path.expanduser("~/.local/bin") + ":"
-                + os.environ.get("PATH", ""),
+                "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", ""),
             },
             capture_output=True,
             text=True,
@@ -62,7 +62,7 @@ def ensure_migrated():
         service = here if here.is_file() else service
     if not service.is_file():
         return
-    try:
+    with contextlib.suppress(OSError, subprocess.TimeoutExpired):
         subprocess.run(
             [str(service), "validate", "--config", str(CONFIG_FILE)],
             capture_output=True,
@@ -70,8 +70,6 @@ def ensure_migrated():
             timeout=5,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
 
 
 def load_config():
@@ -118,12 +116,14 @@ def load_config():
     for name, item in pairs:
         if not isinstance(item, dict):
             continue
-        platforms.append({
-            "enabled": bool(item.get("enabled", True)),
-            "name": str(name or item.get("name") or "").strip(),
-            "server": str(item.get("server") or "").strip(),
-            "key": str(item.get("key") or item.get("stream_key") or "").strip(),
-        })
+        platforms.append(
+            {
+                "enabled": bool(item.get("enabled", True)),
+                "name": str(name or item.get("name") or "").strip(),
+                "server": str(item.get("server") or "").strip(),
+                "key": str(item.get("key") or item.get("stream_key") or "").strip(),
+            }
+        )
     return video, audio, platforms
 
 
@@ -137,12 +137,14 @@ def save_config(video, audio, platforms):
         name = platform.get("name", "").strip()
         if not name:
             continue
-        payload["platforms"].append({
-            "enabled": bool(platform.get("enabled", True)),
-            "name": name,
-            "server": platform.get("server", "").strip(),
-            "key": platform.get("key", "").strip(),
-        })
+        payload["platforms"].append(
+            {
+                "enabled": bool(platform.get("enabled", True)),
+                "name": name,
+                "server": platform.get("server", "").strip(),
+                "key": platform.get("key", "").strip(),
+            }
+        )
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     os.chmod(CONFIG_DIR, 0o700)
@@ -160,10 +162,12 @@ class PlatformRow:
         self.enabled_switch = Gtk.Switch()
         self.enabled_switch.set_active(data.get("enabled", True))
         self.enabled_switch.set_valign(Gtk.Align.CENTER)
-        self.enabled_switch.set_tooltip_text(t(
-            "livestream_cfg_enabled_tooltip",
-            "Enable or disable this platform without removing it",
-        ))
+        self.enabled_switch.set_tooltip_text(
+            t(
+                "livestream_cfg_enabled_tooltip",
+                "Enable or disable this platform without removing it",
+            )
+        )
 
         self.name_entry = Gtk.Entry()
         self.name_entry.set_placeholder_text(t("livestream_cfg_name", "Name"))
@@ -184,19 +188,27 @@ class PlatformRow:
         self.key_entry.set_hexpand(True)
 
         self.show_button = Gtk.Button.new_from_icon_name(
-            "view-reveal", Gtk.IconSize.SMALL_TOOLBAR
+            "view-reveal",
+            Gtk.IconSize.SMALL_TOOLBAR,
         )
-        self.show_button.set_tooltip_text(t(
-            "livestream_cfg_show_key", "Show or hide stream key"
-        ))
+        self.show_button.set_tooltip_text(
+            t(
+                "livestream_cfg_show_key",
+                "Show or hide stream key",
+            )
+        )
         self.show_button.connect("clicked", self._toggle_key_visibility)
 
         self.remove_button = Gtk.Button.new_from_icon_name(
-            "edit-delete", Gtk.IconSize.SMALL_TOOLBAR
+            "edit-delete",
+            Gtk.IconSize.SMALL_TOOLBAR,
         )
-        self.remove_button.set_tooltip_text(t(
-            "livestream_cfg_remove", "Remove platform"
-        ))
+        self.remove_button.set_tooltip_text(
+            t(
+                "livestream_cfg_remove",
+                "Remove platform",
+            )
+        )
         self.remove_button.connect("clicked", lambda _button: on_remove(self))
 
         self.widgets = [
@@ -255,9 +267,12 @@ class LivestreamConfigDialog(Gtk.Dialog):
         self.video_bitrate = Gtk.SpinButton.new_with_range(100, 50000, 100)
         self.video_bitrate.set_value(video_bitrate)
         self.video_bitrate.set_numeric(True)
-        self.video_bitrate.set_tooltip_text(t(
-            "livestream_cfg_video_tooltip", "Video bitrate in kbps"
-        ))
+        self.video_bitrate.set_tooltip_text(
+            t(
+                "livestream_cfg_video_tooltip",
+                "Video bitrate in kbps",
+            )
+        )
 
         audio_label = Gtk.Label(
             label=t("livestream_cfg_audio_kbps", "Audio (kbps)"),
@@ -266,9 +281,12 @@ class LivestreamConfigDialog(Gtk.Dialog):
         self.audio_bitrate = Gtk.SpinButton.new_with_range(32, 320, 8)
         self.audio_bitrate.set_value(audio_bitrate)
         self.audio_bitrate.set_numeric(True)
-        self.audio_bitrate.set_tooltip_text(t(
-            "livestream_cfg_audio_tooltip", "Audio bitrate in kbps"
-        ))
+        self.audio_bitrate.set_tooltip_text(
+            t(
+                "livestream_cfg_audio_tooltip",
+                "Audio bitrate in kbps",
+            )
+        )
 
         bitrate_grid.attach(video_label, 0, 0, 1, 1)
         bitrate_grid.attach(self.video_bitrate, 1, 0, 1, 1)
@@ -277,17 +295,25 @@ class LivestreamConfigDialog(Gtk.Dialog):
         content.pack_start(bitrate_grid, False, False, 0)
 
         content.pack_start(
-            Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0
+            Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
+            False,
+            False,
+            0,
         )
 
         self.rows_grid = Gtk.Grid(column_spacing=6, row_spacing=6)
         self.rows_grid.set_border_width(4)
         self.rows_grid.set_hexpand(True)
-        for column, label_text in enumerate([
-            t("livestream_cfg_name", "Name"),
-            t("livestream_cfg_server", "Server"),
-            t("livestream_cfg_key", "Key"),
-        ]):
+        for column, label_text in enumerate(
+            [
+                t("livestream_cfg_enabled", "On"),
+                t("livestream_cfg_name", "Name"),
+                t("livestream_cfg_server", "Server"),
+                t("livestream_cfg_key", "Key"),
+                "",
+                "",
+            ]
+        ):
             label = Gtk.Label()
             label.set_markup(f"<b>{GLib.markup_escape_text(label_text)}</b>")
             label.set_halign(Gtk.Align.FILL)

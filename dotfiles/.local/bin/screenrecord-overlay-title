@@ -12,11 +12,11 @@ import cairo
 import gi
 
 try:
-    gi.require_version('Gtk', '3.0')
-    gi.require_version('Gdk', '3.0')
-    gi.require_version('GtkLayerShell', '0.1')
-    from gi.repository import Gdk, GLib, Gtk, GtkLayerShell
-except Exception as exc:
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("Gdk", "3.0")
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GLib, Gtk, GtkLayerShell
+except (ImportError, ValueError) as exc:
     print(f"screenrecord-overlay-title: missing dependency: {exc}", file=sys.stderr)
     sys.exit(1)
 
@@ -32,34 +32,35 @@ def enable_click_through(win: Gtk.Window) -> None:
         gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
         return False
 
-    win.connect('realize', apply)
-    win.connect('size-allocate', lambda *a: apply())
+    win.connect("realize", apply)
+    win.connect("size-allocate", lambda *a: apply())
 
-WINDOW_TITLE = 'Screenrecord Overlay Title'
-APP_ID = 'works.xifan.screenrecord.overlay.title'
+
+WINDOW_TITLE = "Screenrecord Overlay Title"
+APP_ID = "works.xifan.screenrecord.overlay.title"
 
 DEFAULT_CONFIG_DIR = os.path.join(
-    os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
-    'screenrecord',
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+    "screenrecord",
 )
-DEFAULT_CONFIG_PATH = os.path.join(DEFAULT_CONFIG_DIR, 'title.conf')
+DEFAULT_CONFIG_PATH = os.path.join(DEFAULT_CONFIG_DIR, "title.conf")
 
 DEFAULTS = {
-    'text': '直播标题',
-    'font_family': 'sans-serif',
-    'font_size': '36',
-    'font_weight': '700',
-    'text_color': '#ffffff',
-    'background': 'rgba(0, 0, 0, 0.55)',
-    'text_shadow': '-1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black',
-    'anchor_x': 'left',
-    'anchor_y': 'top',
-    'margin_x': '24',
-    'margin_y': '24',
-    'padding_x': '16',
-    'padding_y': '10',
-    'max_width': '900',
-    'opacity': '1.0',
+    "text": "直播标题",
+    "font_family": "sans-serif",
+    "font_size": "36",
+    "font_weight": "700",
+    "text_color": "#ffffff",
+    "background": "rgba(0, 0, 0, 0.55)",
+    "text_shadow": "-1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black",
+    "anchor_x": "left",
+    "anchor_y": "top",
+    "margin_x": "24",
+    "margin_y": "24",
+    "padding_x": "16",
+    "padding_y": "10",
+    "max_width": "900",
+    "opacity": "1.0",
 }
 
 
@@ -69,31 +70,31 @@ def ensure_config(path: str) -> None:
     if os.path.exists(path):
         return
     cfg = configparser.ConfigParser()
-    cfg['title'] = dict(DEFAULTS)
-    with open(path, 'w', encoding='utf-8') as fh:
+    cfg["title"] = dict(DEFAULTS)
+    with open(path, "w", encoding="utf-8") as fh:
         cfg.write(fh)
 
 
 def load_config(path: str) -> dict:
     ensure_config(path)
     cfg = configparser.ConfigParser()
-    cfg.read(path, encoding='utf-8')
+    cfg.read(path, encoding="utf-8")
     data = dict(DEFAULTS)
-    if cfg.has_section('title'):
-        for key, value in cfg.items('title'):
+    if cfg.has_section("title"):
+        for key, value in cfg.items("title"):
             data[key] = value
-            data[key.replace('-', '_')] = value
+            data[key.replace("-", "_")] = value
     return data
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Show a configurable title overlay.')
+    parser = argparse.ArgumentParser(description="Show a configurable title overlay.")
     parser.add_argument(
-        '--config',
-        default=os.environ.get('SCREENRECORD_OVERLAY_TITLE_CONFIG', DEFAULT_CONFIG_PATH),
-        help='path to title.conf',
+        "--config",
+        default=os.environ.get("SCREENRECORD_OVERLAY_TITLE_CONFIG", DEFAULT_CONFIG_PATH),
+        help="path to title.conf",
     )
-    parser.add_argument('--text', default=None, help='override title text')
+    parser.add_argument("--text", default=None, help="override title text")
     return parser.parse_args()
 
 
@@ -112,7 +113,7 @@ class TitleOverlay(Gtk.Application):
         ensure_config(self.config_path)
         self.current = load_config(self.config_path)
         if self.args.text is not None:
-            self.current['text'] = self.args.text
+            self.current["text"] = self.args.text
 
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_title(WINDOW_TITLE)
@@ -131,25 +132,27 @@ class TitleOverlay(Gtk.Application):
         GtkLayerShell.init_for_window(self.win)
         GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.OVERLAY)
         GtkLayerShell.set_exclusive_zone(self.win, -1)
-        if hasattr(GtkLayerShell, 'set_keyboard_mode'):
+        if hasattr(GtkLayerShell, "set_keyboard_mode"):
             GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
         else:
             GtkLayerShell.set_keyboard_interactivity(self.win, False)
         enable_click_through(self.win)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.label = Gtk.Label(label='')
+        self.label = Gtk.Label(label="")
         self.label.set_line_wrap(True)
         self.label.set_justify(Gtk.Justification.LEFT)
         self.label.set_xalign(0.0)
         self.label.set_yalign(0.5)
-        self.label.get_style_context().add_class('title-label')
+        self.label.get_style_context().add_class("title-label")
         box.pack_start(self.label, True, True, 0)
         self.win.add(box)
 
         self.css_provider = Gtk.CssProvider()
         Gtk.StyleContext.add_provider_for_screen(
-            screen, self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            screen,
+            self.css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
         self.apply_style(force=True)
@@ -166,13 +169,13 @@ class TitleOverlay(Gtk.Application):
             GtkLayerShell.set_anchor(self.win, edge, False)
             GtkLayerShell.set_margin(self.win, edge, 0)
 
-        anchor_x = conf.get('anchor_x', 'left')
-        anchor_y = conf.get('anchor_y', 'top')
-        margin_x = int(float(conf.get('margin_x', 24)))
-        margin_y = int(float(conf.get('margin_y', 24)))
+        anchor_x = conf.get("anchor_x", "left")
+        anchor_y = conf.get("anchor_y", "top")
+        margin_x = int(float(conf.get("margin_x", 24)))
+        margin_y = int(float(conf.get("margin_y", 24)))
 
-        edge_x = GtkLayerShell.Edge.RIGHT if anchor_x == 'right' else GtkLayerShell.Edge.LEFT
-        edge_y = GtkLayerShell.Edge.BOTTOM if anchor_y == 'bottom' else GtkLayerShell.Edge.TOP
+        edge_x = GtkLayerShell.Edge.RIGHT if anchor_x == "right" else GtkLayerShell.Edge.LEFT
+        edge_y = GtkLayerShell.Edge.BOTTOM if anchor_y == "bottom" else GtkLayerShell.Edge.TOP
         GtkLayerShell.set_anchor(self.win, edge_x, True)
         GtkLayerShell.set_anchor(self.win, edge_y, True)
         GtkLayerShell.set_margin(self.win, edge_x, margin_x)
@@ -181,25 +184,25 @@ class TitleOverlay(Gtk.Application):
     def apply_style(self, force: bool = False) -> None:
         conf = load_config(self.config_path)
         if self.args.text is not None:
-            conf['text'] = self.args.text
+            conf["text"] = self.args.text
 
         if not force and conf == self.current:
             return
 
         self.current = conf
-        text = conf.get('text', '')
+        text = conf.get("text", "")
         self.label.set_text(text)
 
-        padding_x = int(float(conf.get('padding_x', 16)))
-        padding_y = int(float(conf.get('padding_y', 10)))
-        max_width = int(float(conf.get('max_width', 900)))
-        font_size = int(float(conf.get('font_size', 36)))
-        font_family = conf.get('font_family', 'sans-serif')
-        font_weight = conf.get('font_weight', '700')
-        text_color = conf.get('text_color', '#ffffff')
-        background = conf.get('background', 'rgba(0, 0, 0, 0.55)')
-        text_shadow = conf.get('text_shadow', 'none')
-        opacity = float(conf.get('opacity', '1.0'))
+        padding_x = int(float(conf.get("padding_x", 16)))
+        padding_y = int(float(conf.get("padding_y", 10)))
+        max_width = int(float(conf.get("max_width", 900)))
+        font_size = int(float(conf.get("font_size", 36)))
+        font_family = conf.get("font_family", "sans-serif")
+        font_weight = conf.get("font_weight", "700")
+        text_color = conf.get("text_color", "#ffffff")
+        background = conf.get("background", "rgba(0, 0, 0, 0.55)")
+        text_shadow = conf.get("text_shadow", "none")
+        opacity = float(conf.get("opacity", "1.0"))
 
         self.label.set_max_width_chars(max(8, max_width // max(font_size // 2, 1)))
         self.label.set_margin_start(padding_x)
@@ -207,7 +210,7 @@ class TitleOverlay(Gtk.Application):
         self.label.set_margin_top(padding_y)
         self.label.set_margin_bottom(padding_y)
 
-        css = f'''
+        css = f"""
         window {{
             background: {background};
         }}
@@ -218,7 +221,7 @@ class TitleOverlay(Gtk.Application):
             font-weight: {font_weight};
             text-shadow: {text_shadow};
         }}
-        '''.encode()
+        """.encode()
         self.css_provider.load_from_data(css)
         self.apply_anchor(conf)
         self.win.set_opacity(max(0.0, min(1.0, opacity)))
@@ -252,5 +255,5 @@ def main():
     app.run(None)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -15,7 +15,6 @@ import os
 import re
 import signal
 import subprocess
-import sys
 import threading
 import time
 import warnings
@@ -28,6 +27,8 @@ DEFAULT_AUDIO_BITRATE = 160
 import gi
 
 gi.require_version("Gio", "2.0")
+import contextlib
+
 from gi.repository import Gio, GLib
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -178,8 +179,8 @@ def read_legacy_shell_bitrate(path):
         text = Path(path).read_text(encoding="utf-8")
     except OSError:
         return video, audio
-    for line in text.splitlines():
-        line = line.strip()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
@@ -336,7 +337,11 @@ def get_remote_status():
         return None
     try:
         result = proxy.call_sync(
-            "GetStatus", None, Gio.DBusCallFlags.NONE, 2000, None
+            "GetStatus",
+            None,
+            Gio.DBusCallFlags.NONE,
+            2000,
+            None,
         )
         return json.loads(result.unpack()[0])
     except (GLib.Error, json.JSONDecodeError, TypeError, IndexError):
@@ -388,7 +393,7 @@ class LivestreamService:
         self.log_handle = self._open_log(args.log_file)
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.encoder_process = None  # gpu-screen-recorder (single encode)
-        self.tee_process = None      # ffmpeg tee (fan-out to N RTMP)
+        self.tee_process = None  # ffmpeg tee (fan-out to N RTMP)
         self.tee_log_thread = None
         self.encoder_log_thread = None
         # Single-stream state (shared by all platforms).
@@ -552,7 +557,7 @@ class LivestreamService:
                 self.tee_process = None
                 self.log(
                     f"direct encoder started at {video_bitrate}/{audio_bitrate} kbps "
-                    f"-> 1 RTMP target"
+                    f"-> 1 RTMP target",
                 )
             else:
                 # Multi-target: gsr encodes once -> ffmpeg tee remuxes to N URLs.
@@ -571,7 +576,7 @@ class LivestreamService:
                 self.encoder_process.stdout.close()
                 self.log(
                     f"single encoder started at {video_bitrate}/{audio_bitrate} kbps "
-                    f"-> {len(self.platforms)} RTMP target(s) via tee"
+                    f"-> {len(self.platforms)} RTMP target(s) via tee",
                 )
         except OSError as error:
             self.log(f"failed to start encoder/tee: {error}")
@@ -581,12 +586,16 @@ class LivestreamService:
             return
 
         self.encoder_log_thread = threading.Thread(
-            target=self.read_process_log, args=(self.encoder_process,), daemon=True
+            target=self.read_process_log,
+            args=(self.encoder_process,),
+            daemon=True,
         )
         self.encoder_log_thread.start()
         if self.tee_process is not None:
             self.tee_log_thread = threading.Thread(
-                target=self.read_process_log, args=(self.tee_process,), daemon=True
+                target=self.read_process_log,
+                args=(self.tee_process,),
+                daemon=True,
             )
             self.tee_log_thread.start()
         self.emit_status(force=True)
@@ -670,9 +679,10 @@ class LivestreamService:
         ):
             self.disconnect_notified = True
             default_platform = translate("livestream_platform_default", "Platform")
-            platform_names = ", ".join(
-                platform.name or default_platform for platform in self.platforms
-            ) or default_platform
+            platform_names = (
+                ", ".join(platform.name or default_platform for platform in self.platforms)
+                or default_platform
+            )
             self.notify(
                 "livestream_notify_disconnected",
                 "{platform}: RTMP is no longer sending ({state})",
@@ -701,7 +711,8 @@ class LivestreamService:
                     "audio_bitrate": platform.audio_bitrate,
                     "state": state,
                     "acknowledged_bytes": max(
-                        0, (self.last_acked or 0) - (self.baseline_acked or 0)
+                        0,
+                        (self.last_acked or 0) - (self.baseline_acked or 0),
                     ),
                 }
                 for platform in self.platforms
@@ -712,9 +723,7 @@ class LivestreamService:
         return json.dumps(self.status(), ensure_ascii=False, separators=(",", ":"))
 
     def status_signature(self):
-        return self.aggregate_state(), tuple(
-            platform.state for platform in self.platforms
-        )
+        return self.aggregate_state(), tuple(platform.state for platform in self.platforms)
 
     @staticmethod
     def refresh_waybar():
@@ -729,14 +738,12 @@ class LivestreamService:
     def notify(key, fallback, **values):
         title = translate("livestream_notify_title", "Live Stream")
         body = translate(key, fallback, **values)
-        try:
+        with contextlib.suppress(OSError):
             subprocess.Popen(
                 ["notify-send", "-u", "critical", title, body],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        except OSError:
-            pass
 
     def emit_status(self, force=False):
         signature = self.status_signature()
@@ -745,7 +752,7 @@ class LivestreamService:
         self.last_signature = signature
         payload = self.status_json()
         if self.connection is not None:
-            try:
+            with contextlib.suppress(GLib.Error):
                 self.connection.emit_signal(
                     None,
                     OBJECT_PATH,
@@ -753,8 +760,6 @@ class LivestreamService:
                     "StatusChanged",
                     GLib.Variant("(s)", (payload,)),
                 )
-            except GLib.Error:
-                pass
         self.refresh_waybar()
 
     def monitor(self):
@@ -764,11 +769,7 @@ class LivestreamService:
         self.emit_status()
 
         process = self.stream_process()
-        all_dead = (
-            not self.platforms
-            or process is None
-            or process.poll() is not None
-        )
+        all_dead = not self.platforms or process is None or process.poll() is not None
         if self.stopping:
             if all_dead:
                 self.finish()
@@ -792,18 +793,14 @@ class LivestreamService:
     def _terminate_processes(self):
         for process in (self.tee_process, self.encoder_process):
             if process and process.poll() is None:
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     process.terminate()
-                except ProcessLookupError:
-                    pass
 
     def _kill_processes(self):
         for process in (self.tee_process, self.encoder_process):
             if process and process.poll() is None:
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     process.kill()
-                except ProcessLookupError:
-                    pass
 
     def request_stop(self):
         if self.stopping:
@@ -812,10 +809,8 @@ class LivestreamService:
         self.stop_started_at = time.monotonic()
         for process in (self.tee_process, self.encoder_process):
             if process and process.poll() is None:
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     process.send_signal(signal.SIGINT)
-                except ProcessLookupError:
-                    pass
         self.emit_status(force=True)
 
     def handle_method_call(
@@ -836,7 +831,8 @@ class LivestreamService:
             invocation.return_value(GLib.Variant("(b)", (accepted,)))
         else:
             invocation.return_dbus_error(
-                f"{INTERFACE}.UnknownMethod", f"Unknown method: {method_name}"
+                f"{INTERFACE}.UnknownMethod",
+                f"Unknown method: {method_name}",
             )
 
     def on_bus_acquired(self, connection, name):
@@ -885,10 +881,8 @@ class LivestreamService:
         self._kill_processes()
         for process in (self.tee_process, self.encoder_process):
             if process:
-                try:
+                with contextlib.suppress(subprocess.TimeoutExpired):
                     process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    pass
         for thread in (self.encoder_log_thread, self.tee_log_thread):
             if thread:
                 thread.join(timeout=1)
@@ -928,8 +922,7 @@ def wait_ready(timeout):
         time.sleep(0.2)
 
     if last_status and any(
-        platform.get("state") == "sending"
-        for platform in last_status.get("platforms", [])
+        platform.get("state") == "sending" for platform in last_status.get("platforms", [])
     ):
         return 6
     return 4

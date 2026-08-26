@@ -6,6 +6,7 @@
 import argparse
 import array
 import base64
+import contextlib
 import json
 import os
 import queue
@@ -19,12 +20,14 @@ import cairo
 import gi
 
 try:
-    gi.require_version('Gtk', '3.0')
-    gi.require_version('Gdk', '3.0')
-    gi.require_version('GtkLayerShell', '0.1')
-    from gi.repository import Gtk, GLib, Gdk, GtkLayerShell
-except Exception as exc:
-    print(f"screenrecord-overlay-captions: missing GTK layer-shell dependency: {exc}", file=sys.stderr)
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("Gdk", "3.0")
+    gi.require_version("GtkLayerShell", "0.1")
+    from gi.repository import GLib, Gtk, GtkLayerShell
+except (ImportError, ValueError) as exc:
+    print(
+        f"screenrecord-overlay-captions: missing GTK layer-shell dependency: {exc}", file=sys.stderr
+    )
     sys.exit(1)
 
 
@@ -36,11 +39,12 @@ def enable_click_through(win):
         gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
         return False
 
-    win.connect('realize', apply)
-    win.connect('size-allocate', lambda *a: apply())
+    win.connect("realize", apply)
+    win.connect("size-allocate", lambda *a: apply())
 
-WINDOW_TITLE = 'Screenrecord Overlay Captions'
-AUDIO_SOURCE = os.environ.get('SCREENRECORD_OVERLAY_CAPTIONS_SOURCE', 'rnnoise_source')
+
+WINDOW_TITLE = "Screenrecord Overlay Captions"
+AUDIO_SOURCE = os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_SOURCE", "rnnoise_source")
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BYTES_PER_SAMPLE = 2
@@ -49,9 +53,11 @@ FRAME_BYTES = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * FRAME_MS // 1000
 
 # Speech segmentation tuning. Audio is sent continuously to the active provider;
 # local VAD is only used to decide when to finish an utterance.
-VOICE_RMS_THRESHOLD = int(os.environ.get('SCREENRECORD_OVERLAY_CAPTIONS_RMS', '180'))
-SILENCE_FRAMES_TO_FINISH = int(os.environ.get('SCREENRECORD_OVERLAY_CAPTIONS_SILENCE_FRAMES', '6'))
-MAX_UTTERANCE_SECONDS = int(os.environ.get('SCREENRECORD_OVERLAY_CAPTIONS_MAX_UTTERANCE_SECONDS', '18'))
+VOICE_RMS_THRESHOLD = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_RMS", "180"))
+SILENCE_FRAMES_TO_FINISH = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_SILENCE_FRAMES", "6"))
+MAX_UTTERANCE_SECONDS = int(
+    os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_UTTERANCE_SECONDS", "18")
+)
 DISPLAY_SECONDS_AFTER_FINAL = 4.0
 PROVIDER_POLL_SECONDS = 2.0
 
@@ -59,23 +65,29 @@ WINDOW_WIDTH = 900
 WINDOW_HEIGHT = 90
 MARGIN_BOTTOM = 46
 FONT_SIZE = 24
-FONT_FAMILY = 'monospace'
-BACKGROUND = 'rgba(0, 0, 0, 0.70)'
-TEXT_COLOR = 'white'
-TEXT_SHADOW = '-1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black'
+FONT_FAMILY = "monospace"
+BACKGROUND = "rgba(0, 0, 0, 0.70)"
+TEXT_COLOR = "white"
+TEXT_SHADOW = "-1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black, 1px 1px 0 black"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Show real-time ASR captions as a non-focusable overlay.')
-    parser.add_argument('--source', default=AUDIO_SOURCE, help='PulseAudio/PipeWire source name')
-    parser.add_argument('--width', type=int, default=WINDOW_WIDTH, help='caption window width')
-    parser.add_argument('--height', type=int, default=WINDOW_HEIGHT, help='caption window height')
-    parser.add_argument('--margin-bottom', type=int, default=MARGIN_BOTTOM, help='bottom screen margin')
-    parser.add_argument('--font-size', type=int, default=FONT_SIZE, help='caption font size')
-    parser.add_argument('--font-family', default=FONT_FAMILY, help='caption font family')
-    parser.add_argument('--background', default=BACKGROUND, help='CSS background value')
-    parser.add_argument('--text-color', default=TEXT_COLOR, help='CSS text color')
-    parser.add_argument('--text-shadow', default=TEXT_SHADOW, help='CSS text-shadow for stroke/outline')
+    parser = argparse.ArgumentParser(
+        description="Show real-time ASR captions as a non-focusable overlay."
+    )
+    parser.add_argument("--source", default=AUDIO_SOURCE, help="PulseAudio/PipeWire source name")
+    parser.add_argument("--width", type=int, default=WINDOW_WIDTH, help="caption window width")
+    parser.add_argument("--height", type=int, default=WINDOW_HEIGHT, help="caption window height")
+    parser.add_argument(
+        "--margin-bottom", type=int, default=MARGIN_BOTTOM, help="bottom screen margin"
+    )
+    parser.add_argument("--font-size", type=int, default=FONT_SIZE, help="caption font size")
+    parser.add_argument("--font-family", default=FONT_FAMILY, help="caption font family")
+    parser.add_argument("--background", default=BACKGROUND, help="CSS background value")
+    parser.add_argument("--text-color", default=TEXT_COLOR, help="CSS text color")
+    parser.add_argument(
+        "--text-shadow", default=TEXT_SHADOW, help="CSS text-shadow for stroke/outline"
+    )
     return parser.parse_args()
 
 
@@ -86,9 +98,9 @@ def log(message):
 def pcm16_rms(chunk):
     if not chunk:
         return 0
-    samples = array.array('h')
+    samples = array.array("h")
     samples.frombytes(chunk[: len(chunk) - (len(chunk) % 2)])
-    if sys.byteorder != 'little':
+    if sys.byteorder != "little":
         samples.byteswap()
     if not samples:
         return 0
@@ -101,45 +113,44 @@ def pcm16_rms(chunk):
 def vinput_config_get(pointer):
     try:
         proc = subprocess.run(
-            ['vinput', '-j', 'config', 'get', pointer],
+            ["vinput", "-j", "config", "get", pointer],
             check=True,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=3,
         )
     except Exception as exc:
-        raise RuntimeError(f'failed to read vinput config {pointer}: {exc}') from exc
+        raise RuntimeError(f"failed to read vinput config {pointer}: {exc}") from exc
 
     payload = json.loads(proc.stdout)
-    return payload.get('value')
+    return payload.get("value")
 
 
 def get_active_vinput_provider():
-    active_id = vinput_config_get('/asr/active_provider')
-    providers_value = vinput_config_get('/asr/providers')
+    active_id = vinput_config_get("/asr/active_provider")
+    providers_value = vinput_config_get("/asr/providers")
     if isinstance(providers_value, str):
         providers = json.loads(providers_value)
     else:
         providers = providers_value or []
 
     for provider in providers:
-        if provider.get('id') != active_id:
+        if provider.get("id") != active_id:
             continue
-        if provider.get('type') != 'command':
-            raise RuntimeError(f'active ASR provider is not a command provider: {active_id}')
-        command = provider.get('command')
+        if provider.get("type") != "command":
+            raise RuntimeError(f"active ASR provider is not a command provider: {active_id}")
+        command = provider.get("command")
         if not command:
-            raise RuntimeError(f'active provider has no command: {active_id}')
+            raise RuntimeError(f"active provider has no command: {active_id}")
         return {
-            'id': provider.get('id', ''),
-            'title': provider.get('title', provider.get('id', '')),
-            'command': command,
-            'args': provider.get('args') or [],
-            'env': provider.get('env') or {},
+            "id": provider.get("id", ""),
+            "title": provider.get("title", provider.get("id", "")),
+            "command": command,
+            "args": provider.get("args") or [],
+            "env": provider.get("env") or {},
         }
 
-    raise RuntimeError(f'active ASR provider not found in config: {active_id}')
+    raise RuntimeError(f"active ASR provider not found in config: {active_id}")
 
 
 class ProviderSession:
@@ -147,16 +158,16 @@ class ProviderSession:
         self.events = events
         self.provider = provider
         self.proc = None
-        self.provider_id = provider['id']
+        self.provider_id = provider["id"]
         self.closed = False
 
     def start(self):
         provider = self.provider
         env = os.environ.copy()
-        for key, value in provider['env'].items():
+        for key, value in provider["env"].items():
             if key:
                 env[key] = str(value)
-        cmd = [provider['command'], *provider['args']]
+        cmd = [provider["command"], *provider["args"]]
         log(f"starting provider id={provider['id']} cmd={' '.join(cmd)}")
         self.proc = subprocess.Popen(
             cmd,
@@ -167,8 +178,8 @@ class ProviderSession:
             bufsize=1,
             env=env,
         )
-        self.provider_id = provider['id']
-        self.events.put(('debug', f"ASR provider: {provider['title']}"))
+        self.provider_id = provider["id"]
+        self.events.put(("debug", f"ASR provider: {provider['title']}"))
         log(f"provider started pid={self.proc.pid} id={self.provider_id}")
         threading.Thread(target=self.read_stdout, daemon=True).start()
         threading.Thread(target=self.read_stderr, daemon=True).start()
@@ -177,11 +188,11 @@ class ProviderSession:
         if not self.proc or self.closed or not self.proc.stdin:
             return
         event = {
-            'type': 'audio',
-            'audio_base64': base64.b64encode(chunk).decode('ascii'),
+            "type": "audio",
+            "audio_base64": base64.b64encode(chunk).decode("ascii"),
         }
         try:
-            self.proc.stdin.write(json.dumps(event, ensure_ascii=False) + '\n')
+            self.proc.stdin.write(json.dumps(event, ensure_ascii=False) + "\n")
             self.proc.stdin.flush()
         except (BrokenPipeError, OSError):
             self.closed = True
@@ -190,51 +201,49 @@ class ProviderSession:
         if not self.proc or self.closed or not self.proc.stdin:
             return
         try:
-            self.proc.stdin.write(json.dumps({'type': 'finish'}) + '\n')
+            self.proc.stdin.write(json.dumps({"type": "finish"}) + "\n")
             self.proc.stdin.flush()
             self.proc.stdin.close()
-        except Exception:
-            pass
+        except (BrokenPipeError, OSError, ValueError) as exc:
+            self.events.put(("debug", f"failed to finish ASR provider cleanly: {exc}"))
         self.closed = True
 
     def terminate(self):
         self.finish()
         if self.proc and self.proc.poll() is None:
-            try:
+            with contextlib.suppress(OSError):
                 self.proc.terminate()
-            except Exception:
-                pass
 
     def read_stdout(self):
         if not self.proc or not self.proc.stdout:
             return
-        for line in self.proc.stdout:
-            line = line.strip()
+        for raw_line in self.proc.stdout:
+            line = raw_line.strip()
             if not line:
                 continue
             try:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            typ = event.get('type')
-            text = str(event.get('text') or '').strip()
-            if typ in ('partial', 'final', 'final_timestamps') and text:
+            typ = event.get("type")
+            text = str(event.get("text") or "").strip()
+            if typ in ("partial", "final", "final_timestamps") and text:
                 self.events.put((typ, text))
-            elif typ == 'error':
-                self.events.put(('error', str(event.get('message') or event)))
+            elif typ == "error":
+                self.events.put(("error", str(event.get("message") or event)))
 
     def read_stderr(self):
         if not self.proc or not self.proc.stderr:
             return
-        for line in self.proc.stderr:
-            line = line.strip()
+        for raw_line in self.proc.stderr:
+            line = raw_line.strip()
             if line:
-                self.events.put(('debug', line))
+                self.events.put(("debug", line))
 
 
 class CaptionsApp(Gtk.Application):
     def __init__(self, args):
-        super().__init__(application_id='works.xifan.screenrecord.overlay.captions')
+        super().__init__(application_id="works.xifan.screenrecord.overlay.captions")
         self.args = args
         self.events = queue.Queue()
         self.win = None
@@ -273,7 +282,7 @@ class CaptionsApp(Gtk.Application):
         GtkLayerShell.set_anchor(self.win, GtkLayerShell.Edge.BOTTOM, True)
         GtkLayerShell.set_margin(self.win, GtkLayerShell.Edge.BOTTOM, self.args.margin_bottom)
         GtkLayerShell.set_exclusive_zone(self.win, -1)
-        if hasattr(GtkLayerShell, 'set_keyboard_mode'):
+        if hasattr(GtkLayerShell, "set_keyboard_mode"):
             GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
         else:
             GtkLayerShell.set_keyboard_interactivity(self.win, False)
@@ -285,16 +294,17 @@ class CaptionsApp(Gtk.Application):
         box.set_margin_start(22)
         box.set_margin_end(22)
 
-        self.label = Gtk.Label(label='')
+        self.label = Gtk.Label(label="")
         self.label.set_line_wrap(True)
         self.label.set_line_wrap_mode(0)
         self.label.set_justify(Gtk.Justification.CENTER)
-        self.label.get_style_context().add_class('caption-label')
+        self.label.get_style_context().add_class("caption-label")
         box.pack_start(self.label, True, True, 0)
         self.win.add(box)
 
         css = Gtk.CssProvider()
-        css.load_from_data(b'''
+        css.load_from_data(
+            b"""
         window {
             background: __BACKGROUND__;
         }
@@ -305,13 +315,16 @@ class CaptionsApp(Gtk.Application):
             font-weight: 700;
             text-shadow: __TEXT_SHADOW__;
         }
-        '''.replace(b'__BACKGROUND__', self.args.background.encode())
-           .replace(b'__TEXT_COLOR__', self.args.text_color.encode())
-           .replace(b'__FONT_FAMILY__', self.args.font_family.encode())
-           .replace(b'__FONT_SIZE__', str(self.args.font_size).encode())
-           .replace(b'__TEXT_SHADOW__', self.args.text_shadow.encode()))
+        """.replace(b"__BACKGROUND__", self.args.background.encode())
+            .replace(b"__TEXT_COLOR__", self.args.text_color.encode())
+            .replace(b"__FONT_FAMILY__", self.args.font_family.encode())
+            .replace(b"__FONT_SIZE__", str(self.args.font_size).encode())
+            .replace(b"__TEXT_SHADOW__", self.args.text_shadow.encode())
+        )
         Gtk.StyleContext.add_provider_for_screen(
-            screen, css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            screen,
+            css,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
         self.win.set_opacity(1.0)
@@ -319,11 +332,11 @@ class CaptionsApp(Gtk.Application):
 
     def start_audio_capture(self):
         cmd = [
-            'parec',
-            f'--device={self.args.source}',
-            '--format=s16le',
-            f'--rate={SAMPLE_RATE}',
-            f'--channels={CHANNELS}',
+            "parec",
+            f"--device={self.args.source}",
+            "--format=s16le",
+            f"--rate={SAMPLE_RATE}",
+            f"--channels={CHANNELS}",
         ]
         return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -331,10 +344,10 @@ class CaptionsApp(Gtk.Application):
         if not self.active_provider:
             return True
         return (
-            provider.get('id') != self.active_provider.get('id')
-            or provider.get('command') != self.active_provider.get('command')
-            or provider.get('args') != self.active_provider.get('args')
-            or provider.get('env') != self.active_provider.get('env')
+            provider.get("id") != self.active_provider.get("id")
+            or provider.get("command") != self.active_provider.get("command")
+            or provider.get("args") != self.active_provider.get("args")
+            or provider.get("env") != self.active_provider.get("env")
         )
 
     def poll_active_provider(self, force=False):
@@ -365,7 +378,7 @@ class CaptionsApp(Gtk.Application):
             and self.current_session.proc
             and self.current_session.proc.poll() is None
             and provider
-            and self.current_session.provider_id == provider.get('id')
+            and self.current_session.provider_id == provider.get("id")
         ):
             return self.current_session
         self.current_session = None
@@ -380,8 +393,8 @@ class CaptionsApp(Gtk.Application):
         try:
             self.audio_proc = self.start_audio_capture()
             log(f"audio capture started pid={self.audio_proc.pid} source={self.args.source}")
-        except Exception as exc:
-            self.events.put(('error', f'failed to start audio capture: {exc}'))
+        except OSError as exc:
+            self.events.put(("error", f"failed to start audio capture: {exc}"))
             return
 
         threading.Thread(target=self.read_audio_stderr, daemon=True).start()
@@ -394,9 +407,9 @@ class CaptionsApp(Gtk.Application):
         try:
             self.poll_active_provider(force=True)
             self.ensure_session()
-        except Exception as exc:
+        except (KeyError, OSError, RuntimeError, TypeError) as exc:
             log(f"prewarm failed: {exc}")
-            self.events.put(('error', str(exc)))
+            self.events.put(("error", str(exc)))
 
         try:
             while not self.stop_event.is_set():
@@ -407,11 +420,15 @@ class CaptionsApp(Gtk.Application):
                 rms = pcm16_rms(chunk)
                 is_voice = rms >= VOICE_RMS_THRESHOLD
 
-                if not self.current_session or not self.current_session.proc or self.current_session.proc.poll() is not None:
+                if (
+                    not self.current_session
+                    or not self.current_session.proc
+                    or self.current_session.proc.poll() is not None
+                ):
                     try:
                         self.ensure_session()
-                    except Exception as exc:
-                        self.events.put(('error', str(exc)))
+                    except (KeyError, OSError, RuntimeError, TypeError) as exc:
+                        self.events.put(("error", str(exc)))
                         time.sleep(1.0)
                         continue
 
@@ -427,29 +444,32 @@ class CaptionsApp(Gtk.Application):
                 elif in_speech:
                     silence_frames += 1
 
-                too_long = in_speech and time.monotonic() - utterance_started_at > MAX_UTTERANCE_SECONDS
+                too_long = (
+                    in_speech and time.monotonic() - utterance_started_at > MAX_UTTERANCE_SECONDS
+                )
                 if in_speech and (silence_frames >= SILENCE_FRAMES_TO_FINISH or too_long):
                     self.finish_session()
-                    # Immediately prewarm the next provider/session; it will follow any VInput provider switch.
+                    # Immediately prewarm the next provider/session. It follows
+                    # any VInput provider switch.
                     try:
                         self.ensure_session()
-                    except Exception as exc:
-                        self.events.put(('error', str(exc)))
+                    except (KeyError, OSError, RuntimeError, TypeError) as exc:
+                        self.events.put(("error", str(exc)))
                     in_speech = False
                     silence_frames = 0
 
-        except Exception as exc:
-            self.events.put(('error', f'audio loop error: {exc}'))
+        except (OSError, ValueError) as exc:
+            self.events.put(("error", f"audio loop error: {exc}"))
         finally:
             self.finish_session()
 
     def read_audio_stderr(self):
         if not self.audio_proc or not self.audio_proc.stderr:
             return
-        for line in self.audio_proc.stderr:
-            line = line.decode(errors='ignore').strip()
+        for raw_line in self.audio_proc.stderr:
+            line = raw_line.decode(errors="ignore").strip()
             if line:
-                self.events.put(('debug', line))
+                self.events.put(("debug", line))
 
     def update_ui(self):
         now = time.monotonic()
@@ -461,29 +481,25 @@ class CaptionsApp(Gtk.Application):
             except queue.Empty:
                 break
 
-            if typ == 'partial':
+            if typ == "partial":
                 visible_text = text
                 self.last_event_at = now
-            elif typ in ('final', 'final_timestamps'):
-                visible_text = text
-                self.last_event_at = now
-                self.last_final_at = now
-            elif typ == 'error':
+            elif typ in ("final", "final_timestamps") or typ == "error":
                 visible_text = text
                 self.last_event_at = now
                 self.last_final_at = now
-            elif typ == 'debug':
+            elif typ == "debug":
                 # Keep debug off-screen; see redirected stderr/log if needed.
                 pass
 
         if visible_text:
             self.label.set_text(visible_text)
-        
+
         if self.last_final_at and now - self.last_final_at > DISPLAY_SECONDS_AFTER_FINAL:
-            self.label.set_text('')
+            self.label.set_text("")
             self.last_final_at = 0
         elif not self.last_final_at and self.last_event_at and now - self.last_event_at > 6.0:
-            self.label.set_text('')
+            self.label.set_text("")
 
         return True
 
@@ -491,13 +507,11 @@ class CaptionsApp(Gtk.Application):
         self.stop_event.set()
         self.finish_session()
         if self.audio_proc and self.audio_proc.poll() is None:
-            try:
+            with contextlib.suppress(Exception):
                 self.audio_proc.terminate()
-            except Exception:
-                pass
         Gtk.Application.do_shutdown(self)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     CaptionsApp(parse_args()).run(None)
