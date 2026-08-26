@@ -248,7 +248,7 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
 
 ### 直播平台
 
-全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项只有 `name` / `server` / `key`）。也可用 `Super+Shift+R` 或 `capture-router config` 打开图形配置。
+全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项有 `name` / `server` / `key`，可选 `enabled`）。也可用 `Super+Shift+R` 或 `capture-router config` 打开图形配置。
 
 ```json
 {
@@ -257,6 +257,7 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
   "platforms": [
     {
       "name": "bilibili",
+      "enabled": true,
       "server": "rtmp://live-push.example.com/live",
       "key": "STREAM_KEY"
     }
@@ -264,7 +265,9 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
 }
 ```
 
-`livestream-service` 读该文件：单平台时 `gpu-screen-recorder` 直推 RTMP；多平台时单路编码，经 ffmpeg tee 分发到各家。若仍只有旧的 `config` + `platforms.conf`，首次读取会自动迁移为 `config.json`。
+`enabled` 控制该平台是否参与推流（缺省为 `true`，云端/旧配置自动按开启处理）。在图形配置界面对某平台拨下开关即可在不动配置、不删除条目的前提下，单独测试单个平台的推流。
+
+`livestream-service` 读该文件：单平台时 `gpu-screen-recorder` 直推 RTMP；多平台时单路编码，经 ffmpeg tee 分发到各家。只对 `enabled` 的平台建流；若全部禁用，视为未配置有效 RTMP。若仍只有旧的 `config` + `platforms.conf`，首次读取会自动迁移为 `config.json`。
 
 `livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有平台状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。直播只有在对应 `gpu-screen-recorder` 进程持续运行、持有 `ESTABLISHED` TCP 连接，并且 RTMP 服务端已经确认至少 64 KiB 的输出数据后，才会标记为 `RTMP sending`。这能确认本机正在向平台 ingest 发送数据；平台是否已正式开播、是否对观众可见，仍以平台控制台或平台 API 为准。
 

@@ -88,7 +88,7 @@ livestream_unmute_audio() {
         device:*)
             source=$(printf '%s' "$AUDIO_SOURCE" | sed -n 's/^device:\([^|]*\).*/\1/p')
             ;;
-        *default_input*|default_input)
+        *default_input*)
             source=$(pactl get-default-source 2>/dev/null || true)
             ;;
     esac

@@ -119,6 +119,7 @@ def load_config():
         if not isinstance(item, dict):
             continue
         platforms.append({
+            "enabled": bool(item.get("enabled", True)),
             "name": str(name or item.get("name") or "").strip(),
             "server": str(item.get("server") or "").strip(),
             "key": str(item.get("key") or item.get("stream_key") or "").strip(),
@@ -137,6 +138,7 @@ def save_config(video, audio, platforms):
         if not name:
             continue
         payload["platforms"].append({
+            "enabled": bool(platform.get("enabled", True)),
             "name": name,
             "server": platform.get("server", "").strip(),
             "key": platform.get("key", "").strip(),
@@ -152,9 +154,17 @@ def save_config(video, audio, platforms):
 
 
 class PlatformRow:
-    """One editable platform row: name / server / key only."""
+    """One editable platform row: enabled / name / server / key."""
 
     def __init__(self, data, on_remove):
+        self.enabled_switch = Gtk.Switch()
+        self.enabled_switch.set_active(data.get("enabled", True))
+        self.enabled_switch.set_valign(Gtk.Align.CENTER)
+        self.enabled_switch.set_tooltip_text(t(
+            "livestream_cfg_enabled_tooltip",
+            "Enable or disable this platform without removing it",
+        ))
+
         self.name_entry = Gtk.Entry()
         self.name_entry.set_placeholder_text(t("livestream_cfg_name", "Name"))
         self.name_entry.set_text(data.get("name", ""))
@@ -190,6 +200,7 @@ class PlatformRow:
         self.remove_button.connect("clicked", lambda _button: on_remove(self))
 
         self.widgets = [
+            self.enabled_switch,
             self.name_entry,
             self.server_entry,
             self.key_entry,
@@ -215,6 +226,7 @@ class PlatformRow:
 
     def collect(self):
         return {
+            "enabled": self.enabled_switch.get_active(),
             "name": self.name_entry.get_text(),
             "server": self.server_entry.get_text(),
             "key": self.key_entry.get_text(),
