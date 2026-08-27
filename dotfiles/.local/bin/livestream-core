@@ -1,6 +1,6 @@
 #!/bin/bash
 # Shared client helpers for the Session D-Bus livestream service.
-# One gpu-screen-recorder encode is fanned out to N RTMP targets via ffmpeg tee.
+# One gpu-screen-recorder encode is fanned out to RTMP/SRT targets via ffmpeg.
 
 SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 LIVESTREAM_SERVICE="$SCRIPT_DIR/livestream-service"
@@ -29,7 +29,7 @@ livestream_load_config() {
 
 livestream_check_deps() {
     local cmd
-    for cmd in gpu-screen-recorder pactl ss "$LIVESTREAM_SERVICE"; do
+    for cmd in gpu-screen-recorder ffmpeg pactl ss "$LIVESTREAM_SERVICE"; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             printf 'Error: %s is not installed\n' "$cmd" >&2
             return 1
@@ -148,10 +148,10 @@ livestream_start() {
     "$LIVESTREAM_SERVICE" wait-ready --timeout 30
     rc=$?
     case "$rc" in
-        0|6)
+        0)
             livestream_notify_waybar
             livestream_open_danmaku
-            return "$rc"
+            return 0
             ;;
         *)
             "$LIVESTREAM_SERVICE" stop --timeout 7 >/dev/null 2>&1 || true

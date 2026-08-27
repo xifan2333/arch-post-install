@@ -272,7 +272,7 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
 
 ### 直播平台
 
-全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项有 `name` / `server` / `key`，可选 `enabled`）。也可用 `Super+Shift+R` 或 `capture-router config` 打开图形配置。
+全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项包含 `name` / `server` / `key`，可选 `enabled` / `aspect_ratio`）。支持 RTMP/RTMPS 和 SRT；也可用 `Super+Shift+R` 或 `capture-router config` 打开图形配置。
 
 ```json
 {
@@ -283,17 +283,18 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
       "name": "bilibili",
       "enabled": true,
       "server": "rtmp://live-push.example.com/live",
-      "key": "STREAM_KEY"
+      "key": "STREAM_KEY",
+      "aspect_ratio": "16:9"
     }
   ]
 }
 ```
 
-`enabled` 控制该平台是否参与推流（缺省为 `true`，云端/旧配置自动按开启处理）。在图形配置界面对某平台拨下开关即可在不动配置、不删除条目的前提下，单独测试单个平台的推流。
+`enabled` 控制该平台是否参与推流（缺省为 `true`）。`aspect_ratio` 只接受 `16:9` 和 `9:16`，其中 9:16 会把 16:9 原画居中放入竖屏画布。在图形配置界面可临时禁用平台或切换比例，无需删除配置。
 
-`livestream-service` 读该文件：单平台时 `gpu-screen-recorder` 直推 RTMP；多平台时单路编码，经 ffmpeg tee 分发到各家。只对 `enabled` 的平台建流；若全部禁用，视为未配置有效 RTMP。若仍只有旧的 `config` + `platforms.conf`，首次读取会自动迁移为 `config.json`。
+`livestream-service` 只读取这个 JSON 文件：单个未合成的 RTMP/RTMPS 目标由 `gpu-screen-recorder` 直推；SRT、多平台或需要合成时，经 ffmpeg 按合成模式分组后分发。若全部平台禁用，视为未配置有效推流目标。
 
-`livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有平台状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。直播只有在对应 `gpu-screen-recorder` 进程持续运行、持有 `ESTABLISHED` TCP 连接，并且 RTMP 服务端已经确认至少 64 KiB 的输出数据后，才会标记为 `RTMP sending`。这能确认本机正在向平台 ingest 发送数据；平台是否已正式开播、是否对观众可见，仍以平台控制台或平台 API 为准。
+`livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。RTMP/RTMPS 在检测到持续 TCP 发送后标记为 `sending`；SRT 由已建立并持续运行的 ffmpeg 会话表示。这里确认的是本机推流管线状态，平台是否正式开播、是否对观众可见，仍以平台控制台为准。
 
 ### 选区 OCR
 

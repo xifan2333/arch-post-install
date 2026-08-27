@@ -88,7 +88,6 @@ capture_waybar() {
             [ -n "$details" ] && tooltip="$tooltip"$'\n'"$details"
             case "$connection" in
                 sending) text="󰑋"; class="livestream" ;;
-                degraded) text="󰀦"; class="livestream-degraded" ;;
                 failed) text="󰅖"; class="livestream-failed" ;;
                 *) text="󰔟"; class="livestream-connecting" ;;
             esac
@@ -194,10 +193,6 @@ capture_livestream_start() {
         2) livestream_notify "$(msg livestream_notify_already_active)" ;;
         3) livestream_notify "$(msg livestream_notify_missing_rtmp)" ;;
         5) livestream_notify "$(msg livestream_notify_recording_active)" ;;
-        6)
-            livestream_notify "$(msg livestream_notify_started_partial)"
-            rc=0
-            ;;
         *) livestream_notify "$(msg livestream_notify_start_failed)" critical ;;
     esac
     return "$rc"

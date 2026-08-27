@@ -1,15 +1,14 @@
 #!/usr/bin/python
-"""Session D-Bus service and client for multi-platform RTMP streaming.
+"""Session D-Bus service and client for multi-platform RTMP/SRT streaming.
 
-One gpu-screen-recorder encode is fanned out to N RTMP targets via ffmpeg
-tee muxer (single encode, N cheap re-mux pushes). The whole stream is tracked
-as one unit; every platform mirrors that shared state.
+One gpu-screen-recorder encode is fanned out to N targets (Bilibili 16:9 + Phone 9:16)
+via ffmpeg with per-platform Lanczos composition and zero-copy stream fan-out.
 """
 
 from __future__ import annotations
 
 import argparse
-import configparser
+import contextlib
 import json
 import os
 import re
@@ -27,7 +26,6 @@ DEFAULT_AUDIO_BITRATE = 160
 import gi
 
 gi.require_version("Gio", "2.0")
-import contextlib
 
 from gi.repository import Gio, GLib
 
@@ -35,7 +33,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def translate(key, fallback="", **values):
-    """Resolve a message through the shared shell i18n catalogue."""
     command = [
         "bash",
         "-c",
@@ -99,7 +96,7 @@ class Platform:
     video_bitrate: int
     audio_bitrate: int
     scheme: str = "rtmp"
-    state: str = "connecting"
+    aspect_ratio: str = "16:9"
 
 
 def bounded_int(value, default, minimum, maximum):
@@ -110,14 +107,18 @@ def bounded_int(value, default, minimum, maximum):
     return number if minimum <= number <= maximum else default
 
 
-def make_platform(name, server, stream_key, video_bitrate, audio_bitrate):
+def make_platform(name, server, stream_key, video_bitrate, audio_bitrate, aspect_ratio="16:9"):
     name = str(name or "").replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
-    server = (server or "").strip().rstrip("/")
-    stream_key = (stream_key or "").strip().lstrip("/")
+    server = str(server or "").strip().rstrip("/")
+    stream_key = str(stream_key or "").strip().lstrip("/")
+    aspect_ratio = str(aspect_ratio or "16:9").strip().lower()
+    if aspect_ratio not in ("9:16", "16:9"):
+        aspect_ratio = "16:9"
+
     if not name or not server or any(c in server + stream_key for c in "\t\r\n"):
         return None
-    # LAN mirror targets (vcam phone feed): raw MPEG-TS over UDP/SRT.
-    if server.startswith(("udp://", "srt://")):
+
+    if server.startswith("srt://"):
         return Platform(
             name=name,
             server=server,
@@ -125,7 +126,8 @@ def make_platform(name, server, stream_key, video_bitrate, audio_bitrate):
             url=server,
             video_bitrate=int(video_bitrate),
             audio_bitrate=int(audio_bitrate),
-            scheme=server.split("://")[0],
+            scheme="srt",
+            aspect_ratio=aspect_ratio,
         )
     if not server.startswith(("rtmp://", "rtmps://")):
         server = f"rtmp://{server}"
@@ -137,6 +139,8 @@ def make_platform(name, server, stream_key, video_bitrate, audio_bitrate):
         url=url,
         video_bitrate=int(video_bitrate),
         audio_bitrate=int(audio_bitrate),
+        scheme="rtmp",
+        aspect_ratio=aspect_ratio,
     )
 
 
@@ -156,9 +160,8 @@ def platforms_from_items(items, video_bitrate, audio_bitrate):
     for name, item in pairs:
         if not isinstance(item, dict):
             continue
-        # Disabled platforms stay in config for easy re-enabling via the
-        # config UI but are never pushed. Absent flag defaults to enabled.
-        if item.get("enabled", True) is False:
+        enabled = item.get("enabled", True)
+        if isinstance(enabled, bool) and not enabled:
             continue
         platform = make_platform(
             name,
@@ -166,116 +169,15 @@ def platforms_from_items(items, video_bitrate, audio_bitrate):
             item.get("key") or item.get("stream_key"),
             video_bitrate,
             audio_bitrate,
+            item.get("aspect_ratio", "16:9"),
         )
         if platform:
             platforms.append(platform)
     return platforms
-
-
-def read_legacy_shell_bitrate(path):
-    video = None
-    audio = None
-    try:
-        text = Path(path).read_text(encoding="utf-8")
-    except OSError:
-        return video, audio
-    for raw_line in text.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip()
-        if key == "BITRATE":
-            video = bounded_int(value, None, 100, 50000)
-        elif key == "AUDIO_BITRATE":
-            audio = bounded_int(value, None, 32, 320)
-    return video, audio
-
-
-def read_legacy_platforms_ini(path, video_bitrate, audio_bitrate):
-    cfg = configparser.ConfigParser(interpolation=None)
-    try:
-        cfg.read(path, encoding="utf-8")
-    except configparser.Error:
-        return []
-    platforms = []
-    for section_name in cfg.sections():
-        section = cfg[section_name]
-        platform = make_platform(
-            section_name,
-            section.get("server", ""),
-            section.get("key", ""),
-            video_bitrate,
-            audio_bitrate,
-        )
-        if platform:
-            platforms.append(platform)
-    return platforms
-
-
-def migrate_legacy_config(config_path: Path):
-    """One-shot: old config + platforms.conf -> config.json."""
-    if config_path.is_file():
-        return False
-
-    config_dir = config_path.parent
-    legacy_shell = config_dir / "config"
-    legacy_ini = config_dir / "platforms.conf"
-    if not legacy_shell.is_file() and not legacy_ini.is_file():
-        return False
-
-    video = DEFAULT_VIDEO_BITRATE
-    audio = DEFAULT_AUDIO_BITRATE
-    if legacy_shell.is_file():
-        shell_video, shell_audio = read_legacy_shell_bitrate(legacy_shell)
-        if shell_video is not None:
-            video = shell_video
-        if shell_audio is not None:
-            audio = shell_audio
-
-    platforms = []
-    if legacy_ini.is_file():
-        platforms = read_legacy_platforms_ini(legacy_ini, video, audio)
-
-    payload = {
-        "bitrate": video,
-        "audio_bitrate": audio,
-        "platforms": [
-            {
-                "name": platform.name,
-                "server": platform.server,
-                "key": platform.stream_key,
-            }
-            for platform in platforms
-        ],
-    }
-    try:
-        config_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(config_dir, 0o700)
-        fd = os.open(config_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
-    except OSError:
-        return False
-    return True
 
 
 def load_stream_config(path):
-    """Load ~/.config/livestream/config.json.
-
-    Shape:
-      {
-        "bitrate": 6000,
-        "audio_bitrate": 160,
-        "platforms": [
-          {"name": "bilibili", "server": "rtmp://...", "key": "..."}
-        ]
-      }
-    """
     config_path = Path(path)
-    migrate_legacy_config(config_path)
 
     video = DEFAULT_VIDEO_BITRATE
     audio = DEFAULT_AUDIO_BITRATE
@@ -308,17 +210,55 @@ def load_stream_config(path):
 
 def offline_status():
     return {
+        "active": False,
         "state": "offline",
-        "mode": "",
+        "mode": "idle",
         "duration_seconds": 0,
+        "bitrate": 0,
+        "audio_bitrate": 0,
         "platforms": [],
     }
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser("run", help="Run the D-Bus service daemon")
+    run_parser.add_argument("--config", required=True, help="Path to config.json")
+    run_parser.add_argument("--target", default="screen", help="Capture target")
+    run_parser.add_argument(
+        "--audio-source", default="default_output|default_input", help="Audio source"
+    )
+    run_parser.add_argument("--framerate", type=int, default=30, help="Video framerate")
+    run_parser.add_argument("--keyint", type=int, default=2, help="Keyframe interval (seconds)")
+    run_parser.add_argument("--scale-width", type=int, default=0, help="Downscale width")
+    run_parser.add_argument("--log-file", required=True, help="Path to log file")
+
+    validate_parser = subparsers.add_parser("validate", help="Validate config")
+    validate_parser.add_argument("--config", required=True, help="Path to config.json")
+
+    status_parser = subparsers.add_parser("status", help="Get streaming status JSON")
+    status_parser.add_argument("--platforms-only", action="store_true")
+
+    field_parser = subparsers.add_parser("field", help="Get a specific status field")
+    field_parser.add_argument("name", help="Field name")
+
+    wait_parser = subparsers.add_parser("wait-ready", help="Wait until service is ready")
+    wait_parser.add_argument("--timeout", type=int, default=30)
+
+    stop_parser = subparsers.add_parser("stop", help="Stop streaming")
+    stop_parser.add_argument("--timeout", type=int, default=7)
+
+    subparsers.add_parser("is-active", help="Check if active")
+    return parser.parse_args()
+
+
 def get_proxy():
     try:
-        proxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION,
+        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        proxy = Gio.DBusProxy.new_sync(
+            connection,
             Gio.DBusProxyFlags.DO_NOT_AUTO_START,
             None,
             BUS_NAME,
@@ -326,9 +266,11 @@ def get_proxy():
             INTERFACE,
             None,
         )
-    except GLib.Error:
+        if proxy.get_name_owner() is None:
+            return None
+        return proxy
+    except (GLib.Error, TypeError):
         return None
-    return proxy if proxy.get_name_owner() else None
 
 
 def get_remote_status():
@@ -336,40 +278,19 @@ def get_remote_status():
     if proxy is None:
         return None
     try:
-        result = proxy.call_sync(
-            "GetStatus",
-            None,
-            Gio.DBusCallFlags.NONE,
-            2000,
-            None,
-        )
-        return json.loads(result.unpack()[0])
-    except (GLib.Error, json.JSONDecodeError, TypeError, IndexError):
+        return json.loads(proxy.GetStatus())
+    except (GLib.Error, json.JSONDecodeError, TypeError):
         return None
 
 
 def platform_status_lines(status):
-    default_platform = translate("livestream_platform_default", "Platform")
-    for platform in status.get("platforms", []):
-        state = platform.get("state", "connecting")
-        values = {
-            "platform": platform.get("name", default_platform),
-            "state": translated_state(state),
-            "video": platform.get("video_bitrate", "?"),
-            "audio": platform.get("audio_bitrate", "?"),
-        }
-        yield translate(
-            "livestream_status_platform",
-            "{platform}: {state} — video {video} kbps, audio {audio} kbps",
-            **values,
-        )
-
-
-def print_human_status(status):
-    state = translated_state(status.get("state", "offline"))
-    print(translate("livestream_status_connection", "Connection: {state}", state=state))
-    for line in platform_status_lines(status):
-        print(line)
+    platforms = status.get("platforms", [])
+    if not platforms:
+        return [translate("livestream_status_no_platforms", "No platforms configured")]
+    return [
+        f"{p.get('name', 'unknown')}: {translated_state(p.get('state', 'unknown'))}"
+        for p in platforms
+    ]
 
 
 class LivestreamService:
@@ -386,58 +307,62 @@ class LivestreamService:
         self.owner_id = 0
         self.name_acquired = False
         self.stopping = False
-        self.stop_started_at = None
         self.all_dead_since = None
         self.last_signature = None
         self.log_lock = threading.Lock()
         self.log_handle = self._open_log(args.log_file)
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
-        self.encoder_process = None  # gpu-screen-recorder (single encode)
-        self.tee_process = None  # ffmpeg tee (fan-out to N RTMP)
+        self.encoder_process = None
+        self.tee_process = None
         self.tee_log_thread = None
         self.encoder_log_thread = None
-        # Single-stream state (shared by all platforms).
         self.stream_state = "connecting"
         self.baseline_acked = None
         self.last_acked = None
         self.last_progress = None
-        self.ever_sending = False
-        self.disconnect_notified = False
 
     @staticmethod
     def _open_log(path):
         log_path = Path(path)
         log_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(log_path.parent, 0o700)
-        fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with contextlib.suppress(OSError):
+            os.chmod(log_path.parent, 0o700)
+        fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with contextlib.suppress(OSError):
+            os.chmod(log_path, 0o600)
         return os.fdopen(fd, "w", encoding="utf-8", buffering=1)
 
     def log(self, message):
+        line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
         with self.log_lock:
-            self.log_handle.write(f"{time.strftime('%F %T')} {message}\n")
+            self.log_handle.write(line)
+            self.log_handle.flush()
 
     def safe_log_line(self, line):
-        safe = line.rstrip("\n")
+        safe_line = line
         for platform in self.platforms:
-            safe = safe.replace(platform.url, "<redacted-rtmp-url>")
+            safe_line = safe_line.replace(platform.url, "[TARGET]")
             if platform.stream_key:
-                safe = safe.replace(platform.stream_key, "<redacted-stream-key>")
-        self.log(safe)
+                safe_line = safe_line.replace(platform.stream_key, "[KEY]")
+        self.log(safe_line)
 
     def read_process_log(self, process):
-        stream = process.stderr if process else None
-        if stream is None:
+        if process is None or process.stderr is None:
             return
-        # Binary pipes: readline() returns bytes; never iterate the raw stream.
-        while True:
-            raw = stream.readline()
-            if not raw:
-                break
-            line = (
-                raw.decode("utf-8", errors="replace")
-                if isinstance(raw, (bytes, bytearray))
-                else raw
-            )
+        for raw in iter(process.stderr.readline, b""):
+            line = raw.decode("utf-8", errors="replace").rstrip()
+            if not line or line.startswith(
+                (
+                    "frame=",
+                    "size=",
+                    "time=",
+                    "bitrate=",
+                    "speed=",
+                    "video:",
+                    "audio:",
+                )
+            ):
+                continue
             self.safe_log_line(line)
 
     def encoder_command(self, video_bitrate, audio_bitrate, output=None):
@@ -449,8 +374,6 @@ class LivestreamService:
             "flv",
             "-f",
             str(self.args.framerate),
-            # Live RTMP needs constant frame timing. gsr defaults to vfr, which
-            # commonly shows up as color/brightness shimmer on platform players.
             "-fm",
             "cfr",
             "-bm",
@@ -461,7 +384,6 @@ class LivestreamService:
             str(self.args.keyint),
             "-ab",
             str(audio_bitrate),
-            # limited = TV range; full often looks washed or crushed on Bilibili.
             "-cr",
             "limited",
             "-a",
@@ -472,95 +394,126 @@ class LivestreamService:
         if self.args.scale_width:
             command.extend(["-s", f"{self.args.scale_width}x0"])
         if output is not None:
-            # Single-target direct push: gsr opens the RTMP URL itself.
             command.extend(["-o", output])
-        # Multi-target path omits -o so gsr writes FLV to stdout for ffmpeg tee.
-        # Passing -o - is treated as a literal filename, so ffmpeg would see EOF.
         return command
 
     @staticmethod
     def platform_format(platform):
-        return "mpegts" if platform.scheme in ("udp", "srt") else "flv"
+        return "mpegts" if platform.scheme == "srt" else "flv"
 
     def lan_only(self):
-        return all(platform.scheme in ("udp", "srt") for platform in self.platforms)
+        return all(platform.scheme == "srt" for platform in self.platforms)
 
     @staticmethod
     def escape_tee_slave(url):
-        # Always reuse one encode via ffmpeg tee, even for a single target.
-        # tee splits slaves on '|' and parses option/protocol specials in the
-        # slave filename (ffmpeg-utils quoting). Bilibili keys look like
-        # "?streamname=...&key=..." and must be escaped or tee rejects the
-        # output with "Output file does not contain any stream".
         special = set("\\'|:[]=?&")
-        out = []
-        for ch in url:
-            if ch in special or ch.isspace():
-                out.append("\\" + ch)
-            else:
-                out.append(ch)
-        return "".join(out)
+        return "".join(f"\\{char}" if char in special or char.isspace() else char for char in url)
+
+    @staticmethod
+    def vertical_filter():
+        return "scale=1080:-2:flags=lanczos,pad=1080:1920:0:(1920-ih)/2:black"
+
+    def tee_targets(self, platforms):
+        return "|".join(
+            f"[f={self.platform_format(platform)}]{self.escape_tee_slave(platform.url)}"
+            for platform in platforms
+        )
 
     def fanout_command(self):
-        # Reuse path: gsr encodes once -> ffmpeg tee remuxes to N targets.
-        # RTMP takes FLV; UDP/SRT LAN mirrors take MPEG-TS. Always -map 0.
-        outputs = "|".join(
-            f"[f={self.platform_format(platform)}:onfail=ignore]"
-            f"{self.escape_tee_slave(platform.url)}"
-            for platform in self.platforms
-        )
-        return [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "warning",
-            "-i",
-            "-",
-            "-map",
-            "0",
-            "-c",
-            "copy",
-            "-f",
-            "tee",
-            outputs,
-        ]
+        groups = {
+            mode: [platform for platform in self.platforms if platform.aspect_ratio == mode]
+            for mode in ("16:9", "9:16")
+        }
+        filters = [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-i", "-"]
+        if filters:
+            command.extend(["-filter_complex", ";".join(filters)])
+
+        gop = max(1, self.args.framerate * self.args.keyint)
+        for mode in ("16:9", "9:16"):
+            platforms = groups[mode]
+            if not platforms:
+                continue
+
+            if mode == "16:9":
+                command.extend(["-map", "0:v", "-c:v", "copy"])
+            else:
+                command.extend(
+                    [
+                        "-map",
+                        "[v_vertical]",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-tune",
+                        "zerolatency",
+                        "-b:v",
+                        f"{self.video_bitrate}k",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-g",
+                        str(gop),
+                        "-keyint_min",
+                        str(gop),
+                        "-sc_threshold",
+                        "0",
+                    ]
+                )
+
+            command.extend(
+                [
+                    "-map",
+                    "0:a?",
+                    "-c:a",
+                    "copy",
+                    "-f",
+                    "tee",
+                    self.tee_targets(platforms),
+                ]
+            )
+
+        return command
 
     def start_stream(self):
         if not self.platforms:
-            self.log("No valid RTMP platforms configured")
+            self.log("No valid streaming targets configured")
             self.stream_state = "failed"
             self.emit_status(force=True)
             self.all_dead_since = time.monotonic()
             return
 
-        # Single encode at the streaming layer's configured bitrate.
         video_bitrate = self.video_bitrate
         audio_bitrate = self.audio_bitrate
         for platform in self.platforms:
             platform.video_bitrate = video_bitrate
             platform.audio_bitrate = audio_bitrate
 
+        direct_platform = (
+            self.platforms[0]
+            if len(self.platforms) == 1
+            and self.platforms[0].scheme == "rtmp"
+            and self.platforms[0].aspect_ratio == "16:9"
+            else None
+        )
+
         try:
-            # Direct push only works for RTMP: gsr writes FLV. LAN mirrors
-            # need MPEG-TS, so they always route through ffmpeg tee.
-            if len(self.platforms) == 1 and self.platforms[0].scheme.startswith("rtmp"):
-                # Direct push: one encode, one RTMP URL, no ffmpeg tee.
+            if direct_platform is not None:
                 self.encoder_process = subprocess.Popen(
                     self.encoder_command(
                         video_bitrate,
                         audio_bitrate,
-                        output=self.platforms[0].url,
+                        output=direct_platform.url,
                     ),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
                 )
                 self.tee_process = None
                 self.log(
-                    f"direct encoder started at {video_bitrate}/{audio_bitrate} kbps "
-                    f"-> 1 RTMP target",
+                    f"direct stream started at {video_bitrate}/{audio_bitrate} kbps "
+                    f"-> {direct_platform.name}",
                 )
             else:
-                # Multi-target: gsr encodes once -> ffmpeg tee remuxes to N URLs.
                 self.encoder_process = subprocess.Popen(
                     self.encoder_command(video_bitrate, audio_bitrate),
                     stdout=subprocess.PIPE,
@@ -572,14 +525,16 @@ class LivestreamService:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
                 )
-                # Allow encoder to receive SIGPIPE if tee exits first.
                 self.encoder_process.stdout.close()
                 self.log(
-                    f"single encoder started at {video_bitrate}/{audio_bitrate} kbps "
-                    f"-> {len(self.platforms)} RTMP target(s) via tee",
+                    f"fanout stream started at {video_bitrate}/{audio_bitrate} kbps "
+                    f"-> {len(self.platforms)} target(s)",
                 )
         except OSError as error:
-            self.log(f"failed to start encoder/tee: {error}")
+            self.log(f"failed to start stream pipeline: {error}")
+            self.terminate_processes()
+            self.encoder_process = None
+            self.tee_process = None
             self.stream_state = "failed"
             self.emit_status(force=True)
             self.all_dead_since = time.monotonic()
@@ -602,7 +557,6 @@ class LivestreamService:
 
     @staticmethod
     def socket_snapshot():
-        """Return {pid: total_bytes_acked} for established TCP sockets."""
         try:
             result = subprocess.run(
                 ["ss", "-Htinp", "state", "established"],
@@ -632,13 +586,10 @@ class LivestreamService:
         return sockets
 
     def stream_process(self):
-        """Process whose TCP acks represent outbound RTMP progress."""
-        # Multi-target: tee holds the RTMP sockets. Single-target: encoder does.
         return self.tee_process if self.tee_process is not None else self.encoder_process
 
     def update_stream(self, sockets, now):
         process = self.stream_process()
-        old_state = self.stream_state
         if process is None or process.poll() is not None:
             self.stream_state = "failed"
         else:
@@ -656,74 +607,39 @@ class LivestreamService:
             recent = self.last_progress is not None and now - self.last_progress <= 5
             if delta >= 65536 and recent:
                 self.stream_state = "sending"
-                self.ever_sending = True
-                self.disconnect_notified = False
             elif delta >= 65536:
                 self.stream_state = "stalled"
             else:
                 self.stream_state = "connecting"
 
             if self.lan_only():
-                # UDP/SRT have no TCP acks to observe via ss. A live process
-                # is treated as sending; stalls are invisible at this layer.
+                # SRT establishes its peer before ffmpeg starts writing. A live
+                # fanout process therefore represents an active SRT session.
                 self.stream_state = "sending"
-                self.ever_sending = True
-                self.disconnect_notified = False
 
-        if (
-            old_state == "sending"
-            and self.stream_state != "sending"
-            and self.ever_sending
-            and not self.disconnect_notified
-            and not self.stopping
-        ):
-            self.disconnect_notified = True
-            default_platform = translate("livestream_platform_default", "Platform")
-            platform_names = (
-                ", ".join(platform.name or default_platform for platform in self.platforms)
-                or default_platform
-            )
-            self.notify(
-                "livestream_notify_disconnected",
-                "{platform}: RTMP is no longer sending ({state})",
-                platform=platform_names,
-                state=translated_state(self.stream_state),
-            )
-
-    def aggregate_state(self):
-        if self.stopping:
-            return "stopping"
-        if not self.platforms:
-            return "failed"
-        return self.stream_state
-
-    def status(self):
+    def build_status(self):
         now = time.monotonic()
-        state = self.aggregate_state()
+        duration = int(now - self.started_at) if self.started_at is not None else 0
+        state = self.stream_state
+        platforms = [
+            {
+                "name": p.name,
+                "state": state,
+                "video_bitrate": p.video_bitrate,
+                "audio_bitrate": p.audio_bitrate,
+                "aspect_ratio": p.aspect_ratio,
+            }
+            for p in self.platforms
+        ]
         return {
+            "active": state in ("connecting", "sending", "stalled"),
             "state": state,
             "mode": self.args.target,
-            "duration_seconds": max(0, int(now - self.started_at)),
-            "platforms": [
-                {
-                    "name": platform.name,
-                    "video_bitrate": platform.video_bitrate,
-                    "audio_bitrate": platform.audio_bitrate,
-                    "state": state,
-                    "acknowledged_bytes": max(
-                        0,
-                        (self.last_acked or 0) - (self.baseline_acked or 0),
-                    ),
-                }
-                for platform in self.platforms
-            ],
+            "duration_seconds": duration,
+            "bitrate": self.video_bitrate,
+            "audio_bitrate": self.audio_bitrate,
+            "platforms": platforms,
         }
-
-    def status_json(self):
-        return json.dumps(self.status(), ensure_ascii=False, separators=(",", ":"))
-
-    def status_signature(self):
-        return self.aggregate_state(), tuple(platform.state for platform in self.platforms)
 
     @staticmethod
     def refresh_waybar():
@@ -734,23 +650,16 @@ class LivestreamService:
             check=False,
         )
 
-    @staticmethod
-    def notify(key, fallback, **values):
-        title = translate("livestream_notify_title", "Live Stream")
-        body = translate(key, fallback, **values)
-        with contextlib.suppress(OSError):
-            subprocess.Popen(
-                ["notify-send", "-u", "critical", title, body],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
     def emit_status(self, force=False):
-        signature = self.status_signature()
+        status = self.build_status()
+        signature = (
+            status["active"],
+            status["state"],
+            tuple((platform["name"], platform["state"]) for platform in status["platforms"]),
+        )
         if not force and signature == self.last_signature:
             return
         self.last_signature = signature
-        payload = self.status_json()
         if self.connection is not None:
             with contextlib.suppress(GLib.Error):
                 self.connection.emit_signal(
@@ -758,82 +667,9 @@ class LivestreamService:
                     OBJECT_PATH,
                     INTERFACE,
                     "StatusChanged",
-                    GLib.Variant("(s)", (payload,)),
+                    GLib.Variant("(s)", (json.dumps(status),)),
                 )
         self.refresh_waybar()
-
-    def monitor(self):
-        now = time.monotonic()
-        sockets = self.socket_snapshot()
-        self.update_stream(sockets, now)
-        self.emit_status()
-
-        process = self.stream_process()
-        all_dead = not self.platforms or process is None or process.poll() is not None
-        if self.stopping:
-            if all_dead:
-                self.finish()
-                return GLib.SOURCE_REMOVE
-            elapsed = now - (self.stop_started_at or now)
-            if elapsed >= 5:
-                self._kill_processes()
-            elif elapsed >= 3:
-                self._terminate_processes()
-        elif all_dead:
-            if self.all_dead_since is None:
-                self.all_dead_since = now
-            elif now - self.all_dead_since >= 3:
-                self.finish()
-                return GLib.SOURCE_REMOVE
-        else:
-            self.all_dead_since = None
-
-        return GLib.SOURCE_CONTINUE
-
-    def _terminate_processes(self):
-        for process in (self.tee_process, self.encoder_process):
-            if process and process.poll() is None:
-                with contextlib.suppress(ProcessLookupError):
-                    process.terminate()
-
-    def _kill_processes(self):
-        for process in (self.tee_process, self.encoder_process):
-            if process and process.poll() is None:
-                with contextlib.suppress(ProcessLookupError):
-                    process.kill()
-
-    def request_stop(self):
-        if self.stopping:
-            return
-        self.stopping = True
-        self.stop_started_at = time.monotonic()
-        for process in (self.tee_process, self.encoder_process):
-            if process and process.poll() is None:
-                with contextlib.suppress(ProcessLookupError):
-                    process.send_signal(signal.SIGINT)
-        self.emit_status(force=True)
-
-    def handle_method_call(
-        self,
-        connection,
-        sender,
-        object_path,
-        interface_name,
-        method_name,
-        parameters,
-        invocation,
-    ):
-        if method_name == "GetStatus":
-            invocation.return_value(GLib.Variant("(s)", (self.status_json(),)))
-        elif method_name == "Stop":
-            accepted = not self.stopping
-            self.request_stop()
-            invocation.return_value(GLib.Variant("(b)", (accepted,)))
-        else:
-            invocation.return_dbus_error(
-                f"{INTERFACE}.UnknownMethod",
-                f"Unknown method: {method_name}",
-            )
 
     def on_bus_acquired(self, connection, name):
         self.connection = connection
@@ -847,23 +683,70 @@ class LivestreamService:
 
     def on_name_acquired(self, connection, name):
         self.name_acquired = True
-        self.log(f"D-Bus service acquired {name}")
         self.start_stream()
-        GLib.timeout_add(500, self.monitor)
 
     def on_name_lost(self, connection, name):
         if not self.name_acquired:
-            self.log(f"D-Bus name already owned: {name}")
-        self.finish()
+            self.log("Name lost: another instance holds the D-Bus service")
+        self.loop.quit()
 
-    def finish(self):
-        self.refresh_waybar()
-        if self.loop.is_running():
-            self.loop.quit()
+    def handle_method_call(self, connection, sender, path, iface, method, params, invocation):
+        if method == "GetStatus":
+            status_json = json.dumps(self.build_status())
+            invocation.return_value(GLib.Variant("(s)", (status_json,)))
+        elif method == "Stop":
+            accepted = not self.stopping
+            invocation.return_value(GLib.Variant("(b)", (accepted,)))
+            GLib.idle_add(self.request_stop)
+
+    def request_stop(self):
+        if self.stopping:
+            return GLib.SOURCE_REMOVE
+        self.stopping = True
+        self.stream_state = "stopping"
+        self.log("stop requested")
+        self.emit_status(force=True)
+        self.terminate_processes()
+        self.loop.quit()
+        return GLib.SOURCE_REMOVE
+
+    def terminate_processes(self):
+        processes = (self.tee_process, self.encoder_process)
+        for process in processes:
+            if process is not None and process.poll() is None:
+                with contextlib.suppress(OSError):
+                    process.terminate()
+        time.sleep(0.2)
+        for process in processes:
+            if process is not None and process.poll() is None:
+                with contextlib.suppress(OSError):
+                    process.kill()
+
+    def tick(self):
+        if self.stopping:
+            return GLib.SOURCE_REMOVE
+
+        now = time.monotonic()
+        sockets = self.socket_snapshot()
+        self.update_stream(sockets, now)
+
+        if self.stream_state == "failed":
+            if self.all_dead_since is None:
+                self.all_dead_since = now
+            elif now - self.all_dead_since >= 5:
+                self.log("Stream failed for 5s, shutting down")
+                self.terminate_processes()
+                self.loop.quit()
+                return False
+        else:
+            self.all_dead_since = None
+
+        self.emit_status()
+        return True
 
     def run(self):
-        signal.signal(signal.SIGINT, lambda *_: GLib.idle_add(self.request_stop))
-        signal.signal(signal.SIGTERM, lambda *_: GLib.idle_add(self.request_stop))
+        signal.signal(signal.SIGINT, lambda *_args: GLib.idle_add(self.request_stop))
+        signal.signal(signal.SIGTERM, lambda *_args: GLib.idle_add(self.request_stop))
         self.owner_id = Gio.bus_own_name(
             Gio.BusType.SESSION,
             BUS_NAME,
@@ -872,110 +755,21 @@ class LivestreamService:
             self.on_name_acquired,
             self.on_name_lost,
         )
-        self.loop.run()
-
-        if self.registration_id and self.connection is not None:
-            self.connection.unregister_object(self.registration_id)
-        if self.owner_id:
-            Gio.bus_unown_name(self.owner_id)
-        self._kill_processes()
-        for process in (self.tee_process, self.encoder_process):
-            if process:
-                with contextlib.suppress(subprocess.TimeoutExpired):
-                    process.wait(timeout=2)
-        for thread in (self.encoder_log_thread, self.tee_log_thread):
-            if thread:
-                thread.join(timeout=1)
-        self.log_handle.close()
-        return 0 if self.name_acquired else 2
-
-
-def wait_ready(timeout):
-    started = time.monotonic()
-    candidate = None
-    candidate_since = None
-    seen_service = False
-    last_status = None
-
-    while time.monotonic() - started < timeout:
-        status = get_remote_status()
-        if status is None:
-            if seen_service or time.monotonic() - started >= 3:
-                return 4
-            time.sleep(0.2)
-            continue
-
-        seen_service = True
-        last_status = status
-        state = status.get("state")
-        if state in {"sending", "degraded"}:
-            if state != candidate:
-                candidate = state
-                candidate_since = time.monotonic()
-            elif time.monotonic() - candidate_since >= 2:
-                return 0 if state == "sending" else 6
-        elif state in {"failed", "stalled"}:
-            return 4
-        else:
-            candidate = None
-            candidate_since = None
-        time.sleep(0.2)
-
-    if last_status and any(
-        platform.get("state") == "sending" for platform in last_status.get("platforms", [])
-    ):
-        return 6
-    return 4
-
-
-def stop_remote(timeout):
-    proxy = get_proxy()
-    if proxy is None:
-        return 1
-    try:
-        proxy.call_sync("Stop", None, Gio.DBusCallFlags.NONE, 2000, None)
-    except GLib.Error:
-        return 1
-
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if get_proxy() is None:
-            return 0
-        time.sleep(0.1)
-    return 4
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    run = sub.add_parser("run")
-    run.add_argument("--config", required=True)
-    run.add_argument("--target", default="portal")
-    run.add_argument("--audio-source", required=True)
-    run.add_argument("--framerate", type=int, default=30)
-    run.add_argument("--keyint", type=int, default=2)
-    run.add_argument("--scale-width", type=int, default=0)
-    run.add_argument("--log-file", required=True)
-
-    validate = sub.add_parser("validate")
-    validate.add_argument("--config", required=True)
-
-    status = sub.add_parser("status")
-    status.add_argument("--json", action="store_true")
-    status.add_argument("--platforms-only", action="store_true")
-
-    field_parser = sub.add_parser("field")
-    field_parser.add_argument("field", choices=["state", "mode", "duration_seconds"])
-
-    wait_parser = sub.add_parser("wait-ready")
-    wait_parser.add_argument("--timeout", type=float, default=30)
-
-    stop_parser = sub.add_parser("stop")
-    stop_parser.add_argument("--timeout", type=float, default=7)
-
-    sub.add_parser("is-active")
-    return parser.parse_args()
+        GLib.timeout_add(500, self.tick)
+        try:
+            self.loop.run()
+        finally:
+            self.terminate_processes()
+            if self.registration_id and self.connection:
+                self.connection.unregister_object(self.registration_id)
+            if self.owner_id:
+                Gio.bus_unown_name(self.owner_id)
+            for thread in (self.encoder_log_thread, self.tee_log_thread):
+                if thread is not None:
+                    thread.join(timeout=1)
+            self.refresh_waybar()
+            self.log_handle.close()
+        return 0
 
 
 def main():
@@ -986,24 +780,50 @@ def main():
         platforms, _video, _audio = load_stream_config(args.config)
         return 0 if platforms else 3
     if args.command == "is-active":
-        return 0 if get_proxy() is not None else 1
-    if args.command == "wait-ready":
-        return wait_ready(args.timeout)
-    if args.command == "stop":
-        return stop_remote(args.timeout)
-
-    status = get_remote_status() or offline_status()
+        status = get_remote_status()
+        return 0 if status and status.get("active") is True else 1
+    if args.command == "status":
+        status = get_remote_status() or offline_status()
+        if args.platforms_only:
+            for line in platform_status_lines(status):
+                print(line)
+        else:
+            print(json.dumps(status, indent=2))
+        return 0
     if args.command == "field":
-        print(status.get(args.field, ""))
-    elif args.platforms_only:
-        for line in platform_status_lines(status):
-            print(line)
-    elif args.json:
-        print(json.dumps(status, ensure_ascii=False, separators=(",", ":")))
-    else:
-        print_human_status(status)
+        status = get_remote_status() or offline_status()
+        print(status.get(args.name, ""))
+        return 0
+    if args.command == "wait-ready":
+        deadline = time.monotonic() + args.timeout
+        while time.monotonic() < deadline:
+            status = get_remote_status()
+            if status is not None:
+                state = status.get("state")
+                if state == "sending":
+                    return 0
+                if state in ("failed", "stalled", "offline"):
+                    return 1
+            time.sleep(0.3)
+        return 1
+    if args.command == "stop":
+        proxy = get_proxy()
+        if proxy is None:
+            return 0
+        try:
+            proxy.Stop()
+        except GLib.Error:
+            return 1
+
+        deadline = time.monotonic() + args.timeout
+        while time.monotonic() < deadline:
+            if get_proxy() is None:
+                return 0
+            time.sleep(0.1)
+        return 4
     return 0
 
 
 if __name__ == "__main__":
+    # Preserve CLI exit codes: capture-router relies on them for active-state checks.
     raise SystemExit(main())
