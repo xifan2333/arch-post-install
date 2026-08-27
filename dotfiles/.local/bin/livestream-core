@@ -4,7 +4,7 @@
 
 SCRIPT_DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 LIVESTREAM_SERVICE="$SCRIPT_DIR/livestream-service"
-LIVE_DANMAKU="$SCRIPT_DIR/live-danmaku"
+LIVESTREAM_DANMAKU="$SCRIPT_DIR/livestream-danmaku"
 LIVESTREAM_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
 # Single JSON config: global bitrate + platforms[].
 LIVESTREAM_CONFIG_FILE="$LIVESTREAM_CONFIG_DIR/config.json"
@@ -108,13 +108,13 @@ livestream_capture_target() {
 
 # Herdr live desk (unibarrage + dmnotifier). Fully silent; never affects stream rc.
 livestream_open_danmaku() {
-    [ -x "$LIVE_DANMAKU" ] || return 0
-    "$LIVE_DANMAKU" start >/dev/null 2>&1 &
+    [ -x "$LIVESTREAM_DANMAKU" ] || return 0
+    "$LIVESTREAM_DANMAKU" start >/dev/null 2>&1 &
 }
 
 livestream_close_danmaku() {
-    [ -x "$LIVE_DANMAKU" ] || return 0
-    "$LIVE_DANMAKU" stop >/dev/null 2>&1 &
+    [ -x "$LIVESTREAM_DANMAKU" ] || return 0
+    "$LIVESTREAM_DANMAKU" stop >/dev/null 2>&1 &
 }
 
 livestream_start() {

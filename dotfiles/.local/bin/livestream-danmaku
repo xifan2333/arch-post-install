@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Herdr live danmaku desk: unibarrage | dmnotifier
-# Usage: live-danmaku start|stop
+# Usage: livestream-danmaku start|stop
 # Intended to be fully silent when called from livestream hooks.
 
 set -u
 
-LABEL="${LIVE_DANMAKU_LABEL:-live}"
-WAIT_SECS="${LIVE_DANMAKU_WAIT_SECS:-8}"
-SPLIT_RATIO="${LIVE_DANMAKU_SPLIT_RATIO:-0.5}"
+LABEL="${LIVESTREAM_DANMAKU_LABEL:-live}"
+WAIT_SECS="${LIVESTREAM_DANMAKU_WAIT_SECS:-8}"
+SPLIT_RATIO="${LIVESTREAM_DANMAKU_SPLIT_RATIO:-0.5}"
 
 log_null() {
     "$@" >/dev/null 2>&1
