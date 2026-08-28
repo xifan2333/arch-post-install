@@ -59,7 +59,9 @@ MAX_UTTERANCE_SECONDS = int(
     os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_UTTERANCE_SECONDS", "18")
 )
 CAPTION_STALE_SECONDS = 4.0
-MAX_CAPTION_CHARS = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_CHARS", "48"))
+# Default 0 = no truncation (show the full partial), matching the pre-regression
+# behavior. Set SCREENRECORD_OVERLAY_CAPTIONS_MAX_CHARS or --max-chars to cap.
+MAX_CAPTION_CHARS = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_CHARS", "0"))
 PROVIDER_POLL_SECONDS = 2.0
 VINPUT_STATUS_POLL_SECONDS = 0.5
 VINPUT_BUS_NAME = "org.fcitx.Vinput"
@@ -158,11 +160,14 @@ def vinput_recording_active():
     )
     if proxy.get_name_owner() is None:
         return False
+    # Short timeout: this runs synchronously on the audio capture thread. A slow
+    # Vinput daemon must not stall audio draining (which piles up buffer and
+    # delays partial captions).
     result = proxy.call_sync(
         "GetStatus",
         None,
         Gio.DBusCallFlags.NONE,
-        500,
+        100,
         None,
     )
     return result.unpack()[0] != "idle"
@@ -272,7 +277,7 @@ class ProviderSession:
                 continue
             typ = event.get("type")
             text = str(event.get("text") or "").strip()
-            if typ == "partial" and text:
+            if typ in ("partial", "final", "final_timestamps") and text:
                 self.events.put((typ, text, self.session_id))
             elif typ == "error":
                 self.events.put(("error", str(event.get("message") or event), self.session_id))
@@ -296,12 +301,12 @@ class CaptionsApp(Gtk.Application):
         self.visible_text = ""
         self.text_changed_at = 0.0
         self.display_session_id = 0
-        self.ended_session_id = 0
         self.last_partial_session_id = 0
         self.last_partial_text = ""
         self.next_session_id = 1
         self.audio_proc = None
         self.stop_event = threading.Event()
+        self.session_lock = threading.Lock()
         self.current_session = None
         self.active_provider = None
         self.last_provider_poll_at = 0.0
@@ -311,6 +316,9 @@ class CaptionsApp(Gtk.Application):
     def do_activate(self):
         self.setup_window()
         threading.Thread(target=self.run_audio_loop, daemon=True).start()
+        # Poll VInput status on its own thread so the D-Bus round-trip never
+        # blocks the audio capture thread (which would stall partial captions).
+        threading.Thread(target=self.poll_vinput_status_loop, daemon=True).start()
         GLib.timeout_add(50, self.update_ui)
 
     def setup_window(self):
@@ -404,7 +412,11 @@ class CaptionsApp(Gtk.Application):
 
     def poll_active_provider(self, force=False):
         now = time.monotonic()
-        if not force and now - self.last_provider_poll_at < PROVIDER_POLL_SECONDS:
+        if (
+            not force
+            and self.active_provider
+            and now - self.last_provider_poll_at < PROVIDER_POLL_SECONDS
+        ):
             return self.active_provider
         self.last_provider_poll_at = now
         provider = get_active_vinput_provider()
@@ -414,54 +426,64 @@ class CaptionsApp(Gtk.Application):
             self.terminate_session()
         return self.active_provider
 
-    def start_session(self):
-        provider = self.poll_active_provider(force=True)
+    def start_session(self, provider=None):
+        if provider is None:
+            provider = self.poll_active_provider(force=False)
         session = ProviderSession(self.events, provider, self.next_session_id)
         self.next_session_id += 1
         session.start()
-        self.current_session = session
+        with self.session_lock:
+            self.current_session = session
         return session
 
     def ensure_session(self):
         provider = self.poll_active_provider(force=False)
+        with self.session_lock:
+            current = self.current_session
         if (
-            self.current_session
-            and self.current_session.proc
-            and self.current_session.proc.poll() is None
+            current
+            and current.proc
+            and current.proc.poll() is None
             and provider
-            and self.current_session.provider_id == provider.get("id")
+            and current.provider_id == provider.get("id")
         ):
-            return self.current_session
-        self.current_session = None
-        return self.start_session()
+            return current
+        self.terminate_session()
+        return self.start_session(provider=provider)
 
     def finish_session(self):
-        if self.current_session:
-            session = self.current_session
-            session.finish()
-            self.events.put(("session_end", "", session.session_id))
-            self.current_session = None
+        with self.session_lock:
+            if self.current_session:
+                session = self.current_session
+                session.finish()
+                self.current_session = None
 
     def terminate_session(self):
-        if self.current_session:
-            session = self.current_session
-            session.terminate()
-            self.events.put(("session_end", "", session.session_id))
-            self.current_session = None
+        with self.session_lock:
+            if self.current_session:
+                session = self.current_session
+                session.terminate()
+                self.current_session = None
 
-    def poll_vinput_status(self, force=False):
-        now = time.monotonic()
-        if not force and now - self.last_vinput_status_poll_at < VINPUT_STATUS_POLL_SECONDS:
-            return self.voice_input_active
-        self.last_vinput_status_poll_at = now
-        active = vinput_recording_active()
-        if active != self.voice_input_active:
-            self.voice_input_active = active
-            log(f"voice input {'active' if active else 'idle'}")
-            if active:
-                self.terminate_session()
-                self.events.put(("clear", ""))
-        return active
+    def poll_vinput_status(self):
+        # Non-blocking: returns the last observed status, refreshed by the
+        # dedicated background poller thread.
+        return self.voice_input_active
+
+    def poll_vinput_status_loop(self):
+        while not self.stop_event.is_set():
+            try:
+                active = vinput_recording_active()
+            except (GLib.Error, KeyError, OSError, RuntimeError, TypeError) as exc:
+                log(f"vinput status check failed: {exc}")
+                active = self.voice_input_active
+            if active != self.voice_input_active:
+                self.voice_input_active = active
+                log(f"voice input {'active' if active else 'idle'}")
+                if active:
+                    self.terminate_session()
+                    self.events.put(("clear", "", self.next_session_id))
+            self.stop_event.wait(VINPUT_STATUS_POLL_SECONDS)
 
     def run_audio_loop(self):
         try:
@@ -479,7 +501,7 @@ class CaptionsApp(Gtk.Application):
 
         # Only create an ASR session while VInput is idle.
         try:
-            if not self.poll_vinput_status(force=True):
+            if not self.poll_vinput_status():
                 self.ensure_session()
         except (GLib.Error, KeyError, OSError, RuntimeError, TypeError) as exc:
             log(f"prewarm failed: {exc}")
@@ -561,22 +583,22 @@ class CaptionsApp(Gtk.Application):
 
             typ, text = event[:2]
             session_id = event[2] if len(event) > 2 else 0
-            if typ == "session_end":
-                self.ended_session_id = max(self.ended_session_id, session_id)
-                continue
+
             if typ == "clear":
                 self.visible_text = ""
                 self.text_changed_at = 0.0
+                self.display_session_id = max(self.display_session_id, session_id)
+                self.last_partial_session_id = 0
+                self.last_partial_text = ""
                 new_text = ""
                 continue
-            if session_id and session_id < self.display_session_id:
-                continue
 
-            if typ == "partial":
-                if session_id and session_id <= self.ended_session_id:
+            if typ in ("partial", "final", "final_timestamps"):
+                if session_id and session_id < self.display_session_id:
                     continue
                 if session_id:
                     self.display_session_id = session_id
+
                 caption = truncate_caption(text, self.args.max_chars)
                 changed = (
                     session_id != self.last_partial_session_id or caption != self.last_partial_text
@@ -587,6 +609,8 @@ class CaptionsApp(Gtk.Application):
                     self.visible_text = caption
                     self.text_changed_at = now
                     new_text = caption
+                elif typ in ("final", "final_timestamps"):
+                    self.text_changed_at = now
             elif typ == "error":
                 log(text)
 
