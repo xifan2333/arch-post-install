@@ -23,7 +23,7 @@ try:
     gi.require_version("Gtk", "3.0")
     gi.require_version("Gdk", "3.0")
     gi.require_version("GtkLayerShell", "0.1")
-    from gi.repository import GLib, Gtk, GtkLayerShell
+    from gi.repository import Gio, GLib, Gtk, GtkLayerShell
 except (ImportError, ValueError) as exc:
     print(
         f"screenrecord-overlay-captions: missing GTK layer-shell dependency: {exc}", file=sys.stderr
@@ -58,8 +58,13 @@ SILENCE_FRAMES_TO_FINISH = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_SIL
 MAX_UTTERANCE_SECONDS = int(
     os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_UTTERANCE_SECONDS", "18")
 )
-DISPLAY_SECONDS_AFTER_FINAL = 4.0
+CAPTION_STALE_SECONDS = 4.0
+MAX_CAPTION_CHARS = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_CHARS", "48"))
 PROVIDER_POLL_SECONDS = 2.0
+VINPUT_STATUS_POLL_SECONDS = 0.5
+VINPUT_BUS_NAME = "org.fcitx.Vinput"
+VINPUT_OBJECT_PATH = "/org/fcitx/Vinput"
+VINPUT_INTERFACE = "org.fcitx.Vinput.Service"
 
 WINDOW_WIDTH = 900
 WINDOW_HEIGHT = 90
@@ -83,6 +88,12 @@ def parse_args():
     )
     parser.add_argument("--font-size", type=int, default=FONT_SIZE, help="caption font size")
     parser.add_argument("--font-family", default=FONT_FAMILY, help="caption font family")
+    parser.add_argument(
+        "--max-chars",
+        type=int,
+        default=MAX_CAPTION_CHARS,
+        help="maximum displayed caption characters; 0 disables truncation",
+    )
     parser.add_argument("--background", default=BACKGROUND, help="CSS background value")
     parser.add_argument("--text-color", default=TEXT_COLOR, help="CSS text color")
     parser.add_argument(
@@ -93,6 +104,14 @@ def parse_args():
 
 def log(message):
     print(f"screenrecord-overlay-captions: {message}", file=sys.stderr, flush=True)
+
+
+def truncate_caption(text, max_chars):
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    if max_chars == 1:
+        return "…"
+    return "…" + text[-(max_chars - 1) :]
 
 
 def pcm16_rms(chunk):
@@ -126,6 +145,29 @@ def vinput_config_get(pointer):
     return payload.get("value")
 
 
+def vinput_recording_active():
+    connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    proxy = Gio.DBusProxy.new_sync(
+        connection,
+        Gio.DBusProxyFlags.DO_NOT_AUTO_START,
+        None,
+        VINPUT_BUS_NAME,
+        VINPUT_OBJECT_PATH,
+        VINPUT_INTERFACE,
+        None,
+    )
+    if proxy.get_name_owner() is None:
+        return False
+    result = proxy.call_sync(
+        "GetStatus",
+        None,
+        Gio.DBusCallFlags.NONE,
+        500,
+        None,
+    )
+    return result.unpack()[0] != "idle"
+
+
 def get_active_vinput_provider():
     active_id = vinput_config_get("/asr/active_provider")
     providers_value = vinput_config_get("/asr/providers")
@@ -154,9 +196,10 @@ def get_active_vinput_provider():
 
 
 class ProviderSession:
-    def __init__(self, events, provider):
+    def __init__(self, events, provider, session_id):
         self.events = events
         self.provider = provider
+        self.session_id = session_id
         self.proc = None
         self.provider_id = provider["id"]
         self.closed = False
@@ -179,7 +222,7 @@ class ProviderSession:
             env=env,
         )
         self.provider_id = provider["id"]
-        self.events.put(("debug", f"ASR provider: {provider['title']}"))
+        self.events.put(("debug", f"ASR provider: {provider['title']}", self.session_id))
         log(f"provider started pid={self.proc.pid} id={self.provider_id}")
         threading.Thread(target=self.read_stdout, daemon=True).start()
         threading.Thread(target=self.read_stderr, daemon=True).start()
@@ -205,7 +248,9 @@ class ProviderSession:
             self.proc.stdin.flush()
             self.proc.stdin.close()
         except (BrokenPipeError, OSError, ValueError) as exc:
-            self.events.put(("debug", f"failed to finish ASR provider cleanly: {exc}"))
+            self.events.put(
+                ("debug", f"failed to finish ASR provider cleanly: {exc}", self.session_id)
+            )
         self.closed = True
 
     def terminate(self):
@@ -227,10 +272,10 @@ class ProviderSession:
                 continue
             typ = event.get("type")
             text = str(event.get("text") or "").strip()
-            if typ in ("partial", "final", "final_timestamps") and text:
-                self.events.put((typ, text))
+            if typ == "partial" and text:
+                self.events.put((typ, text, self.session_id))
             elif typ == "error":
-                self.events.put(("error", str(event.get("message") or event)))
+                self.events.put(("error", str(event.get("message") or event), self.session_id))
 
     def read_stderr(self):
         if not self.proc or not self.proc.stderr:
@@ -238,7 +283,7 @@ class ProviderSession:
         for raw_line in self.proc.stderr:
             line = raw_line.strip()
             if line:
-                self.events.put(("debug", line))
+                self.events.put(("debug", line, self.session_id))
 
 
 class CaptionsApp(Gtk.Application):
@@ -248,13 +293,20 @@ class CaptionsApp(Gtk.Application):
         self.events = queue.Queue()
         self.win = None
         self.label = None
-        self.last_final_at = 0
-        self.last_event_at = 0
+        self.visible_text = ""
+        self.text_changed_at = 0.0
+        self.display_session_id = 0
+        self.ended_session_id = 0
+        self.last_partial_session_id = 0
+        self.last_partial_text = ""
+        self.next_session_id = 1
         self.audio_proc = None
         self.stop_event = threading.Event()
         self.current_session = None
         self.active_provider = None
         self.last_provider_poll_at = 0.0
+        self.last_vinput_status_poll_at = 0.0
+        self.voice_input_active = False
 
     def do_activate(self):
         self.setup_window()
@@ -359,14 +411,13 @@ class CaptionsApp(Gtk.Application):
         if self.provider_changed(provider):
             log(f"active provider selected: {provider['id']}")
             self.active_provider = provider
-            if self.current_session:
-                self.current_session.terminate()
-                self.current_session = None
+            self.terminate_session()
         return self.active_provider
 
     def start_session(self):
         provider = self.poll_active_provider(force=True)
-        session = ProviderSession(self.events, provider)
+        session = ProviderSession(self.events, provider, self.next_session_id)
+        self.next_session_id += 1
         session.start()
         self.current_session = session
         return session
@@ -386,8 +437,31 @@ class CaptionsApp(Gtk.Application):
 
     def finish_session(self):
         if self.current_session:
-            self.current_session.finish()
+            session = self.current_session
+            session.finish()
+            self.events.put(("session_end", "", session.session_id))
             self.current_session = None
+
+    def terminate_session(self):
+        if self.current_session:
+            session = self.current_session
+            session.terminate()
+            self.events.put(("session_end", "", session.session_id))
+            self.current_session = None
+
+    def poll_vinput_status(self, force=False):
+        now = time.monotonic()
+        if not force and now - self.last_vinput_status_poll_at < VINPUT_STATUS_POLL_SECONDS:
+            return self.voice_input_active
+        self.last_vinput_status_poll_at = now
+        active = vinput_recording_active()
+        if active != self.voice_input_active:
+            self.voice_input_active = active
+            log(f"voice input {'active' if active else 'idle'}")
+            if active:
+                self.terminate_session()
+                self.events.put(("clear", ""))
+        return active
 
     def run_audio_loop(self):
         try:
@@ -403,11 +477,11 @@ class CaptionsApp(Gtk.Application):
         in_speech = False
         utterance_started_at = 0.0
 
-        # Prewarm the active VInput-selected provider to avoid per-utterance startup latency.
+        # Only create an ASR session while VInput is idle.
         try:
-            self.poll_active_provider(force=True)
-            self.ensure_session()
-        except (KeyError, OSError, RuntimeError, TypeError) as exc:
+            if not self.poll_vinput_status(force=True):
+                self.ensure_session()
+        except (GLib.Error, KeyError, OSError, RuntimeError, TypeError) as exc:
             log(f"prewarm failed: {exc}")
             self.events.put(("error", str(exc)))
 
@@ -416,6 +490,11 @@ class CaptionsApp(Gtk.Application):
                 chunk = self.audio_proc.stdout.read(FRAME_BYTES)
                 if not chunk:
                     break
+
+                if self.poll_vinput_status():
+                    in_speech = False
+                    silence_frames = 0
+                    continue
 
                 rms = pcm16_rms(chunk)
                 is_voice = rms >= VOICE_RMS_THRESHOLD
@@ -449,16 +528,15 @@ class CaptionsApp(Gtk.Application):
                 )
                 if in_speech and (silence_frames >= SILENCE_FRAMES_TO_FINISH or too_long):
                     self.finish_session()
-                    # Immediately prewarm the next provider/session. It follows
-                    # any VInput provider switch.
                     try:
-                        self.ensure_session()
-                    except (KeyError, OSError, RuntimeError, TypeError) as exc:
+                        if not self.poll_vinput_status():
+                            self.ensure_session()
+                    except (GLib.Error, KeyError, OSError, RuntimeError, TypeError) as exc:
                         self.events.put(("error", str(exc)))
                     in_speech = False
                     silence_frames = 0
 
-        except (OSError, ValueError) as exc:
+        except (GLib.Error, OSError, ValueError) as exc:
             self.events.put(("error", f"audio loop error: {exc}"))
         finally:
             self.finish_session()
@@ -473,33 +551,53 @@ class CaptionsApp(Gtk.Application):
 
     def update_ui(self):
         now = time.monotonic()
-        visible_text = None
+        new_text = None
 
         while True:
             try:
-                typ, text = self.events.get_nowait()
+                event = self.events.get_nowait()
             except queue.Empty:
                 break
 
+            typ, text = event[:2]
+            session_id = event[2] if len(event) > 2 else 0
+            if typ == "session_end":
+                self.ended_session_id = max(self.ended_session_id, session_id)
+                continue
+            if typ == "clear":
+                self.visible_text = ""
+                self.text_changed_at = 0.0
+                new_text = ""
+                continue
+            if session_id and session_id < self.display_session_id:
+                continue
+
             if typ == "partial":
-                visible_text = text
-                self.last_event_at = now
-            elif typ in ("final", "final_timestamps") or typ == "error":
-                visible_text = text
-                self.last_event_at = now
-                self.last_final_at = now
-            elif typ == "debug":
-                # Keep debug off-screen; see redirected stderr/log if needed.
-                pass
+                if session_id and session_id <= self.ended_session_id:
+                    continue
+                if session_id:
+                    self.display_session_id = session_id
+                caption = truncate_caption(text, self.args.max_chars)
+                changed = (
+                    session_id != self.last_partial_session_id or caption != self.last_partial_text
+                )
+                self.last_partial_session_id = session_id
+                self.last_partial_text = caption
+                if changed:
+                    self.visible_text = caption
+                    self.text_changed_at = now
+                    new_text = caption
+            elif typ == "error":
+                log(text)
 
-        if visible_text:
-            self.label.set_text(visible_text)
+        if new_text is not None:
+            self.label.set_text(new_text)
 
-        if self.last_final_at and now - self.last_final_at > DISPLAY_SECONDS_AFTER_FINAL:
+        stale = self.text_changed_at and now - self.text_changed_at > CAPTION_STALE_SECONDS
+        if self.visible_text and stale:
             self.label.set_text("")
-            self.last_final_at = 0
-        elif not self.last_final_at and self.last_event_at and now - self.last_event_at > 6.0:
-            self.label.set_text("")
+            self.visible_text = ""
+            self.text_changed_at = 0.0
 
         return True
 

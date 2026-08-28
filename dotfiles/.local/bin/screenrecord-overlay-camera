@@ -6,6 +6,7 @@ import argparse
 import signal
 import sys
 import threading
+from pathlib import Path
 
 import cairo
 import gi
@@ -24,6 +25,80 @@ except (ImportError, ValueError) as exc:
 WINDOW_TITLE = "Screenrecord Overlay Camera"
 
 
+def camera_inventory():
+    """Return V4L2 cameras and their advertised GStreamer modes."""
+    Gst.init(None)
+    monitor = Gst.DeviceMonitor()
+    monitor.add_filter("Video/Source", None)
+    if not monitor.start():
+        return []
+
+    cameras = []
+    try:
+        for device in monitor.get_devices():
+            properties = device.get_properties()
+            if properties is None:
+                continue
+            path = properties.get_string("api.v4l2.path")
+            if not path or not Path(path).exists():
+                continue
+
+            modes = []
+            caps = device.get_caps()
+            if caps is not None:
+                for index in range(caps.get_size()):
+                    structure = caps.get_structure(index)
+                    width_ok, width = structure.get_int("width")
+                    height_ok, height = structure.get_int("height")
+                    if width_ok and height_ok:
+                        modes.append((structure.get_name(), width, height))
+
+            cameras.append(
+                {
+                    "path": path,
+                    "name": device.get_display_name(),
+                    "modes": modes,
+                    "max_pixels": max((width * height for _, width, height in modes), default=0),
+                }
+            )
+    finally:
+        monitor.stop()
+    return cameras
+
+
+def select_camera(device, width, height):
+    """Resolve an explicit device or select the camera with the best sensor mode."""
+    cameras = camera_inventory()
+    if device != "auto":
+        selected = next((camera for camera in cameras if camera["path"] == device), None)
+        return selected or {"path": device, "name": device, "modes": []}
+
+    if not cameras:
+        return {"path": "/dev/video0", "name": "Fallback camera", "modes": []}
+
+    selected = max(cameras, key=lambda camera: (camera["max_pixels"], camera["path"]))
+    print(
+        f"screenrecord-overlay-camera: selected {selected['name']} ({selected['path']}) "
+        f"for {width}x{height}",
+        file=sys.stderr,
+    )
+    return selected
+
+
+def camera_media_type(camera, width, height):
+    """Prefer MJPEG for high-resolution 30 FPS webcam modes, then raw video."""
+    exact = [
+        media_type
+        for media_type, mode_width, mode_height in camera["modes"]
+        if (mode_width, mode_height) == (width, height)
+    ]
+    if "image/jpeg" in exact:
+        return "image/jpeg"
+    if "video/x-raw" in exact:
+        return "video/x-raw"
+    return "video/x-raw"
+
+
 def enable_click_through(win):
     def apply(_widget=None, *_args):
         gdk_win = win.get_window()
@@ -40,15 +115,19 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Show a non-focusable webcam overlay for screen recording."
     )
-    parser.add_argument("--device", default="/dev/video0", help="V4L2 camera device")
-    # Default display size: same 4:3 aspect as capture, scaled to previous square height (~150)
+    parser.add_argument(
+        "--device",
+        default="auto",
+        help="V4L2 camera device, or auto to select the highest-resolution camera",
+    )
+    # The 4:3 overlay center-crops wider camera frames without stretching.
     parser.add_argument("--width", type=int, default=200, help="overlay window width in pixels")
     parser.add_argument("--height", type=int, default=150, help="overlay window height in pixels")
     # Back-compat: --size used to mean a square side. Map it to width/height
     # when provided alone via the default handling below.
     parser.add_argument("--size", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--capture-width", type=int, default=320, help="camera capture width")
-    parser.add_argument("--capture-height", type=int, default=240, help="camera capture height")
+    parser.add_argument("--capture-width", type=int, default=1280, help="camera capture width")
+    parser.add_argument("--capture-height", type=int, default=720, help="camera capture height")
     parser.add_argument("--fps", type=int, default=30, help="camera capture framerate")
     parser.add_argument(
         "--anchor-x", choices=["left", "right"], default="right", help="horizontal screen edge"
@@ -83,6 +162,8 @@ class CameraOverlay(Gtk.Application):
     def __init__(self, args):
         super().__init__(application_id="works.xifan.screenrecord.overlay.camera")
         self.args = args
+        self.camera = select_camera(args.device, args.capture_width, args.capture_height)
+        self.args.device = self.camera["path"]
         self.win = None
         self.area = None
         self.pipeline = None
@@ -136,11 +217,18 @@ class CameraOverlay(Gtk.Application):
 
     def start_camera(self):
         flip = "videoflip method=horizontal-flip ! " if self.args.mirror else ""
+        media_type = camera_media_type(
+            self.camera,
+            self.args.capture_width,
+            self.args.capture_height,
+        )
+        decoder = "jpegdec ! " if media_type == "image/jpeg" else ""
         pipeline_desc = (
             f"v4l2src device={self.args.device} ! "
-            "video/x-raw,"
+            f"{media_type},"
             f"width={self.args.capture_width},height={self.args.capture_height},"
             f"framerate={self.args.fps}/1 ! "
+            f"{decoder}"
             f"{flip}"
             "videoconvert ! video/x-raw,format=RGB ! "
             "appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
@@ -225,8 +313,8 @@ class CameraOverlay(Gtk.Application):
             stride,
         )
 
-        # Fit whole frame into window (letterbox/pillarbox), no square crop.
-        scale = min(width / src_w, height / src_h)
+        # Fill the 4:3 overlay and crop excess pixels equally from the center.
+        scale = max(width / src_w, height / src_h)
         draw_w = src_w * scale
         draw_h = src_h * scale
         offset_x = (width - draw_w) / 2
