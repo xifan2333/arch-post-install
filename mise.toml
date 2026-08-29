@@ -49,6 +49,12 @@ owner = "root"
 group = "root"
 mode = "0644"
 
+[bootstrap.files."/etc/pacman.d/hooks/wps-office-ime.hook"]
+source = "./mise/hooks/wps-office-ime.hook"
+owner = "root"
+group = "root"
+mode = "0644"
+
 # Rebuild and reload Rime deployment when rime-wanxiang packages are updated.
 [bootstrap.files."/etc/pacman.d/hooks/rime-wanxiang-deploy.hook"]
 source = "./mise/hooks/rime-wanxiang-deploy.hook"

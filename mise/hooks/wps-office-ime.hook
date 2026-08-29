@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = wps-office*
+
+[Action]
+Description = Re-apply QT_IM_MODULE=fcitx to WPS Office desktop entries
+When = PostTransaction
+Exec = /bin/sh -c "sed -i 's#^Exec=/usr/bin/#Exec=env QT_IM_MODULE=fcitx /usr/bin/#' /usr/share/applications/wps-office-*.desktop"

@@ -61,7 +61,7 @@ cd ~/code/arch-post-install
 - `unzip`：解压像素字体安装包；
 - 当前机器上显式安装的 AUR/外来包，完整清单见下文。
 
-另外会通过 mise 安装 `gh` 等命令行工具（清单见 `~/.config/mise/config.toml`），并把 QQ/微信的 Wayland 输入法 pacman 钩子声明为 `[bootstrap.files]`，随 bootstrap 自动收敛到 `/etc/pacman.d/hooks`。
+另外会通过 mise 安装 `gh` 等命令行工具（清单见 `~/.config/mise/config.toml`），并把 QQ/微信/WPS 的输入法修复及 Rime 自动部署 pacman 钩子声明为 `[bootstrap.files]`，随 bootstrap 自动收敛到 `/etc/pacman.d/hooks`。
 
 mise 本身不能直接安装 AUR 包，所以最后会调用 yay。已经安装的包会直接跳过，不会每次重新下载。
 
