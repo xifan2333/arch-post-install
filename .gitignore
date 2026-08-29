@@ -1,4 +1,12 @@
+# User credentials and local caches
 dotfiles/.config/vinput/
 dotfiles/.config/qutebrowser/translate.json
-__pycache__/
 dotfiles/.config/fcitx5/conf/cached_layouts
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
