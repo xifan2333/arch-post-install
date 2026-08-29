@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = rime-wanxiang-*
+
+[Action]
+Description = Rebuild and reload Rime (wanxiang) deployment
+When = PostTransaction
+Exec = /bin/sh -c 'for uid in $(loginctl --no-legend list-users 2>/dev/null | awk "{print \$1}"); do user=$(id -nu "$uid" 2>/dev/null); home=$(getent passwd "$uid" | cut -d: -f6); if [ -n "$home" ]; then data_home="${XDG_DATA_HOME:-$home/.local/share}"; rime_dir="$data_home/fcitx5/rime"; if [ -d "$rime_dir" ]; then runuser -u "$user" -- env HOME="$home" XDG_RUNTIME_DIR="/run/user/$uid" /bin/sh -c "rime_deployer --build \"$rime_dir\" /usr/share/rime-data \"$rime_dir/build\" && (fcitx5-remote -r || true)"; fi; fi; done'

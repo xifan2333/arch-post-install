@@ -19,18 +19,20 @@ DEFAULT_AUDIO_BITRATE = 160
 
 
 def t(key, fallback=""):
+    bin_dir = Path(__file__).resolve().parent
+    i18n_core = bin_dir / "i18n-core"
     try:
         result = subprocess.run(
             [
                 "bash",
                 "-c",
-                ('source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; msg "$1"'),
+                f'source "{i18n_core}" 2>/dev/null || exit 1; msg "$1"',
                 "livestream-config",
                 key,
             ],
             env={
                 **os.environ,
-                "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", ""),
+                "PATH": str(bin_dir) + ":" + os.environ.get("PATH", ""),
             },
             capture_output=True,
             text=True,

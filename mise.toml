@@ -49,6 +49,13 @@ owner = "root"
 group = "root"
 mode = "0644"
 
+# Rebuild and reload Rime deployment when rime-wanxiang packages are updated.
+[bootstrap.files."/etc/pacman.d/hooks/rime-wanxiang-deploy.hook"]
+source = "./mise/hooks/rime-wanxiang-deploy.hook"
+owner = "root"
+group = "root"
+mode = "0644"
+
 # Preserve per-file linking without scanning all of $HOME:
 # shared directories are recreated and each managed file is linked
 # individually, while files not owned by this repository remain untouched.
@@ -150,8 +157,9 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 
-theme="$HOME/.config/omarchy/current/theme/neovim.lua"
-target="$HOME/.config/nvim/lua/plugins/theme.lua"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+theme="$config_home/omarchy/current/theme/neovim.lua"
+target="$config_home/nvim/lua/plugins/theme.lua"
 
 if [[ -f "$theme" ]]; then
   mkdir -p "$(dirname "$target")"
@@ -166,7 +174,7 @@ fi
 
 # Omarchy migrations may replace Waybar's main config. Restore the regular
 # include wrapper from its user-owned template after dotfiles are applied.
-waybar_hook="$HOME/.config/omarchy/hooks/post-update.d/waybar-capture.hook"
+waybar_hook="$config_home/omarchy/hooks/post-update.d/waybar-capture.hook"
 if [[ -f "$waybar_hook" ]]; then
   bash "$waybar_hook"
 fi
@@ -185,7 +193,7 @@ for command in gh unzip fc-cache; do
   fi
 done
 
-dest="$HOME/.local/share/fonts"
+dest="${XDG_DATA_HOME:-$HOME/.local/share}/fonts"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$dest" "$tmp/fusion" "$tmp/uranus" "$tmp/boutique"
@@ -222,7 +230,7 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 
-cfg="$HOME/.config/Kingsoft/Office.conf"
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/Kingsoft/Office.conf"
 mkdir -p "$(dirname "$cfg")"
 touch "$cfg"
 

@@ -4,7 +4,7 @@ bindkey '^[[B' history-substring-search-down
 
 # Cheatsheet (Ctrl+/)
 zsh-cheatsheet() {
-  local file="$HOME/.config/zsh/cheatsheet.txt"
+  local file="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/cheatsheet.txt"
   if [[ -f "$file" ]]; then
     local selected
     selected=$(fzf --prompt="Cheatsheet: " --print-query < "$file" | head -1)

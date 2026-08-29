@@ -3,8 +3,8 @@
 # Primary path is wezterm.add_to_config_reload_watch_list; touch is a fallback.
 set -euo pipefail
 
-theme_file="${HOME}/.config/omarchy/current/theme/wezterm.lua"
-main_cfg="${HOME}/.config/wezterm/wezterm.lua"
+theme_file="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme/wezterm.lua"
+main_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/wezterm.lua"
 
 [[ -f $theme_file ]] || exit 0
 [[ -f $main_cfg ]] || exit 0

@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-source_file="$HOME/.config/waybar/capture-wrapper.jsonc"
-target_file="$HOME/.config/waybar/config.jsonc"
+source_file="${XDG_CONFIG_HOME:-$HOME/.config}/waybar/capture-wrapper.jsonc"
+target_file="${XDG_CONFIG_HOME:-$HOME/.config}/waybar/config.jsonc"
 
 [[ -f "$source_file" ]] || exit 0
 cmp -s "$source_file" "$target_file" && exit 0

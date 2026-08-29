@@ -9,8 +9,8 @@
 
 set -e
 
-COLORS="${COLORS:-$HOME/.config/omarchy/current/theme/colors.toml}"
-CONFIG="${CONFIG:-$HOME/.config/herdr/config.toml}"
+COLORS="${COLORS:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme/colors.toml}"
+CONFIG="${CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml}"
 BEGIN_MARK="# --- BEGIN herdr theme ---"
 END_MARK="# --- END herdr theme ---"
 
@@ -117,7 +117,7 @@ awk -v begin="$BEGIN_MARK" -v end="$END_MARK" -v block="$BLOCK" '
 cat "$TMP" > "$CONFIG"
 rm -f "$TMP"
 
-theme_name="$(cat "$HOME/.config/omarchy/current/theme.name" 2> /dev/null || basename "$(readlink -f "$COLORS")")"
+theme_name="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme.name" 2> /dev/null || basename "$(readlink -f "$COLORS")")"
 
 if pgrep -x herdr > /dev/null 2>&1 && herdr server reload-config 2> /dev/null; then
     echo "Herdr theme synced ($theme_name)"

@@ -6,8 +6,8 @@ set -euo pipefail
 font_name="${1:-}"
 [[ -n $font_name ]] || exit 0
 
-font_file="${HOME}/.config/wezterm/font.lua"
-[[ -d ${HOME}/.config/wezterm ]] || mkdir -p "${HOME}/.config/wezterm"
+font_file="${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/font.lua"
+[[ -d "${XDG_CONFIG_HOME:-$HOME/.config}/wezterm" ]] || mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/wezterm"
 
 # Preserve size if already configured; default matches kitty/alacritty (9.0).
 font_size="9.0"
@@ -36,6 +36,6 @@ return {
 EOF
 
 # WezTerm watches font.lua; touch main config as a fallback reload kick.
-if [[ -f ${HOME}/.config/wezterm/wezterm.lua ]]; then
-    touch "${HOME}/.config/wezterm/wezterm.lua"
+if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/wezterm.lua" ]]; then
+    touch "${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/wezterm.lua"
 fi

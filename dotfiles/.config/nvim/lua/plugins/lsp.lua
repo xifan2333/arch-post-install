@@ -66,8 +66,9 @@ return {
             plugins = {
               {
                 name = "@vue/typescript-plugin",
-                location = vim.fn.expand(
-                  "$HOME/.local/share/nvim/mason/packages/vue-language-server/node_modules/@vue/language-server"
+                location = vim.fs.joinpath(
+                  vim.fn.stdpath("data"),
+                  "mason/packages/vue-language-server/node_modules/@vue/language-server"
                 ),
                 languages = { "vue" },
               },
@@ -78,8 +79,9 @@ return {
         vue_ls = {
           init_options = {
             typescript = {
-              tsdk = vim.fn.expand(
-                "$HOME/.local/share/nvim/mason/packages/typescript-language-server/node_modules/typescript/lib"
+              tsdk = vim.fs.joinpath(
+                vim.fn.stdpath("data"),
+                "mason/packages/typescript-language-server/node_modules/typescript/lib"
               ),
             },
           },

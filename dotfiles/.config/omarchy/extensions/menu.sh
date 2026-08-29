@@ -3,8 +3,9 @@
 # Keep stock Capture entries; only route Screenrecord and OCR to user tools.
 
 capture_extension_msg() {
-    bash -c 'source "$HOME/.local/bin/i18n-core" 2>/dev/null && msg "$1"' \
-        capture-extension "$1"
+    local i18n_core="${XDG_BIN_HOME:-$HOME/.local/bin}/i18n-core"
+    bash -c 'source "$1" 2>/dev/null && msg "$2"' \
+        capture-extension "$i18n_core" "$1"
 }
 
 show_screenrecord_menu() {

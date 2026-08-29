@@ -33,10 +33,12 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def translate(key, fallback="", **values):
+    bin_dir = Path(__file__).resolve().parent
+    i18n_core = bin_dir / "i18n-core"
     command = [
         "bash",
         "-c",
-        'source "$HOME/.local/bin/i18n-core" 2>/dev/null || exit 1; msg "$@"',
+        f'source "{i18n_core}" 2>/dev/null || exit 1; msg "$@"',
         "livestream-i18n",
         key,
     ]

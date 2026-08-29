@@ -14,12 +14,14 @@ from gi.repository import GLib, Gtk
 
 def t(key, fallback=""):
     """Translate via the bash i18n-core msg() function."""
+    bin_dir = Path(__file__).resolve().parent
+    i18n_core = bin_dir / "i18n-core"
     try:
         r = subprocess.run(
-            ["bash", "-c", f'source "$HOME/.local/bin/i18n-core" 2>/dev/null && msg {key}'],
+            ["bash", "-c", f'source "{i18n_core}" 2>/dev/null && msg {key}'],
             env={
                 **os.environ,
-                "PATH": os.path.expanduser("~/.local/bin") + ":" + os.environ.get("PATH", ""),
+                "PATH": str(bin_dir) + ":" + os.environ.get("PATH", ""),
             },
             capture_output=True,
             text=True,
