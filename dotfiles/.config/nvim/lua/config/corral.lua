@@ -16,15 +16,15 @@ local function apply(event)
     return
   end
 
-  vim.keymap.set("n", ".", function()
+  -- Keep j/k for line scrolling; use ←/→ to jump across changes.
+  vim.keymap.set("n", "<Right>", function()
     vim.fn.search(change_pattern, "W")
   end, {
     buffer = event.buf,
     desc = "Next diff change",
     silent = true,
   })
-
-  vim.keymap.set("n", ",", function()
+  vim.keymap.set("n", "<Left>", function()
     vim.fn.search(change_pattern, "bW")
   end, {
     buffer = event.buf,
