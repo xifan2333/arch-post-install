@@ -23,24 +23,20 @@ end
 
 -- 异步查询 Rime 是否处于 ASCII 模式
 local function get_ascii_mode(callback)
-  vim.system(
-    {
-      "busctl",
-      "--user",
-      "call",
-      "org.fcitx.Fcitx5",
-      "/rime",
-      "org.fcitx.Fcitx.Rime1",
-      "IsAsciiMode",
-    },
-    { text = true },
-    function(out)
-      if out.code == 0 and out.stdout then
-        local is_ascii = out.stdout:match("^b%s+true") ~= nil
-        callback(is_ascii)
-      end
+  vim.system({
+    "busctl",
+    "--user",
+    "call",
+    "org.fcitx.Fcitx5",
+    "/rime",
+    "org.fcitx.Fcitx.Rime1",
+    "IsAsciiMode",
+  }, { text = true }, function(out)
+    if out.code == 0 and out.stdout then
+      local is_ascii = out.stdout:match("^b%s+true") ~= nil
+      callback(is_ascii)
     end
-  )
+  end)
 end
 
 -- 异步设置 Rime ASCII 模式

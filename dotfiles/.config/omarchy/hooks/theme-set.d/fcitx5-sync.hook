@@ -23,9 +23,9 @@ blend() {
     local br=$((16#${base:0:2})) bg=$((16#${base:2:2})) bb=$((16#${base:4:2}))
     local or=$((16#${over:0:2})) og=$((16#${over:2:2})) ob=$((16#${over:4:2}))
     printf "#%02x%02x%02x" \
-        $(( br + (or - br) * ratio / 100 )) \
-        $(( bg + (og - bg) * ratio / 100 )) \
-        $(( bb + (ob - bb) * ratio / 100 ))
+        $((br + (or - br) * ratio / 100)) \
+        $((bg + (og - bg) * ratio / 100)) \
+        $((bb + (ob - bb) * ratio / 100))
 }
 
 BACKGROUND=$(get_color background)
@@ -37,7 +37,7 @@ COLOR0=$(get_color color0)
 HIGHLIGHT_BG=$(blend "$BACKGROUND" "$ACCENT" 18)
 
 # Generate theme
-cat > "$GENERATED_THEME" <<EOF
+cat > "$GENERATED_THEME" << EOF
 [Metadata]
 Name=Omarchy
 ScaleWithDPI=True
@@ -128,7 +128,7 @@ fi
 
 if [[ ! -f $FCITX5_CLASSICUI ]]; then
     mkdir -p "$(dirname "$FCITX5_CLASSICUI")"
-    cat > "$FCITX5_CLASSICUI" <<'EOF'
+    cat > "$FCITX5_CLASSICUI" << 'EOF'
 Vertical Candidate List=False
 Font=Sans 12
 Theme=custom
@@ -136,10 +136,10 @@ EOF
 fi
 
 # Reload classicui addon (verified working method)
-if pgrep -x fcitx5 >/dev/null; then
+if pgrep -x fcitx5 > /dev/null; then
     gdbus call --session \
         --dest org.fcitx.Fcitx5 \
         --object-path /controller \
         --method org.fcitx.Fcitx.Controller1.ReloadAddonConfig \
-        "classicui" >/dev/null
+        "classicui" > /dev/null
 fi

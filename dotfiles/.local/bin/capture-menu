@@ -15,8 +15,8 @@ menu_select() {
 }
 
 webcam_devices() {
-    command -v v4l2-ctl >/dev/null 2>&1 || return 1
-    v4l2-ctl --list-devices 2>/dev/null | while IFS= read -r line; do
+    command -v v4l2-ctl > /dev/null 2>&1 || return 1
+    v4l2-ctl --list-devices 2> /dev/null | while IFS= read -r line; do
         if [[ "$line" != $'\t'* && -n "$line" ]]; then
             local name="$line"
             local device
@@ -30,10 +30,10 @@ webcam_devices() {
 start_webcam_recording() {
     local devices count selection device
     devices=$(webcam_devices || true)
-    count=$(printf '%s\n' "$devices" | grep -c . 2>/dev/null || true)
+    count=$(printf '%s\n' "$devices" | grep -c . 2> /dev/null || true)
     if [ -z "$devices" ] || [ "${count:-0}" -eq 0 ]; then
-        command -v notify-send >/dev/null 2>&1 \
-            && notify-send -u critical \
+        command -v notify-send > /dev/null 2>&1 &&
+            notify-send -u critical \
                 "$(msg capture_notify_title)" \
                 "$(msg capture_notify_no_webcam)"
         return 1

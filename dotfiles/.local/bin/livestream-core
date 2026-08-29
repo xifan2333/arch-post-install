@@ -30,7 +30,7 @@ livestream_load_config() {
 livestream_check_deps() {
     local cmd
     for cmd in gpu-screen-recorder ffmpeg pactl ss "$LIVESTREAM_SERVICE"; do
-        if ! command -v "$cmd" >/dev/null 2>&1; then
+        if ! command -v "$cmd" > /dev/null 2>&1; then
             printf 'Error: %s is not installed\n' "$cmd" >&2
             return 1
         fi
@@ -38,37 +38,37 @@ livestream_check_deps() {
 }
 
 livestream_is_active() {
-    "$LIVESTREAM_SERVICE" is-active >/dev/null 2>&1
+    "$LIVESTREAM_SERVICE" is-active > /dev/null 2>&1
 }
 
 livestream_get_mode() {
-    "$LIVESTREAM_SERVICE" field mode 2>/dev/null
+    "$LIVESTREAM_SERVICE" field mode 2> /dev/null
 }
 
 livestream_get_duration_seconds() {
-    "$LIVESTREAM_SERVICE" field duration_seconds 2>/dev/null
+    "$LIVESTREAM_SERVICE" field duration_seconds 2> /dev/null
 }
 
 livestream_connection_state() {
-    "$LIVESTREAM_SERVICE" field state 2>/dev/null || printf '%s\n' offline
+    "$LIVESTREAM_SERVICE" field state 2> /dev/null || printf '%s\n' offline
 }
 
 livestream_platform_status_text() {
-    "$LIVESTREAM_SERVICE" status --platforms-only 2>/dev/null
+    "$LIVESTREAM_SERVICE" status --platforms-only 2> /dev/null
 }
 
 livestream_status_report() {
-    "$LIVESTREAM_SERVICE" status 2>/dev/null
+    "$LIVESTREAM_SERVICE" status 2> /dev/null
 }
 
 livestream_notify_waybar() {
-    pkill -SIGRTMIN+8 waybar 2>/dev/null || true
+    pkill -SIGRTMIN+8 waybar 2> /dev/null || true
 }
 
 # Path-tolerant match for gpu-screen-recorder (bare name or absolute path).
 # Shared with capture-router so record/live mutual exclusion stays consistent.
 capture_gsr_running() {
-    pgrep -u "$(id -u)" -f '(^|/)gpu-screen-recorder( |$)' >/dev/null 2>&1
+    pgrep -u "$(id -u)" -f '(^|/)gpu-screen-recorder( |$)' > /dev/null 2>&1
 }
 
 livestream_local_recording_active() {
@@ -79,7 +79,7 @@ livestream_local_recording_active() {
 }
 
 livestream_unmute_audio() {
-    if ! command -v pactl >/dev/null 2>&1; then
+    if ! command -v pactl > /dev/null 2>&1; then
         return 0
     fi
 
@@ -89,12 +89,12 @@ livestream_unmute_audio() {
             source=$(printf '%s' "$AUDIO_SOURCE" | sed -n 's/^device:\([^|]*\).*/\1/p')
             ;;
         *default_input*)
-            source=$(pactl get-default-source 2>/dev/null || true)
+            source=$(pactl get-default-source 2> /dev/null || true)
             ;;
     esac
 
     if [ -n "$source" ]; then
-        pactl set-source-mute "$source" 0 2>/dev/null || true
+        pactl set-source-mute "$source" 0 2> /dev/null || true
     fi
 }
 
@@ -109,12 +109,12 @@ livestream_capture_target() {
 # Herdr live desk (unibarrage + dmnotifier). Fully silent; never affects stream rc.
 livestream_open_danmaku() {
     [ -x "$LIVESTREAM_DANMAKU" ] || return 0
-    "$LIVESTREAM_DANMAKU" start >/dev/null 2>&1 &
+    "$LIVESTREAM_DANMAKU" start > /dev/null 2>&1 &
 }
 
 livestream_close_danmaku() {
     [ -x "$LIVESTREAM_DANMAKU" ] || return 0
-    "$LIVESTREAM_DANMAKU" stop >/dev/null 2>&1 &
+    "$LIVESTREAM_DANMAKU" stop > /dev/null 2>&1 &
 }
 
 livestream_start() {
@@ -132,7 +132,7 @@ livestream_start() {
         return 5
     fi
     "$LIVESTREAM_SERVICE" validate \
-        --config "$LIVESTREAM_CONFIG_FILE" >/dev/null 2>&1 || return 3
+        --config "$LIVESTREAM_CONFIG_FILE" > /dev/null 2>&1 || return 3
 
     livestream_unmute_audio
     setsid "$LIVESTREAM_SERVICE" run \
@@ -143,7 +143,7 @@ livestream_start() {
         --keyint "$KEYINT" \
         --scale-width "$SCALE_WIDTH" \
         --log-file "$LIVESTREAM_LOG_FILE" \
-        >/dev/null 2>&1 &
+        > /dev/null 2>&1 &
 
     "$LIVESTREAM_SERVICE" wait-ready --timeout 30
     rc=$?
@@ -154,7 +154,7 @@ livestream_start() {
             return 0
             ;;
         *)
-            "$LIVESTREAM_SERVICE" stop --timeout 7 >/dev/null 2>&1 || true
+            "$LIVESTREAM_SERVICE" stop --timeout 7 > /dev/null 2>&1 || true
             livestream_notify_waybar
             return 4
             ;;

@@ -67,14 +67,18 @@ mode = "0644"
 "~/.config/fontconfig" = { source = "dotfiles/.config/fontconfig", mode = "symlink-each" }
 "~/.config/git" = { source = "dotfiles/.config/git", mode = "symlink-each" }
 "~/.config/herdr" = { source = "dotfiles/.config/herdr", mode = "symlink-each" }
-"~/.config/hypr" = { source = "dotfiles/.config/hypr", mode = "symlink-each", exclude = ["monitors.conf"] }
+"~/.config/hypr" = { source = "dotfiles/.config/hypr", mode = "symlink-each", exclude = [
+  "monitors.conf",
+] }
 "~/.config/kitty" = { source = "dotfiles/.config/kitty", mode = "symlink-each" }
 "~/.config/mise" = { source = "dotfiles/.config/mise", mode = "symlink-each" }
 "~/.config/wezterm" = { source = "dotfiles/.config/wezterm", mode = "symlink-each" }
 "~/.config/nvim" = { source = "dotfiles/.config/nvim", mode = "symlink-each" }
 "~/.config/omarchy" = { source = "dotfiles/.config/omarchy", mode = "symlink-each" }
 "~/.config/pipewire" = { source = "dotfiles/.config/pipewire", mode = "symlink-each" }
-"~/.config/qutebrowser" = { source = "dotfiles/.config/qutebrowser", mode = "symlink-each", exclude = ["*.example"] }
+"~/.config/qutebrowser" = { source = "dotfiles/.config/qutebrowser", mode = "symlink-each", exclude = [
+  "*.example",
+] }
 "~/.config/retroarch" = { source = "dotfiles/.config/retroarch", mode = "symlink-each" }
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/uv" = { source = "dotfiles/.config/uv", mode = "symlink-each" }
@@ -237,5 +241,3 @@ for key in "${keys[@]}"; do
   fi
 done
 '''
-
-

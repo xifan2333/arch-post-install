@@ -81,4 +81,3 @@ i18n[capture_notify_action_busy]="Another capture action is still finishing"
 i18n[capture_notify_no_webcam]="No webcam device found"
 i18n[capture_notify_menu_unavailable]="Capture menu is unavailable"
 i18n[capture_waybar_recording]="Local screen recording — click to stop"
-

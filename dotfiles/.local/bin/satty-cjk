@@ -7,9 +7,9 @@
 # 通过 OMARCHY_SCREENSHOT_EDITOR=satty-cjk 接入 Omarchy 截图流程。
 
 exec satty \
-  --font-family "Sarasa Mono SC" \
-  --filename "$1" \
-  --output-filename "$1" \
-  --actions-on-enter save-to-clipboard \
-  --save-after-copy \
-  --copy-command 'wl-copy'
+    --font-family "Sarasa Mono SC" \
+    --filename "$1" \
+    --output-filename "$1" \
+    --actions-on-enter save-to-clipboard \
+    --save-after-copy \
+    --copy-command 'wl-copy'

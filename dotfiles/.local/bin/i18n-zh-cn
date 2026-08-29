@@ -81,4 +81,3 @@ i18n[capture_notify_action_busy]="上一个采集操作仍在结束中"
 i18n[capture_notify_no_webcam]="未找到摄像头设备"
 i18n[capture_notify_menu_unavailable]="采集菜单不可用"
 i18n[capture_waybar_recording]="本地录屏中 — 点击停止"
-

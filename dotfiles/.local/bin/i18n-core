@@ -7,7 +7,7 @@ declare -gA i18n
 
 # Load language-specific translations
 load_i18n() {
-    local lang="${LANG%%.*}"  # Extract language code (e.g., zh_CN from zh_CN.UTF-8)
+    local lang="${LANG%%.*}" # Extract language code (e.g., zh_CN from zh_CN.UTF-8)
     local i18n_dir="$HOME/.local/bin"
     # Convert lang to lowercase with dashes (zh_CN -> zh-cn)
     local lang_normalized="${lang,,}"
@@ -17,7 +17,7 @@ load_i18n() {
     # Fallback to English if translation doesn't exist
     if [[ ! -f "$i18n_file" ]]; then
         case "$lang" in
-            zh_CN|zh_TW|zh_HK)
+            zh_CN | zh_TW | zh_HK)
                 i18n_file="$i18n_dir/i18n-zh-cn"
                 ;;
             *)

@@ -30,7 +30,8 @@ return {
         chat = {
           adapter = "xifan",
           system_prompt = function(ctx)
-            return ctx.default_system_prompt .. "\nAlways respond in Simplified Chinese (简体中文)."
+            return ctx.default_system_prompt
+              .. "\nAlways respond in Simplified Chinese (简体中文)."
           end,
         },
         inline = { adapter = "xifan" },

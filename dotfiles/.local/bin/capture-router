@@ -21,14 +21,14 @@ capture_ensure_runtime() {
             "$CAPTURE_RUNTIME_DIR" >&2
         return 1
     }
-    chmod 700 "$CAPTURE_RUNTIME_DIR" 2>/dev/null || true
+    chmod 700 "$CAPTURE_RUNTIME_DIR" 2> /dev/null || true
 }
 
 capture_notify() {
     local body="$1"
     local urgency="${2:-normal}"
     local title_key="${3:-capture_notify_title}"
-    if command -v notify-send >/dev/null 2>&1; then
+    if command -v notify-send > /dev/null 2>&1; then
         notify-send -u "$urgency" "$(msg "$title_key")" "$body"
     fi
 }
@@ -87,9 +87,18 @@ capture_waybar() {
                 state "$(msg "livestream_state_$connection")")
             [ -n "$details" ] && tooltip="$tooltip"$'\n'"$details"
             case "$connection" in
-                sending) text="󰑋"; class="livestream" ;;
-                failed) text="󰅖"; class="livestream-failed" ;;
-                *) text="󰔟"; class="livestream-connecting" ;;
+                sending)
+                    text="󰑋"
+                    class="livestream"
+                    ;;
+                failed)
+                    text="󰅖"
+                    class="livestream-failed"
+                    ;;
+                *)
+                    text="󰔟"
+                    class="livestream-connecting"
+                    ;;
             esac
             ;;
         recording)
@@ -103,7 +112,7 @@ capture_waybar() {
             ;;
     esac
 
-    python3 - "$text" "$tooltip" "$class" <<'PY'
+    python3 - "$text" "$tooltip" "$class" << 'PY'
 import json, sys
 print(json.dumps({
     "text": sys.argv[1],
@@ -244,7 +253,7 @@ capture_overlay_pid() {
     local needle
 
     case "$name" in
-        camera|captions|keys|title) needle="screenrecord-overlay-${name}" ;;
+        camera | captions | keys | title) needle="screenrecord-overlay-${name}" ;;
         *) return 1 ;;
     esac
 
@@ -278,8 +287,11 @@ capture_overlay_toggle() {
     local name="$1"
     local bin pid notify_key
     case "$name" in
-        camera|captions|keys|title) ;;
-        *) capture_usage; return 64 ;;
+        camera | captions | keys | title) ;;
+        *)
+            capture_usage
+            return 64
+            ;;
     esac
 
     bin="$SCRIPT_DIR/screenrecord-overlay-$name"
@@ -290,14 +302,14 @@ capture_overlay_toggle() {
 
     pid=$(capture_overlay_pid "$name" || true)
     if [ -n "$pid" ]; then
-        kill "$pid" 2>/dev/null || true
+        kill "$pid" 2> /dev/null || true
         notify_key="screenrecord_overlay_${name}_off"
     else
-        nohup "$bin" >/dev/null 2>&1 &
+        nohup "$bin" > /dev/null 2>&1 &
         notify_key="screenrecord_overlay_${name}_on"
     fi
 
-    if command -v notify-send >/dev/null 2>&1; then
+    if command -v notify-send > /dev/null 2>&1; then
         notify-send "$(msg screenrecord_notify_title)" "$(msg "$notify_key")"
     else
         msg "$notify_key"
@@ -305,7 +317,7 @@ capture_overlay_toggle() {
 }
 
 capture_usage() {
-    cat <<'EOF'
+    cat << 'EOF'
 Usage:
   capture-router status|waybar|menu|toggle-active|config|overlays
   capture-router recording start|stop|toggle [screenrecord options]
@@ -326,7 +338,7 @@ main() {
                 ;;
             livestream)
                 case "${2:-}" in
-                    start|stop|toggle)
+                    start | stop | toggle)
                         capture_with_lock "$@"
                         return
                         ;;
@@ -359,7 +371,10 @@ main() {
                 start) capture_recording_start "$@" ;;
                 stop) capture_recording_stop ;;
                 toggle) capture_recording_toggle "$@" ;;
-                *) capture_usage; return 64 ;;
+                *)
+                    capture_usage
+                    return 64
+                    ;;
             esac
             ;;
         livestream)
@@ -369,7 +384,10 @@ main() {
                 stop) capture_livestream_stop ;;
                 toggle) capture_livestream_toggle "${1:-portal}" ;;
                 status) livestream_status_report ;;
-                *) capture_usage; return 64 ;;
+                *)
+                    capture_usage
+                    return 64
+                    ;;
             esac
             ;;
         overlay)
@@ -377,21 +395,30 @@ main() {
             # first overlay argument (name for pid, unused for toggles).
             [ "$#" -gt 0 ] && shift
             case "$action" in
-                camera|captions|keys|title) capture_overlay_toggle "$action" ;;
-                edit|title-edit) exec "$SCRIPT_DIR/screenrecord-overlay-title-edit" ;;
+                camera | captions | keys | title) capture_overlay_toggle "$action" ;;
+                edit | title-edit) exec "$SCRIPT_DIR/screenrecord-overlay-title-edit" ;;
                 status) capture_overlay_status ;;
                 pid)
                     case "${1:-}" in
-                        camera|captions|keys|title)
+                        camera | captions | keys | title)
                             capture_overlay_pid "$1" || true
                             ;;
-                        *) capture_usage; return 64 ;;
+                        *)
+                            capture_usage
+                            return 64
+                            ;;
                     esac
                     ;;
-                *) capture_usage; return 64 ;;
+                *)
+                    capture_usage
+                    return 64
+                    ;;
             esac
             ;;
-        *) capture_usage; return 64 ;;
+        *)
+            capture_usage
+            return 64
+            ;;
     esac
 }
 

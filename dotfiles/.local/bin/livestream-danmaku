@@ -10,12 +10,12 @@ WAIT_SECS="${LIVESTREAM_DANMAKU_WAIT_SECS:-8}"
 SPLIT_RATIO="${LIVESTREAM_DANMAKU_SPLIT_RATIO:-0.5}"
 
 log_null() {
-    "$@" >/dev/null 2>&1
+    "$@" > /dev/null 2>&1
 }
 
 herdr_bin() {
-    command -v herdr >/dev/null 2>&1 || return 1
-    command -v jq >/dev/null 2>&1 || return 1
+    command -v herdr > /dev/null 2>&1 || return 1
+    command -v jq > /dev/null 2>&1 || return 1
     return 0
 }
 
@@ -26,18 +26,18 @@ herdr_api_up() {
 
 # Client attach process (argv is bare `herdr`, not `herdr server`).
 herdr_client_up() {
-    pgrep -u "$(id -u)" -af '(^|/)herdr([[:space:]]|$)' 2>/dev/null \
-        | grep -v 'herdr[[:space:]]\+server' \
-        | grep -q .
+    pgrep -u "$(id -u)" -af '(^|/)herdr([[:space:]]|$)' 2> /dev/null |
+        grep -v 'herdr[[:space:]]\+server' |
+        grep -q .
 }
 
 launch_herdr() {
     local cwd="${HOME:-/}"
-    if command -v uwsm-app >/dev/null 2>&1 && command -v wezterm >/dev/null 2>&1; then
+    if command -v uwsm-app > /dev/null 2>&1 && command -v wezterm > /dev/null 2>&1; then
         log_null setsid uwsm-app -- wezterm start --cwd "$cwd" -- herdr &
         return 0
     fi
-    if command -v wezterm >/dev/null 2>&1; then
+    if command -v wezterm > /dev/null 2>&1; then
         log_null setsid wezterm start --cwd "$cwd" -- herdr &
         return 0
     fi
@@ -47,7 +47,7 @@ launch_herdr() {
 
 wait_herdr_api() {
     local deadline=$((SECONDS + WAIT_SECS))
-    while (( SECONDS < deadline )); do
+    while ((SECONDS < deadline)); do
         herdr_api_up && return 0
         sleep 0.15
     done
@@ -73,19 +73,19 @@ ensure_herdr() {
 
 workspace_id_by_label() {
     local json id
-    json=$(herdr workspace list 2>/dev/null) || return 1
+    json=$(herdr workspace list 2> /dev/null) || return 1
     id=$(printf '%s' "$json" | jq -r --arg l "$LABEL" '
         .result.workspaces // .workspaces // []
         | map(select(.label == $l))
         | .[0].workspace_id // empty
-    ' 2>/dev/null) || return 1
+    ' 2> /dev/null) || return 1
     [ -n "$id" ] || return 1
     printf '%s\n' "$id"
 }
 
 json_get() {
     # json_get <json> <jq-filter>
-    printf '%s' "$1" | jq -r "$2 // empty" 2>/dev/null
+    printf '%s' "$1" | jq -r "$2 // empty" 2> /dev/null
 }
 
 start_desk() {
@@ -98,23 +98,23 @@ start_desk() {
         return 0
     fi
 
-    ws_json=$(herdr workspace create --label "$LABEL" --focus 2>/dev/null) || return 0
+    ws_json=$(herdr workspace create --label "$LABEL" --focus 2> /dev/null) || return 0
     root=$(json_get "$ws_json" '.result.root_pane.pane_id')
     ws_id=$(json_get "$ws_json" '.result.workspace.workspace_id')
     [ -n "$root" ] || return 0
 
-    split_json=$(herdr pane split --pane "$root" --direction right --ratio "$SPLIT_RATIO" --no-focus 2>/dev/null) || return 0
+    split_json=$(herdr pane split --pane "$root" --direction right --ratio "$SPLIT_RATIO" --no-focus 2> /dev/null) || return 0
     right=$(json_get "$split_json" '.result.pane.pane_id')
     [ -n "$right" ] || return 0
 
     log_null herdr pane rename "$root" unibarrage || true
     log_null herdr pane rename "$right" dmnotifier || true
 
-    if command -v unibarrage >/dev/null 2>&1; then
+    if command -v unibarrage > /dev/null 2>&1; then
         log_null herdr pane run "$root" unibarrage || true
     fi
     sleep 0.4
-    if command -v dmnotifier >/dev/null 2>&1; then
+    if command -v dmnotifier > /dev/null 2>&1; then
         log_null herdr pane run "$right" dmnotifier || true
     fi
 

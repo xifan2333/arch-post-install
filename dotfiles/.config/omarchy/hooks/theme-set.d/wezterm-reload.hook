@@ -10,6 +10,6 @@ main_cfg="${HOME}/.config/wezterm/wezterm.lua"
 [[ -f $main_cfg ]] || exit 0
 
 # Only bother if a GUI instance is around.
-if pgrep -x wezterm-gui >/dev/null 2>&1; then
-  touch "$main_cfg"
+if pgrep -x wezterm-gui > /dev/null 2>&1; then
+    touch "$main_cfg"
 fi

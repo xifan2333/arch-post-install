@@ -17,6 +17,6 @@ mv -f "$tmp" "$target_file"
 trap - EXIT
 
 # Migrations may have restarted Waybar before post-update hooks run.
-if command -v omarchy >/dev/null 2>&1; then
+if command -v omarchy > /dev/null 2>&1; then
     omarchy restart waybar
 fi
