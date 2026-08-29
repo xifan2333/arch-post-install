@@ -47,21 +47,3 @@ map("n", "<leader>yr", function()
   vim.fn.setreg("+", path)
   vim.notify("Copied: " .. path)
 end, { desc = "Copy relative path" })
-
--- Diff review in terminal buffers: ,/. to jump across changes, auto-jump on open
-vim.api.nvim_create_autocmd("TermOpen", {
-  callback = function(ev)
-    local pat = [[\v(^\s*\d+\s*⋮\s*│|^\s*⋮\s*\d+\s*│|^\s*\d+\s*[-+])]]
-    map("n", ".", function()
-      vim.fn.search(pat, "W")
-    end, { buffer = ev.buf, desc = "Next diff change", silent = true })
-    map("n", ",", function()
-      vim.fn.search(pat, "bW")
-    end, { buffer = ev.buf, desc = "Previous diff change", silent = true })
-    vim.defer_fn(function()
-      if vim.api.nvim_buf_is_valid(ev.buf) then
-        pcall(vim.fn.search, pat, "W")
-      end
-    end, 120)
-  end,
-})
