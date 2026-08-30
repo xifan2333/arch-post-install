@@ -3,13 +3,6 @@
 
 const ASPECTS = ["1:1", "4:3", "16:9", "3:4", "9:16"]
 
-function parseBool(val, fallback) {
-  const s = String(val || "").toLowerCase()
-  if (s === "true" || s === "1" || s === "yes" || s === "on") return true
-  if (s === "false" || s === "0" || s === "no" || s === "off") return false
-  return fallback
-}
-
 function parseAspect(val, fallback) {
   const s = String(val || "")
   return ASPECTS.indexOf(s) !== -1 ? s : (fallback || "4:3")
@@ -53,8 +46,7 @@ function parseConfig(rawText) {
     anchorY: "bottom",
     marginX: 0,
     marginY: 0,
-    borderWidth: 1.5,
-    mirror: true
+    borderWidth: 1.5
   }
 
   const lines = String(rawText || "").split("\n")
@@ -85,7 +77,6 @@ function parseConfig(rawText) {
       case "margin_y": cfg.marginY = Math.max(0, Number(val) || 0); break
       case "border_width": cfg.borderWidth = Math.max(0, Number(val) || 0); break
       case "aspect": cfg.aspect = parseAspect(val, cfg.aspect); break
-      case "mirror": cfg.mirror = parseBool(val, cfg.mirror); break
       default: break
     }
   }
@@ -107,8 +98,7 @@ function serializeConfig(cfg) {
     "margin_x = " + (Math.round(cfg.marginX) || 0),
     "margin_y = " + (Math.round(cfg.marginY) || 0),
     "border_width = " + (cfg.borderWidth === 0 ? "0" : (cfg.borderWidth || 1.5)),
-    "aspect = " + parseAspect(cfg.aspect, "4:3"),
-    "mirror = " + (cfg.mirror ? "true" : "false")
+    "aspect = " + parseAspect(cfg.aspect, "4:3")
   ]
   return lines.join("\n") + "\n"
 }

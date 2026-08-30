@@ -31,7 +31,6 @@ Item {
   property int marginY: 0
   property real borderWidth: 1.5
   property string aspect: "4:3"
-  property bool mirror: true
 
   readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
                                         + "/screenrecord/camera.conf"
@@ -59,7 +58,6 @@ Item {
     root.marginY = cfg.marginY
     root.borderWidth = cfg.borderWidth
     root.aspect = cfg.aspect
-    root.mirror = cfg.mirror
     root.applyAspectSize(root.widthPx)
   }
 
@@ -76,8 +74,7 @@ Item {
       marginX: root.marginX,
       marginY: root.marginY,
       borderWidth: root.borderWidth,
-      aspect: root.aspect,
-      mirror: root.mirror
+      aspect: root.aspect
     }
     var serialized = CameraModel.serializeConfig(cfg)
     Quickshell.execDetached([
@@ -245,7 +242,7 @@ Item {
           width: root.widthPx
           height: root.heightPx
           fillMode: VideoOutput.PreserveAspectCrop
-          mirrored: root.mirror
+          mirrored: true
         }
 
         Rectangle {
