@@ -6,7 +6,7 @@
   },
   "bar": {
     "position": "top",
-    "transparent": true,
+    "transparent": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [
@@ -71,6 +71,9 @@
     },
     {
       "id": "xifan.overlay-keys"
+    },
+    {
+      "id": "xifan.overlay-captions"
     }
   ]
 }

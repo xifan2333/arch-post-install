@@ -252,7 +252,33 @@ capture_overlay_plugin_for() {
     case "$1" in
         title) printf '%s\n' "xifan.overlay-title" ;;
         keys) printf '%s\n' "xifan.overlay-keys" ;;
+        captions) printf '%s\n' "xifan.overlay-captions" ;;
         *) printf '' ;;
+    esac
+}
+
+# Map overlay name + state to the i18n notify key, or empty.
+capture_overlay_notify_key() {
+    local name="$1" state="$2"
+    case "$name" in
+        title)
+            case "$state" in
+                open) printf '%s\n' "screenrecord_overlay_title_on" ;;
+                closed) printf '%s\n' "screenrecord_overlay_title_off" ;;
+            esac
+            ;;
+        keys)
+            case "$state" in
+                open) printf '%s\n' "screenrecord_overlay_keys_on" ;;
+                closed) printf '%s\n' "screenrecord_overlay_keys_off" ;;
+            esac
+            ;;
+        captions)
+            case "$state" in
+                open) printf '%s\n' "screenrecord_overlay_captions_on" ;;
+                closed) printf '%s\n' "screenrecord_overlay_captions_off" ;;
+            esac
+            ;;
     esac
 }
 
@@ -276,17 +302,7 @@ capture_overlay_toggle() {
             return 1
         fi
         state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" toggle 2> /dev/null || true)
-        if [[ "$name" == title ]]; then
-            case "$state" in
-                open) notify_key="screenrecord_overlay_title_on" ;;
-                closed) notify_key="screenrecord_overlay_title_off" ;;
-            esac
-        else
-            case "$state" in
-                open) notify_key="screenrecord_overlay_keys_on" ;;
-                closed) notify_key="screenrecord_overlay_keys_off" ;;
-            esac
-        fi
+        notify_key=$(capture_overlay_notify_key "$name" "$state")
         if command -v notify-send > /dev/null 2>&1 && [ -n "$notify_key" ]; then
             notify-send "$(msg screenrecord_notify_title)" "$(msg "$notify_key")"
         elif [ -n "$notify_key" ]; then
@@ -403,6 +419,11 @@ main() {
                 edit-keys)
                     if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
                         "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-keys edit > /dev/null 2>&1 || true
+                    fi
+                    ;;
+                edit-captions)
+                    if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+                        "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-captions edit > /dev/null 2>&1 || true
                     fi
                     ;;
                 status) capture_overlay_status ;;

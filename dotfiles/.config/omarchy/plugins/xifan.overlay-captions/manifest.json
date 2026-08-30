@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.overlay-captions",
+  "name": "Screenrecord Captions Overlay",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "HUD overlay showing real-time ASR captions during recording / streaming.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "CaptionsOverlay.qml"
+  }
+}
