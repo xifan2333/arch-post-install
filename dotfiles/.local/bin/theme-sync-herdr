@@ -81,12 +81,18 @@ color11=$(pick color11 "$color3")
 
 active_row_bg=$(blend "$background" "$foreground" 12)
 selection_bg=$(blend "$background" "$selection_bg_src" 40)
-surface0=$(blend "$background" "$foreground" 18)
-surface1=$(blend "$background" "$foreground" 28)
-surface_dim=$(blend "$background" "$foreground" 8)
-overlay0=$(blend "$background" "$foreground" 40)
-overlay1=$(blend "$background" "$foreground" 55)
-subtext0=$(blend "$background" "$foreground" 70)
+# Inactive tabs paint overlay* on surface0 with a DIM modifier (~half
+# luminance). Keep surfaces close to panel_bg and overlays close to text
+# so labels stay readable after DIM.
+surface_dim=$(blend "$background" "$foreground" 6)
+surface0=$(pick lighter_background)
+[[ -n $surface0 ]] || surface0=$(blend "$background" "$foreground" 8)
+surface1=$(pick muted)
+[[ -n $surface1 ]] || surface1=$(blend "$background" "$foreground" 16)
+overlay0=$(blend "$background" "$foreground" 88)
+overlay1=$(blend "$background" "$foreground" 94)
+subtext0=$(pick light_foreground)
+[[ -n $subtext0 ]] || subtext0=$(blend "$background" "$foreground" 78)
 
 BLOCK=$(
     cat << EOF
