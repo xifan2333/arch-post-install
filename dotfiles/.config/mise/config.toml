@@ -19,6 +19,7 @@ node = "latest"
 "npm:skills" = "latest"
 pi = "latest"
 "pipx:pioarduino" = "latest"
+"pipx:yt-dlp" = { version = "latest", uvx_args = "--with secretstorage" }
 shfmt = "3.13.1"
 uv = "latest"
 
