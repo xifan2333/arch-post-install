@@ -1,0 +1,13 @@
+{
+  "bitrate": 6000,
+  "audio_bitrate": 160,
+  "platforms": [
+    {
+      "name": "bilibili",
+      "enabled": true,
+      "server": "rtmp://live-push.example.com/live",
+      "key": "YOUR_STREAM_KEY",
+      "aspect_ratio": "16:9"
+    }
+  ]
+}

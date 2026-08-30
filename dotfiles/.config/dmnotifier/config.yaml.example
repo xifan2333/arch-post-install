@@ -1,0 +1,33 @@
+server:
+  api_address: http://127.0.0.1:8080
+  api_token: ""
+  ws_address: ws://127.0.0.1:7777
+client:
+  log_level: INFO
+  debug: false
+pipeline:
+  plugins:
+    - name: tui
+      enabled: true
+      messagetypes:
+        - Chat
+        - Gift
+        - Like
+        - EnterRoom
+        - Subscribe
+        - SuperChat
+        - EndLive
+    - name: notify
+      enabled: true
+      messagetypes:
+        - Chat
+        - Gift
+        - Like
+        - EnterRoom
+        - Subscribe
+        - SuperChat
+        - EndLive
+history:
+  - platform: bilibili
+    rid: "ROOM_ID"
+    cookie: ""

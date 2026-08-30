@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.capture",
+  "name": "Capture",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "Local recording / livestream status indicator.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Capture",
+    "description": "Recording / livestream status pill.",
+    "category": "Capture",
+    "allowMultiple": false
+  }
+}
