@@ -31,12 +31,14 @@ BarWidget {
     }
   }
 
-  Timer {
-    interval: 2000
-    running: true
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: root.refresh()
+  Component.onCompleted: root.refresh()
+
+  IpcHandler {
+    target: "xifan.capture"
+
+    function refresh(): void {
+      root.broadcast("refresh")
+    }
   }
 
   BarIconButton {

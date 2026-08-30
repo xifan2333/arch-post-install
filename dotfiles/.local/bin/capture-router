@@ -41,6 +41,12 @@ capture_open_menu() {
     exec omarchy menu toggle trigger.capture
 }
 
+# Match Omarchy's native indicator contract: mutations emit one refresh event,
+# and the widget performs one authoritative status read.
+capture_refresh_indicator() {
+    omarchy-shell -q xifan.capture refresh > /dev/null 2>&1 || true
+}
+
 # Let flock own the lock in a supervisor process and close its descriptor in
 # the routed command. Persistent recorder/stream children therefore cannot
 # inherit the lock. Nonblocking acquisition also prevents repeated UI clicks
@@ -54,6 +60,7 @@ capture_with_lock() {
         "$CAPTURE_LOCK_FILE" \
         env CAPTURE_ROUTER_LOCKED=1 "$SCRIPT_DIR/capture-router" "$@"
     rc=$?
+    capture_refresh_indicator
 
     case "$rc" in
         "$CAPTURE_LOCK_CONFLICT_RC")
