@@ -27,30 +27,31 @@ Item {
   property int marginX: 24
   property int marginY: 24
 
-  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
-                                        + "/screenrecord/title.conf"
+  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/screenrecord/title.conf"
 
   FileView {
     id: confView
     path: root.configPath
     watchChanges: true
     printErrors: false
-    onLoaded: if (!root.editing) root.applyConfig(text())
-    onFileChanged: if (!root.editing) reload()
+    onLoaded: if (!root.editing)
+      root.applyConfig(text())
+    onFileChanged: if (!root.editing)
+      reload()
   }
 
   function applyConfig(raw) {
-    var cfg = TitleModel.parseConfig(raw)
-    root.text = cfg.text
-    root.fontFamily = cfg.fontFamily
-    root.fontSize = cfg.fontSize
-    root.fontWeight = cfg.fontWeight
-    root.textColor = cfg.textColor
-    root.backgroundSpec = cfg.background
-    root.anchorX = cfg.anchorX
-    root.anchorY = cfg.anchorY
-    root.marginX = cfg.marginX
-    root.marginY = cfg.marginY
+    var cfg = TitleModel.parseConfig(raw);
+    root.text = cfg.text;
+    root.fontFamily = cfg.fontFamily;
+    root.fontSize = cfg.fontSize;
+    root.fontWeight = cfg.fontWeight;
+    root.textColor = cfg.textColor;
+    root.backgroundSpec = cfg.background;
+    root.anchorX = cfg.anchorX;
+    root.anchorY = cfg.anchorY;
+    root.marginX = cfg.marginX;
+    root.marginY = cfg.marginY;
   }
 
   function saveConfig() {
@@ -65,66 +66,65 @@ Item {
       anchorY: root.anchorY,
       marginX: root.marginX,
       marginY: root.marginY
-    }
-    var serialized = TitleModel.serializeConfig(cfg)
-    Quickshell.execDetached([
-      "bash", "-c",
-      "mkdir -p \"$(dirname \"$2\")\" && printf '%s' \"$1\" > \"$2\"",
-      "--",
-      serialized,
-      root.configPath
-    ])
+    };
+    var serialized = TitleModel.serializeConfig(cfg);
+    Quickshell.execDetached(["bash", "-c", "mkdir -p \"$(dirname \"$2\")\" && printf '%s' \"$1\" > \"$2\"", "--", serialized, root.configPath]);
   }
 
   function open(payloadJson) {
-    var p = ({})
-    try { p = JSON.parse(payloadJson || "{}") } catch (e) { p = ({}) }
-    if (p.text) root.text = p.text
-    if (p.edit === true) {
-      root.editing = true
+    var p = ({});
+    try {
+      p = JSON.parse(payloadJson || "{}");
+    } catch (e) {
+      p = ({});
     }
-    root.opened = true
+    if (p.text)
+      root.text = p.text;
+    if (p.edit === true) {
+      root.editing = true;
+    }
+    root.opened = true;
   }
 
   function close() {
     if (root.editing) {
-      root.saveConfig()
-      root.editing = false
+      root.saveConfig();
+      root.editing = false;
     }
-    root.opened = false
+    root.opened = false;
   }
 
   function dismiss() {
-    root.close()
+    root.close();
     if (root.shell && typeof root.shell.hide === "function")
-      root.shell.hide((root.manifest && root.manifest.id) || "xifan.overlay-title")
+      root.shell.hide((root.manifest && root.manifest.id) || "xifan.overlay-title");
   }
 
   function lockEdit() {
-    root.saveConfig()
-    root.inlineEditing = false
-    root.editing = false
+    root.saveConfig();
+    root.inlineEditing = false;
+    root.editing = false;
   }
 
   function toggle() {
     if (root.opened && !root.editing) {
-      root.close()
+      root.close();
     } else if (root.opened && root.editing) {
-      root.lockEdit()
+      root.lockEdit();
     } else {
-      root.open("{}")
+      root.open("{}");
     }
   }
 
   function toggleEdit() {
     if (!root.opened) {
-      root.opened = true
-      root.editing = true
+      root.opened = true;
+      root.editing = true;
     } else {
       if (root.editing) {
-        root.lockEdit()
+        root.lockEdit();
       } else {
-        root.editing = true
+        root.editing = true;
       }
     }
   }
@@ -133,36 +133,42 @@ Item {
     target: "xifan.overlay-title"
 
     function toggle(): string {
-      root.toggle()
-      return root.opened ? "open" : "closed"
+      root.toggle();
+      return root.opened ? "open" : "closed";
     }
 
     function edit(): string {
-      root.toggleEdit()
-      return root.editing ? "editing" : (root.opened ? "open" : "closed")
+      root.toggleEdit();
+      return root.editing ? "editing" : (root.opened ? "open" : "closed");
     }
 
     function show(): string {
-      root.opened = true
-      root.editing = false
-      return "open"
+      root.opened = true;
+      root.editing = false;
+      return "open";
     }
 
     function hide(): string {
-      root.close()
-      return "closed"
+      root.close();
+      return "closed";
     }
 
     function state(): string {
-      if (!root.opened) return "closed"
-      return root.editing ? "editing" : "open"
+      if (!root.opened)
+        return "closed";
+      return root.editing ? "editing" : "open";
     }
   }
 
   PanelWindow {
     id: panel
     visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
+    anchors {
+      top: true
+      bottom: true
+      left: true
+      right: true
+    }
     color: "transparent"
     WlrLayershell.namespace: "omarchy-screenrecord-title"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -180,18 +186,19 @@ Item {
       anchors.fill: parent
       focus: root.editing
 
-      Keys.onPressed: function(event) {
-        if (!root.editing) return
+      Keys.onPressed: function (event) {
+        if (!root.editing)
+          return;
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-          root.lockEdit()
-          event.accepted = true
+          root.lockEdit();
+          event.accepted = true;
         } else if (event.key === Qt.Key_Escape) {
           if (root.inlineEditing) {
-            root.inlineEditing = false
+            root.inlineEditing = false;
           } else {
-            root.lockEdit()
+            root.lockEdit();
           }
-          event.accepted = true
+          event.accepted = true;
         }
       }
 
@@ -201,12 +208,8 @@ Item {
         width: Math.min(contentRow.implicitWidth + (root.editing ? 24 : 8), parent.width - 48)
         height: contentRow.implicitHeight + (root.editing ? 16 : 0)
 
-        x: root.anchorX === "left" ? root.marginX
-            : root.anchorX === "right" ? parent.width - root.marginX - width
-            : Math.round((parent.width - width) / 2)
-        y: root.anchorY === "top" ? root.marginY
-            : root.anchorY === "bottom" ? parent.height - root.marginY - height
-            : Math.round((parent.height - height) / 2)
+        x: root.anchorX === "left" ? root.marginX : root.anchorX === "right" ? parent.width - root.marginX - width : Math.round((parent.width - width) / 2)
+        y: root.anchorY === "top" ? root.marginY : root.anchorY === "bottom" ? parent.height - root.marginY - height : Math.round((parent.height - height) / 2)
 
         // Subtle accent border indicator in edit mode
         Rectangle {
@@ -232,40 +235,46 @@ Item {
           property int startMarginX: 0
           property int startMarginY: 0
 
-          onPressed: function(mouse) {
-            var p = dragArea.mapToItem(null, mouse.x, mouse.y)
-            startGlobalX = p.x
-            startGlobalY = p.y
-            startMarginX = root.marginX
-            startMarginY = root.marginY
+          onPressed: function (mouse) {
+            var p = dragArea.mapToItem(null, mouse.x, mouse.y);
+            startGlobalX = p.x;
+            startGlobalY = p.y;
+            startMarginX = root.marginX;
+            startMarginY = root.marginY;
           }
 
-          onPositionChanged: function(mouse) {
+          onPositionChanged: function (mouse) {
             if (mouse.buttons & Qt.LeftButton) {
-              var p = dragArea.mapToItem(null, mouse.x, mouse.y)
-              var dx = Math.round(p.x - startGlobalX)
-              var dy = Math.round(p.y - startGlobalY)
-              if (root.anchorX === "right") root.marginX = Math.max(0, startMarginX - dx)
-              else root.marginX = Math.max(0, startMarginX + dx)
+              var p = dragArea.mapToItem(null, mouse.x, mouse.y);
+              var dx = Math.round(p.x - startGlobalX);
+              var dy = Math.round(p.y - startGlobalY);
+              if (root.anchorX === "right")
+                root.marginX = Math.max(0, startMarginX - dx);
+              else
+                root.marginX = Math.max(0, startMarginX + dx);
 
-              if (root.anchorY === "bottom") root.marginY = Math.max(0, startMarginY - dy)
-              else root.marginY = Math.max(0, startMarginY + dy)
+              if (root.anchorY === "bottom")
+                root.marginY = Math.max(0, startMarginY - dy);
+              else
+                root.marginY = Math.max(0, startMarginY + dy);
             }
           }
 
           // Mouse wheel: smooth font size scaling (±2px per step)
-          onWheel: function(wheel) {
-            if (wheel.angleDelta.y > 0) root.fontSize = Math.min(140, root.fontSize + 2)
-            else if (wheel.angleDelta.y < 0) root.fontSize = Math.max(12, root.fontSize - 2)
+          onWheel: function (wheel) {
+            if (wheel.angleDelta.y > 0)
+              root.fontSize = Math.min(140, root.fontSize + 2);
+            else if (wheel.angleDelta.y < 0)
+              root.fontSize = Math.max(12, root.fontSize - 2);
           }
 
           // Double click: switch to inline text editing directly on the card
           onDoubleClicked: {
-            root.inlineEditing = true
-            Qt.callLater(function() {
-              textInput.selectAll()
-              textInput.forceActiveFocus()
-            })
+            root.inlineEditing = true;
+            Qt.callLater(function () {
+              textInput.selectAll();
+              textInput.forceActiveFocus();
+            });
           }
         }
 
@@ -308,14 +317,14 @@ Item {
 
             onTextEdited: root.text = textInput.text
 
-            Keys.onPressed: function(event) {
+            Keys.onPressed: function (event) {
               if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                root.text = textInput.text
-                root.lockEdit()
-                event.accepted = true
+                root.text = textInput.text;
+                root.lockEdit();
+                event.accepted = true;
               } else if (event.key === Qt.Key_Escape) {
-                root.inlineEditing = false
-                event.accepted = true
+                root.inlineEditing = false;
+                event.accepted = true;
               }
             }
           }

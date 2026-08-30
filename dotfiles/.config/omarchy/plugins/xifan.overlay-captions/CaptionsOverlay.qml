@@ -30,8 +30,7 @@ Item {
   property real staleMs: 4000
   property real lastUpdate: 0
 
-  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
-                                        + "/screenrecord/captions.conf"
+  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/screenrecord/captions.conf"
   readonly property string daemonPath: Qt.resolvedUrl("daemon.py").toString().replace(/^file:\/\//, "")
 
   FileView {
@@ -39,17 +38,19 @@ Item {
     path: root.configPath
     watchChanges: true
     printErrors: false
-    onLoaded: if (!root.editing) root.applyConfig(text())
-    onFileChanged: if (!root.editing) reload()
+    onLoaded: if (!root.editing)
+      root.applyConfig(text())
+    onFileChanged: if (!root.editing)
+      reload()
   }
 
   function applyConfig(raw) {
-    var cfg = CaptionsModel.parseConfig(raw)
-    root.fontSize = cfg.fontSize
-    root.fontFamily = cfg.fontFamily
-    root.textColor = cfg.textColor
-    root.anchorY = cfg.anchorY
-    root.marginBottom = cfg.marginBottom
+    var cfg = CaptionsModel.parseConfig(raw);
+    root.fontSize = cfg.fontSize;
+    root.fontFamily = cfg.fontFamily;
+    root.textColor = cfg.textColor;
+    root.anchorY = cfg.anchorY;
+    root.marginBottom = cfg.marginBottom;
   }
 
   function saveConfig() {
@@ -59,49 +60,44 @@ Item {
       textColor: root.textColor,
       anchorY: root.anchorY,
       marginBottom: root.marginBottom
-    }
-    var serialized = CaptionsModel.serializeConfig(cfg)
-    Quickshell.execDetached([
-      "bash", "-c",
-      "mkdir -p \"$(dirname \"$2\")\" && printf '%s' \"$1\" > \"$2\"",
-      "--",
-      serialized,
-      root.configPath
-    ])
+    };
+    var serialized = CaptionsModel.serializeConfig(cfg);
+    Quickshell.execDetached(["bash", "-c", "mkdir -p \"$(dirname \"$2\")\" && printf '%s' \"$1\" > \"$2\"", "--", serialized, root.configPath]);
   }
 
   function nowMs() {
-    return (typeof Date.now === "function") ? Date.now() : (new Date()).getTime()
+    return (typeof Date.now === "function") ? Date.now() : (new Date()).getTime();
   }
 
   function sanitizeCaption(t) {
-    return String(t || "").replace(/[\r\n]+/g, "")
+    return String(t || "").replace(/[\r\n]+/g, "");
   }
 
   function startDaemon() {
-    Quickshell.execDetached(["python3", root.daemonPath])
+    Quickshell.execDetached(["python3", root.daemonPath]);
   }
 
   function toggle() {
     if (root.opened) {
-      root.opened = false
+      root.opened = false;
     } else {
-      root.opened = true
-      root.lastUpdate = root.nowMs()
+      root.opened = true;
+      root.lastUpdate = root.nowMs();
     }
   }
 
   function lockEdit() {
-    root.saveConfig()
-    root.inlineEditing = false
-    root.editing = false
+    root.saveConfig();
+    root.inlineEditing = false;
+    root.editing = false;
   }
 
   function toggleEdit() {
-    if (root.editing) root.lockEdit()
+    if (root.editing)
+      root.lockEdit();
     else {
-      root.opened = true
-      root.editing = true
+      root.opened = true;
+      root.editing = true;
     }
   }
 
@@ -111,38 +107,39 @@ Item {
     target: "xifan.overlay-captions"
 
     function caption(text: string, kind: string): string {
-      var t = root.sanitizeCaption(text)
+      var t = root.sanitizeCaption(text);
       if (kind === "clear" || t === "") {
-        root.text = ""
-        root.opened = false
-        return "ok"
+        root.text = "";
+        root.opened = false;
+        return "ok";
       }
-      root.text = t
-      root.lastUpdate = root.nowMs()
-      root.opened = true
-      return "ok"
+      root.text = t;
+      root.lastUpdate = root.nowMs();
+      root.opened = true;
+      return "ok";
     }
     function toggle(): string {
-      root.toggle()
-      return root.opened ? "open" : "closed"
+      root.toggle();
+      return root.opened ? "open" : "closed";
     }
     function edit(): string {
-      root.toggleEdit()
-      return root.editing ? "editing" : (root.opened ? "open" : "closed")
+      root.toggleEdit();
+      return root.editing ? "editing" : (root.opened ? "open" : "closed");
     }
     function show(): string {
-      root.opened = true
-      root.lastUpdate = root.nowMs()
-      return "open"
+      root.opened = true;
+      root.lastUpdate = root.nowMs();
+      return "open";
     }
     function hide(): string {
-      root.opened = false
-      root.text = ""
-      return "closed"
+      root.opened = false;
+      root.text = "";
+      return "closed";
     }
     function state(): string {
-      if (!root.opened) return "closed"
-      return root.editing ? "editing" : "open"
+      if (!root.opened)
+        return "closed";
+      return root.editing ? "editing" : "open";
     }
   }
 
@@ -154,14 +151,19 @@ Item {
     repeat: true
     onTriggered: {
       if (root.opened && !root.editing && root.nowMs() - root.lastUpdate > root.staleMs)
-        root.opened = false
+        root.opened = false;
     }
   }
 
   PanelWindow {
     id: panel
     visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
+    anchors {
+      top: true
+      bottom: true
+      left: true
+      right: true
+    }
     color: "transparent"
     WlrLayershell.namespace: "omarchy-screenrecord-captions"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -177,15 +179,18 @@ Item {
       anchors.fill: parent
       focus: root.editing
 
-      Keys.onPressed: function(event) {
-        if (!root.editing) return
+      Keys.onPressed: function (event) {
+        if (!root.editing)
+          return;
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-          root.lockEdit()
-          event.accepted = true
+          root.lockEdit();
+          event.accepted = true;
         } else if (event.key === Qt.Key_Escape) {
-          if (root.inlineEditing) root.inlineEditing = false
-          else root.lockEdit()
-          event.accepted = true
+          if (root.inlineEditing)
+            root.inlineEditing = false;
+          else
+            root.lockEdit();
+          event.accepted = true;
         }
       }
 
@@ -197,9 +202,7 @@ Item {
         height: contentRow.implicitHeight + (root.editing ? 16 : 0)
 
         anchors.horizontalCenter: parent.horizontalCenter
-        y: root.anchorY === "bottom" ? parent.height - root.marginBottom - height
-            : root.anchorY === "top" ? root.marginBottom
-            : Math.round((parent.height - height) / 2)
+        y: root.anchorY === "bottom" ? parent.height - root.marginBottom - height : root.anchorY === "top" ? root.marginBottom : Math.round((parent.height - height) / 2)
 
         Rectangle {
           id: hudBorder
@@ -222,31 +225,35 @@ Item {
           property real startGlobalY: 0
           property int startMarginBottom: 0
 
-          onPressed: function(mouse) {
-            startGlobalY = dragArea.mapToItem(null, mouse.x, mouse.y).y
-            startMarginBottom = root.marginBottom
+          onPressed: function (mouse) {
+            startGlobalY = dragArea.mapToItem(null, mouse.x, mouse.y).y;
+            startMarginBottom = root.marginBottom;
           }
 
-          onPositionChanged: function(mouse) {
+          onPositionChanged: function (mouse) {
             if (mouse.buttons & Qt.LeftButton) {
-              var y = dragArea.mapToItem(null, mouse.x, mouse.y).y
-              var dy = Math.round(y - startGlobalY)
-              if (root.anchorY === "bottom") root.marginBottom = Math.max(0, startMarginBottom - dy)
-              else root.marginBottom = Math.max(0, startMarginBottom + dy)
+              var y = dragArea.mapToItem(null, mouse.x, mouse.y).y;
+              var dy = Math.round(y - startGlobalY);
+              if (root.anchorY === "bottom")
+                root.marginBottom = Math.max(0, startMarginBottom - dy);
+              else
+                root.marginBottom = Math.max(0, startMarginBottom + dy);
             }
           }
 
-          onWheel: function(wheel) {
-            if (wheel.angleDelta.y > 0) root.fontSize = Math.min(140, root.fontSize + 2)
-            else if (wheel.angleDelta.y < 0) root.fontSize = Math.max(12, root.fontSize - 2)
+          onWheel: function (wheel) {
+            if (wheel.angleDelta.y > 0)
+              root.fontSize = Math.min(140, root.fontSize + 2);
+            else if (wheel.angleDelta.y < 0)
+              root.fontSize = Math.max(12, root.fontSize - 2);
           }
 
           onDoubleClicked: {
-            root.inlineEditing = true
-            Qt.callLater(function() {
-              textInput.selectAll()
-              textInput.forceActiveFocus()
-            })
+            root.inlineEditing = true;
+            Qt.callLater(function () {
+              textInput.selectAll();
+              textInput.forceActiveFocus();
+            });
           }
         }
 
@@ -294,14 +301,14 @@ Item {
             selectByMouse: true
 
             onTextEdited: root.text = textInput.text
-            Keys.onPressed: function(event) {
+            Keys.onPressed: function (event) {
               if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                root.text = textInput.text
-                root.lockEdit()
-                event.accepted = true
+                root.text = textInput.text;
+                root.lockEdit();
+                event.accepted = true;
               } else if (event.key === Qt.Key_Escape) {
-                root.inlineEditing = false
-                event.accepted = true
+                root.inlineEditing = false;
+                event.accepted = true;
               }
             }
           }

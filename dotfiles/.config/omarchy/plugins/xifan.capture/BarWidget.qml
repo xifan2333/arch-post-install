@@ -11,18 +11,18 @@ BarWidget {
   property var indicatorHost: null
 
   function applyState(raw) {
-    var value = String(raw || "").trim()
-    root.screenState = (value === "recording" || value === "livestream") ? value : "idle"
+    var value = String(raw || "").trim();
+    root.screenState = (value === "recording" || value === "livestream") ? value : "idle";
   }
 
   function bindIndicatorHost() {
-    var widgets = root.bar && typeof root.bar.moduleWidgets === "function"
-      ? root.bar.moduleWidgets("omarchy.indicators") : []
-    root.indicatorHost = widgets.length > 0 ? widgets[0] : null
+    var widgets = root.bar && typeof root.bar.moduleWidgets === "function" ? root.bar.moduleWidgets("omarchy.indicators") : [];
+    root.indicatorHost = widgets.length > 0 ? widgets[0] : null;
   }
 
   function refresh() {
-    if (!statusProc.running) statusProc.running = true
+    if (!statusProc.running)
+      statusProc.running = true;
   }
 
   visible: root.screenState !== "idle"
@@ -30,15 +30,17 @@ BarWidget {
   implicitHeight: button.implicitHeight
 
   onBarChanged: {
-    root.bindIndicatorHost()
-    root.refresh()
+    root.bindIndicatorHost();
+    root.refresh();
   }
   Component.onCompleted: root.refresh()
 
   Connections {
     target: root.bar
     ignoreUnknownSignals: true
-    function onModuleSlotsChanged() { root.bindIndicatorHost() }
+    function onModuleSlotsChanged() {
+      root.bindIndicatorHost();
+    }
   }
 
   // Same contract as Omarchy's stock ScreenRecording indicator: the host
@@ -46,7 +48,9 @@ BarWidget {
   Connections {
     target: root.indicatorHost
     ignoreUnknownSignals: true
-    function onRefreshRequested() { root.refresh() }
+    function onRefreshRequested() {
+      root.refresh();
+    }
   }
 
   Process {
@@ -66,13 +70,15 @@ BarWidget {
     active: true
     useActiveColor: true
     text: root.screenState === "livestream" ? "\uf144" : "\uf111"
-    tooltipText: root.screenState === "livestream" ? "Livestream… click to stop"
-               : "Recording… click to stop"
+    tooltipText: root.screenState === "livestream" ? "Livestream… click to stop" : "Recording… click to stop"
 
-    onPressed: function(b) {
-      if (!root.bar) return
-      if (b === Qt.RightButton) root.bar.run("capture-router menu")
-      else root.bar.run("capture-router toggle-active")
+    onPressed: function (b) {
+      if (!root.bar)
+        return;
+      if (b === Qt.RightButton)
+        root.bar.run("capture-router menu");
+      else
+        root.bar.run("capture-router toggle-active");
     }
   }
 }
