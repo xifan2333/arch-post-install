@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "no-var": "error",
+    "no-unused-vars": "off"
+  },
+  "ignorePatterns": ["**/node_modules/**"]
+}

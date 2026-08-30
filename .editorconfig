@@ -6,7 +6,7 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.{lua,json,jsonc,toml,yaml,yml}]
+[*.{js,qml,lua,json,jsonc,toml,yaml,yml}]
 indent_style = space
 indent_size = 2
 

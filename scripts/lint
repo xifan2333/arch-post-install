@@ -8,6 +8,8 @@ bash_files=()
 shellcheck_files=()
 zsh_files=()
 lua_files=()
+js_files=()
+qml_files=()
 toml_files=()
 structured_files=()
 
@@ -32,6 +34,8 @@ while IFS= read -r -d '' file; do
 
     case "$file" in
         *.lua) lua_files+=("$file") ;;
+        *.js) js_files+=("$file") ;;
+        *.qml) qml_files+=("$file") ;;
         *.toml) toml_files+=("$file") ;;
         dotfiles/.config/nvim/lazy-lock.json) ;;
         *.json | *.jsonc | *.yaml | *.yml) structured_files+=("$file") ;;
@@ -59,5 +63,31 @@ taplo lint --no-schema "${toml_files[@]}"
 
 printf '%s\n' '==> JSON/JSONC/YAML: Prettier'
 prettier --check "${structured_files[@]}"
+
+if ((${#js_files[@]} > 0)); then
+    printf '%s\n' '==> JavaScript: Oxlint'
+    oxlint "${js_files[@]}"
+fi
+
+printf '%s\n' '==> QML: qmllint'
+qml_lint_bin=""
+if [[ -x /usr/lib/qt6/bin/qmllint ]]; then
+    qml_lint_bin=/usr/lib/qt6/bin/qmllint
+fi
+omarchy_shell="${OMARCHY_PATH:-/usr/share/omarchy}/shell"
+if [[ -z $qml_lint_bin ]]; then
+    printf '%s\n' 'skip (Qt6 qmllint not installed)'
+elif ((${#qml_files[@]} == 0)); then
+    printf '%s\n' 'skip (no QML files)'
+elif [[ ! -f $omarchy_shell/Commons/qmldir || ! -f $omarchy_shell/Ui/qmldir ]]; then
+    printf '%s\n' "skip (Omarchy QML modules missing: $omarchy_shell)"
+else
+    "$qml_lint_bin" \
+        -I /usr/lib/qt6/qml \
+        -i "$omarchy_shell/Commons/qmldir" \
+        -i "$omarchy_shell/Ui/qmldir" \
+        --max-warnings 0 \
+        "${qml_files[@]}"
+fi
 
 printf '%s\n' 'All checks passed.'

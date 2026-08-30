@@ -9,7 +9,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
-import qs.Ui
 import "CaptionsModel.js" as CaptionsModel
 
 Item {
@@ -88,7 +87,7 @@ Item {
       root.opened = false
     } else {
       root.opened = true
-      root.lastUpdate = nowMs()
+      root.lastUpdate = root.nowMs()
     }
   }
 
@@ -119,7 +118,7 @@ Item {
         return "ok"
       }
       root.text = t
-      root.lastUpdate = nowMs()
+      root.lastUpdate = root.nowMs()
       root.opened = true
       return "ok"
     }
@@ -133,7 +132,7 @@ Item {
     }
     function show(): string {
       root.opened = true
-      root.lastUpdate = nowMs()
+      root.lastUpdate = root.nowMs()
       return "open"
     }
     function hide(): string {
@@ -154,7 +153,7 @@ Item {
     running: root.opened && !root.editing
     repeat: true
     onTriggered: {
-      if (root.opened && !root.editing && nowMs() - root.lastUpdate > root.staleMs)
+      if (root.opened && !root.editing && root.nowMs() - root.lastUpdate > root.staleMs)
         root.opened = false
     }
   }

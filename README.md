@@ -137,7 +137,7 @@ mise -C ~/Code/arch-post-install bootstrap --yes
 
 ## 代码规范与检查
 
-项目按文件类型使用对应工具：Python 用 Ruff，Bash 用 ShellCheck，Lua 和 Zsh 做语法检查，TOML 用 Taplo，JSON/JSONC/YAML 用 Prettier。版本统一固定在根目录的 `mise.toml`。
+项目按文件类型使用对应工具：Python 用 Ruff，JavaScript 用 Oxlint，QML 用 Qt 的 qmllint，Bash 用 ShellCheck，Lua 和 Zsh 做语法检查，TOML 用 Taplo，JSON/JSONC/YAML 用 Prettier。版本统一固定在根目录的 `mise.toml`。本机没有 Qt6 qmllint / Omarchy QML 模块时会跳过 QML 检查。
 
 首次使用先安装工具：
 

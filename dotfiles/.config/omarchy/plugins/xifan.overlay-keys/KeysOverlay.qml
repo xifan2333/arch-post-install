@@ -9,7 +9,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
-import qs.Ui
 import "KeysModel.js" as KeysModel
 
 Item {
@@ -85,7 +84,7 @@ Item {
     var t = String(raw || "").trim()
     if (t === "") return
     root.text = t
-    root.lastShow = nowMs()
+    root.lastShow = root.nowMs()
     if (root.autoHide) root.opened = true
   }
 
@@ -98,7 +97,7 @@ Item {
     running: root.autoHide && root.opened
     repeat: true
     onTriggered: {
-      if (root.autoHide && nowMs() - root.lastShow > root.timeoutMs)
+      if (root.autoHide && root.nowMs() - root.lastShow > root.timeoutMs)
         root.opened = false
     }
   }
@@ -115,7 +114,7 @@ Item {
     } else {
       root.opened = true
       root.autoHide = true
-      root.lastShow = nowMs()
+      root.lastShow = root.nowMs()
     }
   }
 
@@ -154,7 +153,7 @@ Item {
     function show(): string {
       root.opened = true
       root.autoHide = true
-      root.lastShow = nowMs()
+      root.lastShow = root.nowMs()
       return "open"
     }
     function hide(): string {

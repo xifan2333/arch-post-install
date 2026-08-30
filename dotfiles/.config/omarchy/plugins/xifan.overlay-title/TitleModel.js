@@ -1,7 +1,7 @@
 // Read, parse, and serialize ~/.config/screenrecord/title.conf.
 
 function parseConfig(rawText) {
-  var cfg = {
+  const cfg = {
     text: "直播标题",
     fontFamily: "sans-serif",
     fontSize: 36,
@@ -15,20 +15,20 @@ function parseConfig(rawText) {
     marginY: 24
   }
 
-  var lines = String(rawText || "").split("\n")
-  var inTitle = false
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim()
+  const lines = String(rawText || "").split("\n")
+  let inTitle = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
     if (line === "" || line.charAt(0) === "#" || line.charAt(0) === ";") continue
     if (line.charAt(0) === "[" && line.charAt(line.length - 1) === "]") {
       inTitle = (line === "[title]")
       continue
     }
     if (!inTitle) continue
-    var eq = line.indexOf("=")
+    const eq = line.indexOf("=")
     if (eq === -1) continue
-    var key = line.slice(0, eq).trim()
-    var val = line.slice(eq + 1).trim()
+    const key = line.slice(0, eq).trim()
+    const val = line.slice(eq + 1).trim()
 
     switch (key) {
       case "text": cfg.text = val; break
@@ -50,7 +50,7 @@ function parseConfig(rawText) {
 }
 
 function serializeConfig(cfg) {
-  var lines = [
+  const lines = [
     "[title]",
     "text = " + (cfg.text || ""),
     "font_family = " + (cfg.fontFamily || "sans-serif"),

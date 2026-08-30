@@ -1,7 +1,7 @@
 // Read, parse, and serialize ~/.config/screenrecord/captions.conf.
 
 function parseConfig(rawText) {
-  var cfg = {
+  const cfg = {
     fontSize: 24,
     fontFamily: "monospace",
     textColor: "#ffffff",
@@ -9,20 +9,20 @@ function parseConfig(rawText) {
     marginBottom: 46
   }
 
-  var lines = String(rawText || "").split("\n")
-  var inCaptions = false
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim()
+  const lines = String(rawText || "").split("\n")
+  let inCaptions = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
     if (line === "" || line.charAt(0) === "#" || line.charAt(0) === ";") continue
     if (line.charAt(0) === "[" && line.charAt(line.length - 1) === "]") {
       inCaptions = (line === "[captions]")
       continue
     }
     if (!inCaptions) continue
-    var eq = line.indexOf("=")
+    const eq = line.indexOf("=")
     if (eq === -1) continue
-    var key = line.slice(0, eq).trim()
-    var val = line.slice(eq + 1).trim()
+    const key = line.slice(0, eq).trim()
+    const val = line.slice(eq + 1).trim()
 
     switch (key) {
       case "font_size": cfg.fontSize = Number(val) || cfg.fontSize; break
@@ -38,7 +38,7 @@ function parseConfig(rawText) {
 }
 
 function serializeConfig(cfg) {
-  var lines = [
+  const lines = [
     "[captions]",
     "font_size = " + (Math.round(cfg.fontSize) || 24),
     "font_family = " + (cfg.fontFamily || "monospace"),
