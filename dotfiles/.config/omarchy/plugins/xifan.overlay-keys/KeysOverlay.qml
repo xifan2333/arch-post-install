@@ -102,9 +102,15 @@ Item {
     }
   }
 
-  function startDaemon() {
-    // Start the evdev backend (single-instance guarded inside the script).
-    Quickshell.execDetached([root.daemonPath])
+  Process {
+    id: daemonProc
+    command: [root.daemonPath]
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        root.onKeyState(line)
+      }
+    }
   }
 
   function toggle() {
@@ -132,8 +138,6 @@ Item {
       root.editing = true
     }
   }
-
-  Component.onCompleted: root.startDaemon()
 
   IpcHandler {
     target: "xifan.overlay-keys"
