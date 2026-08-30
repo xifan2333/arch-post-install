@@ -205,7 +205,6 @@ flac1.3
 herdr-corral-bin
 karing-bin
 linuxqq-appimage
-listen1
 ttf-wps-fonts
 unibarrage-bin
 wechat-appimage
@@ -260,13 +259,16 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 
 | 快捷键 | 动作 |
 |--------|------|
-| `Alt+Print` | Capture 菜单 |
-| `Super+R` | 本地录屏 toggle（桌面声 + 麦克风） |
-| `Super+Alt+R` | 直播 toggle（portal 选区） |
-| `Super+Shift+R` | 直播平台配置 |
-| `Ctrl+Print` | 选区 OCR |
-| `Super+Alt+V/K/C/T` | 摄像头 / 按键 / 字幕 / 标题叠加层 |
-| `Super+Shift+V/K/C/T` | 对应叠加层编辑 |
+| `Print` / `Shift+Print` | 选区截图 / 全屏截图存盘 |
+| `Ctrl+Print` | 选区 OCR 提取文字 |
+| `Alt+Print` | 屏幕吸管取色 |
+| `Win+G` | 录制与推流中心菜单 |
+| `Win+Ctrl+V` | 剪贴板历史（`Win+C/V/X` 为万能复制/粘贴/剪切） |
+| `Win+R` | 本地录屏 toggle（桌面声 + 麦克风） |
+| `Win+Alt+R` | 直播 toggle（portal 选区） |
+| `Win+Shift+R` | 直播平台配置 |
+| `Win+Alt+S/W/K/T` | 字幕 (S) / 摄像头 (W) / 按键 (K) / 标题 (T) 叠加层开关 |
+| `Win+Shift+S/W/K/T` | 对应叠加层拖动 / 样式编辑 |
 
 ### 直播平台
 
