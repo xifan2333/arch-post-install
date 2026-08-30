@@ -66,7 +66,7 @@ mode = "0644"
 # individually, while files not owned by this repository remain untouched.
 [dotfiles]
 "~/.zshrc" = { source = "dotfiles/.zshrc" }
-"~/.tmux.conf" = { source = "dotfiles/.tmux.conf" }
+"~/.config/autostart" = { source = "dotfiles/.config/autostart", mode = "symlink-each" }
 "~/.config/corral" = { source = "dotfiles/.config/corral", mode = "symlink-each" }
 "~/.config/dmnotifier" = { source = "dotfiles/.config/dmnotifier", mode = "symlink-each", exclude = [
   "*.example",
@@ -82,6 +82,7 @@ mode = "0644"
 "~/.config/git" = { source = "dotfiles/.config/git", mode = "symlink-each" }
 "~/.config/herdr" = { source = "dotfiles/.config/herdr", mode = "symlink-each" }
 "~/.config/hypr" = { source = "dotfiles/.config/hypr", mode = "symlink-each" }
+"~/.config/imv" = { source = "dotfiles/.config/imv", mode = "symlink-each" }
 "~/.config/livestream" = { source = "dotfiles/.config/livestream", mode = "symlink-each", exclude = [
   "*.example",
 ] }
@@ -97,6 +98,7 @@ mode = "0644"
 "~/.config/screenrecord" = { source = "dotfiles/.config/screenrecord", mode = "symlink-each" }
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "dotfiles/.config/tensaku", mode = "symlink-each" }
+"~/.config/tmux" = { source = "dotfiles/.config/tmux", mode = "symlink-each" }
 "~/.config/uv" = { source = "dotfiles/.config/uv", mode = "symlink-each" }
 "~/.config/vinput" = { source = "dotfiles/.config/vinput", mode = "symlink-each", exclude = [
   "*.example",
