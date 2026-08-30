@@ -1,0 +1,7 @@
+issue:2.0
+pr:2.0
+action:2.0
+Github:2.0
+npm:2.0
+pacman:2.0
+i18n:2.0

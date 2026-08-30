@@ -1,5 +1,5 @@
 # User credentials and local caches
-dotfiles/.config/vinput/
+dotfiles/.config/vinput/config.json
 dotfiles/.config/qutebrowser/translate.json
 dotfiles/.config/fcitx5/conf/cached_layouts
 

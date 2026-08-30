@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "registry": {
+    "base_urls": [
+      "https://raw.githubusercontent.com/xifan2333/vinput-registry/main",
+      "https://gh-proxy.com/https://raw.githubusercontent.com/xifan2333/vinput-registry/main",
+      "https://ghfast.top/https://raw.githubusercontent.com/xifan2333/vinput-registry/main"
+    ]
+  },
+  "global": {
+    "default_language": "zh",
+    "capture_device": "rnnoise_source",
+    "duck_output_while_recording": false,
+    "duck_output_volume": 0.25
+  },
+  "asr": {
+    "active_provider": "provider.doubaoime.streaming",
+    "normalize_audio": true,
+    "input_gain": 1.0,
+    "vad": {
+      "enabled": true,
+      "threshold": 0.45,
+      "min_speech_duration": 0.15,
+      "min_silence_duration": 0.5,
+      "speech_pad_ms": 300
+    },
+    "providers": [
+      {
+        "id": "sherpa-onnx",
+        "type": "local",
+        "model": "model.sherpa-onnx.x-asr-zipformer-transducer-zh-en-punct-int8",
+        "hotwords_file": "~/.config/vinput/hotwords.txt",
+        "timeout_ms": 15000
+      }
+    ]
+  },
+  "llm": {
+    "providers": [],
+    "adapters": []
+  },
+  "scenes": {
+    "active_scene": "__raw__",
+    "definitions": [
+      {
+        "id": "__raw__",
+        "candidate_count": 0
+      }
+    ]
+  }
+}
