@@ -224,8 +224,17 @@ capture_overlay_pid() {
 }
 
 capture_overlay_status() {
-    local name pid
+    local name pid state
     for name in camera captions keys title; do
+        if [[ "$name" == title && -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+            state=$("$OMARCHY_PATH"/bin/omarchy-shell shell state xifan.overlay-title 2> /dev/null || true)
+            if [[ "$state" != "closed" && -n "$state" ]]; then
+                printf '%s running (quickshell)\n' "$name"
+            else
+                printf '%s stopped\n' "$name"
+            fi
+            continue
+        fi
         pid=$(capture_overlay_pid "$name" || true)
         if [ -n "$pid" ]; then
             printf '%s running %s\n' "$name" "$pid"
@@ -366,7 +375,11 @@ main() {
             [ "$#" -gt 0 ] && shift
             case "$action" in
                 camera | captions | keys | title) capture_overlay_toggle "$action" ;;
-                edit | title-edit) exec "$SCRIPT_DIR/screenrecord-overlay-title-edit" ;;
+                edit | title-edit)
+                    if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+                        "$OMARCHY_PATH"/bin/omarchy-shell shell toggle xifan.overlay-title '{"edit":true}' > /dev/null 2>&1 || true
+                    fi
+                    ;;
                 status) capture_overlay_status ;;
                 pid)
                     case "${1:-}" in
