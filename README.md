@@ -17,8 +17,7 @@ arch-post-install/
 └── dotfiles/                         # 实际的配置文件
     ├── .config/
     ├── .local/
-    ├── .zshrc
-    └── .tmux.conf
+    └── .zshrc
 ```
 
 ## 第一次安装
@@ -261,7 +260,7 @@ capture-router overlay pid camera|captions|keys|title
 capture-text-extraction                             # 选区 OCR（也可 Ctrl+Print）
 ```
 
-### 快捷键（`~/.config/hypr/capture.conf`）
+### 快捷键（`~/.config/hypr/bindings.lua`）
 
 | 快捷键 | 动作 |
 |--------|------|
@@ -320,9 +319,10 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 | Hyprland | 按键、外观、显示器、空闲锁屏等配置 |
 | Neovim | LazyVim、补全、格式化和主题热加载 |
 | Zsh | 补全、插件、快捷键、别名和工具初始化 |
-| Tmux | C-Space 前缀、vi 模式、窗口和分屏快捷键 |
+| Tmux | C-Space 前缀、vi 模式、窗口和分屏快捷键（XDG 规范） |
 | 输入法 | Fcitx5 和 Rime 配置 |
-| 终端 | Kitty 配置 |
+| 终端 | WezTerm 配置与主题联动 |
+| 状态栏 | Omarchy 4 Quickshell 录屏/直播指示器插件（xifan.capture） |
 | 主题 | 切换 Omarchy 主题时同步其他程序的配色 |
 | 录制 | 音频录制和屏幕录制叠加层 |
 | 模拟器 | RetroArch 配置与全局着色器预设 |
