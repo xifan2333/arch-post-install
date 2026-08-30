@@ -353,12 +353,35 @@ def probe_oauth_provider(
                     " (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
                 ),
             }
-            url = "https://opencode.ai/zen/go/v1/models"
+            url = "https://opencode.ai/zen/go/v1/usage"
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 if resp.status == 200:
-                    res["ready"] = True
-                    res["tierLabel"] = "OpenCode API (Active)"
+                    data = json.loads(resp.read().decode("utf-8"))
+                    usage = data.get("usage", {})
+
+                    # Process rolling, weekly, monthly limits
+                    for window_name in ["rolling", "weekly", "monthly"]:
+                        win = usage.get(window_name, {})
+                        status = win.get("status", "ok")
+                        pct = float(win.get("percent", 0))
+                        resets = win.get("resetsAt", "")
+
+                        title = window_name.capitalize()
+                        if status == "rate-limited" or pct >= 100:
+                            res["ready"] = False
+                            res["usageStatusText"] = f"{title} limit reached"
+
+                        res["limits"].append(
+                            {
+                                "title": title,
+                                "percent": min(1.0, pct / 100.0),
+                                "resetsAt": resets,
+                            }
+                        )
+
+                    if res["ready"]:
+                        res["tierLabel"] = "OpenCode API (Active)"
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
                 res["ready"] = False
