@@ -74,10 +74,6 @@ mode = "0644"
   "*.example",
 ] }
 "~/.config/retroarch" = { source = "dotfiles/.config/retroarch", mode = "symlink-each" }
-"~/.config/screenrecord/title.conf.example" = { source = "dotfiles/.config/screenrecord/title.conf.example" }
-"~/.config/screenrecord/keys.conf.example" = { source = "dotfiles/.config/screenrecord/keys.conf.example" }
-"~/.config/screenrecord/captions.conf.example" = { source = "dotfiles/.config/screenrecord/captions.conf.example" }
-"~/.config/screenrecord/camera.conf.example" = { source = "dotfiles/.config/screenrecord/camera.conf.example" }
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "dotfiles/.config/tensaku", mode = "symlink-each" }
 "~/.config/tmux" = { source = "dotfiles/.config/tmux", mode = "symlink-each" }
@@ -152,7 +148,28 @@ run = '''
 set -euo pipefail
 
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-theme="$config_home/omarchy/current/theme/neovim.lua"
+
+# Runtime configs stay local. Seed from git templates only when missing.
+seed_example() {
+  local src="$1" dest="$2" mode="${3:-0644}"
+  if [[ -e $dest ]]; then
+    return 0
+  fi
+  install -D -m "$mode" "$src" "$dest"
+  printf 'bootstrap: seeded %s\n' "$dest"
+}
+
+seed_example dotfiles/.config/screenrecord/title.conf.example "$config_home/screenrecord/title.conf"
+seed_example dotfiles/.config/screenrecord/keys.conf.example "$config_home/screenrecord/keys.conf"
+seed_example dotfiles/.config/screenrecord/captions.conf.example "$config_home/screenrecord/captions.conf"
+seed_example dotfiles/.config/screenrecord/camera.conf.example "$config_home/screenrecord/camera.conf"
+seed_example dotfiles/.config/livestream/config.json.example "$config_home/livestream/config.json" 0600
+seed_example dotfiles/.config/dmnotifier/config.yaml.example "$config_home/dmnotifier/config.yaml"
+seed_example dotfiles/.config/vinput/config.json.example "$config_home/vinput/config.json" 0600
+seed_example dotfiles/.config/qutebrowser/translate.json.example "$config_home/qutebrowser/translate.json" 0600
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+theme="$state_home/omarchy/current/theme/neovim.lua"
 target="$config_home/nvim/lua/plugins/theme.lua"
 
 if [[ -f "$theme" ]]; then
