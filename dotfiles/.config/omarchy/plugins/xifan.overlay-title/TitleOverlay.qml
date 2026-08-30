@@ -93,16 +93,25 @@ Item {
       root.editing = false
     }
     root.opened = false
+  }
+
+  function dismiss() {
+    root.close()
     if (root.shell && typeof root.shell.hide === "function")
       root.shell.hide((root.manifest && root.manifest.id) || "xifan.overlay-title")
+  }
+
+  function lockEdit() {
+    root.saveConfig()
+    root.inlineEditing = false
+    root.editing = false
   }
 
   function toggle() {
     if (root.opened && !root.editing) {
       root.close()
     } else if (root.opened && root.editing) {
-      root.saveConfig()
-      root.editing = false
+      root.lockEdit()
     } else {
       root.open("{}")
     }
@@ -114,8 +123,7 @@ Item {
       root.editing = true
     } else {
       if (root.editing) {
-        root.saveConfig()
-        root.editing = false
+        root.lockEdit()
       } else {
         root.editing = true
       }
@@ -159,28 +167,40 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "omarchy-screenrecord-title"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.editing && root.inlineEditing ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root.editing ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
 
-    // Broadcast mode: 100% click-through mask.
-    // Edit mode: catch pointer events on the card and HUD toolbar.
-    mask: root.editing ? editMask : emptyMask
-
-    Region { id: emptyMask }
-    Region {
-      id: editMask
-      item: hudContainer
+    // Broadcast mode: 100% click-through mask (item: null -> empty input region).
+    // Edit mode: catch pointer events on the card.
+    mask: Region {
+      item: root.editing ? card : null
     }
 
     Item {
       id: hudContainer
       anchors.fill: parent
+      focus: root.editing
+
+      Keys.onPressed: function(event) {
+        if (!root.editing) return
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+          root.lockEdit()
+          event.accepted = true
+        } else if (event.key === Qt.Key_Escape) {
+          if (root.inlineEditing) {
+            root.inlineEditing = false
+          } else {
+            root.lockEdit()
+          }
+          event.accepted = true
+        }
+      }
 
       // Positioned card container
       Item {
         id: card
-        width: Math.min(contentRow.implicitWidth + 32, parent.width - 48)
-        height: contentRow.implicitHeight + (root.editing ? 42 : 12)
+        width: Math.min(contentRow.implicitWidth + (root.editing ? 24 : 8), parent.width - 48)
+        height: contentRow.implicitHeight + (root.editing ? 16 : 0)
 
         x: root.anchorX === "left" ? root.marginX
             : root.anchorX === "right" ? parent.width - root.marginX - width
@@ -189,145 +209,72 @@ Item {
             : root.anchorY === "bottom" ? parent.height - root.marginY - height
             : Math.round((parent.height - height) / 2)
 
-        // Edit mode HUD backdrop & border
+        // Subtle accent border indicator in edit mode
         Rectangle {
           id: hudBorder
           visible: root.editing
           anchors.fill: parent
           radius: Style.cornerRadius
-          color: Util.alpha(Color.popups.background, 0.75)
+          color: Util.alpha(Color.popups.background, 0.45)
           border.color: Color.accent
           border.width: 1.5
+        }
 
-          // Top action bar in edit mode
-          Row {
-            id: actionBar
-            anchors.top: parent.top
-            anchors.right: parent.right
-            anchors.topMargin: 4
-            anchors.rightMargin: 8
-            spacing: 6
+        // Drag & Wheel Scale MouseArea
+        MouseArea {
+          id: dragArea
+          visible: root.editing && !root.inlineEditing
+          anchors.fill: parent
+          cursorShape: Qt.SizeAllCursor
+          hoverEnabled: true
 
-            Rectangle {
-              width: doneText.implicitWidth + 12
-              height: 22
-              radius: 4
-              color: Color.accent
-              Text {
-                id: doneText
-                anchors.centerIn: parent
-                text: "✓ 锁定 (Enter)"
-                font.pixelSize: 11
-                font.bold: true
-                color: Color.background
-              }
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  root.saveConfig()
-                  root.editing = false
-                }
-              }
-            }
+          property real startGlobalX: 0
+          property real startGlobalY: 0
+          property int startMarginX: 0
+          property int startMarginY: 0
 
-            Rectangle {
-              width: fontMinus.implicitWidth + 10
-              height: 22
-              radius: 4
-              color: Util.alpha(Color.foreground, 0.15)
-              Text {
-                id: fontMinus
-                anchors.centerIn: parent
-                text: "A-"
-                font.pixelSize: 11
-                font.bold: true
-                color: Color.foreground
-              }
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.fontSize = Math.max(12, root.fontSize - 2)
-              }
-            }
+          onPressed: function(mouse) {
+            var p = dragArea.mapToItem(null, mouse.x, mouse.y)
+            startGlobalX = p.x
+            startGlobalY = p.y
+            startMarginX = root.marginX
+            startMarginY = root.marginY
+          }
 
-            Rectangle {
-              width: fontPlus.implicitWidth + 10
-              height: 22
-              radius: 4
-              color: Util.alpha(Color.foreground, 0.15)
-              Text {
-                id: fontPlus
-                anchors.centerIn: parent
-                text: "A+"
-                font.pixelSize: 11
-                font.bold: true
-                color: Color.foreground
-              }
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.fontSize = Math.min(120, root.fontSize + 2)
-              }
+          onPositionChanged: function(mouse) {
+            if (mouse.buttons & Qt.LeftButton) {
+              var p = dragArea.mapToItem(null, mouse.x, mouse.y)
+              var dx = Math.round(p.x - startGlobalX)
+              var dy = Math.round(p.y - startGlobalY)
+              if (root.anchorX === "right") root.marginX = Math.max(0, startMarginX - dx)
+              else root.marginX = Math.max(0, startMarginX + dx)
+
+              if (root.anchorY === "bottom") root.marginY = Math.max(0, startMarginY - dy)
+              else root.marginY = Math.max(0, startMarginY + dy)
             }
           }
 
-          // Move drag grip
-          MouseArea {
-            id: dragArea
-            anchors.fill: parent
-            anchors.topMargin: 26
-            cursorShape: Qt.SizeAllCursor
-            hoverEnabled: true
+          // Mouse wheel: smooth font size scaling (±2px per step)
+          onWheel: function(wheel) {
+            if (wheel.angleDelta.y > 0) root.fontSize = Math.min(140, root.fontSize + 2)
+            else if (wheel.angleDelta.y < 0) root.fontSize = Math.max(12, root.fontSize - 2)
+          }
 
-            property real startGlobalX: 0
-            property real startGlobalY: 0
-            property int startMarginX: 0
-            property int startMarginY: 0
-
-            onPressed: function(mouse) {
-              var p = dragArea.mapToItem(null, mouse.x, mouse.y)
-              startGlobalX = p.x
-              startGlobalY = p.y
-              startMarginX = root.marginX
-              startMarginY = root.marginY
-            }
-
-            onPositionChanged: function(mouse) {
-              if (mouse.buttons & Qt.LeftButton) {
-                var p = dragArea.mapToItem(null, mouse.x, mouse.y)
-                var dx = Math.round(p.x - startGlobalX)
-                var dy = Math.round(p.y - startGlobalY)
-                if (root.anchorX === "right") root.marginX = Math.max(0, startMarginX - dx)
-                else root.marginX = Math.max(0, startMarginX + dx)
-
-                if (root.anchorY === "bottom") root.marginY = Math.max(0, startMarginY - dy)
-                else root.marginY = Math.max(0, startMarginY + dy)
-              }
-            }
-
-            onWheel: function(wheel) {
-              if (wheel.angleDelta.y > 0) root.fontSize = Math.min(120, root.fontSize + 2)
-              else if (wheel.angleDelta.y < 0) root.fontSize = Math.max(12, root.fontSize - 2)
-            }
-
-            onDoubleClicked: {
-              root.inlineEditing = true
-              Qt.callLater(function() { textInput.forceActiveFocus() })
-            }
+          // Double click: switch to inline text editing directly on the card
+          onDoubleClicked: {
+            root.inlineEditing = true
+            Qt.callLater(function() {
+              textInput.selectAll()
+              textInput.forceActiveFocus()
+            })
           }
         }
 
         // Content Row
         Item {
           id: contentRow
-          anchors.left: parent.left
-          anchors.right: parent.right
-          anchors.bottom: parent.bottom
-          anchors.bottomMargin: root.editing ? 8 : 0
-          anchors.leftMargin: root.editing ? 12 : 0
-          anchors.rightMargin: root.editing ? 12 : 0
-          implicitWidth: textMetrics.tightBoundingRect.width
+          anchors.centerIn: parent
+          implicitWidth: Math.max(textMetrics.tightBoundingRect.width, 60)
           implicitHeight: Math.max(textMetrics.tightBoundingRect.height, root.fontSize * 1.2)
 
           // Normal outlined display text (when not inline editing)
@@ -365,9 +312,7 @@ Item {
             Keys.onPressed: function(event) {
               if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 root.text = textInput.text
-                root.inlineEditing = false
-                root.saveConfig()
-                root.editing = false
+                root.lockEdit()
                 event.accepted = true
               } else if (event.key === Qt.Key_Escape) {
                 root.inlineEditing = false

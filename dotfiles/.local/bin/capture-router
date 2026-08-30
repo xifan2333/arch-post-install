@@ -227,9 +227,9 @@ capture_overlay_status() {
     local name pid state
     for name in camera captions keys title; do
         if [[ "$name" == title && -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-            state=$("$OMARCHY_PATH"/bin/omarchy-shell shell state xifan.overlay-title 2> /dev/null || true)
+            state=$("$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-title state 2> /dev/null || true)
             if [[ "$state" != "closed" && -n "$state" ]]; then
-                printf '%s running (quickshell)\n' "$name"
+                printf '%s running (quickshell %s)\n' "$name" "$state"
             else
                 printf '%s stopped\n' "$name"
             fi
@@ -262,7 +262,7 @@ capture_overlay_toggle() {
             printf 'capture-router: omarchy-shell unavailable for title overlay\n' >&2
             return 1
         fi
-        state=$("$OMARCHY_PATH"/bin/omarchy-shell shell toggle xifan.overlay-title '{}' 2> /dev/null || true)
+        state=$("$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-title toggle 2> /dev/null || true)
         case "$state" in
             open) notify_key="screenrecord_overlay_title_on" ;;
             closed) notify_key="screenrecord_overlay_title_off" ;;
@@ -377,7 +377,7 @@ main() {
                 camera | captions | keys | title) capture_overlay_toggle "$action" ;;
                 edit | title-edit)
                     if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-                        "$OMARCHY_PATH"/bin/omarchy-shell shell toggle xifan.overlay-title '{"edit":true}' > /dev/null 2>&1 || true
+                        "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-title edit > /dev/null 2>&1 || true
                     fi
                     ;;
                 status) capture_overlay_status ;;
