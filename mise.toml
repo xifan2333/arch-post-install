@@ -67,6 +67,7 @@ mode = "0644"
 [dotfiles]
 "~/.zshrc" = { source = "dotfiles/.zshrc" }
 "~/.tmux.conf" = { source = "dotfiles/.tmux.conf" }
+"~/.config/corral" = { source = "dotfiles/.config/corral", mode = "symlink-each" }
 "~/.config/dmnotifier" = { source = "dotfiles/.config/dmnotifier", mode = "symlink-each", exclude = [
   "*.example",
 ] }
