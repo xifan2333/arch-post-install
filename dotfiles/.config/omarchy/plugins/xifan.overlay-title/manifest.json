@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.overlay-title",
+  "name": "Screenrecord Title Overlay",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "HUD overlay displaying recording / live stream title card.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "TitleOverlay.qml"
+  }
+}

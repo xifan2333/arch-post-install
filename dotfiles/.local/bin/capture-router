@@ -246,6 +246,22 @@ capture_overlay_toggle() {
             ;;
     esac
 
+    # The title card moved into Omarchy's Quickshell overlay plugin; route it
+    # there first and fall back to the legacy GTK script only if unavailable.
+    if [[ "$name" == title && -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+        state=$("$OMARCHY_PATH"/bin/omarchy-shell shell toggle xifan.overlay-title '{}' 2> /dev/null || true)
+        case "$state" in
+            open) notify_key="screenrecord_overlay_title_on" ;;
+            closed) notify_key="screenrecord_overlay_title_off" ;;
+        esac
+        if command -v notify-send > /dev/null 2>&1 && [ -n "$notify_key" ]; then
+            notify-send "$(msg screenrecord_notify_title)" "$(msg "$notify_key")"
+        elif [ -n "$notify_key" ]; then
+            msg "$notify_key"
+        fi
+        return 0
+    fi
+
     bin="$SCRIPT_DIR/screenrecord-overlay-$name"
     if [ ! -x "$bin" ]; then
         printf 'capture-router: overlay binary missing: %s\n' "$bin" >&2

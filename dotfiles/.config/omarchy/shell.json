@@ -65,5 +65,9 @@
       ]
     }
   },
-  "plugins": []
+  "plugins": [
+    {
+      "id": "xifan.overlay-title"
+    }
+  ]
 }
