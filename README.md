@@ -290,7 +290,7 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 
 `enabled` 控制该平台是否参与推流（缺省为 `true`）。`aspect_ratio` 只接受 `16:9` 和 `9:16`，其中 9:16 会把 16:9 原画居中放入竖屏画布。在图形配置界面可临时禁用平台或切换比例，无需删除配置。
 
-`livestream-service` 只读取这个 JSON 文件：单个未合成的 RTMP/RTMPS 目标由 `gpu-screen-recorder` 直推；SRT、多平台或需要合成时，经 ffmpeg 按合成模式分组后分发。若全部平台禁用，视为未配置有效推流目标。
+对外只有 `livestream`。`livestream-service` 是内部 D-Bus 守护进程（读这份 JSON：单个未合成的 RTMP/RTMPS 由 `gpu-screen-recorder` 直推；SRT、多平台或需要合成时经 ffmpeg 分组分发）。`livestream-danmaku` 只在开播时拉起 Herdr 弹幕桌。若全部平台禁用，视为未配置有效推流目标。
 
 `livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。RTMP/RTMPS 在检测到持续 TCP 发送后标记为 `sending`；SRT 由已建立并持续运行的 ffmpeg 会话表示。这里确认的是本机推流管线状态，平台是否正式开播、是否对观众可见，仍以平台控制台为准。
 
