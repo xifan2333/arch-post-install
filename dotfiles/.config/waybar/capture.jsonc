@@ -1,9 +1,0 @@
-{
-  "custom/screenrecording-indicator": {
-    "on-click": "capture-router toggle-active",
-    "on-click-right": "capture-router menu",
-    "exec": "capture-router waybar",
-    "signal": 8,
-    "return-type": "json",
-  },
-}

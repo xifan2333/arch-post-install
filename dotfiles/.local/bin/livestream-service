@@ -643,15 +643,6 @@ class LivestreamService:
             "platforms": platforms,
         }
 
-    @staticmethod
-    def refresh_waybar():
-        subprocess.run(
-            ["pkill", "-SIGRTMIN+8", "waybar"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-
     def emit_status(self, force=False):
         status = self.build_status()
         signature = (
@@ -671,7 +662,6 @@ class LivestreamService:
                     "StatusChanged",
                     GLib.Variant("(s)", (json.dumps(status),)),
                 )
-        self.refresh_waybar()
 
     def on_bus_acquired(self, connection, name):
         self.connection = connection
@@ -769,7 +759,6 @@ class LivestreamService:
             for thread in (self.encoder_log_thread, self.tee_log_thread):
                 if thread is not None:
                     thread.join(timeout=1)
-            self.refresh_waybar()
             self.log_handle.close()
         return 0
 

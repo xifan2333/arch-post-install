@@ -66,7 +66,6 @@ i18n[livestream_state_connecting]="正在连接"
 i18n[livestream_state_stalled]="已连接但发送停滞"
 i18n[livestream_state_failed]="连接失败"
 i18n[livestream_state_stopping]="正在停止"
-i18n[livestream_waybar_status]="推流状态：{state}"
 
 # ============================================================================
 # capture coordinator — 录制互斥协调
@@ -80,4 +79,3 @@ i18n[capture_notify_livestream_stop_failed]="直播未能正常停止"
 i18n[capture_notify_action_busy]="上一个采集操作仍在结束中"
 i18n[capture_notify_no_webcam]="未找到摄像头设备"
 i18n[capture_notify_menu_unavailable]="采集菜单不可用"
-i18n[capture_waybar_recording]="本地录屏中 — 点击停止"

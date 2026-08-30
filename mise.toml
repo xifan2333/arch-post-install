@@ -90,7 +90,6 @@ mode = "0644"
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "dotfiles/.config/tensaku", mode = "symlink-each" }
 "~/.config/uv" = { source = "dotfiles/.config/uv", mode = "symlink-each" }
-"~/.config/waybar" = { source = "dotfiles/.config/waybar", mode = "symlink-each" }
 "~/.config/zsh" = { source = "dotfiles/.config/zsh", mode = "symlink-each" }
 
 "~/.local/bin" = { source = "dotfiles/.local/bin", mode = "symlink-each" }
@@ -173,12 +172,6 @@ if [[ -f "$theme" ]]; then
   fi
 fi
 
-# Omarchy migrations may replace Waybar's main config. Restore the regular
-# include wrapper from its user-owned template after dotfiles are applied.
-waybar_hook="$config_home/omarchy/hooks/post-update.d/waybar-capture.hook"
-if [[ -f "$waybar_hook" ]]; then
-  bash "$waybar_hook"
-fi
 '''
 
 [tasks.fonts]

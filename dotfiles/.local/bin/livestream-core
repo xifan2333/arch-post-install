@@ -61,10 +61,6 @@ livestream_status_report() {
     "$LIVESTREAM_SERVICE" status 2> /dev/null
 }
 
-livestream_notify_waybar() {
-    pkill -SIGRTMIN+8 waybar 2> /dev/null || true
-}
-
 # Path-tolerant match for gpu-screen-recorder (bare name or absolute path).
 # Shared with capture-router so record/live mutual exclusion stays consistent.
 capture_gsr_running() {
@@ -149,13 +145,11 @@ livestream_start() {
     rc=$?
     case "$rc" in
         0)
-            livestream_notify_waybar
             livestream_open_danmaku
             return 0
             ;;
         *)
             "$LIVESTREAM_SERVICE" stop --timeout 7 > /dev/null 2>&1 || true
-            livestream_notify_waybar
             return 4
             ;;
     esac
@@ -168,6 +162,5 @@ livestream_stop() {
     if [ "$rc" -eq 0 ]; then
         livestream_close_danmaku
     fi
-    livestream_notify_waybar
     return "$rc"
 }

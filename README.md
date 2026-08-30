@@ -244,7 +244,7 @@ mise run fonts
 
 ## 录屏与直播
 
-本地录屏和直播通过 `capture-router` 严格互斥，快捷键、Omarchy Capture 菜单和 Waybar 都走同一个运行时锁。正在录屏时启动直播（或反过来）只会提示先停止当前任务，不会自动切换。
+本地录屏和直播通过 `capture-router` 严格互斥，快捷键和 Omarchy Capture 菜单都走同一个运行时锁。正在录屏时启动直播（或反过来）只会提示先停止当前任务，不会自动切换。
 
 ### 常用命令
 
@@ -272,8 +272,6 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 | `Ctrl+Print` | 选区 OCR |
 | `Super+Alt+V/K/C/T` | 摄像头 / 按键 / 字幕 / 标题叠加层 |
 | `Super+Shift+T` | 标题叠加层编辑 |
-
-Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右键打开菜单；状态由 `capture-router waybar` 提供。
 
 ### 直播平台
 
@@ -314,7 +312,6 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
 - 本地录屏只调用公开命令 `omarchy capture screenrecording`，**不修改** `~/.local/share/omarchy`
 - 用户扩展点：`~/.config/omarchy/extensions/omarchy-menu.jsonc` 与 `hooks/post-update.d/`；截图标注使用 Omarchy 4 默认的 Tensaku
 - PATH 保持 Omarchy 默认顺序（`$OMARCHY_PATH/bin` 在 `~/.local/bin` 前）；本仓库用**独立命令名**（`capture-*`），不靠同名覆盖 Omarchy 工具
-- Waybar 的 `config.jsonc` 是普通文件，内容为采集状态 + 工作区覆盖 + Omarchy 默认配置三个 include。迁移若替换该文件，`post-update.d/waybar-capture.hook` 会从用户模板恢复；`style.css` 不改
 
 ## 仓库包含什么
 

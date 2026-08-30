@@ -76,52 +76,6 @@ capture_state() {
     fi
 }
 
-capture_waybar() {
-    local state text tooltip class connection details
-    state=$(capture_state)
-    case "$state" in
-        livestream)
-            connection=$(livestream_connection_state)
-            details=$(livestream_platform_status_text false)
-            tooltip=$(msg livestream_waybar_status \
-                state "$(msg "livestream_state_$connection")")
-            [ -n "$details" ] && tooltip="$tooltip"$'\n'"$details"
-            case "$connection" in
-                sending)
-                    text="󰑋"
-                    class="livestream"
-                    ;;
-                failed)
-                    text="󰅖"
-                    class="livestream-failed"
-                    ;;
-                *)
-                    text="󰔟"
-                    class="livestream-connecting"
-                    ;;
-            esac
-            ;;
-        recording)
-            text="󰻂"
-            tooltip=$(msg capture_waybar_recording)
-            class="recording"
-            ;;
-        *)
-            printf '{"text":""}\n'
-            return 0
-            ;;
-    esac
-
-    python3 - "$text" "$tooltip" "$class" << 'PY'
-import json, sys
-print(json.dumps({
-    "text": sys.argv[1],
-    "tooltip": sys.argv[2],
-    "class": ["active", sys.argv[3]],
-}, ensure_ascii=False))
-PY
-}
-
 capture_recording_start() {
     local state rc
     state=$(capture_state)
@@ -138,7 +92,6 @@ capture_recording_start() {
 
     command omarchy capture screenrecording "$@"
     rc=$?
-    livestream_notify_waybar
     if [ "$rc" -ne 0 ]; then
         capture_notify "$(msg capture_notify_recording_start_failed)" critical
     fi
@@ -161,7 +114,6 @@ capture_recording_stop() {
 
     command omarchy capture screenrecording --stop-recording
     rc=$?
-    livestream_notify_waybar
     return "$rc"
 }
 
@@ -319,7 +271,7 @@ capture_overlay_toggle() {
 capture_usage() {
     cat << 'EOF'
 Usage:
-  capture-router status|waybar|menu|toggle-active|config
+  capture-router status|menu|toggle-active|config
   capture-router recording start|stop|toggle [screenrecord options]
   capture-router livestream start [target]|stop|toggle [target]|status
   capture-router overlay camera|captions|keys|title|edit|status
@@ -360,7 +312,6 @@ main() {
 
     case "$domain" in
         status) capture_state ;;
-        waybar) capture_waybar ;;
         menu) exec "$SCRIPT_DIR/capture-menu" ;;
         config) exec "$SCRIPT_DIR/livestream-config" ;;
         toggle-active) capture_toggle_active ;;

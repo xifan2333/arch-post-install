@@ -66,7 +66,6 @@ i18n[livestream_state_connecting]="connecting"
 i18n[livestream_state_stalled]="connected but stalled"
 i18n[livestream_state_failed]="connection failed"
 i18n[livestream_state_stopping]="stopping"
-i18n[livestream_waybar_status]="Stream status: {state}"
 
 # ============================================================================
 # capture coordinator
@@ -80,4 +79,3 @@ i18n[capture_notify_livestream_stop_failed]="Failed to stop livestream cleanly"
 i18n[capture_notify_action_busy]="Another capture action is still finishing"
 i18n[capture_notify_no_webcam]="No webcam device found"
 i18n[capture_notify_menu_unavailable]="Capture menu is unavailable"
-i18n[capture_waybar_recording]="Local screen recording — click to stop"
