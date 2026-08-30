@@ -20,15 +20,7 @@
       "center": [
         {
           "id": "xifan.indicators",
-          "items": [
-            "Dictation",
-            "ScreenRecording",
-            "Livestream",
-            "Reminder",
-            "NightLight",
-            "Dnd",
-            "StayAwake"
-          ]
+          "items": ["ScreenRecording", "Livestream", "Reminder", "NightLight", "Dnd", "StayAwake"]
         },
         {
           "id": "omarchy.clock",
