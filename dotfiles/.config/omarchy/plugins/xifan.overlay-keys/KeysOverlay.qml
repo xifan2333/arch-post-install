@@ -108,6 +108,26 @@ Item {
         root.onKeyState(line);
       }
     }
+    stderr: SplitParser {
+      onRead: function (line) {
+        console.log("screenrecord-keys-daemon:", line);
+      }
+    }
+    // The overlay owns the daemon: if it dies (broken pipe, crash, evdev
+    // hiccup) restart it so the HUD never goes silent mid-session. The timer
+    // backoff keeps a crash-loop from pinning the CPU.
+    onExited: function (code, status) {
+      daemonRestartTimer.start();
+    }
+  }
+
+  Timer {
+    id: daemonRestartTimer
+    interval: 500
+    onTriggered: {
+      daemonProc.running = false;
+      daemonProc.running = true;
+    }
   }
 
   function toggle() {

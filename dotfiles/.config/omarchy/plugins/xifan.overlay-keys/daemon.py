@@ -7,8 +7,6 @@
 
 import argparse
 import contextlib
-import fcntl
-import os
 import signal
 import sys
 import threading
@@ -145,32 +143,18 @@ def read_device(dev, agg, stop_event):
         emit_key("Input error", agg.stdout_lock)
 
 
-def acquire_singleton():
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
-    lock_path = os.path.join(runtime_dir, "screenrecord-keys-daemon.lock")
-    lock_fd = open(lock_path, "w", encoding="utf-8")  # noqa: SIM115
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        lock_fd.close()
-        return None
-    lock_fd.write(str(os.getpid()))
-    lock_fd.flush()
-    return lock_fd
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=float, default=2.0)
     parser.parse_args()
 
-    lock_fd = acquire_singleton()
-    if lock_fd is None:
-        return 0
-
+    # No singleton lock: the QML Process is the single owner and the overlay
+    # restarts this daemon on exit. A flock here backfired after a shell
+    # restart, when the orphaned old daemon held the lock and the fresh
+    # Process-owned instance exited silently, killing the HUD. Orphans from a
+    # dead shell write into a broken stdout pipe and exit on the first key.
     stop_event = threading.Event()
     agg = KeyAggregator()
-    agg.lock_fd = lock_fd
 
     devices = keyboard_devices()
     if not devices:
