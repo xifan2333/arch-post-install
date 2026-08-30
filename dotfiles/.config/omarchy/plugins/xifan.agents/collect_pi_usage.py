@@ -17,6 +17,7 @@ Outputs display-ready JSON records to the Omarchy agents usage state directory.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import sys
@@ -26,6 +27,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -474,13 +476,195 @@ def parse_timestamp_to_local_day(ts_str: str, today_str: str) -> str:
         return ts_str[:10] if len(ts_str) >= 10 else today_str
 
 
-def collect_local_stats() -> dict[str, dict]:
+# ----------------------------------------------------- incremental file scan
+#
+# Walking ~270MB of session transcripts takes ~20s, so per-file stats are
+# cached in ~/.cache/omarchy/agent-usage/pi-sessions-cache.json keyed by
+# (mtime, size). Unchanged files reuse their cached contribution; only new
+# or modified transcripts are re-parsed. Cache granularity is per-day so the
+# "today" and "last 7 days" windows stay correct across midnight.
+
+CACHE_VERSION = 2
+
+
+def cache_root() -> Path:
+    root = (
+        Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+        / "omarchy"
+        / "agent-usage"
+    )
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def scan_session_file(sf: Path, today_str: str) -> dict:
+    """Parse one transcript into per-provider, per-day stats."""
+    stats: dict[str, dict] = {}
+    current_sess_provider = None
+    current_sess_model = None
+    try:
+        with open(sf, encoding="utf-8", errors="ignore") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except COMMON_ERRORS:
+                    continue
+
+                ev_type = ev.get("type")
+                if ev_type == "model_change":
+                    current_sess_provider = ev.get("provider")
+                    current_sess_model = ev.get("modelId")
+                elif ev_type == "message":
+                    msg = ev.get("message", {})
+                    if not isinstance(msg, dict):
+                        continue
+                    usage = msg.get("usage")
+                    if not usage or not isinstance(usage, dict):
+                        continue
+
+                    raw_provider = (
+                        msg.get("provider")
+                        or ev.get("provider")
+                        or current_sess_provider
+                        or "unknown"
+                    )
+
+                    # Skip raw "opencode" events, merge only "opencode-go"
+                    if raw_provider == "opencode":
+                        continue
+
+                    provider = PROVIDER_CANONICAL.get(raw_provider, raw_provider)
+                    if provider in ("openai-codex", "codex", "claude"):
+                        continue
+
+                    model = (
+                        msg.get("model")
+                        or ev.get("modelId")
+                        or current_sess_model
+                        or "unknown"
+                    )
+                    ts_str = ev.get("timestamp") or msg.get("timestamp")
+                    day = parse_timestamp_to_local_day(ts_str, today_str)
+
+                    inp = int(usage.get("input") or 0)
+                    out = int(usage.get("output") or 0)
+                    cr = int(usage.get("cacheRead") or 0)
+                    cw = int(usage.get("cacheWrite") or 0)
+                    tot = int(usage.get("totalTokens") or (inp + out + cr + cw))
+
+                    rec = stats.setdefault(
+                        provider,
+                        {
+                            "prompts_by_day": {},
+                            "tokens_by_day": {},
+                            "models_by_day": {},
+                            "total_prompts": 0,
+                            "model_usage": {},
+                        },
+                    )
+                    rec["total_prompts"] += 1
+                    rec["prompts_by_day"][day] = rec["prompts_by_day"].get(day, 0) + 1
+                    rec["tokens_by_day"][day] = rec["tokens_by_day"].get(day, 0) + tot
+
+                    day_models = rec["models_by_day"].setdefault(day, {})
+                    dm = day_models.setdefault(
+                        model, {"i": 0, "o": 0, "cr": 0, "cw": 0, "t": 0}
+                    )
+                    dm["i"] += inp
+                    dm["o"] += out
+                    dm["cr"] += cr
+                    dm["cw"] += cw
+                    dm["t"] += tot
+
+                    mu = rec["model_usage"].setdefault(
+                        model, {"i": 0, "o": 0, "cr": 0, "cw": 0}
+                    )
+                    mu["i"] += inp
+                    mu["o"] += out
+                    mu["cr"] += cr
+                    mu["cw"] += cw
+    except COMMON_ERRORS as e:
+        print(f"Warning: error reading {sf}: {e}", file=sys.stderr)
+    return stats
+
+
+def collect_local_stats(force: bool = False) -> dict[str, dict]:
     today_dt = datetime.now().date()
     today_str = today_dt.strftime("%Y-%m-%d")
     recent_days = [
         (today_dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)
     ]
 
+    session_roots = [
+        Path.home() / ".pi" / "agent" / "sessions",
+        Path.home() / ".omp" / "agent" / "sessions",
+    ]
+    session_files: list[Path] = []
+    for root in session_roots:
+        if root.exists():
+            session_files.extend(root.glob("**/*.jsonl"))
+
+    cache_file = cache_root() / "pi-sessions-cache.json"
+    lock_file = cache_root() / "pi-sessions.lock"
+
+    # Serialize concurrent collectors: the panel and a manual refresh may
+    # overlap; the loser just waits its turn.
+    with open(lock_file, "w") as lock_handle:
+        fcntl.flock(lock_handle, fcntl.LOCK_EX)
+
+        cached_files: dict = {}
+        if not force and cache_file.exists():
+            try:
+                with open(cache_file, encoding="utf-8") as f:
+                    cached = json.load(f)
+                if cached.get("version") == CACHE_VERSION:
+                    cached_files = cached.get("files", {})
+            except COMMON_ERRORS:
+                cached_files = {}
+
+        live_paths = set()
+        out_files: dict = {}
+        scanned = 0
+        for sf in session_files:
+            key = str(sf)
+            live_paths.add(key)
+            try:
+                st = sf.stat()
+            except OSError:
+                continue
+            entry = cached_files.get(key)
+            if (
+                entry
+                and entry.get("mtime_ns") == st.st_mtime_ns
+                and entry.get("size") == st.st_size
+            ):
+                out_files[key] = entry
+                continue
+            stats = scan_session_file(sf, today_str)
+            scanned += 1
+            out_files[key] = {
+                "mtime_ns": st.st_mtime_ns,
+                "size": st.st_size,
+                "stats": stats,
+            }
+
+        # Drop cache entries for deleted transcripts.
+        out_files = {k: v for k, v in out_files.items() if k in live_paths}
+
+        if scanned or len(out_files) != len(cached_files):
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                dir=str(cache_root()), prefix="pi-sessions-", suffix=".tmp"
+            )
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                json.dump({"version": CACHE_VERSION, "files": out_files}, f)
+            os.replace(tmp_path, str(cache_file))
+        if scanned:
+            print(f"pi-scan: re-parsed {scanned} transcript(s)", file=sys.stderr)
+
+    # ------------------------------------------------- merge per-file stats
     records = defaultdict(
         lambda: {
             "totalPrompts": 0,
@@ -502,96 +686,37 @@ def collect_local_stats() -> dict[str, dict]:
         }
     )
 
-    session_roots = [
-        Path.home() / ".pi" / "agent" / "sessions",
-        Path.home() / ".omp" / "agent" / "sessions",
-    ]
+    for path, entry in out_files.items():
+        for provider, st in (entry.get("stats") or {}).items():
+            rec = records[provider]
+            total_prompts = st.get("total_prompts", 0)
+            if total_prompts <= 0:
+                continue
+            rec["totalPrompts"] += total_prompts
+            rec["totalSessions"].add(path)
 
-    session_files: list[Path] = []
-    for root in session_roots:
-        if root.exists():
-            session_files.extend(root.glob("**/*.jsonl"))
+            prompts_by_day = st.get("prompts_by_day", {})
+            tokens_by_day = st.get("tokens_by_day", {})
+            rec["activeDates"].update(prompts_by_day.keys())
 
-    for sf in session_files:
-        sess_id = str(sf)
-        try:
-            with open(sf, encoding="utf-8", errors="ignore") as f:
-                current_sess_provider = None
-                current_sess_model = None
-                for raw_line in f:
-                    line = raw_line.strip()
-                    if not line:
-                        continue
-                    try:
-                        ev = json.loads(line)
-                    except COMMON_ERRORS:
-                        continue
+            for day, tokens in tokens_by_day.items():
+                if day in rec["recentDays"]:
+                    rec["recentDays"][day] += tokens
 
-                    ev_type = ev.get("type")
-                    if ev_type == "model_change":
-                        current_sess_provider = ev.get("provider")
-                        current_sess_model = ev.get("modelId")
-                    elif ev_type == "message":
-                        msg = ev.get("message", {})
-                        if not isinstance(msg, dict):
-                            continue
-                        usage = msg.get("usage")
-                        if not usage or not isinstance(usage, dict):
-                            continue
+            today_prompts = prompts_by_day.get(today_str, 0)
+            if today_prompts > 0:
+                rec["todayPrompts"] += today_prompts
+                rec["todaySessions"].add(path)
+                rec["todayTotalTokens"] += tokens_by_day.get(today_str, 0)
+                for model, b in st.get("models_by_day", {}).get(today_str, {}).items():
+                    rec["todayTokensByModel"][model] += b.get("t", 0)
 
-                        raw_provider = (
-                            msg.get("provider")
-                            or ev.get("provider")
-                            or current_sess_provider
-                            or "unknown"
-                        )
-
-                        # Skip raw "opencode" events, merge only "opencode-go"
-                        if raw_provider == "opencode":
-                            continue
-
-                        provider = PROVIDER_CANONICAL.get(raw_provider, raw_provider)
-
-                        if provider in ("openai-codex", "codex", "claude"):
-                            continue
-
-                        model = (
-                            msg.get("model")
-                            or ev.get("modelId")
-                            or current_sess_model
-                            or "unknown"
-                        )
-
-                        ts_str = ev.get("timestamp") or msg.get("timestamp")
-                        day = parse_timestamp_to_local_day(ts_str, today_str)
-
-                        inp = int(usage.get("input") or 0)
-                        out = int(usage.get("output") or 0)
-                        cr = int(usage.get("cacheRead") or 0)
-                        cw = int(usage.get("cacheWrite") or 0)
-                        tot = int(usage.get("totalTokens") or (inp + out + cr + cw))
-
-                        rec = records[provider]
-                        rec["totalPrompts"] += 1
-                        rec["totalSessions"].add(sess_id)
-                        rec["activeDates"].add(day)
-
-                        if day in rec["recentDays"]:
-                            rec["recentDays"][day] += tot
-
-                        if day == today_str:
-                            rec["todayPrompts"] += 1
-                            rec["todaySessions"].add(sess_id)
-                            rec["todayTotalTokens"] += tot
-                            rec["todayTokensByModel"][model] += tot
-
-                        mrec = rec["modelUsage"][model]
-                        mrec["inputTokens"] += inp
-                        mrec["outputTokens"] += out
-                        mrec["cacheReadInputTokens"] += cr
-                        mrec["cacheCreationInputTokens"] += cw
-        except COMMON_ERRORS as e:
-            print(f"Warning: error reading {sf}: {e}", file=sys.stderr)
+            for model, b in st.get("model_usage", {}).items():
+                mrec = rec["modelUsage"][model]
+                mrec["inputTokens"] += b.get("i", 0)
+                mrec["outputTokens"] += b.get("o", 0)
+                mrec["cacheReadInputTokens"] += b.get("cr", 0)
+                mrec["cacheCreationInputTokens"] += b.get("cw", 0)
 
     return records
 
@@ -599,9 +724,11 @@ def collect_local_stats() -> dict[str, dict]:
 # ---------------------------------------------------------------- main merge
 
 
-def collect_all_records(limits_only: bool = False) -> dict[str, dict]:
+def collect_all_records(
+    limits_only: bool = False, force: bool = False
+) -> dict[str, dict]:
     auth_map = load_auth_config()
-    local_stats = collect_local_stats()
+    local_stats = collect_local_stats(force=force)
 
     all_providers = set(auth_map.keys()) | set(local_stats.keys())
     all_providers = {
@@ -617,15 +744,31 @@ def collect_all_records(limits_only: bool = False) -> dict[str, dict]:
     now_iso = datetime.now().astimezone().isoformat()
     results = {}
 
+    # 1. Upstream probes (Availability & Reset limits), run in parallel:
+    # six serial 5s-timeout HTTP probes would dominate the refresh budget.
+    upstreams: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {}
+        for pid in all_providers:
+            rec = local_stats.get(pid)
+            today_prompts = rec["todayPrompts"] if rec else 0
+            futures[pid] = pool.submit(
+                probe_upstream,
+                pid,
+                auth_map.get(pid),
+                today_prompts=today_prompts,
+            )
+        for pid, future in futures.items():
+            try:
+                upstreams[pid] = future.result()
+            except COMMON_ERRORS as e:
+                print(f"Upstream probe failed for {pid}: {e}", file=sys.stderr)
+                upstreams[pid] = {}
+
     for pid in all_providers:
         display_name = PROVIDER_NAMES.get(pid, pid.replace("-", " ").title())
-        auth_entry = auth_map.get(pid)
         rec = local_stats.get(pid)
-
-        today_prompts = rec["todayPrompts"] if rec else 0
-
-        # 1. Upstream probe (Availability & Reset limits)
-        upstream = probe_upstream(pid, auth_entry, today_prompts=today_prompts)
+        upstream = upstreams.get(pid) or {}
 
         # 2. Merge stats
         if rec:
@@ -701,7 +844,7 @@ def main() -> None:
     args = parser.parse_args()
 
     usage_dir = get_usage_dir()
-    records = collect_all_records(limits_only=args.limits_only)
+    records = collect_all_records(limits_only=args.limits_only, force=args.force)
     write_records(records, usage_dir)
 
     print(
