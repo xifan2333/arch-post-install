@@ -2,9 +2,9 @@
 # Screenrecord caption overlay backend. Captures audio, runs local VAD + the
 # active VInput streaming ASR command provider, and pushes partial/final
 # transcription text to the xifan.overlay-captions Quickshell overlay over the
-# omarchy-shell IPC. No GTK / no layer-shell: the overlay is pure QML.
+# omarchy-shell IPC. No GTK / no layer-shell: the overlay is pure QML. Runs
+# from inside the plugin dir via its resident python daemon.py.
 #
-# Usage: screenrecord-captions-daemon
 # Env:   SCREENRECORD_OVERLAY_CAPTIONS_SOURCE  audio source (rnnoise_source)
 #        OMARCHY_PATH                           default /usr/share/omarchy
 

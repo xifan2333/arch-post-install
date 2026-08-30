@@ -2,9 +2,8 @@
 # Screenrecord key HUD backend. Listens to keyboard input via evdev and streams
 # key combinations to stdout in real-time (< 0.1ms). The xifan.overlay-keys
 # Quickshell overlay reads this stream directly via Quickshell.Io.Process and
-# SplitParser, avoiding all per-keystroke IPC subprocess overhead.
-#
-# Usage: screenrecord-keys-daemon
+# SplitParser, avoiding all per-keystroke IPC subprocess overhead. Runs from
+# inside the plugin dir via its resident python daemon.py.
 
 import argparse
 import contextlib

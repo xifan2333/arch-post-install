@@ -35,7 +35,7 @@ Item {
   property bool autoHide: true
   property real lastShow: 0
 
-  readonly property string daemonPath: (Quickshell.env("HOME") || "") + "/.local/bin/screenrecord-keys-daemon"
+  readonly property string daemonPath: Qt.resolvedUrl("daemon.py").toString().replace(/^file:\/\//, "")
 
   readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
                                         + "/screenrecord/keys.conf"
@@ -104,7 +104,7 @@ Item {
 
   Process {
     id: daemonProc
-    command: [root.daemonPath]
+    command: ["python3", root.daemonPath]
     running: true
     stdout: SplitParser {
       onRead: function(line) {

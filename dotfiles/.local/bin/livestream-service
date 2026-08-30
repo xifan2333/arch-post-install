@@ -70,10 +70,10 @@ def translated_state(state):
 
 
 def refresh_capture_indicator():
-    """Notify the Quickshell indicator after an unexpected service exit."""
+    """Ping Omarchy's stock indicator bus; the capture widget subscribes there."""
     with contextlib.suppress(OSError, subprocess.TimeoutExpired):
         subprocess.run(
-            ["omarchy-shell", "-q", "xifan.capture", "refresh"],
+            ["omarchy-shell", "-q", "omarchy.indicators", "refresh"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=2,
@@ -688,6 +688,7 @@ class LivestreamService:
     def on_name_acquired(self, connection, name):
         self.name_acquired = True
         self.start_stream()
+        refresh_capture_indicator()
 
     def on_name_lost(self, connection, name):
         if not self.name_acquired:

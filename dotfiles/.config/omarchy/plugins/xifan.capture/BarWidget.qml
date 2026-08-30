@@ -8,19 +8,46 @@ BarWidget {
   moduleName: "xifan.capture"
 
   property string screenState: "idle"
+  property var indicatorHost: null
+
+  function applyState(raw) {
+    var value = String(raw || "").trim()
+    root.screenState = (value === "recording" || value === "livestream") ? value : "idle"
+  }
+
+  function bindIndicatorHost() {
+    var widgets = root.bar && typeof root.bar.moduleWidgets === "function"
+      ? root.bar.moduleWidgets("omarchy.indicators") : []
+    root.indicatorHost = widgets.length > 0 ? widgets[0] : null
+  }
 
   function refresh() {
     if (!statusProc.running) statusProc.running = true
   }
 
-  function applyState(raw) {
-    var s = String(raw || "").trim()
-    root.screenState = (s === "" || s === "idle") ? "idle" : s
-  }
-
   visible: root.screenState !== "idle"
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
+
+  onBarChanged: {
+    root.bindIndicatorHost()
+    root.refresh()
+  }
+  Component.onCompleted: root.refresh()
+
+  Connections {
+    target: root.bar
+    ignoreUnknownSignals: true
+    function onModuleSlotsChanged() { root.bindIndicatorHost() }
+  }
+
+  // Same contract as Omarchy's stock ScreenRecording indicator: the host
+  // broadcasts refresh, this widget does one status read.
+  Connections {
+    target: root.indicatorHost
+    ignoreUnknownSignals: true
+    function onRefreshRequested() { root.refresh() }
+  }
 
   Process {
     id: statusProc
@@ -28,16 +55,6 @@ BarWidget {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.applyState(text)
-    }
-  }
-
-  Component.onCompleted: root.refresh()
-
-  IpcHandler {
-    target: "xifan.capture"
-
-    function refresh(): void {
-      root.broadcast("refresh")
     }
   }
 

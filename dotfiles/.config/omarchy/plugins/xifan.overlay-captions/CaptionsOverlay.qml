@@ -32,7 +32,7 @@ Item {
 
   readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
                                         + "/screenrecord/captions.conf"
-  readonly property string daemonPath: (Quickshell.env("HOME") || "") + "/.local/bin/screenrecord-captions-daemon"
+  readonly property string daemonPath: Qt.resolvedUrl("daemon.py").toString().replace(/^file:\/\//, "")
 
   FileView {
     id: confView
@@ -79,7 +79,7 @@ Item {
   }
 
   function startDaemon() {
-    Quickshell.execDetached([root.daemonPath])
+    Quickshell.execDetached(["python3", root.daemonPath])
   }
 
   function toggle() {
