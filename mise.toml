@@ -27,34 +27,12 @@ dotfiles.default_mode = "symlink"
 # "pacman:libva-intel-driver" = "latest"
 # "pacman:libva-utils" = "latest"
 
-# Pacman hooks that re-apply Wayland IME flags to the QQ/WeChat desktop
-# entries. They live under /etc and need root, so they are declarative
-# bootstrap files instead of a shell task: mise converges content/owner/mode
-# and surfaces them in `mise bootstrap status` / `--dry-run` / `plan`.
+# Rebuild and reload Rime deployment when rime-wanxiang packages are updated.
 [bootstrap.directories."/etc/pacman.d/hooks"]
 owner = "root"
 group = "root"
 mode = "0755"
 
-[bootstrap.files."/etc/pacman.d/hooks/linuxqq-appimage-ime.hook"]
-source = "./mise/hooks/linuxqq-appimage-ime.hook"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/etc/pacman.d/hooks/wechat-appimage-ime.hook"]
-source = "./mise/hooks/wechat-appimage-ime.hook"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/etc/pacman.d/hooks/wps-office-ime.hook"]
-source = "./mise/hooks/wps-office-ime.hook"
-owner = "root"
-group = "root"
-mode = "0644"
-
-# Rebuild and reload Rime deployment when rime-wanxiang packages are updated.
 [bootstrap.files."/etc/pacman.d/hooks/rime-wanxiang-deploy.hook"]
 source = "./mise/hooks/rime-wanxiang-deploy.hook"
 owner = "root"
