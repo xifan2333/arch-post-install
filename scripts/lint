@@ -14,6 +14,7 @@ toml_files=()
 structured_files=()
 
 while IFS= read -r -d '' file; do
+    [[ -f "$file" ]] || continue
     first_line=$(head -n 1 -- "$file" 2> /dev/null || true)
 
     if [[ "$file" == *.py || "$first_line" == *python* ]]; then
