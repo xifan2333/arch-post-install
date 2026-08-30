@@ -33,8 +33,8 @@ curl https://mise.run | sh
 然后下载本仓库：
 
 ```bash
-git clone https://github.com/xifan2333/arch-post-install.git ~/code/arch-post-install
-cd ~/code/arch-post-install
+git clone https://github.com/xifan2333/arch-post-install.git ~/Code/arch-post-install
+cd ~/Code/arch-post-install
 ~/.local/bin/mise trust
 ```
 
@@ -90,7 +90,7 @@ mise bootstrap --force-dotfiles --yes
 下面的命令默认在仓库目录中运行：
 
 ```bash
-cd ~/code/arch-post-install
+cd ~/Code/arch-post-install
 ```
 
 查看当前配置是否完整：
@@ -132,7 +132,7 @@ mise self-update
 不想先 `cd` 时，可以这样运行：
 
 ```bash
-mise -C ~/code/arch-post-install bootstrap --yes
+mise -C ~/Code/arch-post-install bootstrap --yes
 ```
 
 ## 代码规范与检查
@@ -164,7 +164,7 @@ mise run format
 mise 会为仓库中的文件创建软链接。例如：
 
 ```text
-~/.zshrc -> ~/code/arch-post-install/dotfiles/.zshrc
+~/.zshrc -> ~/Code/arch-post-install/dotfiles/.zshrc
 ```
 
 所以修改 `~/.zshrc`，实际改到的就是仓库里的文件，可以直接用 Git 查看和提交。
