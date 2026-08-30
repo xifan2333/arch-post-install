@@ -344,7 +344,27 @@ def probe_oauth_provider(
             )
 
     # Live probes for specific oauth providers
-    if provider_id in ("kimi-coding", "kimi") and token:
+    if provider_id == "opencode" and token:
+        try:
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+                    " (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+                ),
+            }
+            url = "https://opencode.ai/zen/go/v1/models"
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status == 200:
+                    res["ready"] = True
+                    res["tierLabel"] = "OpenCode API (Active)"
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                res["ready"] = False
+                res["usageStatusText"] = "OpenCode key blocked or invalid"
+                res["authHelpText"] = "Check key in ~/.pi/agent/auth.json"
+    elif provider_id in ("kimi-coding", "kimi") and token:
         try:
             headers = {
                 "Authorization": f"Bearer {token}",
