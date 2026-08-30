@@ -1,6 +1,6 @@
 #!/bin/bash
 # Sync herdr [theme.custom] colors from the current Omarchy theme.
-# Maps ~/.config/omarchy/current/theme/colors.toml tokens to herdr's
+# Maps ~/.local/state/omarchy/current/theme/colors.toml tokens to herdr's
 # semantic slots and replaces the marked block in herdr config.toml.
 #
 # Usage: theme-sync-herdr
@@ -9,7 +9,7 @@
 
 set -e
 
-COLORS="${COLORS:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme/colors.toml}"
+COLORS="${COLORS:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme/colors.toml}"
 CONFIG="${CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml}"
 BEGIN_MARK="# --- BEGIN herdr theme ---"
 END_MARK="# --- END herdr theme ---"
@@ -25,7 +25,20 @@ if [[ ! -f $CONFIG ]]; then
 fi
 
 get_color() {
-    grep "^$1 " "$COLORS" | head -1 | cut -d'"' -f2
+    local token="$1" value
+
+    if [[ $token =~ ^#[0-9A-Fa-f]{6}$ ]]; then
+        printf '%s' "$token"
+        return
+    fi
+
+    if command -v omarchy-theme-color > /dev/null 2>&1; then
+        value=$(omarchy-theme-color --file "$COLORS" "$token" 2> /dev/null || true)
+    fi
+    if [[ -z ${value:-} ]]; then
+        value=$(grep -E "^${token}[[:space:]]*=" "$COLORS" | head -1 | cut -d'"' -f2)
+    fi
+    printf '%s' "${value:-}"
 }
 
 # Blend two hex colors: blend <base> <overlay> <overlay_ratio 0-100>
@@ -57,7 +70,7 @@ pick() {
 accent=$(pick accent color4)
 background=$(pick background color0)
 foreground=$(pick foreground color7)
-selection_bg_src=$(pick selection_background "$accent")
+selection_bg_src=$(pick selection selection_background "$accent")
 color1=$(pick color1 red)
 color2=$(pick color2 green)
 color3=$(pick color3 yellow)
@@ -117,7 +130,7 @@ awk -v begin="$BEGIN_MARK" -v end="$END_MARK" -v block="$BLOCK" '
 cat "$TMP" > "$CONFIG"
 rm -f "$TMP"
 
-theme_name="$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme.name" 2> /dev/null || basename "$(readlink -f "$COLORS")")"
+theme_name="$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme.name" 2> /dev/null || basename "$(readlink -f "$COLORS")")"
 
 if pgrep -x herdr > /dev/null 2>&1 && herdr server reload-config 2> /dev/null; then
     echo "Herdr theme synced ($theme_name)"

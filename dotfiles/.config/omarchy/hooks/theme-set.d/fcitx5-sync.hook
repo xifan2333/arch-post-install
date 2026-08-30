@@ -4,17 +4,23 @@
 # so we simulate "accent with transparency" by blending accent into background.
 set -e
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme"
 FCITX5_THEME_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/themes/custom"
 FCITX5_THEME_LINK="$FCITX5_THEME_DIR/theme.conf"
 FCITX5_CLASSICUI="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/conf/classicui.conf"
-GENERATED_THEME="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme/fcitx5-theme.conf"
-COLORS="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/current/theme/colors.toml"
+GENERATED_THEME="$STATE_DIR/fcitx5-theme.conf"
+COLORS="$STATE_DIR/colors.toml"
 
 [[ -f $COLORS ]] || exit 0
 
-# Read a color value from colors.toml
+# Read a color value from colors.toml (or via omarchy-theme-color)
 get_color() {
-    grep "^$1 " "$COLORS" | head -1 | cut -d'"' -f2
+    local val
+    val=$(grep -E "^$1\s*=" "$COLORS" | head -1 | cut -d'"' -f2)
+    if [[ -z $val ]] && command -v omarchy-theme-color > /dev/null 2>&1; then
+        val=$(omarchy-theme-color --file "$COLORS" "$1" 2> /dev/null || true)
+    fi
+    printf '%s' "$val"
 }
 
 # Blend two hex colors: blend <base> <overlay> <overlay_ratio 0-100>
@@ -31,7 +37,9 @@ blend() {
 BACKGROUND=$(get_color background)
 FOREGROUND=$(get_color foreground)
 ACCENT=$(get_color accent)
-COLOR0=$(get_color color0)
+SEPARATOR=$(get_color muted)
+[[ -n $SEPARATOR ]] || SEPARATOR=$(get_color color0)
+[[ -n $SEPARATOR ]] || SEPARATOR="$BACKGROUND"
 
 # Selected background: accent blended into background at 18% (simulates transparency)
 HIGHLIGHT_BG=$(blend "$BACKGROUND" "$ACCENT" 18)
@@ -111,7 +119,7 @@ Top=5
 Bottom=5
 
 [Menu/Separator]
-Color=$COLOR0
+Color=$SEPARATOR
 
 [Menu/TextMargin]
 Left=5
