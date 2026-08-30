@@ -37,6 +37,10 @@ livestream_notify() {
     capture_notify "$1" "${2:-normal}" livestream_notify_title
 }
 
+capture_open_menu() {
+    exec omarchy menu toggle trigger.capture
+}
+
 # Let flock own the lock in a supervisor process and close its descriptor in
 # the routed command. Persistent recorder/stream children therefore cannot
 # inherit the lock. Nonblocking acquisition also prevents repeated UI clicks
@@ -57,7 +61,7 @@ capture_with_lock() {
             return "$rc"
             ;;
         "$CAPTURE_SHOW_MENU_RC")
-            exec "$SCRIPT_DIR/capture-menu"
+            capture_open_menu
             ;;
         *) return "$rc" ;;
     esac
@@ -132,6 +136,37 @@ capture_recording_toggle() {
     esac
 }
 
+# Webcam selection is the only capture-specific chooser not represented by a
+# static menu row. Once selected, re-enter through recording start so the
+# normal nonblocking mutation lock and recording/livestream exclusion apply.
+capture_recording_webcam() {
+    local selection device
+    local device_options=()
+
+    if command -v omarchy-capture-webcam-list > /dev/null 2>&1; then
+        mapfile -t device_options < <(omarchy-capture-webcam-list)
+    fi
+
+    if ((${#device_options[@]} == 0)); then
+        capture_notify "$(msg capture_notify_no_webcam)" critical
+        return 1
+    elif ((${#device_options[@]} == 1)); then
+        selection=${device_options[0]}
+    else
+        selection=$(omarchy menu select "Select Webcam" \
+            "${device_options[@]}" -- --width 520 --maxheight 520) || return 0
+    fi
+
+    device=${selection%%[[:space:]]*}
+    [[ -n "$device" ]] || return 0
+
+    exec env -u CAPTURE_ROUTER_LOCKED "$SCRIPT_DIR/capture-router" recording start \
+        --with-desktop-audio \
+        --with-microphone-audio \
+        --with-webcam \
+        --webcam-device="$device"
+}
+
 capture_livestream_start() {
     local target="${1:-portal}"
     local state rc
@@ -197,50 +232,19 @@ capture_toggle_active() {
     esac
 }
 
-# Shared process discovery for overlay workers. Matches the python token only
-# (word boundary, so python3 does not match), absolute or bare script paths;
-# excludes capture-router shells and title-edit.
-capture_overlay_pid() {
-    local name="$1"
-    local needle
-
-    case "$name" in
-        camera | captions | keys | title) needle="screenrecord-overlay-${name}" ;;
-        *) return 1 ;;
-    esac
-
-    ps -u "$(id -u)" -o pid=,args= | awk -v needle="$needle" -v name="$name" '
-        index($0, needle) == 0 { next }
-        $0 ~ /capture-router/ { next }
-        $0 ~ /awk -v needle/ { next }
-        # title-edit embeds the same basename prefix; never treat it as the worker.
-        name == "title" && index($0, "screenrecord-overlay-title-edit") { next }
-        # Bare interpreter name "python" only (not python3*).
-        $0 !~ /(^|[ \/])python( |$)/ { next }
-        {
-            print $1
-            exit
-        }'
-}
-
 capture_overlay_status() {
-    local name pid state plugin
+    local name state plugin
+
+    if [[ -z "${OMARCHY_PATH:-}" || ! -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+        printf 'capture-router: omarchy-shell unavailable for overlays\n' >&2
+        return 1
+    fi
+
     for name in camera captions keys title; do
-        if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-            plugin=$(capture_overlay_plugin_for "$name")
-            if [[ -n "$plugin" ]]; then
-                state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" state 2> /dev/null || true)
-                if [[ "$state" != "closed" && -n "$state" ]]; then
-                    printf '%s running (quickshell %s)\n' "$name" "$state"
-                else
-                    printf '%s stopped\n' "$name"
-                fi
-                continue
-            fi
-        fi
-        pid=$(capture_overlay_pid "$name" || true)
-        if [ -n "$pid" ]; then
-            printf '%s running %s\n' "$name" "$pid"
+        plugin=$(capture_overlay_plugin_for "$name")
+        state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" state 2> /dev/null || true)
+        if [[ "$state" != "closed" && -n "$state" ]]; then
+            printf '%s running (quickshell %s)\n' "$name" "$state"
         else
             printf '%s stopped\n' "$name"
         fi
@@ -291,7 +295,7 @@ capture_overlay_notify_key() {
 
 capture_overlay_toggle() {
     local name="$1"
-    local bin pid notify_key plugin
+    local notify_key plugin state
     case "$name" in
         camera | captions | keys | title) ;;
         *)
@@ -300,42 +304,17 @@ capture_overlay_toggle() {
             ;;
     esac
 
-    # Title / keys live in Omarchy's Quickshell overlay plugins. There is no
-    # legacy alternate: route them solely through omarchy-shell.
-    plugin=$(capture_overlay_plugin_for "$name")
-    if [[ -n "$plugin" ]]; then
-        if [[ -z "${OMARCHY_PATH:-}" || ! -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-            printf 'capture-router: omarchy-shell unavailable for %s overlay\n' "$name" >&2
-            return 1
-        fi
-        state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" toggle 2> /dev/null || true)
-        notify_key=$(capture_overlay_notify_key "$name" "$state")
-        if command -v notify-send > /dev/null 2>&1 && [ -n "$notify_key" ]; then
-            notify-send "$(msg screenrecord_notify_title)" "$(msg "$notify_key")"
-        elif [ -n "$notify_key" ]; then
-            msg "$notify_key"
-        fi
-        return 0
-    fi
-
-    bin="$SCRIPT_DIR/screenrecord-overlay-$name"
-    if [ ! -x "$bin" ]; then
-        printf 'capture-router: overlay binary missing: %s\n' "$bin" >&2
+    if [[ -z "${OMARCHY_PATH:-}" || ! -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+        printf 'capture-router: omarchy-shell unavailable for %s overlay\n' "$name" >&2
         return 1
     fi
 
-    pid=$(capture_overlay_pid "$name" || true)
-    if [ -n "$pid" ]; then
-        kill "$pid" 2> /dev/null || true
-        notify_key="screenrecord_overlay_${name}_off"
-    else
-        nohup "$bin" > /dev/null 2>&1 &
-        notify_key="screenrecord_overlay_${name}_on"
-    fi
-
-    if command -v notify-send > /dev/null 2>&1; then
+    plugin=$(capture_overlay_plugin_for "$name")
+    state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" toggle 2> /dev/null || true)
+    notify_key=$(capture_overlay_notify_key "$name" "$state")
+    if command -v notify-send > /dev/null 2>&1 && [ -n "$notify_key" ]; then
         notify-send "$(msg screenrecord_notify_title)" "$(msg "$notify_key")"
-    else
+    elif [ -n "$notify_key" ]; then
         msg "$notify_key"
     fi
 }
@@ -345,9 +324,10 @@ capture_usage() {
 Usage:
   capture-router status|menu|toggle-active|config
   capture-router recording start|stop|toggle [screenrecord options]
+  capture-router recording webcam
   capture-router livestream start [target]|stop|toggle [target]|status
-  capture-router overlay camera|captions|keys|title|edit|status
-  capture-router overlay pid camera|captions|keys|title
+  capture-router overlay camera|captions|keys|title|status
+  capture-router overlay edit|edit-keys|edit-captions|edit-camera
 EOF
 }
 
@@ -357,6 +337,10 @@ main() {
     if [ "${CAPTURE_ROUTER_LOCKED:-0}" != 1 ]; then
         case "${1:-}" in
             recording)
+                if [[ ${2:-} == webcam ]]; then
+                    capture_recording_webcam
+                    return
+                fi
                 capture_with_lock "$@"
                 return
                 ;;
@@ -370,7 +354,7 @@ main() {
                 ;;
             toggle-active)
                 if [ "$(capture_state)" = idle ]; then
-                    exec "$SCRIPT_DIR/capture-menu"
+                    capture_open_menu
                 fi
                 capture_with_lock "$@"
                 return
@@ -384,13 +368,13 @@ main() {
 
     case "$domain" in
         status) capture_state ;;
-        menu) exec "$SCRIPT_DIR/capture-menu" ;;
+        menu) capture_open_menu ;;
         config)
-            if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-                exec "$OMARCHY_PATH"/bin/omarchy-shell xifan.livestream-config toggle
-            else
-                exec "$SCRIPT_DIR/livestream-config"
+            if [[ -z "${OMARCHY_PATH:-}" || ! -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+                printf 'capture-router: omarchy-shell unavailable for livestream config\n' >&2
+                return 1
             fi
+            exec "$OMARCHY_PATH"/bin/omarchy-shell xifan.livestream-config toggle
             ;;
         toggle-active) capture_toggle_active ;;
         recording)
@@ -399,6 +383,7 @@ main() {
                 start) capture_recording_start "$@" ;;
                 stop) capture_recording_stop ;;
                 toggle) capture_recording_toggle "$@" ;;
+                webcam) capture_recording_webcam ;;
                 *)
                     capture_usage
                     return 64
@@ -419,8 +404,7 @@ main() {
             esac
             ;;
         overlay)
-            # Match recording/livestream: drop the action token so $1 is the
-            # first overlay argument (name for pid, unused for toggles).
+            # Match recording/livestream: drop the action token.
             [ "$#" -gt 0 ] && shift
             case "$action" in
                 camera | captions | keys | title) capture_overlay_toggle "$action" ;;
@@ -445,17 +429,6 @@ main() {
                     fi
                     ;;
                 status) capture_overlay_status ;;
-                pid)
-                    case "${1:-}" in
-                        camera | captions | keys | title)
-                            capture_overlay_pid "$1" || true
-                            ;;
-                        *)
-                            capture_usage
-                            return 64
-                            ;;
-                    esac
-                    ;;
                 *)
                     capture_usage
                     return 64

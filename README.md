@@ -248,15 +248,15 @@ mise run fonts
 ### 常用命令
 
 ```bash
-capture-router menu                                 # 统一采集菜单（英文文案，与 Omarchy 一致）
+capture-router menu                                 # 打开 Omarchy 原生 Capture 菜单
 capture-router status                               # idle / recording / livestream
 capture-router config                               # 直播平台与全局码率（也可 Super+Shift+R）
 capture-router livestream start|stop|toggle [portal]
 capture-router livestream status                    # 各平台 RTMP 连接状态与码率
 capture-router recording start|stop|toggle [...]    # 本地录屏（转发 omarchy capture screenrecording）
-capture-router overlay camera|captions|keys|title|edit
+capture-router overlay camera|captions|keys|title
+capture-router overlay edit|edit-keys|edit-captions|edit-camera
 capture-router overlay status                       # 叠加层运行状态
-capture-router overlay pid camera|captions|keys|title
 capture-text-extraction                             # 选区 OCR（也可 Ctrl+Print）
 ```
 
