@@ -7,7 +7,9 @@ from pathlib import Path
 
 import requests
 
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "qutebrowser"
+CONFIG_DIR = (
+    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "qutebrowser"
+)
 CONFIG_FILE = CONFIG_DIR / "translate.json"
 REQUEST_TIMEOUT_SECONDS = 15
 
@@ -73,7 +75,10 @@ def translate_openai(text, config):
             "messages": [
                 {
                     "role": "system",
-                    "content": f"Translate to {config['target_lang']}. Output only translation.",
+                    "content": (
+                        f"Translate to {config['target_lang']}. "
+                        "Output only translation."
+                    ),
                 },
                 {"role": "user", "content": text},
             ],
@@ -102,7 +107,9 @@ def translate_deeplx(text, config):
 def main():
     qute_fifo = os.getenv("QUTE_FIFO")
     if not qute_fifo:
-        sys.stderr.write(f"Error: {sys.argv[0]} can not be run as a standalone script.\n")
+        sys.stderr.write(
+            f"Error: {sys.argv[0]} can not be run as a standalone script.\n"
+        )
         sys.exit(1)
 
     text = os.getenv("QUTE_SELECTED_TEXT", "")

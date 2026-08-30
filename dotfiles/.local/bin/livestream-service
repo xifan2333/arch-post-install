@@ -121,8 +121,12 @@ def bounded_int(value, default, minimum, maximum):
     return number if minimum <= number <= maximum else default
 
 
-def make_platform(name, server, stream_key, video_bitrate, audio_bitrate, aspect_ratio="16:9"):
-    name = str(name or "").replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
+def make_platform(
+    name, server, stream_key, video_bitrate, audio_bitrate, aspect_ratio="16:9"
+):
+    name = (
+        str(name or "").replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
+    )
     server = str(server or "").strip().rstrip("/")
     stream_key = str(stream_key or "").strip().lstrip("/")
     aspect_ratio = str(aspect_ratio or "16:9").strip().lower()
@@ -245,8 +249,12 @@ def parse_args():
         "--audio-source", default="default_output|default_input", help="Audio source"
     )
     run_parser.add_argument("--framerate", type=int, default=30, help="Video framerate")
-    run_parser.add_argument("--keyint", type=int, default=2, help="Keyframe interval (seconds)")
-    run_parser.add_argument("--scale-width", type=int, default=0, help="Downscale width")
+    run_parser.add_argument(
+        "--keyint", type=int, default=2, help="Keyframe interval (seconds)"
+    )
+    run_parser.add_argument(
+        "--scale-width", type=int, default=0, help="Downscale width"
+    )
     run_parser.add_argument("--log-file", required=True, help="Path to log file")
 
     validate_parser = subparsers.add_parser("validate", help="Validate config")
@@ -258,7 +266,9 @@ def parse_args():
     field_parser = subparsers.add_parser("field", help="Get a specific status field")
     field_parser.add_argument("name", help="Field name")
 
-    wait_parser = subparsers.add_parser("wait-ready", help="Wait until service is ready")
+    wait_parser = subparsers.add_parser(
+        "wait-ready", help="Wait until service is ready"
+    )
     wait_parser.add_argument("--timeout", type=int, default=30)
 
     stop_parser = subparsers.add_parser("stop", help="Stop streaming")
@@ -421,7 +431,9 @@ class LivestreamService:
     @staticmethod
     def escape_tee_slave(url):
         special = set("\\'|:[]=?&")
-        return "".join(f"\\{char}" if char in special or char.isspace() else char for char in url)
+        return "".join(
+            f"\\{char}" if char in special or char.isspace() else char for char in url
+        )
 
     @staticmethod
     def vertical_filter():
@@ -435,10 +447,14 @@ class LivestreamService:
 
     def fanout_command(self):
         groups = {
-            mode: [platform for platform in self.platforms if platform.aspect_ratio == mode]
+            mode: [
+                platform for platform in self.platforms if platform.aspect_ratio == mode
+            ]
             for mode in ("16:9", "9:16")
         }
-        filters = [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
+        filters = (
+            [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
+        )
         command = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-i", "-"]
         if filters:
             command.extend(["-filter_complex", ";".join(filters)])
@@ -600,7 +616,9 @@ class LivestreamService:
         return sockets
 
     def stream_process(self):
-        return self.tee_process if self.tee_process is not None else self.encoder_process
+        return (
+            self.tee_process if self.tee_process is not None else self.encoder_process
+        )
 
     def update_stream(self, sockets, now):
         process = self.stream_process()
@@ -660,7 +678,10 @@ class LivestreamService:
         signature = (
             status["active"],
             status["state"],
-            tuple((platform["name"], platform["state"]) for platform in status["platforms"]),
+            tuple(
+                (platform["name"], platform["state"])
+                for platform in status["platforms"]
+            ),
         )
         if not force and signature == self.last_signature:
             return
@@ -695,7 +716,9 @@ class LivestreamService:
             self.log("Name lost: another instance holds the D-Bus service")
         self.loop.quit()
 
-    def handle_method_call(self, connection, sender, path, iface, method, params, invocation):
+    def handle_method_call(
+        self, connection, sender, path, iface, method, params, invocation
+    ):
         if method == "GetStatus":
             status_json = json.dumps(self.build_status())
             invocation.return_value(GLib.Variant("(s)", (status_json,)))

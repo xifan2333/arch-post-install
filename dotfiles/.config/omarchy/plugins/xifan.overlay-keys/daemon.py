@@ -176,7 +176,9 @@ def main():
     if not devices:
         emit_key("No keyboard permission", agg.stdout_lock)
     for dev in devices:
-        threading.Thread(target=read_device, args=(dev, agg, stop_event), daemon=True).start()
+        threading.Thread(
+            target=read_device, args=(dev, agg, stop_event), daemon=True
+        ).start()
 
     def on_signal(_sig, _frame):
         stop_event.set()

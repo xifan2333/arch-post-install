@@ -29,7 +29,9 @@ FRAME_MS = 100
 FRAME_BYTES = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * FRAME_MS // 1000
 
 VOICE_RMS_THRESHOLD = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_RMS", "180"))
-SILENCE_FRAMES_TO_FINISH = int(os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_SILENCE_FRAMES", "6"))
+SILENCE_FRAMES_TO_FINISH = int(
+    os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_SILENCE_FRAMES", "6")
+)
 MAX_UTTERANCE_SECONDS = int(
     os.environ.get("SCREENRECORD_OVERLAY_CAPTIONS_MAX_UTTERANCE_SECONDS", "18")
 )
@@ -156,7 +158,9 @@ def get_active_vinput_provider():
         if provider.get("id") != active_id:
             continue
         if provider.get("type") != "command":
-            raise RuntimeError(f"active ASR provider is not a command provider: {active_id}")
+            raise RuntimeError(
+                f"active ASR provider is not a command provider: {active_id}"
+            )
         command = provider.get("command")
         if not command:
             raise RuntimeError(f"active provider has no command: {active_id}")
@@ -202,7 +206,10 @@ class ProviderSession:
     def send_audio(self, chunk):
         if not self.proc or self.closed or not self.proc.stdin:
             return
-        event = {"type": "audio", "audio_base64": base64.b64encode(chunk).decode("ascii")}
+        event = {
+            "type": "audio",
+            "audio_base64": base64.b64encode(chunk).decode("ascii"),
+        }
         try:
             self.proc.stdin.write(json.dumps(event, ensure_ascii=False) + "\n")
             self.proc.stdin.flush()
@@ -242,7 +249,9 @@ class ProviderSession:
             if typ in ("partial", "final", "final_timestamps") and text:
                 self.events.put((typ, text, self.session_id))
             elif typ == "error":
-                self.events.put(("error", str(event.get("message") or event), self.session_id))
+                self.events.put(
+                    ("error", str(event.get("message") or event), self.session_id)
+                )
 
     def read_stderr(self):
         if not self.proc or not self.proc.stderr:
@@ -361,7 +370,9 @@ class CaptionsDaemon:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            log(f"audio capture started pid={self.audio_proc.pid} source={AUDIO_SOURCE}")
+            log(
+                f"audio capture started pid={self.audio_proc.pid} source={AUDIO_SOURCE}"
+            )
         except OSError as exc:
             self.events.put(("error", f"failed to start audio capture: {exc}"))
             return
@@ -416,9 +427,12 @@ class CaptionsDaemon:
                     silence_frames += 1
 
                 too_long = (
-                    in_speech and time.monotonic() - utterance_started_at > MAX_UTTERANCE_SECONDS
+                    in_speech
+                    and time.monotonic() - utterance_started_at > MAX_UTTERANCE_SECONDS
                 )
-                if in_speech and (silence_frames >= SILENCE_FRAMES_TO_FINISH or too_long):
+                if in_speech and (
+                    silence_frames >= SILENCE_FRAMES_TO_FINISH or too_long
+                ):
                     self.finish_session()
                     try:
                         if not self.poll_vinput_status():
