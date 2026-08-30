@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.livestream-config",
+  "name": "Live Stream Config",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "Configuration dialog for live stream platforms, bitrates, and aspect ratios.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "LivestreamConfigDialog.qml"
+  }
+}

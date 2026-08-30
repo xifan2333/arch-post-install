@@ -385,7 +385,13 @@ main() {
     case "$domain" in
         status) capture_state ;;
         menu) exec "$SCRIPT_DIR/capture-menu" ;;
-        config) exec "$SCRIPT_DIR/livestream-config" ;;
+        config)
+            if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+                exec "$OMARCHY_PATH"/bin/omarchy-shell xifan.livestream-config toggle
+            else
+                exec "$SCRIPT_DIR/livestream-config"
+            fi
+            ;;
         toggle-active) capture_toggle_active ;;
         recording)
             [ "$#" -gt 0 ] && shift
