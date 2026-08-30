@@ -25,9 +25,6 @@ Item {
   property string anchorY: "top"
   property int marginX: 24
   property int marginY: 24
-  property int paddingX: 16
-  property int paddingY: 10
-  property int maxWidth: 900
 
   // Read + watch ~/.config/screenrecord/title.conf so live edits take effect
   // without restarting the shell.
@@ -54,9 +51,6 @@ Item {
     root.anchorY = cfg.anchorY
     root.marginX = cfg.marginX
     root.marginY = cfg.marginY
-    root.paddingX = cfg.paddingX
-    root.paddingY = cfg.paddingY
-    root.maxWidth = cfg.maxWidth
   }
 
   // IPC surface used by `omarchy-shell shell toggle xifan.overlay-title` and a
@@ -109,15 +103,14 @@ Item {
     // Visual-only: empty input region so the card never blocks clicks below.
     mask: Region {}
 
-    // Visible card bounding box: no fill (transparent background), only the
-    // text with an outline + drop shadow so it stays readable over any frame.
+    // Visible card: spans the full screen width (minus horizontal margin) so
+    // the title stays on one line instead of wrapping. No fill, only text with
+    // an outline + drop shadow so it stays readable over any frame.
     Item {
       id: card
-      width: Math.min(root.cardWidth, parent.width - root.marginX * 2)
+      width: parent.width - root.marginX * 2
       height: root.cardHeight
-      x: root.anchorX === "left" ? root.marginX
-          : root.anchorX === "right" ? parent.width - root.marginX - width
-          : Math.round((parent.width - width) / 2)
+      x: root.marginX
       y: root.anchorY === "top" ? root.marginY
           : root.anchorY === "bottom" ? parent.height - root.marginY - height
           : Math.round((parent.height - height) / 2)
@@ -129,10 +122,14 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: root.fontSize
         font.weight: root.fontWeight
-        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+        // NoWrap keeps the title on a single line; alignment follows anchor_x.
+        wrapMode: Text.NoWrap
         width: parent.width
-        horizontalAlignment: Text.AlignHCenter
+        horizontalAlignment: root.anchorX === "left" ? Text.AlignLeft
+            : root.anchorX === "right" ? Text.AlignRight
+            : Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
         // Crisp opaque outline keeps the glyph readable over any background;
         // no panel fill behind it.
         style: Text.Outline
@@ -141,13 +138,8 @@ Item {
     }
   }
 
-  // Card hugs the wrapped text: target width = min(full line, maxWidth).
-  // The inner Text wraps at this width, so the card and text agree.
-  readonly property real cardWidth: {
-    var full = textMetrics.tightBoundingRect.width
-    var target = Math.min(full, root.maxWidth)
-    return Math.max(target, 40)
-  }
+  // Single-line card height from the text metrics; full width comes from the
+  // panel, so the title never wraps.
   readonly property real cardHeight: {
     var m = textMetrics.tightBoundingRect.height
     return m
