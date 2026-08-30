@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 
 // Livestream configuration dialog overlay. Allows configuring multi-platform RTMP
 // targets, stream keys, video/audio bitrates, and aspect ratios (16:9 vs 9:16).
-// Reads and writes ~/.config/livestream/config.json directly.
+// Reads and writes ~/.config/livestream/config.json directly with auto-save on interaction.
 
 import QtQuick
 import QtQuick.Controls as QQC
@@ -68,6 +68,17 @@ Item {
     ])
   }
 
+  function scheduleSave() {
+    saveTimer.restart()
+  }
+
+  Timer {
+    id: saveTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.saveConfig()
+  }
+
   function open() {
     confView.reload()
     root.opened = true
@@ -82,15 +93,11 @@ Item {
     else root.open()
   }
 
-  function saveAndClose() {
-    root.saveConfig()
-    root.close()
-  }
-
   function addPlatform() {
     const copy = root.platforms.slice()
     copy.push(Model.createEmptyPlatform())
     root.platforms = copy
+    root.scheduleSave()
   }
 
   function removePlatform(index) {
@@ -98,6 +105,7 @@ Item {
     const copy = root.platforms.slice()
     copy.splice(index, 1)
     root.platforms = copy
+    root.scheduleSave()
   }
 
   function updatePlatform(index, field, value) {
@@ -105,6 +113,7 @@ Item {
     const copy = root.platforms.slice()
     copy[index][field] = value
     root.platforms = copy
+    if (field !== "showKey") root.scheduleSave()
   }
 
   IpcHandler {
@@ -137,10 +146,22 @@ Item {
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
 
-    Rectangle {
-      id: scrim
+    Item {
+      id: keyScope
       anchors.fill: parent
-      color: Util.alpha(Color.background, 0.75)
+      focus: root.opened
+      Keys.priority: Keys.BeforeItem
+      Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Escape) {
+          root.close()
+          event.accepted = true
+        }
+      }
+
+      Rectangle {
+        id: scrim
+        anchors.fill: parent
+        color: Util.alpha(Color.background, 0.75)
 
       MouseArea {
         anchors.fill: parent
@@ -150,7 +171,7 @@ Item {
       Rectangle {
         id: card
         width: Math.min(parent.width - 48, 920)
-        height: Math.min(parent.height - 48, 620)
+        height: Math.min(parent.height - 48, 540)
         anchors.centerIn: parent
         color: Color.popups.background
         border.color: Color.popups.border
@@ -163,13 +184,6 @@ Item {
           onClicked: {} // Intercept clicks inside card
         }
 
-        Keys.onPressed: function(event) {
-          if (event.key === Qt.Key_Escape) {
-            root.close()
-            event.accepted = true
-          }
-        }
-
         Column {
           anchors.fill: parent
           anchors.margins: 20
@@ -178,7 +192,6 @@ Item {
           // Header Row
           Row {
             width: parent.width
-            spacing: 12
 
             Text {
               text: "󰕧  直播推流配置"
@@ -186,20 +199,6 @@ Item {
               font.family: Style.font.family
               font.pixelSize: Style.font.title
               font.weight: Font.Bold
-              anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Item {
-              width: parent.width - 240
-              height: 1
-            }
-
-            Button {
-              text: "✕"
-              fontSize: Style.font.title
-              horizontalPadding: 12
-              verticalPadding: 4
-              onClicked: root.close()
             }
           }
 
@@ -230,7 +229,10 @@ Item {
                   width: 100
                   text: String(root.videoBitrate)
                   validator: IntValidator { bottom: 100; top: 50000 }
-                  onEditingFinished: root.videoBitrate = Number(text) || 6000
+                  onTextEdited: {
+                    root.videoBitrate = Number(text) || 6000
+                    root.scheduleSave()
+                  }
                 }
               }
 
@@ -248,7 +250,10 @@ Item {
                   width: 80
                   text: String(root.audioBitrate)
                   validator: IntValidator { bottom: 32; top: 320 }
-                  onEditingFinished: root.audioBitrate = Number(text) || 160
+                  onTextEdited: {
+                    root.audioBitrate = Number(text) || 160
+                    root.scheduleSave()
+                  }
                 }
               }
             }
@@ -284,7 +289,7 @@ Item {
           // Platform List View
           Rectangle {
             width: parent.width
-            height: parent.height - 180
+            height: parent.height - 130
             color: "transparent"
 
             Text {
@@ -312,7 +317,7 @@ Item {
                   required property int index
                   width: parent ? parent.width - 8 : 800
                   height: 52
-                  color: Util.alpha(Color.foreground, modelData.enabled ? 0.05 : 0.02)
+                  color: Util.alpha(Color.foreground, rowCard.modelData.enabled ? 0.05 : 0.02)
                   radius: Style.cornerRadius
                   border.color: Util.alpha(Color.foreground, rowCard.modelData.enabled ? 0.12 : 0.05)
                   border.width: 1
@@ -335,7 +340,10 @@ Item {
                       placeholderText: "平台 (如 bilibili)"
                       text: rowCard.modelData.name
                       anchors.verticalCenter: parent.verticalCenter
-                      onEditingFinished: root.updatePlatform(rowCard.index, "name", text)
+                      onTextEdited: {
+                        rowCard.modelData.name = text
+                        root.scheduleSave()
+                      }
                     }
 
                     TextField {
@@ -343,7 +351,10 @@ Item {
                       placeholderText: "RTMP 服务器地址"
                       text: rowCard.modelData.server
                       anchors.verticalCenter: parent.verticalCenter
-                      onEditingFinished: root.updatePlatform(rowCard.index, "server", text)
+                      onTextEdited: {
+                        rowCard.modelData.server = text
+                        root.scheduleSave()
+                      }
                     }
 
                     TextField {
@@ -352,17 +363,13 @@ Item {
                       text: rowCard.modelData.key
                       password: !rowCard.modelData.showKey
                       anchors.verticalCenter: parent.verticalCenter
-                      onEditingFinished: root.updatePlatform(rowCard.index, "key", text)
+                      onTextEdited: {
+                        rowCard.modelData.key = text
+                        root.scheduleSave()
+                      }
                     }
 
-                    Button {
-                      text: rowCard.modelData.showKey ? "󰈈" : "󰈉"
-                      anchors.verticalCenter: parent.verticalCenter
-                      fontSize: Style.font.title
-                      horizontalPadding: 6
-                      onClicked: root.updatePlatform(rowCard.index, "showKey", !rowCard.modelData.showKey)
-                    }
-
+                    // 1. 比例 (16:9 / 9:16)
                     Button {
                       text: rowCard.modelData.aspect_ratio || "16:9"
                       anchors.verticalCenter: parent.verticalCenter
@@ -374,12 +381,22 @@ Item {
                       }
                     }
 
+                    // 2. 可见性 (显示/隐藏推流码)
+                    Button {
+                      text: rowCard.modelData.showKey ? "󰈈" : "󰈉"
+                      anchors.verticalCenter: parent.verticalCenter
+                      fontSize: Style.font.title
+                      horizontalPadding: 6
+                      onClicked: root.updatePlatform(rowCard.index, "showKey", !rowCard.modelData.showKey)
+                    }
+
+                    // 3. 删除
                     Button {
                       text: "󰆴"
                       anchors.verticalCenter: parent.verticalCenter
                       fontSize: Style.font.title
                       horizontalPadding: 8
-                      foreground: Color.critical
+                      foreground: Color.urgent
                       onClicked: root.removePlatform(rowCard.index)
                     }
                   }
@@ -387,32 +404,9 @@ Item {
               }
             }
           }
-
-          // Bottom Action Row
-          Row {
-            width: parent.width
-            spacing: 12
-            layoutDirection: Qt.RightToLeft
-
-            Button {
-              text: "保存并退出"
-              active: true
-              bordered: true
-              accent: Color.accent
-              horizontalPadding: 24
-              verticalPadding: 8
-              onClicked: root.saveAndClose()
-            }
-
-            Button {
-              text: "取消"
-              horizontalPadding: 18
-              verticalPadding: 8
-              onClicked: root.close()
-            }
-          }
         }
       }
     }
+  }
   }
 }
