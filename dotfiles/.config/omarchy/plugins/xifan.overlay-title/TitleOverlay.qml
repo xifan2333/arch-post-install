@@ -109,7 +109,9 @@ Item {
     // Visual-only: empty input region so the card never blocks clicks below.
     mask: Region {}
 
-    Rectangle {
+    // Visible card bounding box: no fill (transparent background), only the
+    // text with an outline + drop shadow so it stays readable over any frame.
+    Item {
       id: card
       width: Math.min(root.cardWidth, parent.width - root.marginX * 2)
       height: root.cardHeight
@@ -119,18 +121,6 @@ Item {
       y: root.anchorY === "top" ? root.marginY
           : root.anchorY === "bottom" ? parent.height - root.marginY - height
           : Math.round((parent.height - height) / 2)
-      color: Util.alpha(root.overlayColor, root.overlayOpacity)
-      radius: root.cornerRadius
-
-      // Soft drop shadow approximating the old text_shadow outline.
-      Rectangle {
-        anchors.fill: parent
-        anchors.margins: -1
-        radius: parent.radius
-        color: "transparent"
-        border.color: Util.alpha(Qt.rgba(0, 0, 0, 1), 0.5)
-        border.width: 1
-      }
 
       Text {
         anchors.centerIn: parent
@@ -140,11 +130,13 @@ Item {
         font.pixelSize: root.fontSize
         font.weight: root.fontWeight
         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-        width: parent.width - root.paddingX * 2
+        width: parent.width
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+        // Crisp opaque outline keeps the glyph readable over any background;
+        // no panel fill behind it.
         style: Text.Outline
-        styleColor: Util.alpha(Qt.rgba(0, 0, 0, 1), 1)
+        styleColor: Util.alpha(Qt.rgba(0, 0, 0, 1), 0.9)
       }
     }
   }
@@ -154,11 +146,11 @@ Item {
   readonly property real cardWidth: {
     var full = textMetrics.tightBoundingRect.width
     var target = Math.min(full, root.maxWidth)
-    return Math.max(target, 40) + root.paddingX * 2
+    return Math.max(target, 40)
   }
   readonly property real cardHeight: {
     var m = textMetrics.tightBoundingRect.height
-    return m + root.paddingY * 2
+    return m
   }
 
   TextMetrics {

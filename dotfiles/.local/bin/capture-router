@@ -246,9 +246,13 @@ capture_overlay_toggle() {
             ;;
     esac
 
-    # The title card moved into Omarchy's Quickshell overlay plugin; route it
-    # there first and fall back to the legacy GTK script only if unavailable.
-    if [[ "$name" == title && -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+    # The title card moved into Omarchy's Quickshell overlay plugin. There is
+    # no legacy alternate: route it solely through omarchy-shell.
+    if [[ "$name" == title ]]; then
+        if [[ -z "${OMARCHY_PATH:-}" || ! -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+            printf 'capture-router: omarchy-shell unavailable for title overlay\n' >&2
+            return 1
+        fi
         state=$("$OMARCHY_PATH"/bin/omarchy-shell shell toggle xifan.overlay-title '{}' 2> /dev/null || true)
         case "$state" in
             open) notify_key="screenrecord_overlay_title_on" ;;

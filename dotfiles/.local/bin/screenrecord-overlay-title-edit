@@ -89,8 +89,10 @@ def ensure_overlay_visible():
     except OSError:
         pass
 
+    # Title card is now a native Quickshell overlay: route through
+    # capture-router so it toggles xifan.overlay-title.
     subprocess.Popen(
-        ["screenrecord-overlay-title"],
+        ["capture-router", "overlay", "title"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
