@@ -7,5 +7,5 @@ text_color = #ffffff
 background = rgba(0, 0, 0, 0.55)
 anchor_x = left
 anchor_y = top
-margin_x = 383
-margin_y = 25
+margin_x = 24
+margin_y = 24

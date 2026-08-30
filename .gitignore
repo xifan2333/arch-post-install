@@ -10,3 +10,6 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+
+# Runtime state rewritten by the screenrecord title HUD edit mode
+dotfiles/.config/screenrecord/title.conf

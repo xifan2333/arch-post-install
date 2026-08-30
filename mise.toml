@@ -73,7 +73,7 @@ mode = "0644"
   "*.example",
 ] }
 "~/.config/retroarch" = { source = "dotfiles/.config/retroarch", mode = "symlink-each" }
-"~/.config/screenrecord" = { source = "dotfiles/.config/screenrecord", mode = "symlink-each" }
+"~/.config/screenrecord/title.conf.example" = { source = "dotfiles/.config/screenrecord/title.conf.example" }
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "dotfiles/.config/tensaku", mode = "symlink-each" }
 "~/.config/tmux" = { source = "dotfiles/.config/tmux", mode = "symlink-each" }
