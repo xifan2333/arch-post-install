@@ -1,0 +1,14 @@
+# Tensaku annotation editor configuration.
+# Managed by arch-post-install; Preferences writes back here via `omarchy`.
+
+[general]
+annotation-size-factor = 1.0
+
+# Tensaku renders text annotations with femtovg, whose primary font is the
+# bundled Latin-only `Inter Display SemiBold`. Without a CJK-capable fallback
+# the Chinese glyphs have no font to render in. `Sarasa Mono SC` covers both
+# Latin and CJK so annotations read cleanly; `Noto Sans CJK SC` is the fallback.
+[font]
+family = "Sarasa Mono SC"
+style = "Regular"
+fallback = ["Noto Sans CJK SC", "Noto Sans CJK JP"]

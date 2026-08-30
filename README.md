@@ -56,7 +56,6 @@ cd ~/code/arch-post-install
 默认还会安装这些额外内容：
 
 - `noise-suppression-for-voice`：麦克风降噪插件；
-- `zenity`：sudo 图形密码窗口；
 - `yay`：安装 AUR 软件；
 - `unzip`：解压像素字体安装包；
 - 当前机器上显式安装的 AUR/外来包，完整清单见下文。
@@ -78,6 +77,14 @@ mise bootstrap --force-dotfiles --yes
 ```
 
 `--force-dotfiles` 会替换冲突文件，不要在没检查的情况下随便加。
+
+### Agent 提权
+
+本项目使用 Omarchy 4 的原生提权机制，不设置 `SUDO_ASKPASS`：
+
+- 有可见终端时使用普通 `sudo`，由用户在终端输入密码；
+- Agent 或图形后台任务没有可交互终端时使用 `pkexec`，密码窗口由 Omarchy Shell 的 Polkit 插件显示；
+- 需要连续执行多条 root 命令时，由用户在终端运行 `omarchy sudo passwordless 15` 临时授权，完成后再次运行 `omarchy sudo passwordless` 提前关闭。
 
 ## 平时怎么用
 
@@ -305,7 +312,7 @@ Waybar 采集指示器：左键 `toggle-active`（空闲则打开菜单），右
 ### Omarchy 适配边界
 
 - 本地录屏只调用公开命令 `omarchy capture screenrecording`，**不修改** `~/.local/share/omarchy`
-- 用户扩展点：`~/.config/omarchy/extensions/menu.sh`、`hooks/post-update.d/`、环境变量（如 `OMARCHY_SCREENSHOT_EDITOR=satty-cjk`）
+- 用户扩展点：`~/.config/omarchy/extensions/omarchy-menu.jsonc` 与 `hooks/post-update.d/`；截图标注使用 Omarchy 4 默认的 Tensaku
 - PATH 保持 Omarchy 默认顺序（`$OMARCHY_PATH/bin` 在 `~/.local/bin` 前）；本仓库用**独立命令名**（`capture-*`），不靠同名覆盖 Omarchy 工具
 - Waybar 的 `config.jsonc` 是普通文件，内容为采集状态 + 工作区覆盖 + Omarchy 默认配置三个 include。迁移若替换该文件，`post-update.d/waybar-capture.hook` 会从用户模板恢复；`style.css` 不改
 

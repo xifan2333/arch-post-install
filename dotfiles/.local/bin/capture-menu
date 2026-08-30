@@ -68,21 +68,19 @@ main() {
     local webcam="󰄀  Record with desktop + microphone + webcam"
     local livestream="󰑋  Start livestream"
     local config="󰒓  Livestream configuration"
-    local overlays="󰌪  Capture overlays"
 
     state=$("$ROUTER" status)
     case "$state" in
         recording)
-            choice=$(menu_select "$title" "$stop_recording" "$overlays")
+            choice=$(menu_select "$title" "$stop_recording")
             ;;
         livestream)
-            choice=$(menu_select "$title" \
-                "$stop_livestream" "$config" "$overlays")
+            choice=$(menu_select "$title" "$stop_livestream" "$config")
             ;;
         *)
             choice=$(menu_select "$title" \
                 "$no_audio" "$desktop_audio" "$desktop_mic" "$webcam" \
-                "$livestream" "$config" "$overlays")
+                "$livestream" "$config")
             ;;
     esac
 
@@ -97,7 +95,6 @@ main() {
         "$webcam") start_webcam_recording ;;
         "$livestream") "$ROUTER" livestream start portal ;;
         "$config") "$ROUTER" config ;;
-        "$overlays") "$ROUTER" overlays ;;
         *) return 0 ;;
     esac
 }

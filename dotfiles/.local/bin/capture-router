@@ -319,7 +319,7 @@ capture_overlay_toggle() {
 capture_usage() {
     cat << 'EOF'
 Usage:
-  capture-router status|waybar|menu|toggle-active|config|overlays
+  capture-router status|waybar|menu|toggle-active|config
   capture-router recording start|stop|toggle [screenrecord options]
   capture-router livestream start [target]|stop|toggle [target]|status
   capture-router overlay camera|captions|keys|title|edit|status
@@ -363,7 +363,6 @@ main() {
         waybar) capture_waybar ;;
         menu) exec "$SCRIPT_DIR/capture-menu" ;;
         config) exec "$SCRIPT_DIR/livestream-config" ;;
-        overlays) exec omarchy launch walker -m menus:screenrecord ;;
         toggle-active) capture_toggle_active ;;
         recording)
             [ "$#" -gt 0 ] && shift
