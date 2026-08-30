@@ -176,7 +176,7 @@ mise 只碰本仓库列出的文件。共享目录中由其他程序创建的内
 - Neovim 自己生成的状态文件
 
 `~/.config/hypr/` 下的全部有效配置（包括显示器配置）都由本仓库接管。
-只有 `*.example` 示例文件不会链接到用户目录。
+`*.example` 只作为仓库模板，不会软链到用户目录；首次 bootstrap 时若真实配置还不存在，会复制到对应路径（之后不再覆盖）。
 
 ## 移除配置链接
 
@@ -243,20 +243,16 @@ mise run fonts
 
 ## 录屏与直播
 
-本地录屏和直播通过 `capture-router` 严格互斥，快捷键和 Omarchy Capture 菜单都走同一个运行时锁。正在录屏时启动直播（或反过来）只会提示先停止当前任务，不会自动切换。
+本地录屏走 Omarchy 原生命令（`omarchy capture screenrecording`）。状态灯在 clone 的 `xifan.indicators` 里：`ScreenRecording` 只在本地录屏时亮，`Livestream` 只在直播时亮（同一排、同一套 hover）。两边都用 `gpu-screen-recorder`，不要同时开。
 
 ### 常用命令
 
 ```bash
-capture-router menu                                 # 打开 Omarchy 原生 Capture 菜单
-capture-router status                               # idle / recording / livestream
-capture-router config                               # 直播平台与全局码率（也可 Super+Shift+R）
-capture-router livestream start|stop|toggle [portal]
-capture-router livestream status                    # 各平台 RTMP 连接状态与码率
-capture-router recording start|stop|toggle [...]    # 本地录屏（转发 omarchy capture screenrecording）
-capture-router overlay camera|captions|keys|title
-capture-router overlay edit|edit-keys|edit-captions|edit-camera
-capture-router overlay status                       # 叠加层运行状态
+omarchy menu toggle trigger.capture                 # Omarchy Capture 菜单（含直播子菜单）
+omarchy capture screenrecording [...]               # 本地录屏
+livestream start|stop|toggle [portal]               # 直播
+livestream status|is-active                         # 各平台状态 / 是否在播
+livestream config                                   # 直播平台与全局码率（也可 Super+Shift+R）
 capture-text-extraction                             # 选区 OCR（也可 Ctrl+Print）
 ```
 
@@ -264,17 +260,17 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 
 | 快捷键 | 动作 |
 |--------|------|
-| `Alt+Print` | `capture-router menu` |
+| `Alt+Print` | Capture 菜单 |
 | `Super+R` | 本地录屏 toggle（桌面声 + 麦克风） |
-| `Super+Alt+R` | 直播 toggle（默认 portal 选区） |
+| `Super+Alt+R` | 直播 toggle（portal 选区） |
 | `Super+Shift+R` | 直播平台配置 |
 | `Ctrl+Print` | 选区 OCR |
 | `Super+Alt+V/K/C/T` | 摄像头 / 按键 / 字幕 / 标题叠加层 |
-| `Super+Shift+T` | 标题叠加层编辑 |
+| `Super+Shift+V/K/C/T` | 对应叠加层编辑 |
 
 ### 直播平台
 
-全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项包含 `name` / `server` / `key`，可选 `enabled` / `aspect_ratio`）。支持 RTMP/RTMPS 和 SRT；也可用 `Super+Shift+R` 或 `capture-router config` 打开图形配置。
+全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项包含 `name` / `server` / `key`，可选 `enabled` / `aspect_ratio`）。支持 RTMP/RTMPS 和 SRT；也可用 `Super+Shift+R` 或 `livestream config` 打开图形配置。
 
 ```json
 {
@@ -310,7 +306,7 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 
 - 本地录屏只调用公开命令 `omarchy capture screenrecording`，**不修改** `~/.local/share/omarchy`
 - 用户扩展点：`~/.config/omarchy/extensions/omarchy-menu.jsonc` 与 `hooks/post-update.d/`；截图标注使用 Omarchy 4 默认的 Tensaku
-- PATH 保持 Omarchy 默认顺序（`$OMARCHY_PATH/bin` 在 `~/.local/bin` 前）；本仓库用**独立命令名**（`capture-*`），不靠同名覆盖 Omarchy 工具
+- PATH 保持 Omarchy 默认顺序（`$OMARCHY_PATH/bin` 在 `~/.local/bin` 前）；本仓库用独立命令名（`livestream`、`capture-text-extraction`），不靠同名覆盖 Omarchy 工具
 
 ## 仓库包含什么
 
@@ -322,7 +318,7 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 | Tmux | C-Space 前缀、vi 模式、窗口和分屏快捷键（XDG 规范） |
 | 输入法 | Fcitx5 和 Rime 配置 |
 | 终端 | WezTerm 配置与主题联动 |
-| 状态栏 | Omarchy 4 Quickshell 录屏/直播指示器插件（xifan.capture） |
+| 状态栏 | `xifan.indicators`（clone 自 `omarchy.indicators`，录屏 + 直播两颗灯） |
 | 主题 | 切换 Omarchy 主题时同步其他程序的配色 |
 | 录制 | 音频录制和屏幕录制叠加层 |
 | 模拟器 | RetroArch 配置与全局着色器预设 |

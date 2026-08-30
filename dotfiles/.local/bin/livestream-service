@@ -70,7 +70,7 @@ def translated_state(state):
 
 
 def refresh_capture_indicator():
-    """Ping Omarchy's stock indicator bus; the capture widget subscribes there."""
+    """Ping Omarchy's stock ScreenRecording indicator bus."""
     with contextlib.suppress(OSError, subprocess.TimeoutExpired):
         subprocess.run(
             ["omarchy-shell", "-q", "omarchy.indicators", "refresh"],
@@ -853,5 +853,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # Preserve CLI exit codes: capture-router relies on them for active-state checks.
+    # Preserve CLI exit codes: livestream CLI relies on them for active-state checks.
     raise SystemExit(main())

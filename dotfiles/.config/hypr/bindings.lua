@@ -34,10 +34,9 @@ o.bind("SHIFT + PRINT", "Screenshot fullscreen", "omarchy capture screenshot ful
 o.bind("SUPER + SHIFT + PRINT", "Color picker", "pkill hyprpicker || hyprpicker -a")
 o.bind("SUPER + SHIFT + ESCAPE", "Lock screen", "omarchy system lock")
 
--- Capture and livestream shortcuts. These intentionally replace selected
--- Omarchy defaults so every mutation continues to go through capture-router.
+-- Capture, OCR, recording, livestream, and overlays.
 hl.unbind("ALT + PRINT")
-o.bind("ALT + PRINT", "Capture menu", "capture-router menu")
+o.bind("ALT + PRINT", "Capture menu", "omarchy menu toggle trigger.capture")
 
 hl.unbind("SUPER + CTRL + PRINT")
 o.bind("CTRL + PRINT", "Extract text (OCR) from screenshot", "capture-text-extraction")
@@ -45,17 +44,17 @@ o.bind("CTRL + PRINT", "Extract text (OCR) from screenshot", "capture-text-extra
 o.bind(
   "SUPER + R",
   "Screenrecording toggle",
-  "capture-router recording toggle --with-desktop-audio --with-microphone-audio"
+  "omarchy capture screenrecording --with-desktop-audio --with-microphone-audio"
 )
-o.bind("SUPER + ALT + R", "Live Stream", "capture-router livestream toggle portal")
-o.bind("SUPER + SHIFT + R", "Live Stream config", "capture-router config")
+o.bind("SUPER + ALT + R", "Live Stream", "livestream toggle portal")
+o.bind("SUPER + SHIFT + R", "Live Stream config", "omarchy-shell xifan.livestream-config toggle")
 
-o.bind("SUPER + ALT + V", "Camera overlay toggle", "capture-router overlay camera")
-o.bind("SUPER + SHIFT + V", "Camera overlay config", "capture-router overlay edit-camera")
+o.bind("SUPER + ALT + V", "Camera overlay toggle", "omarchy-shell xifan.overlay-camera toggle")
+o.bind("SUPER + SHIFT + V", "Camera overlay config", "omarchy-shell xifan.overlay-camera edit")
 hl.unbind("SUPER + ALT + K")
-o.bind("SUPER + ALT + K", "Keys overlay toggle", "capture-router overlay keys")
-o.bind("SUPER + SHIFT + K", "Keys overlay config", "capture-router overlay edit-keys")
-o.bind("SUPER + ALT + C", "Captions overlay toggle", "capture-router overlay captions")
-o.bind("SUPER + SHIFT + C", "Captions overlay config", "capture-router overlay edit-captions")
-o.bind("SUPER + ALT + T", "Title overlay toggle", "capture-router overlay title")
-o.bind("SUPER + SHIFT + T", "Title overlay config", "capture-router overlay edit")
+o.bind("SUPER + ALT + K", "Keys overlay toggle", "omarchy-shell xifan.overlay-keys toggle")
+o.bind("SUPER + SHIFT + K", "Keys overlay config", "omarchy-shell xifan.overlay-keys edit")
+o.bind("SUPER + ALT + C", "Captions overlay toggle", "omarchy-shell xifan.overlay-captions toggle")
+o.bind("SUPER + SHIFT + C", "Captions overlay config", "omarchy-shell xifan.overlay-captions edit")
+o.bind("SUPER + ALT + T", "Title overlay toggle", "omarchy-shell xifan.overlay-title toggle")
+o.bind("SUPER + SHIFT + T", "Title overlay config", "omarchy-shell xifan.overlay-title edit")

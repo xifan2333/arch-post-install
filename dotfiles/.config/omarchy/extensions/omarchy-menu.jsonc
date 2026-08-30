@@ -1,58 +1,26 @@
 {
-  // Keep Omarchy's native Capture hierarchy as the only capture UI. Leaf
-  // mutations route through capture-router so recording and livestream remain
-  // mutually exclusive and share the same nonblocking operation lock.
-  "trigger.capture.screenrecord": {
-    "icon": "",
-    "label": "Screenrecord",
-    "when": "[[ $(capture-router status) != livestream ]]",
+  // Livestream submenu under Capture. Portal handles region/window selection.
+  "trigger.capture.livestream": {
+    "icon": "󰻒",
+    "label": "Livestream",
+    "aliases": ["livestream", "stream", "live"],
   },
-  "trigger.capture.screenrecord.stop": {
+  "trigger.capture.livestream.stop": {
     "icon": "󰓛",
-    "label": "Stop Screenrecording",
-    "when": "[[ $(capture-router status) == recording ]]",
-    "action": "capture-router recording stop",
+    "label": "Stop livestream",
+    "when": "livestream is-active",
+    "action": "livestream stop",
   },
-  "trigger.capture.screenrecord.no-audio": {
-    "icon": "",
-    "label": "With no audio",
-    "when": "[[ $(capture-router status) == idle ]]",
-    "action": "capture-router recording start",
+  "trigger.capture.livestream.start": {
+    "icon": "󰻒",
+    "label": "Start livestream",
+    "when": "! livestream is-active",
+    "action": "livestream start portal",
   },
-  "trigger.capture.screenrecord.desktop-audio": {
-    "icon": "",
-    "label": "With desktop audio",
-    "when": "[[ $(capture-router status) == idle ]]",
-    "action": "capture-router recording start --with-desktop-audio",
-  },
-  "trigger.capture.screenrecord.microphone": {
-    "icon": "",
-    "label": "With desktop + microphone audio",
-    "when": "[[ $(capture-router status) == idle ]]",
-    "action": "capture-router recording start --with-desktop-audio --with-microphone-audio",
-  },
-  "trigger.capture.screenrecord.webcam": {
-    "icon": "󰄀",
-    "label": "With desktop + microphone audio + webcam",
-    "when": "omarchy-hw-webcam && [[ $(capture-router status) == idle ]]",
-    "action": "capture-router recording webcam",
-  },
-  "trigger.capture.livestream-stop": {
-    "icon": "󰓛",
-    "label": "Stop Livestream",
-    "when": "[[ $(capture-router status) == livestream ]]",
-    "action": "capture-router livestream stop",
-  },
-  "trigger.capture.livestream-start": {
-    "icon": "󰑋",
-    "label": "Start Livestream",
-    "when": "[[ $(capture-router status) == idle ]]",
-    "action": "capture-router livestream start portal",
-  },
-  "trigger.capture.livestream-config": {
+  "trigger.capture.livestream.config": {
     "icon": "󰒓",
-    "label": "Livestream Configuration",
-    "action": "capture-router config",
+    "label": "Configuration",
+    "action": "livestream config",
   },
   "trigger.capture.text": {
     "icon": "󰴑",

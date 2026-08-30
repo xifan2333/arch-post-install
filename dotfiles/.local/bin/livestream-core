@@ -61,19 +61,6 @@ livestream_status_report() {
     "$LIVESTREAM_SERVICE" status 2> /dev/null
 }
 
-# Path-tolerant match for gpu-screen-recorder (bare name or absolute path).
-# Shared with capture-router so record/live mutual exclusion stays consistent.
-capture_gsr_running() {
-    pgrep -u "$(id -u)" -f '(^|/)gpu-screen-recorder( |$)' > /dev/null 2>&1
-}
-
-livestream_local_recording_active() {
-    if livestream_is_active; then
-        return 1
-    fi
-    capture_gsr_running
-}
-
 livestream_unmute_audio() {
     if ! command -v pactl > /dev/null 2>&1; then
         return 0
@@ -123,9 +110,6 @@ livestream_start() {
 
     if livestream_is_active; then
         return 2
-    fi
-    if livestream_local_recording_active; then
-        return 5
     fi
     "$LIVESTREAM_SERVICE" validate \
         --config "$LIVESTREAM_CONFIG_FILE" > /dev/null 2>&1 || return 3
