@@ -1,0 +1,8 @@
+[keys]
+font_size = 18
+font_family = monospace
+text_color = #ffffff
+anchor_x = right
+anchor_y = bottom
+margin_x = 36
+margin_y = 150

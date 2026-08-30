@@ -224,16 +224,19 @@ capture_overlay_pid() {
 }
 
 capture_overlay_status() {
-    local name pid state
+    local name pid state plugin
     for name in camera captions keys title; do
-        if [[ "$name" == title && -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-            state=$("$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-title state 2> /dev/null || true)
-            if [[ "$state" != "closed" && -n "$state" ]]; then
-                printf '%s running (quickshell %s)\n' "$name" "$state"
-            else
-                printf '%s stopped\n' "$name"
+        if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+            plugin=$(capture_overlay_plugin_for "$name")
+            if [[ -n "$plugin" ]]; then
+                state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" state 2> /dev/null || true)
+                if [[ "$state" != "closed" && -n "$state" ]]; then
+                    printf '%s running (quickshell %s)\n' "$name" "$state"
+                else
+                    printf '%s stopped\n' "$name"
+                fi
+                continue
             fi
-            continue
         fi
         pid=$(capture_overlay_pid "$name" || true)
         if [ -n "$pid" ]; then
@@ -244,9 +247,18 @@ capture_overlay_status() {
     done
 }
 
+# Map an overlay name to its Quickshell plugin id, or empty if none.
+capture_overlay_plugin_for() {
+    case "$1" in
+        title) printf '%s\n' "xifan.overlay-title" ;;
+        keys) printf '%s\n' "xifan.overlay-keys" ;;
+        *) printf '' ;;
+    esac
+}
+
 capture_overlay_toggle() {
     local name="$1"
-    local bin pid notify_key
+    local bin pid notify_key plugin
     case "$name" in
         camera | captions | keys | title) ;;
         *)
@@ -255,18 +267,26 @@ capture_overlay_toggle() {
             ;;
     esac
 
-    # The title card moved into Omarchy's Quickshell overlay plugin. There is
-    # no legacy alternate: route it solely through omarchy-shell.
-    if [[ "$name" == title ]]; then
+    # Title / keys live in Omarchy's Quickshell overlay plugins. There is no
+    # legacy alternate: route them solely through omarchy-shell.
+    plugin=$(capture_overlay_plugin_for "$name")
+    if [[ -n "$plugin" ]]; then
         if [[ -z "${OMARCHY_PATH:-}" || ! -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
-            printf 'capture-router: omarchy-shell unavailable for title overlay\n' >&2
+            printf 'capture-router: omarchy-shell unavailable for %s overlay\n' "$name" >&2
             return 1
         fi
-        state=$("$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-title toggle 2> /dev/null || true)
-        case "$state" in
-            open) notify_key="screenrecord_overlay_title_on" ;;
-            closed) notify_key="screenrecord_overlay_title_off" ;;
-        esac
+        state=$("$OMARCHY_PATH"/bin/omarchy-shell "$plugin" toggle 2> /dev/null || true)
+        if [[ "$name" == title ]]; then
+            case "$state" in
+                open) notify_key="screenrecord_overlay_title_on" ;;
+                closed) notify_key="screenrecord_overlay_title_off" ;;
+            esac
+        else
+            case "$state" in
+                open) notify_key="screenrecord_overlay_keys_on" ;;
+                closed) notify_key="screenrecord_overlay_keys_off" ;;
+            esac
+        fi
         if command -v notify-send > /dev/null 2>&1 && [ -n "$notify_key" ]; then
             notify-send "$(msg screenrecord_notify_title)" "$(msg "$notify_key")"
         elif [ -n "$notify_key" ]; then
@@ -378,6 +398,11 @@ main() {
                 edit | title-edit)
                     if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
                         "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-title edit > /dev/null 2>&1 || true
+                    fi
+                    ;;
+                edit-keys)
+                    if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+                        "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-keys edit > /dev/null 2>&1 || true
                     fi
                     ;;
                 status) capture_overlay_status ;;

@@ -68,6 +68,9 @@
   "plugins": [
     {
       "id": "xifan.overlay-title"
+    },
+    {
+      "id": "xifan.overlay-keys"
     }
   ]
 }

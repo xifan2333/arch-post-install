@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.overlay-keys",
+  "name": "Screenrecord Keys Overlay",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "HUD overlay showing recent key combinations during recording / streaming.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "KeysOverlay.qml"
+  }
+}
