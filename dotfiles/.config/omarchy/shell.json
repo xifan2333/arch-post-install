@@ -19,8 +19,16 @@
       ],
       "center": [
         {
-          "id": "omarchy.indicators",
-          "items": ["Dictation", "Reminder", "NightLight", "Dnd", "StayAwake"]
+          "id": "xifan.indicators",
+          "items": [
+            "Dictation",
+            "ScreenRecording",
+            "Livestream",
+            "Reminder",
+            "NightLight",
+            "Dnd",
+            "StayAwake"
+          ]
         },
         {
           "id": "omarchy.clock",
@@ -59,9 +67,6 @@
         },
         {
           "id": "omarchy.power"
-        },
-        {
-          "id": "xifan.capture"
         }
       ]
     }
