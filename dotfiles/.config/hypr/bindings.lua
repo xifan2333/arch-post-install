@@ -51,6 +51,7 @@ o.bind("SUPER + ALT + R", "Live Stream", "capture-router livestream toggle porta
 o.bind("SUPER + SHIFT + R", "Live Stream config", "capture-router config")
 
 o.bind("SUPER + ALT + V", "Camera overlay toggle", "capture-router overlay camera")
+o.bind("SUPER + SHIFT + V", "Camera overlay config", "capture-router overlay edit-camera")
 hl.unbind("SUPER + ALT + K")
 o.bind("SUPER + ALT + K", "Keys overlay toggle", "capture-router overlay keys")
 o.bind("SUPER + SHIFT + K", "Keys overlay config", "capture-router overlay edit-keys")

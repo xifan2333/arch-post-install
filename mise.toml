@@ -77,6 +77,7 @@ mode = "0644"
 "~/.config/screenrecord/title.conf.example" = { source = "dotfiles/.config/screenrecord/title.conf.example" }
 "~/.config/screenrecord/keys.conf.example" = { source = "dotfiles/.config/screenrecord/keys.conf.example" }
 "~/.config/screenrecord/captions.conf.example" = { source = "dotfiles/.config/screenrecord/captions.conf.example" }
+"~/.config/screenrecord/camera.conf.example" = { source = "dotfiles/.config/screenrecord/camera.conf.example" }
 "~/.config/systemd" = { source = "dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "dotfiles/.config/tensaku", mode = "symlink-each" }
 "~/.config/tmux" = { source = "dotfiles/.config/tmux", mode = "symlink-each" }

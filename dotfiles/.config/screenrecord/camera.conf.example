@@ -1,0 +1,14 @@
+[camera]
+device = auto
+width = 200
+height = 150
+capture_width = 1280
+capture_height = 720
+fps = 30
+anchor_x = right
+anchor_y = bottom
+margin_x = 0
+margin_y = 0
+border_width = 1.5
+aspect = 4:3
+mirror = true

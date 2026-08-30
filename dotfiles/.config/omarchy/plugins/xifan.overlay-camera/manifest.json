@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.overlay-camera",
+  "name": "Screenrecord Camera Overlay",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "HUD PiP webcam overlay during recording / streaming.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "CameraOverlay.qml"
+  }
+}

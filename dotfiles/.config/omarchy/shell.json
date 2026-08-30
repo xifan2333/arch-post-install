@@ -74,6 +74,9 @@
     },
     {
       "id": "xifan.overlay-captions"
+    },
+    {
+      "id": "xifan.overlay-camera"
     }
   ]
 }

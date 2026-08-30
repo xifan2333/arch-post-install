@@ -253,6 +253,7 @@ capture_overlay_plugin_for() {
         title) printf '%s\n' "xifan.overlay-title" ;;
         keys) printf '%s\n' "xifan.overlay-keys" ;;
         captions) printf '%s\n' "xifan.overlay-captions" ;;
+        camera) printf '%s\n' "xifan.overlay-camera" ;;
         *) printf '' ;;
     esac
 }
@@ -277,6 +278,12 @@ capture_overlay_notify_key() {
             case "$state" in
                 open) printf '%s\n' "screenrecord_overlay_captions_on" ;;
                 closed) printf '%s\n' "screenrecord_overlay_captions_off" ;;
+            esac
+            ;;
+        camera)
+            case "$state" in
+                open) printf '%s\n' "screenrecord_overlay_camera_on" ;;
+                closed) printf '%s\n' "screenrecord_overlay_camera_off" ;;
             esac
             ;;
     esac
@@ -424,6 +431,11 @@ main() {
                 edit-captions)
                     if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
                         "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-captions edit > /dev/null 2>&1 || true
+                    fi
+                    ;;
+                edit-camera)
+                    if [[ -n "${OMARCHY_PATH:-}" && -x "${OMARCHY_PATH:-}/bin/omarchy-shell" ]]; then
+                        "$OMARCHY_PATH"/bin/omarchy-shell xifan.overlay-camera edit > /dev/null 2>&1 || true
                     fi
                     ;;
                 status) capture_overlay_status ;;
