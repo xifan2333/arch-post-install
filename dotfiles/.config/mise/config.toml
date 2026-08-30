@@ -2,6 +2,7 @@
 android-cli = { version = "latest", bin = "android", platforms = { linux-x64 = { checksum_url = "https://dl.google.com/android/cli/{{ version }}/linux_x86_64/android.sha256", url = "https://dl.google.com/android/cli/{{ version }}/linux_x86_64/android" }, macos-arm64 = { checksum_url = "https://dl.google.com/android/cli/{{ version }}/darwin_arm64/android.sha256", url = "https://dl.google.com/android/cli/{{ version }}/darwin_arm64/android" }, macos-x64 = { checksum_url = "https://dl.google.com/android/cli/{{ version }}/darwin_x86_64/android.sha256", url = "https://dl.google.com/android/cli/{{ version }}/darwin_x86_64/android" }, windows-x64 = { bin = "android.exe", checksum_url = "https://dl.google.com/android/cli/{{ version }}/windows_x86_64/android.exe.sha256", url = "https://dl.google.com/android/cli/{{ version }}/windows_x86_64/android.exe" } }, version_list_url = "https://dl.google.com/android/cli/latest/debian/dists/stable/main/binary-amd64/Packages", version_regex = '(?m)^Version: (\S+)$' }
 android-sdk = "latest"
 aube = "latest"
+claude = "latest"
 codex = "latest"
 gh = "latest"
 "github:bluenviron/mediamtx" = "latest"
