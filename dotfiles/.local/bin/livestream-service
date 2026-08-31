@@ -441,7 +441,7 @@ class LivestreamService:
 
     def tee_targets(self, platforms):
         return "|".join(
-            f"[f={self.platform_format(platform)}]{self.escape_tee_slave(platform.url)}"
+            f"[f={self.platform_format(platform)}:onfail=ignore]{self.escape_tee_slave(platform.url)}"
             for platform in platforms
         )
 
@@ -458,6 +458,15 @@ class LivestreamService:
         command = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-i", "-"]
         if filters:
             command.extend(["-filter_complex", ";".join(filters)])
+
+        fifo_opts = (
+            "attempt_recovery=1:"
+            "recover_any_error=1:"
+            "drop_pkts_on_overflow=1:"
+            "recovery_wait_time=2:"
+            "restart_with_keyframe=1:"
+            "queue_size=300"
+        )
 
         gop = max(1, self.args.framerate * self.args.keyint)
         for mode in ("16:9", "9:16"):
@@ -497,6 +506,10 @@ class LivestreamService:
                     "0:a?",
                     "-c:a",
                     "copy",
+                    "-use_fifo",
+                    "1",
+                    "-fifo_options",
+                    fifo_opts,
                     "-f",
                     "tee",
                     self.tee_targets(platforms),
@@ -519,47 +532,23 @@ class LivestreamService:
             platform.video_bitrate = video_bitrate
             platform.audio_bitrate = audio_bitrate
 
-        direct_platform = (
-            self.platforms[0]
-            if len(self.platforms) == 1
-            and self.platforms[0].scheme == "rtmp"
-            and self.platforms[0].aspect_ratio == "16:9"
-            else None
-        )
-
         try:
-            if direct_platform is not None:
-                self.encoder_process = subprocess.Popen(
-                    self.encoder_command(
-                        video_bitrate,
-                        audio_bitrate,
-                        output=direct_platform.url,
-                    ),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                )
-                self.tee_process = None
-                self.log(
-                    f"direct stream started at {video_bitrate}/{audio_bitrate} kbps "
-                    f"-> {direct_platform.name}",
-                )
-            else:
-                self.encoder_process = subprocess.Popen(
-                    self.encoder_command(video_bitrate, audio_bitrate),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-                self.tee_process = subprocess.Popen(
-                    self.fanout_command(),
-                    stdin=self.encoder_process.stdout,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                )
-                self.encoder_process.stdout.close()
-                self.log(
-                    f"fanout stream started at {video_bitrate}/{audio_bitrate} kbps "
-                    f"-> {len(self.platforms)} target(s)",
-                )
+            self.encoder_process = subprocess.Popen(
+                self.encoder_command(video_bitrate, audio_bitrate),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            self.tee_process = subprocess.Popen(
+                self.fanout_command(),
+                stdin=self.encoder_process.stdout,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            self.encoder_process.stdout.close()
+            self.log(
+                f"stream pipeline started at {video_bitrate}/{audio_bitrate} kbps "
+                f"-> {len(self.platforms)} target(s) with native auto-recovery"
+            )
         except OSError as error:
             self.log(f"failed to start stream pipeline: {error}")
             self.terminate_processes()
