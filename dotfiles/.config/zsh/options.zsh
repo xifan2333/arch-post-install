@@ -1,5 +1,7 @@
-# PATH
-export PATH="${XDG_BIN_HOME:-$HOME/.local/bin}:$PATH"
+# PATH: keep entries unique while preserving the first occurrence.
+typeset -U path PATH
+path=("${XDG_BIN_HOME:-$HOME/.local/bin}" $path)
+export PATH
 
 # History
 HISTFILE=~/.zsh_history
