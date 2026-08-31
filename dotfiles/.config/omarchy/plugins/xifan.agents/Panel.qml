@@ -830,7 +830,14 @@ Panel {
 
       Text {
         id: limitValue
-        text: limitRow.window && limitRow.window.percent >= 0 ? Math.round(limitRow.window.percent * 100) + "%" : "—"
+        text: {
+          if (!limitRow.window || limitRow.window.percent < 0)
+            return "—";
+          var pct = Math.round(limitRow.window.percent * 100) + "%";
+          if (limitRow.window.limit !== undefined && limitRow.window.used !== undefined)
+            return limitRow.window.used + " / " + limitRow.window.limit + " RPD (" + pct + ")";
+          return pct;
+        }
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption

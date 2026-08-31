@@ -33,6 +33,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 COMMON_ERRORS = (
     urllib.error.URLError,
@@ -75,7 +76,8 @@ DEFAULT_TIERS = {
     "codex": "ChatGPT / Codex",
 }
 
-CACHE_VERSION = 4
+CACHE_VERSION = 5
+PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
 USAGE_RE = re.compile(r'"usage":\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})')
 PROV_RE = re.compile(r'"provider":\s*"([^"]+)"')
 MODEL_RE = re.compile(r'"model":\s*"([^"]+)"')
@@ -307,7 +309,107 @@ def probe_openrouter(token: str) -> dict:
     return res
 
 
-def probe_google(key: str, timeout: float = 4.0) -> dict:
+def load_google_adc() -> dict | None:
+    configured = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    path = (
+        Path(configured).expanduser()
+        if configured
+        else Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+    )
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except COMMON_ERRORS:
+        return None
+    if data.get("type") != "authorized_user":
+        return None
+    if not all(data.get(k) for k in ("client_id", "client_secret", "refresh_token")):
+        return None
+    return data
+
+
+def refresh_google_adc(adc: dict) -> str | None:
+    data = urllib.parse.urlencode(
+        {
+            "client_id": adc["client_id"],
+            "client_secret": adc["client_secret"],
+            "refresh_token": adc["refresh_token"],
+            "grant_type": "refresh_token",
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        adc.get("token_uri") or "https://oauth2.googleapis.com/token",
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return payload.get("access_token")
+    except COMMON_ERRORS as e:
+        print(f"Google ADC refresh failed: {e}", file=sys.stderr)
+        return None
+
+
+def google_quota_buckets(
+    metrics: list[dict], metric_name: str, unit: str
+) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for metric in metrics:
+        if metric.get("metric") != metric_name:
+            continue
+        for limit in metric.get("consumerQuotaLimits", []):
+            if limit.get("unit") != unit:
+                continue
+            for bucket in limit.get("quotaBuckets", []):
+                model = (bucket.get("dimensions") or {}).get("model")
+                if not model:
+                    continue
+                try:
+                    value = int(bucket.get("effectiveLimit"))
+                except (TypeError, ValueError):
+                    continue
+                if value >= 0:
+                    result[model] = value
+    return result
+
+
+def google_free_tier_quotas(access_token: str, project_id: str) -> dict:
+    service = "generativelanguage.googleapis.com"
+    url = (
+        "https://serviceusage.googleapis.com/v1beta1/projects/"
+        f"{urllib.parse.quote(project_id, safe='')}/services/{service}/"
+        "consumerQuotaMetrics?view=FULL&pageSize=200"
+    )
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "x-goog-user-project": project_id,
+    }
+    status, body = http_get(url, headers, timeout=10)
+    if status != 200:
+        return {}
+    metrics = json.loads(body).get("metrics", [])
+    request_metric = f"{service}/generate_content_free_tier_requests"
+    token_metric = f"{service}/generate_content_free_tier_input_token_count"
+    return {
+        "rpm": google_quota_buckets(metrics, request_metric, "1/min/{project}/{model}"),
+        "rpd": google_quota_buckets(metrics, request_metric, "1/d/{project}/{model}"),
+        "tpm": google_quota_buckets(metrics, token_metric, "1/min/{project}/{model}"),
+    }
+
+
+def google_next_daily_reset() -> str:
+    now = datetime.now(PACIFIC_TZ)
+    reset = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return reset.astimezone().isoformat()
+
+
+def model_display_name(model: str) -> str:
+    return " ".join(part.capitalize() for part in model.replace("_", "-").split("-"))
+
+
+def probe_google(
+    key: str, local_stats: dict | None = None, timeout: float = 4.0
+) -> dict:
     res = empty_result()
     res["tierLabel"] = DEFAULT_TIERS["google"]
     if not key:
@@ -318,13 +420,50 @@ def probe_google(key: str, timeout: float = 4.0) -> dict:
     )
     try:
         status, _ = http_get(url, {}, timeout)
-        if status == 200:
-            res["ready"] = True
-            res["tierLabel"] = "Gemini API (Active)"
-        else:
+        if status != 200:
             return fail_res(res, f"Google API error ({status})", "")
+        res["ready"] = True
+        res["tierLabel"] = "Gemini API"
     except COMMON_ERRORS as e:
         print(f"Google probe error: {e}", file=sys.stderr)
+        return res
+
+    adc = load_google_adc()
+    project_id = str((adc or {}).get("quota_project_id") or "")
+    access_token = refresh_google_adc(adc) if adc and project_id else None
+    if not access_token:
+        return res
+
+    try:
+        quotas = google_free_tier_quotas(access_token, project_id)
+    except COMMON_ERRORS as e:
+        print(f"Google quota probe error: {e}", file=sys.stderr)
+        return res
+    if not quotas:
+        return res
+
+    res["tierLabel"] = "Gemini Free Tier"
+    res["quotaDetails"] = quotas
+    prompts = (local_stats or {}).get("quotaDayPromptsByModel", {})
+    reset_at = google_next_daily_reset()
+    for model, used in sorted(prompts.items()):
+        daily_limit = quotas.get("rpd", {}).get(model)
+        if not daily_limit:
+            continue
+        percent = max(0.0, float(used) / daily_limit)
+        res["limits"].append(
+            {
+                "title": model_display_name(model),
+                "percent": min(1.0, percent),
+                "resetsAt": reset_at,
+                "used": int(used),
+                "limit": daily_limit,
+                "source": "pi",
+            }
+        )
+        if percent >= 1.0:
+            res["ready"] = False
+            res["usageStatusText"] = f"{model_display_name(model)} daily limit reached"
     return res
 
 
@@ -530,7 +669,9 @@ def probe_xai(auth_entry: dict | None) -> dict:
     return res
 
 
-def probe_upstream(provider_id: str, auth_entry: dict | None) -> dict:
+def probe_upstream(
+    provider_id: str, auth_entry: dict | None, local_stats: dict | None = None
+) -> dict:
     if not auth_entry:
         return fail_res(empty_result(), "Not configured", "Authenticate in Pi")
     key = (
@@ -546,7 +687,7 @@ def probe_upstream(provider_id: str, auth_entry: dict | None) -> dict:
     elif provider_id == "openrouter":
         return probe_openrouter(key)
     elif provider_id == "google":
-        return probe_google(key)
+        return probe_google(key, local_stats)
     elif provider_id == "codex":
         return probe_codex(auth_entry)
     elif provider_id == "xai":
@@ -558,22 +699,33 @@ def probe_upstream(provider_id: str, auth_entry: dict | None) -> dict:
 # ------------------------------------------------------ fast local log scan
 
 
-def parse_timestamp_to_local_day(ts_str: str, today_str: str) -> str:
+def parse_timestamp_value(ts_str: str) -> datetime | None:
     if not ts_str:
-        return today_str
+        return None
     try:
         if ts_str.endswith("Z"):
-            dt_val = datetime.fromisoformat(ts_str[:-1] + "+00:00").astimezone()
-        else:
-            dt_val = datetime.fromisoformat(ts_str)
-            if dt_val.tzinfo is not None:
-                dt_val = dt_val.astimezone()
-        return dt_val.strftime("%Y-%m-%d")
+            return datetime.fromisoformat(ts_str[:-1] + "+00:00")
+        value = datetime.fromisoformat(ts_str)
+        return value if value.tzinfo is not None else value.astimezone()
     except COMMON_ERRORS:
-        return ts_str[:10] if len(ts_str) >= 10 else today_str
+        return None
 
 
-def scan_single_file(sf: Path, today_str: str) -> dict:
+def parse_timestamp_to_local_day(ts_str: str, today_str: str) -> str:
+    value = parse_timestamp_value(ts_str)
+    if value is not None:
+        return value.astimezone().strftime("%Y-%m-%d")
+    return ts_str[:10] if len(ts_str) >= 10 else today_str
+
+
+def parse_timestamp_to_pacific_day(ts_str: str, today_str: str) -> str:
+    value = parse_timestamp_value(ts_str)
+    if value is not None:
+        return value.astimezone(PACIFIC_TZ).strftime("%Y-%m-%d")
+    return today_str
+
+
+def scan_single_file(sf: Path, today_str: str, pacific_today_str: str) -> dict:
     stats: dict[str, dict] = {}
     try:
         with open(sf, encoding="utf-8", errors="ignore") as fh:
@@ -599,6 +751,7 @@ def scan_single_file(sf: Path, today_str: str) -> dict:
                 tm = TS_RE.search(line)
                 ts_str = tm.group(1) if tm else ""
                 day = parse_timestamp_to_local_day(ts_str, today_str)
+                pacific_day = parse_timestamp_to_pacific_day(ts_str, pacific_today_str)
 
                 inp = int(usage.get("input") or 0)
                 out = int(usage.get("output") or 0)
@@ -614,6 +767,7 @@ def scan_single_file(sf: Path, today_str: str) -> dict:
                         "prompts_by_day": {},
                         "tokens_by_day": {},
                         "models_by_day": {},
+                        "prompts_by_pacific_day_model": {},
                         "total_prompts": 0,
                         "model_usage": {},
                     },
@@ -621,6 +775,10 @@ def scan_single_file(sf: Path, today_str: str) -> dict:
                 rec["total_prompts"] += 1
                 rec["prompts_by_day"][day] = rec["prompts_by_day"].get(day, 0) + 1
                 rec["tokens_by_day"][day] = rec["tokens_by_day"].get(day, 0) + tot
+                pacific_models = rec["prompts_by_pacific_day_model"].setdefault(
+                    pacific_day, {}
+                )
+                pacific_models[model] = pacific_models.get(model, 0) + 1
 
                 day_models = rec["models_by_day"].setdefault(day, {})
                 dm = day_models.setdefault(
@@ -647,6 +805,7 @@ def scan_single_file(sf: Path, today_str: str) -> dict:
 def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
     today_dt = datetime.now().date()
     today_str = today_dt.strftime("%Y-%m-%d")
+    pacific_today_str = datetime.now(PACIFIC_TZ).strftime("%Y-%m-%d")
     recent_days = [
         (today_dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)
     ]
@@ -694,7 +853,7 @@ def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
             ):
                 out_files[key] = entry
                 continue
-            stats = scan_single_file(sf, today_str)
+            stats = scan_single_file(sf, today_str, pacific_today_str)
             scanned += 1
             out_files[key] = {
                 "mtime_ns": st.st_mtime_ns,
@@ -721,6 +880,7 @@ def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
             "todaySessions": set(),
             "todayTotalTokens": 0,
             "todayTokensByModel": defaultdict(int),
+            "quotaDayPromptsByModel": defaultdict(int),
             "recentDays": {d: 0 for d in recent_days},
             "activeDates": set(),
             "modelUsage": defaultdict(
@@ -758,6 +918,12 @@ def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
                 rec["todayTotalTokens"] += tokens_by_day.get(today_str, 0)
                 for model, b in st.get("models_by_day", {}).get(today_str, {}).items():
                     rec["todayTokensByModel"][model] += b.get("t", 0)
+
+            pacific_prompts = st.get("prompts_by_pacific_day_model", {}).get(
+                pacific_today_str, {}
+            )
+            for model, cnt in pacific_prompts.items():
+                rec["quotaDayPromptsByModel"][model] += cnt
 
             for model, b in st.get("model_usage", {}).items():
                 mrec = rec["modelUsage"][model]
@@ -803,7 +969,9 @@ def collect_all_records(force: bool = False) -> dict[str, dict]:
     upstreams: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {
-            pid: pool.submit(probe_upstream, pid, auth_map.get(pid))
+            pid: pool.submit(
+                probe_upstream, pid, auth_map.get(pid), local_stats.get(pid)
+            )
             for pid in provider_ids
         }
         for pid, future in futures.items():
