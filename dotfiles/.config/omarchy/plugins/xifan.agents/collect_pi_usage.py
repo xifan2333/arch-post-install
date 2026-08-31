@@ -30,21 +30,10 @@ TIER_LABELS = {
 
 
 def find_pi_quotas_command() -> list[str] | None:
-    # 1. Explicit override
-    if custom := os.environ.get("PI_QUOTAS_BIN"):
-        return [custom]
-
-    # 2. Standard resolution via PATH including Pi package bin directory
     pi_bin_dir = Path.home() / ".pi" / "agent" / "npm" / "node_modules" / ".bin"
     search_path = f"{pi_bin_dir}:{os.environ.get('PATH', '')}"
     if bin_path := shutil.which("pi-quotas", path=search_path):
         return [bin_path]
-
-    # 3. Local repository fallback
-    dev_path = Path.home() / "Code" / "pi-quotas" / "dist" / "cli.js"
-    if dev_path.exists():
-        return ["node", str(dev_path)]
-
     return None
 
 
