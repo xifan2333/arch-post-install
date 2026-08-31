@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Omarchy agent usage collector.
 
-Invokes pi-usage CLI to fetch live quotas & local session stats,
+Discovers and invokes pi-usage CLI to fetch live quotas & local session stats,
 and atomically writes state records to ~/.local/state/omarchy/agents/usage/.
 """
 
@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
-
-CLI_PATH = Path.home() / "Code" / "pi-usage" / "dist" / "cli.js"
 
 TIER_LABELS = {
     "antigravity": "Google AI Pro",
@@ -28,6 +27,43 @@ TIER_LABELS = {
     "openrouter": "OpenRouter",
     "xai": "Grok API",
 }
+
+
+def find_pi_usage_command() -> list[str] | None:
+    # 1. Explicit environment variable override
+    if custom := os.environ.get("PI_USAGE_BIN"):
+        return [custom]
+
+    # 2. Global binary in system PATH (e.g. npm install -g pi-usage)
+    if bin_path := shutil.which("pi-usage"):
+        return [bin_path]
+
+    # 3. Pi package installation paths & local dev fallbacks
+    pi_agent_dir = Path.home() / ".pi" / "agent"
+    candidate_paths = [
+        pi_agent_dir / "npm" / "node_modules" / "pi-usage" / "dist" / "cli.js",
+        (
+            pi_agent_dir
+            / "npm"
+            / "node_modules"
+            / "@xifan2284"
+            / "pi-usage"
+            / "dist"
+            / "cli.js"
+        ),
+        Path.home() / "Code" / "pi-usage" / "dist" / "cli.js",
+    ]
+
+    for cand in candidate_paths:
+        if cand.exists():
+            return ["node", str(cand)]
+
+    # 4. Search git/symlink installations in Pi directory
+    for cand in pi_agent_dir.glob("**/pi-usage/dist/cli.js"):
+        if cand.exists():
+            return ["node", str(cand)]
+
+    return None
 
 
 def get_usage_dir() -> Path:
@@ -121,11 +157,12 @@ def write_record_atomically(usage_dir: Path, agent_id: str, record: dict) -> Non
 
 
 def main() -> int:
-    if not CLI_PATH.exists():
-        print(f"pi-usage CLI not found at {CLI_PATH}", file=sys.stderr)
+    cmd = find_pi_usage_command()
+    if not cmd:
+        print("pi-usage executable not found in PATH or ~/.pi/agent", file=sys.stderr)
         return 1
 
-    args = ["node", str(CLI_PATH), "--json"]
+    args = [*cmd, "--json"]
     if "--force" in sys.argv:
         args.append("--force")
 
