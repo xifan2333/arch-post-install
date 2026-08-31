@@ -192,7 +192,8 @@ Panel {
   function balanceDetailText(b) {
     if (!b || !(b.funded > 0))
       return "";
-    var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " funded";
+    var remainingRatio = b.funded > 0 ? root.clamp(b.remaining / b.funded, 0, 1) : 0;
+    var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " funded (" + Math.round(remainingRatio * 100) + "% remaining)";
     if (b.estimated)
       text += " · estimated";
     return text;
@@ -205,12 +206,14 @@ Panel {
   function heroMeta(p) {
     if (!p)
       return "";
-    if (String(p.usageStatusText || "") !== "")
-      return p.usageStatusText;
     var tier = String(p.tierLabel || "");
+    var status = String(p.usageStatusText || "").trim();
     if (tier === "")
-      return "Subscription";
-    return tier.charAt(0).toUpperCase() + tier.slice(1);
+      tier = "Subscription";
+    tier = tier.charAt(0).toUpperCase() + tier.slice(1);
+    if (status !== "" && status.toLowerCase() !== tier.toLowerCase())
+      return tier + " · " + status;
+    return tier;
   }
 
   // Local calendar date, recomputed from nowMs so a panel left open across
@@ -549,27 +552,71 @@ Panel {
             }
           }
 
-          // ---------- Status ----------
+          // ---------- Alert / Status Banner ----------
           BorderSurface {
-            visible: !!root.provider && String(root.provider.usageStatusText || "") !== ""
+            readonly property string alertText: {
+              if (!root.provider)
+                return "";
+              var authHelp = String(root.provider.authHelpText || "").trim();
+              if (authHelp !== "")
+                return authHelp;
+              if (root.provider.ready === false) {
+                var status = String(root.provider.usageStatusText || "").trim();
+                if (status !== "")
+                  return status;
+              }
+              return "";
+            }
+
+            visible: alertText !== ""
             width: parent.width
-            implicitHeight: statusText.implicitHeight + Style.spacing.xl * 2
+            implicitHeight: alertRow.implicitHeight + Style.space(16)
             color: root.alpha(root.urgent, 0.10)
             borderSpec: Border.flat(root.alpha(root.urgent, 0.35), 1)
             radius: Style.cornerRadius
 
-            Text {
-              id: statusText
+            Row {
+              id: alertRow
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               anchors.leftMargin: Style.space(12)
               anchors.rightMargin: Style.space(12)
-              text: root.provider ? String(root.provider.authHelpText || "") : ""
+              spacing: Style.space(8)
+
+              Text {
+                text: "󰅚"
+                color: root.urgent
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                id: statusText
+                width: parent.width - Style.space(24)
+                text: parent.parent.alertText
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                wrapMode: Text.WordWrap
+                anchors.verticalCenter: parent.verticalCenter
+              }
+            }
+          }
+
+          // ---------- Direct API mode info ----------
+          Item {
+            visible: !balanceSection.visible && !limitsSection.visible && !!root.provider && root.provider.ready !== false
+            width: parent.width
+            implicitHeight: apiInfoText.implicitHeight + Style.space(8)
+
+            Text {
+              id: apiInfoText
+              text: "⚡ Pay-per-token API (Usage tracked from local logs)"
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              wrapMode: Text.WordWrap
             }
           }
 

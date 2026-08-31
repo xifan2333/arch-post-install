@@ -325,6 +325,53 @@ def probe_google(key: str, timeout: float = 4.0) -> dict:
     return res
 
 
+def refresh_kimi_oauth(auth_entry: dict) -> str | None:
+    refresh_token = auth_entry.get("refresh")
+    if not refresh_token:
+        return None
+    url = "https://auth.kimi.com/api/oauth/token"
+    data = urllib.parse.urlencode(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": "17e5f671-d194-4dfb-9706-5516cb48c098",
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            access_token = payload.get("access_token")
+            new_refresh = payload.get("refresh_token")
+            expires_in = payload.get("expires_in", 900)
+            if access_token:
+                auth_entry["access"] = access_token
+                if new_refresh:
+                    auth_entry["refresh"] = new_refresh
+                auth_entry["expires"] = int((time.time() + expires_in) * 1000)
+                auth_path = Path.home() / ".pi" / "agent" / "auth.json"
+                if auth_path.exists():
+                    try:
+                        all_auth = json.loads(auth_path.read_text(encoding="utf-8"))
+                        canonical_key = (
+                            "kimi-coding" if "kimi-coding" in all_auth else "kimi"
+                        )
+                        all_auth[canonical_key] = auth_entry
+                        auth_path.write_text(
+                            json.dumps(all_auth, indent=2), encoding="utf-8"
+                        )
+                    except COMMON_ERRORS:
+                        pass
+                return access_token
+    except COMMON_ERRORS as e:
+        print(f"Kimi token refresh failed: {e}", file=sys.stderr)
+    return None
+
+
 def probe_oauth_provider(provider_id: str, auth_entry: dict | None) -> dict:
     res = empty_result()
     res["tierLabel"] = DEFAULT_TIERS.get(provider_id, "API")
@@ -340,19 +387,27 @@ def probe_oauth_provider(provider_id: str, auth_entry: dict | None) -> dict:
     exp = auth_entry.get("expires")
     now_ms = time.time() * 1000
 
+    if (
+        exp
+        and isinstance(exp, (int, float))
+        and exp < 9e14
+        and exp < now_ms
+        and provider_id in ("kimi-coding", "kimi")
+        and auth_entry.get("refresh")
+    ):
+        refreshed = refresh_kimi_oauth(auth_entry)
+        if refreshed:
+            token = refreshed
+            exp = auth_entry.get("expires")
+
     if exp and isinstance(exp, (int, float)) and exp < 9e14:
-        exp_iso = datetime.fromtimestamp(exp / 1000).astimezone().isoformat()
         if exp < now_ms:
             return fail_res(
                 res,
                 "OAuth token expired",
-                "Re-authenticate or refresh token in Pi",
-                [{"title": "Session Token", "percent": 1.0, "resetsAt": exp_iso}],
+                "Re-authenticate in Pi",
             )
         res["ready"] = True
-        res["limits"] = [
-            {"title": "Session Token", "percent": 0.0, "resetsAt": exp_iso}
-        ]
 
     if provider_id in ("kimi-coding", "kimi") and token:
         try:
