@@ -11,7 +11,6 @@ import argparse
 import contextlib
 import json
 import os
-import queue
 import re
 import signal
 import subprocess
@@ -68,19 +67,6 @@ def translate(key, fallback="", **values):
 
 def translated_state(state):
     return translate(f"livestream_state_{state}", state)
-
-
-def notify_platform(platform_name: str, message: str, urgency: str = "normal"):
-    """Send a desktop notification with the live stream title and platform name."""
-    title = f"{translate('livestream_notify_title', 'Live Stream')} · {platform_name}"
-    with contextlib.suppress(OSError, subprocess.TimeoutExpired):
-        subprocess.run(
-            ["notify-send", "-u", urgency, title, message],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=2,
-            check=False,
-        )
 
 
 def refresh_capture_indicator():
@@ -331,400 +317,6 @@ def platform_status_lines(status):
     ]
 
 
-class FlvDistributor:
-    """Demuxes an input FLV stream, caches sequence headers, and distributes
-
-    frames to multiple subscriber queues with keyframe-aligned sync on connect.
-    """
-
-    def __init__(self, name: str):
-        self.name = name
-        self.header: bytes | None = None
-        self.metadata: bytes | None = None
-        self.avc_seq: bytes | None = None
-        self.aac_seq: bytes | None = None
-        self.subscribers: list[dict] = []
-        self.lock = threading.Lock()
-        self.running = True
-
-    def stop(self):
-        self.running = False
-
-    def subscribe(self, sub_queue: queue.Queue) -> dict:
-        with self.lock:
-            sub = {"queue": sub_queue, "synced": False}
-            self.subscribers.append(sub)
-            return sub
-
-    def unsubscribe(self, sub: dict):
-        with self.lock:
-            if sub in self.subscribers:
-                self.subscribers.remove(sub)
-
-    def read_loop(self, stream):
-        hdr = stream.read(13)
-        if len(hdr) < 13:
-            return
-        self.header = hdr
-
-        while self.running:
-            tag_hdr = stream.read(11)
-            if len(tag_hdr) < 11:
-                break
-            tag_type = tag_hdr[0]
-            data_size = int.from_bytes(tag_hdr[1:4], "big")
-
-            data = stream.read(data_size)
-            if len(data) < data_size:
-                break
-            prev_tag_size = stream.read(4)
-            if len(prev_tag_size) < 4:
-                break
-            raw_tag = tag_hdr + data + prev_tag_size
-
-            is_keyframe = False
-            if tag_type == 18:
-                self.metadata = raw_tag
-            elif tag_type == 9 and len(data) > 1:
-                codec_id = data[0] & 0x0F
-                avc_type = data[1]
-                frame_type = (data[0] >> 4) & 0x0F
-                if codec_id == 7 and avc_type == 0:
-                    self.avc_seq = raw_tag
-                elif frame_type == 1 and avc_type == 1:
-                    is_keyframe = True
-            elif tag_type == 8 and len(data) > 1:
-                sound_format = (data[0] >> 4) & 0x0F
-                aac_type = data[1]
-                if sound_format == 10 and aac_type == 0:
-                    self.aac_seq = raw_tag
-
-            with self.lock:
-                for sub in list(self.subscribers):
-                    q = sub["queue"]
-                    if not sub["synced"]:
-                        if is_keyframe:
-                            if self.header:
-                                q.put(self.header)
-                            if self.metadata:
-                                q.put(self.metadata)
-                            if self.avc_seq:
-                                q.put(self.avc_seq)
-                            if self.aac_seq:
-                                q.put(self.aac_seq)
-                            q.put(raw_tag)
-                            sub["synced"] = True
-                    else:
-                        with contextlib.suppress(queue.Full):
-                            q.put_nowait(raw_tag)
-
-
-class VerticalEncoder:
-    """Encodes a 16:9 FLV feed to a 9:16 vertical stream via ffmpeg."""
-
-    def __init__(
-        self,
-        distributor_16_9: FlvDistributor,
-        video_bitrate: int,
-        framerate: int,
-        keyint: int,
-        log_fn,
-    ):
-        self.distributor_16_9 = distributor_16_9
-        self.distributor_9_16 = FlvDistributor("9:16")
-        self.video_bitrate = video_bitrate
-        self.framerate = framerate
-        self.keyint = keyint
-        self.log = log_fn
-        self.process: subprocess.Popen | None = None
-        self.running = True
-        self.feed_thread: threading.Thread | None = None
-        self.read_thread: threading.Thread | None = None
-
-    def start(self):
-        gop = max(1, self.framerate * self.keyint)
-        command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "warning",
-            "-i",
-            "-",
-            "-filter_complex",
-            "scale=1080:-2:flags=lanczos,pad=1080:1920:0:(1920-ih)/2:black",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-tune",
-            "zerolatency",
-            "-b:v",
-            f"{self.video_bitrate}k",
-            "-pix_fmt",
-            "yuv420p",
-            "-g",
-            str(gop),
-            "-keyint_min",
-            str(gop),
-            "-sc_threshold",
-            "0",
-            "-map",
-            "0:a?",
-            "-c:a",
-            "copy",
-            "-f",
-            "flv",
-            "-",
-        ]
-        self.process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        self.feed_thread = threading.Thread(target=self._feed_loop, daemon=True)
-        self.feed_thread.start()
-        self.read_thread = threading.Thread(
-            target=self.distributor_9_16.read_loop,
-            args=(self.process.stdout,),
-            daemon=True,
-        )
-        self.read_thread.start()
-
-    def _feed_loop(self):
-        q = queue.Queue(maxsize=150)
-        sub = self.distributor_16_9.subscribe(q)
-        try:
-            while self.running and self.process and self.process.poll() is None:
-                try:
-                    chunk = q.get(timeout=0.2)
-                except queue.Empty:
-                    continue
-                try:
-                    self.process.stdin.write(chunk)
-                except (BrokenPipeError, OSError):
-                    break
-        finally:
-            self.distributor_16_9.unsubscribe(sub)
-            if self.process and self.process.stdin:
-                with contextlib.suppress(OSError):
-                    self.process.stdin.close()
-
-    def stop(self):
-        self.running = False
-        self.distributor_9_16.stop()
-        if self.process and self.process.poll() is None:
-            with contextlib.suppress(OSError):
-                self.process.terminate()
-            time.sleep(0.1)
-            if self.process and self.process.poll() is None:
-                with contextlib.suppress(OSError):
-                    self.process.kill()
-
-
-class PlatformWorker:
-    """Manages an isolated ffmpeg stream worker for one streaming platform.
-
-    If the remote platform drops or disconnects, this worker backs off and
-    reconnects independently without interrupting any other platform's stream.
-    """
-
-    def __init__(
-        self,
-        platform: Platform,
-        distributor: FlvDistributor,
-        log_fn,
-        safe_log_fn,
-    ):
-        self.platform = platform
-        self.distributor = distributor
-        self.log = log_fn
-        self.safe_log_line = safe_log_fn
-        self.state = "connecting"
-        self.process: subprocess.Popen | None = None
-        self.worker_thread: threading.Thread | None = None
-        self.log_thread: threading.Thread | None = None
-        self.running = True
-        self.baseline_acked: int | None = None
-        self.last_acked: int | None = None
-        self.last_progress: float | None = None
-        self.notified_disconnect = False
-
-    def start(self):
-        self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
-        self.worker_thread.start()
-
-    def worker_command(self) -> list[str]:
-        fmt = "mpegts" if self.platform.scheme == "srt" else "flv"
-        return [
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "warning",
-            "-i",
-            "-",
-            "-c",
-            "copy",
-            "-f",
-            fmt,
-            self.platform.url,
-        ]
-
-    def _read_stderr(self, proc):
-        if proc is None or proc.stderr is None:
-            return
-        for raw in iter(proc.stderr.readline, b""):
-            line = raw.decode("utf-8", errors="replace").rstrip()
-            if not line or line.startswith(
-                (
-                    "frame=",
-                    "size=",
-                    "time=",
-                    "bitrate=",
-                    "speed=",
-                    "video:",
-                    "audio:",
-                )
-            ):
-                continue
-            self.safe_log_line(f"[{self.platform.name}] {line}")
-
-    def _worker_loop(self):
-        while self.running:
-            q = queue.Queue(maxsize=150)
-            sub = self.distributor.subscribe(q)
-            cmd = self.worker_command()
-            self.baseline_acked = None
-            self.last_acked = None
-            self.last_progress = None
-            self.state = "connecting"
-            code = None
-            try:
-                self.process = subprocess.Popen(
-                    cmd,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                )
-                self.log_thread = threading.Thread(
-                    target=self._read_stderr,
-                    args=(self.process,),
-                    daemon=True,
-                )
-                self.log_thread.start()
-
-                while self.running:
-                    try:
-                        tag = q.get(timeout=0.2)
-                    except queue.Empty:
-                        if self.process.poll() is not None:
-                            break
-                        continue
-                    try:
-                        self.process.stdin.write(tag)
-                    except (BrokenPipeError, OSError):
-                        break
-            except OSError as exc:
-                self.log(
-                    f"Platform [{self.platform.name}] failed to start worker: {exc}"
-                )
-            finally:
-                self.distributor.unsubscribe(sub)
-                if self.process is not None:
-                    if self.process.stdin:
-                        with contextlib.suppress(OSError):
-                            self.process.stdin.close()
-                    code = self.process.poll()
-                    if code is None:
-                        with contextlib.suppress(OSError):
-                            self.process.terminate()
-                        try:
-                            self.process.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            with contextlib.suppress(OSError):
-                                self.process.kill()
-                            code = self.process.poll()
-                    else:
-                        code = self.process.returncode
-                self.process = None
-
-            if not self.running:
-                self.state = "offline"
-                break
-
-            self.state = "reconnecting"
-            self.log(
-                f"Platform [{self.platform.name}] disconnected (exit code {code}), "
-                f"reconnecting in 3s..."
-            )
-            if not self.notified_disconnect:
-                self.notified_disconnect = True
-                notify_platform(
-                    self.platform.name,
-                    translate(
-                        "livestream_notify_platform_reconnecting",
-                        "Connection dropped, reconnecting...",
-                    ),
-                    urgency="critical",
-                )
-            for _ in range(15):
-                if not self.running:
-                    break
-                time.sleep(0.2)
-
-    def update_state(self, sockets: dict[int, int], now: float):
-        if not self.running:
-            self.state = "offline"
-            return
-
-        if self.process is None or self.process.poll() is not None:
-            self.state = "reconnecting"
-            return
-
-        if self.platform.scheme == "srt":
-            self.state = "sending"
-            return
-
-        acked = sockets.get(self.process.pid, 0)
-        if self.last_acked is None or acked < self.last_acked:
-            self.baseline_acked = acked
-            self.last_acked = acked
-            self.last_progress = None
-        elif acked > self.last_acked:
-            self.last_acked = acked
-            self.last_progress = now
-
-        baseline = self.baseline_acked
-        delta = acked - baseline if baseline is not None else 0
-        recent = self.last_progress is not None and now - self.last_progress <= 5
-        if delta >= 65536 and recent:
-            if self.notified_disconnect:
-                self.notified_disconnect = False
-                notify_platform(
-                    self.platform.name,
-                    translate(
-                        "livestream_notify_platform_recovered",
-                        "Stream reconnected",
-                    ),
-                    urgency="normal",
-                )
-            self.state = "sending"
-        elif delta >= 65536:
-            self.state = "stalled"
-        else:
-            self.state = "connecting"
-
-    def stop(self):
-        self.running = False
-        if self.process is not None and self.process.poll() is None:
-            with contextlib.suppress(OSError):
-                self.process.terminate()
-            time.sleep(0.1)
-            if self.process is not None and self.process.poll() is None:
-                with contextlib.suppress(OSError):
-                    self.process.kill()
-
-
 class LivestreamService:
     def __init__(self, args):
         self.args = args
@@ -745,12 +337,13 @@ class LivestreamService:
         self.log_handle = self._open_log(args.log_file)
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION_XML)
         self.encoder_process = None
+        self.tee_process = None
+        self.tee_log_thread = None
         self.encoder_log_thread = None
-        self.master_reader_thread = None
-        self.distributor_16_9 = None
-        self.vertical_encoder = None
-        self.workers = []
         self.stream_state = "connecting"
+        self.baseline_acked = None
+        self.last_acked = None
+        self.last_progress = None
 
     @staticmethod
     def _open_log(path):
@@ -796,7 +389,7 @@ class LivestreamService:
                 continue
             self.safe_log_line(line)
 
-    def encoder_command(self, video_bitrate, audio_bitrate):
+    def encoder_command(self, video_bitrate, audio_bitrate, output=None):
         command = [
             "gpu-screen-recorder",
             "-w",
@@ -821,11 +414,95 @@ class LivestreamService:
             self.args.audio_source,
             "-fallback-cpu-encoding",
             "yes",
-            "-o",
-            "-",
         ]
         if self.args.scale_width:
             command.extend(["-s", f"{self.args.scale_width}x0"])
+        if output is not None:
+            command.extend(["-o", output])
+        return command
+
+    @staticmethod
+    def platform_format(platform):
+        return "mpegts" if platform.scheme == "srt" else "flv"
+
+    def lan_only(self):
+        return all(platform.scheme == "srt" for platform in self.platforms)
+
+    @staticmethod
+    def escape_tee_slave(url):
+        special = set("\\'|:[]=?&")
+        return "".join(
+            f"\\{char}" if char in special or char.isspace() else char for char in url
+        )
+
+    @staticmethod
+    def vertical_filter():
+        return "scale=1080:-2:flags=lanczos,pad=1080:1920:0:(1920-ih)/2:black"
+
+    def tee_targets(self, platforms):
+        return "|".join(
+            f"[f={self.platform_format(platform)}]{self.escape_tee_slave(platform.url)}"
+            for platform in platforms
+        )
+
+    def fanout_command(self):
+        groups = {
+            mode: [
+                platform for platform in self.platforms if platform.aspect_ratio == mode
+            ]
+            for mode in ("16:9", "9:16")
+        }
+        filters = (
+            [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
+        )
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-i", "-"]
+        if filters:
+            command.extend(["-filter_complex", ";".join(filters)])
+
+        gop = max(1, self.args.framerate * self.args.keyint)
+        for mode in ("16:9", "9:16"):
+            platforms = groups[mode]
+            if not platforms:
+                continue
+
+            if mode == "16:9":
+                command.extend(["-map", "0:v", "-c:v", "copy"])
+            else:
+                command.extend(
+                    [
+                        "-map",
+                        "[v_vertical]",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-tune",
+                        "zerolatency",
+                        "-b:v",
+                        f"{self.video_bitrate}k",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-g",
+                        str(gop),
+                        "-keyint_min",
+                        str(gop),
+                        "-sc_threshold",
+                        "0",
+                    ]
+                )
+
+            command.extend(
+                [
+                    "-map",
+                    "0:a?",
+                    "-c:a",
+                    "copy",
+                    "-f",
+                    "tee",
+                    self.tee_targets(platforms),
+                ]
+            )
+
         return command
 
     def start_stream(self):
@@ -842,54 +519,56 @@ class LivestreamService:
             platform.video_bitrate = video_bitrate
             platform.audio_bitrate = audio_bitrate
 
+        direct_platform = (
+            self.platforms[0]
+            if len(self.platforms) == 1
+            and self.platforms[0].scheme == "rtmp"
+            and self.platforms[0].aspect_ratio == "16:9"
+            else None
+        )
+
         try:
-            self.encoder_process = subprocess.Popen(
-                self.encoder_command(video_bitrate, audio_bitrate),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+            if direct_platform is not None:
+                self.encoder_process = subprocess.Popen(
+                    self.encoder_command(
+                        video_bitrate,
+                        audio_bitrate,
+                        output=direct_platform.url,
+                    ),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                self.tee_process = None
+                self.log(
+                    f"direct stream started at {video_bitrate}/{audio_bitrate} kbps "
+                    f"-> {direct_platform.name}",
+                )
+            else:
+                self.encoder_process = subprocess.Popen(
+                    self.encoder_command(video_bitrate, audio_bitrate),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                self.tee_process = subprocess.Popen(
+                    self.fanout_command(),
+                    stdin=self.encoder_process.stdout,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+                self.encoder_process.stdout.close()
+                self.log(
+                    f"fanout stream started at {video_bitrate}/{audio_bitrate} kbps "
+                    f"-> {len(self.platforms)} target(s)",
+                )
         except OSError as error:
-            self.log(f"failed to start encoder process: {error}")
+            self.log(f"failed to start stream pipeline: {error}")
             self.terminate_processes()
+            self.encoder_process = None
+            self.tee_process = None
             self.stream_state = "failed"
             self.emit_status(force=True)
             self.all_dead_since = time.monotonic()
             return
-
-        self.distributor_16_9 = FlvDistributor("16:9")
-        self.master_reader_thread = threading.Thread(
-            target=self.distributor_16_9.read_loop,
-            args=(self.encoder_process.stdout,),
-            daemon=True,
-        )
-        self.master_reader_thread.start()
-
-        has_vertical = any(p.aspect_ratio == "9:16" for p in self.platforms)
-        if has_vertical:
-            self.vertical_encoder = VerticalEncoder(
-                self.distributor_16_9,
-                video_bitrate,
-                self.args.framerate,
-                self.args.keyint,
-                self.log,
-            )
-            self.vertical_encoder.start()
-
-        self.workers = []
-        for platform in self.platforms:
-            dist = (
-                self.vertical_encoder.distributor_9_16
-                if platform.aspect_ratio == "9:16" and self.vertical_encoder
-                else self.distributor_16_9
-            )
-            worker = PlatformWorker(
-                platform,
-                dist,
-                self.log,
-                self.safe_log_line,
-            )
-            self.workers.append(worker)
-            worker.start()
 
         self.encoder_log_thread = threading.Thread(
             target=self.read_process_log,
@@ -897,10 +576,13 @@ class LivestreamService:
             daemon=True,
         )
         self.encoder_log_thread.start()
-        self.log(
-            f"multi-stream started at {video_bitrate}/{audio_bitrate} kbps "
-            f"-> {len(self.platforms)} independent target(s) with auto-reconnect"
-        )
+        if self.tee_process is not None:
+            self.tee_log_thread = threading.Thread(
+                target=self.read_process_log,
+                args=(self.tee_process,),
+                daemon=True,
+            )
+            self.tee_log_thread.start()
         self.emit_status(force=True)
 
     @staticmethod
@@ -933,45 +615,57 @@ class LivestreamService:
                 sockets[pid] = sockets.get(pid, 0) + acked
         return sockets
 
+    def stream_process(self):
+        return (
+            self.tee_process if self.tee_process is not None else self.encoder_process
+        )
+
     def update_stream(self, sockets, now):
-        if self.encoder_process is None or self.encoder_process.poll() is not None:
+        process = self.stream_process()
+        if process is None or process.poll() is not None:
             self.stream_state = "failed"
-            return
-
-        any_sending = False
-        any_active = False
-
-        for worker in self.workers:
-            worker.update_state(sockets, now)
-            if worker.state == "sending":
-                any_sending = True
-            if worker.state in ("sending", "connecting", "stalled", "reconnecting"):
-                any_active = True
-
-        if any_sending:
-            self.stream_state = "sending"
-        elif any_active:
-            self.stream_state = "connecting"
         else:
-            self.stream_state = "failed"
+            acked = sockets.get(process.pid, 0)
+            if self.last_acked is None or acked < self.last_acked:
+                self.baseline_acked = acked
+                self.last_acked = acked
+                self.last_progress = None
+            elif acked > self.last_acked:
+                self.last_acked = acked
+                self.last_progress = now
+
+            baseline = self.baseline_acked
+            delta = acked - baseline if baseline is not None else 0
+            recent = self.last_progress is not None and now - self.last_progress <= 5
+            if delta >= 65536 and recent:
+                self.stream_state = "sending"
+            elif delta >= 65536:
+                self.stream_state = "stalled"
+            else:
+                self.stream_state = "connecting"
+
+            if self.lan_only():
+                # SRT establishes its peer before ffmpeg starts writing. A live
+                # fanout process therefore represents an active SRT session.
+                self.stream_state = "sending"
 
     def build_status(self):
         now = time.monotonic()
         duration = int(now - self.started_at) if self.started_at is not None else 0
+        state = self.stream_state
         platforms = [
             {
-                "name": worker.platform.name,
-                "state": worker.state,
-                "video_bitrate": worker.platform.video_bitrate,
-                "audio_bitrate": worker.platform.audio_bitrate,
-                "aspect_ratio": worker.platform.aspect_ratio,
+                "name": p.name,
+                "state": state,
+                "video_bitrate": p.video_bitrate,
+                "audio_bitrate": p.audio_bitrate,
+                "aspect_ratio": p.aspect_ratio,
             }
-            for worker in self.workers
+            for p in self.platforms
         ]
         return {
-            "active": self.stream_state
-            in ("connecting", "sending", "stalled", "reconnecting"),
-            "state": self.stream_state,
+            "active": state in ("connecting", "sending", "stalled"),
+            "state": state,
             "mode": self.args.target,
             "duration_seconds": duration,
             "bitrate": self.video_bitrate,
@@ -1045,19 +739,16 @@ class LivestreamService:
         return GLib.SOURCE_REMOVE
 
     def terminate_processes(self):
-        for worker in self.workers:
-            worker.stop()
-        if self.vertical_encoder is not None:
-            self.vertical_encoder.stop()
-        if self.distributor_16_9 is not None:
-            self.distributor_16_9.stop()
-        if self.encoder_process is not None and self.encoder_process.poll() is None:
-            with contextlib.suppress(OSError):
-                self.encoder_process.terminate()
-            time.sleep(0.2)
-            if self.encoder_process.poll() is None:
+        processes = (self.tee_process, self.encoder_process)
+        for process in processes:
+            if process is not None and process.poll() is None:
                 with contextlib.suppress(OSError):
-                    self.encoder_process.kill()
+                    process.terminate()
+        time.sleep(0.2)
+        for process in processes:
+            if process is not None and process.poll() is None:
+                with contextlib.suppress(OSError):
+                    process.kill()
 
     def tick(self):
         if self.stopping:
@@ -1101,8 +792,9 @@ class LivestreamService:
                 self.connection.unregister_object(self.registration_id)
             if self.owner_id:
                 Gio.bus_unown_name(self.owner_id)
-            if self.encoder_log_thread is not None:
-                self.encoder_log_thread.join(timeout=1)
+            for thread in (self.encoder_log_thread, self.tee_log_thread):
+                if thread is not None:
+                    thread.join(timeout=1)
             self.log_handle.close()
             refresh_capture_indicator()
         return 0
