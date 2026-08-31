@@ -45,6 +45,21 @@ def to_omarchy_agent_id(provider: str) -> str:
     return provider
 
 
+def format_window_title(label: str) -> str:
+    # Clean up Antigravity and window labels for Omarchy UI
+    if label == "Gemini 5h" or label == "5h":
+        return "5h" if "Gemini" not in label else "Gemini (5h)"
+    if label == "Gemini Wk" or label == "Gemini Weekly":
+        return "Gemini (Weekly)"
+    if label == "Claude/GPT 5h":
+        return "Claude/GPT (5h)"
+    if label == "Claude/GPT Wk" or label == "Claude/GPT Weekly":
+        return "Claude/GPT (Weekly)"
+    if label == "7d":
+        return "7-Day"
+    return label
+
+
 def convert_snapshot_to_record(snap: dict) -> dict:
     provider = snap.get("provider", "")
     agent_id = to_omarchy_agent_id(provider)
@@ -56,10 +71,11 @@ def convert_snapshot_to_record(snap: dict) -> dict:
     balance = None
 
     for win in snap.get("windows", []):
+        raw_label = str(win.get("label") or "Limit")
         if win.get("isCurrency"):
             used = float(win.get("usedValue") or 0.0)
             limit_val = float(win.get("limitValue") or 0.0)
-            currency = "CNY" if "CNY" in win.get("label", "") else "USD"
+            currency = "CNY" if "CNY" in raw_label else "USD"
             balance = {
                 "currency": currency,
                 "funded": limit_val if limit_val > 0 else used,
@@ -72,7 +88,7 @@ def convert_snapshot_to_record(snap: dict) -> dict:
         pct = float(win.get("usedPercent") or 0.0) / 100.0
         limits.append(
             {
-                "title": str(win.get("label") or "Limit"),
+                "title": format_window_title(raw_label),
                 "percent": min(1.0, max(0.0, round(pct, 3))),
                 "resetsAt": win.get("resetsAt"),
             }
