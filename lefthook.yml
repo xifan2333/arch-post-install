@@ -1,8 +1,7 @@
 # Lefthook git hooks. Install with `mise run hooks` (runs `lefthook install`).
 #
-# pre-commit automatically runs formatters (with stage_fixed to include fixes)
-# and then runs static lint and syntax checks.
-#
+# pre-commit automatically formats and lints staged files in parallel (< 0.5s).
+# pre-push runs the full repository check before pushing upstream.
 # Commit messages follow Conventional Commits via commitlint.
 
 commit-msg:
@@ -12,12 +11,37 @@ commit-msg:
       run: commitlint --edit "$1"
 
 pre-commit:
+  parallel: true
   commands:
-    format:
-      run: mise run format
+    python:
+      glob: "*.py"
+      run: ruff check --fix {staged_files} && ruff format {staged_files}
       stage_fixed: true
-    lint:
-      run: mise run lint
+    shell:
+      glob: "*.{sh,bash}"
+      run: shellcheck --rcfile=.shellcheckrc {staged_files} && shfmt -w -i 4 {staged_files}
+      stage_fixed: true
+    zsh:
+      glob: "*.zsh"
+      run: zsh -n {staged_files}
+    lua:
+      glob: "*.lua"
+      run: stylua {staged_files} && luac -p {staged_files}
+      stage_fixed: true
+    toml:
+      glob: "*.toml"
+      run: taplo format {staged_files} && taplo lint --no-schema {staged_files}
+      stage_fixed: true
+    prettier:
+      glob: "*.{json,jsonc,yaml,yml}"
+      run: prettier --write {staged_files}
+      stage_fixed: true
+    javascript:
+      glob: "*.js"
+      run: oxlint {staged_files}
+    qml:
+      glob: "*.qml"
+      run: /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml -i /usr/share/omarchy/shell/Commons/qmldir -i /usr/share/omarchy/shell/Ui/qmldir --max-warnings 0 {staged_files}
 
 pre-push:
   commands:
