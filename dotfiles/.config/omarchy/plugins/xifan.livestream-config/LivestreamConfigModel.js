@@ -2,6 +2,7 @@
 
 const DEFAULT_VIDEO_BITRATE = 6000
 const DEFAULT_AUDIO_BITRATE = 160
+const DEFAULT_LAN_VIDEO_BITRATE = 12000
 
 function boundedInt(value, fallback, minVal, maxVal) {
   const num = parseInt(value, 10)
@@ -13,6 +14,7 @@ function parseConfig(rawText) {
   const result = {
     videoBitrate: DEFAULT_VIDEO_BITRATE,
     audioBitrate: DEFAULT_AUDIO_BITRATE,
+    lanBitrate: DEFAULT_LAN_VIDEO_BITRATE,
     platforms: []
   }
 
@@ -38,6 +40,12 @@ function parseConfig(rawText) {
     DEFAULT_AUDIO_BITRATE,
     32,
     320
+  )
+  result.lanBitrate = boundedInt(
+    data.lan_bitrate || data.lan_video_bitrate,
+    DEFAULT_LAN_VIDEO_BITRATE,
+    1000,
+    80000
   )
 
   const items = Array.isArray(data.platforms) ? data.platforms : []
@@ -65,6 +73,7 @@ function serializeConfig(model) {
   const payload = {
     bitrate: boundedInt(model.videoBitrate, DEFAULT_VIDEO_BITRATE, 100, 50000),
     audio_bitrate: boundedInt(model.audioBitrate, DEFAULT_AUDIO_BITRATE, 32, 320),
+    lan_bitrate: boundedInt(model.lanBitrate, DEFAULT_LAN_VIDEO_BITRATE, 1000, 80000),
     platforms: []
   }
 

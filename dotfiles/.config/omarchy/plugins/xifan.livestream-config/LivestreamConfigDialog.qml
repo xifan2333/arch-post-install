@@ -22,6 +22,7 @@ Item {
   property bool opened: false
   property int videoBitrate: 6000
   property int audioBitrate: 160
+  property int lanBitrate: 12000
   property var platforms: []
 
   readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/livestream/config.json"
@@ -41,6 +42,7 @@ Item {
     const cfg = Model.parseConfig(raw);
     root.videoBitrate = cfg.videoBitrate;
     root.audioBitrate = cfg.audioBitrate;
+    root.lanBitrate = cfg.lanBitrate;
     root.platforms = cfg.platforms.map(function (p) {
       return {
         enabled: p.enabled,
@@ -57,6 +59,7 @@ Item {
     const payload = {
       videoBitrate: root.videoBitrate,
       audioBitrate: root.audioBitrate,
+      lanBitrate: root.lanBitrate,
       platforms: root.platforms
     };
     const serialized = Model.serializeConfig(payload);
@@ -281,6 +284,37 @@ Item {
                       var n = Number(t);
                       if (!isNaN(n)) {
                         root.audioBitrate = n;
+                        root.scheduleSave();
+                      }
+                    }
+                  }
+                }
+                Row {
+                  spacing: 8
+                  anchors.verticalCenter: parent.verticalCenter
+                  Text {
+                    text: "LAN 码率 (kbps):"
+                    color: Color.foreground
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.body
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                  TextField {
+                    width: 100
+                    text: String(root.lanBitrate)
+                    validator: IntValidator {
+                      bottom: 1000
+                      top: 80000
+                    }
+                    // See video bitrate field: empty text must not write back
+                    // the default (Number("") is 0).
+                    onTextEdited: {
+                      var t = text.trim();
+                      if (t === "")
+                        return;
+                      var n = Number(t);
+                      if (!isNaN(n)) {
+                        root.lanBitrate = n;
                         root.scheduleSave();
                       }
                     }

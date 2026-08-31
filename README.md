@@ -278,6 +278,7 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 {
   "bitrate": 6000,
   "audio_bitrate": 160,
+  "lan_bitrate": 12000,
   "platforms": [
     {
       "name": "bilibili",
@@ -290,7 +291,9 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 }
 ```
 
-`enabled` 控制该平台是否参与推流（缺省为 `true`）。`aspect_ratio` 只接受 `16:9` 和 `9:16`，其中 9:16 会把 16:9 原画居中放入竖屏画布。在图形配置界面可临时禁用平台或切换比例，无需删除配置。
+`enabled` 控制该平台是否参与推流（缺省为 `true`）。`aspect_ratio` 只接受 `16:9` 和 `9:16`，其中 9:16 会把 16:9 原画居中放入 1080x1920 竖屏画布。在图形配置界面可临时禁用平台或切换比例，无需删除配置。
+
+`lan_bitrate`（缺省 `12000`）只作用于 SRT 竖屏重编码（推手机 vcam 的局域网链路）：高于互联网码率以减少手机端二次编码前的代际损失，同时避免过高导致 WiFi 波动时 SRT 缓冲堆积、卡顿和延迟飙升。信号差的无线网络可降到 `8000`，5GHz 近距离可提到 `20000`。
 
 对外只有 `livestream`。`livestream-service` 是内部 D-Bus 守护进程（读这份 JSON：单个未合成的 RTMP/RTMPS 由 `gpu-screen-recorder` 直推；SRT、多平台或需要合成时经 ffmpeg 分组分发）。`livestream-danmaku` 只在开播时拉起 Herdr 弹幕桌。若全部平台禁用，视为未配置有效推流目标。
 

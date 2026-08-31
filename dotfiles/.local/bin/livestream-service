@@ -22,6 +22,12 @@ from pathlib import Path
 
 DEFAULT_VIDEO_BITRATE = 6000
 DEFAULT_AUDIO_BITRATE = 160
+# LAN (SRT) hops have much cheaper bandwidth than internet RTMP, so the vertical
+# re-encode feeding the phone (vcam) uses a higher bitrate to reduce generation
+# loss before the phone-side live app re-encodes. Balance point: high enough to
+# look clean after the app's own re-encode, low enough to stay smooth on WiFi
+# (too high -> SRT buffer buildup / retransmit bursts -> stutter and latency).
+DEFAULT_LAN_VIDEO_BITRATE = 12000
 
 import gi
 
@@ -199,9 +205,10 @@ def load_stream_config(path):
 
     video = DEFAULT_VIDEO_BITRATE
     audio = DEFAULT_AUDIO_BITRATE
+    lan = DEFAULT_LAN_VIDEO_BITRATE
     platforms = []
     if not config_path.is_file():
-        return platforms, video, audio
+        return platforms, video, audio, lan
 
     try:
         data = json.loads(config_path.read_text(encoding="utf-8"))
@@ -222,8 +229,14 @@ def load_stream_config(path):
         32,
         320,
     )
+    lan = bounded_int(
+        data.get("lan_bitrate", data.get("lan_video_bitrate")),
+        DEFAULT_LAN_VIDEO_BITRATE,
+        1000,
+        80000,
+    )
     platforms = platforms_from_items(data.get("platforms") or [], video, audio)
-    return platforms, video, audio
+    return platforms, video, audio, lan
 
 
 def offline_status():
@@ -320,10 +333,13 @@ def platform_status_lines(status):
 class LivestreamService:
     def __init__(self, args):
         self.args = args
-        platforms, video_bitrate, audio_bitrate = load_stream_config(args.config)
+        platforms, video_bitrate, audio_bitrate, lan_bitrate = load_stream_config(
+            args.config
+        )
         self.platforms = platforms
         self.video_bitrate = video_bitrate
         self.audio_bitrate = audio_bitrate
+        self.lan_video_bitrate = lan_bitrate
         self.started_at = time.monotonic()
         self.loop = GLib.MainLoop()
         self.connection = None
@@ -439,11 +455,16 @@ class LivestreamService:
     def has_vaapi():
         return Path("/dev/dri/renderD128").exists()
 
-    def vertical_filter(self):
-        base = "scale=720:-2:flags=bilinear,pad=720:1280:0:(1280-ih)/2:black"
-        if self.has_vaapi():
-            return f"{base},format=nv12,hwupload"
-        return base
+    @staticmethod
+    def vertical_filter(use_vaapi):
+        if use_vaapi:
+            # Full-GPU path: hwaccel decode hands VAAPI frames straight to
+            # scale+pad, no CPU frame copies. pad_vaapi uses ih (not h).
+            return (
+                "scale_vaapi=w=1080:h=-2,"
+                "pad_vaapi=w=1080:h=1920:x=0:y=(1920-ih)/2:color=black"
+            )
+        return "scale=1080:-2:flags=lanczos,pad=1080:1920:0:(1920-ih)/2:black"
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -460,7 +481,9 @@ class LivestreamService:
         }
         use_vaapi = self.has_vaapi() and bool(groups["9:16"])
         filters = (
-            [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
+            [f"[0:v]{self.vertical_filter(use_vaapi)}[v_vertical]"]
+            if groups["9:16"]
+            else []
         )
         command = ["ffmpeg", "-hide_banner", "-loglevel", "warning"]
         if use_vaapi:
@@ -468,6 +491,12 @@ class LivestreamService:
                 [
                     "-init_hw_device",
                     "vaapi=va:/dev/dri/renderD128",
+                    "-hwaccel",
+                    "vaapi",
+                    "-hwaccel_device",
+                    "va",
+                    "-hwaccel_output_format",
+                    "vaapi",
                     "-filter_hw_device",
                     "va",
                 ]
@@ -494,6 +523,13 @@ class LivestreamService:
             if mode == "16:9":
                 command.extend(["-map", "0:v", "-c:v", "copy"])
             else:
+                # SRT (LAN) targets get the high lan bitrate; RTMP targets are
+                # capped by the platform so they keep the internet bitrate.
+                vertical_bitrate = (
+                    self.lan_video_bitrate
+                    if any(p.scheme == "srt" for p in platforms)
+                    else self.video_bitrate
+                )
                 if use_vaapi:
                     command.extend(
                         [
@@ -502,7 +538,7 @@ class LivestreamService:
                             "-c:v",
                             "h264_vaapi",
                             "-b:v",
-                            f"{self.video_bitrate}k",
+                            f"{vertical_bitrate}k",
                             "-g",
                             str(gop),
                             "-keyint_min",
@@ -523,7 +559,7 @@ class LivestreamService:
                             "-tune",
                             "zerolatency",
                             "-b:v",
-                            f"{self.video_bitrate}k",
+                            f"{vertical_bitrate}k",
                             "-pix_fmt",
                             "yuv420p",
                             "-g",
@@ -564,7 +600,11 @@ class LivestreamService:
         video_bitrate = self.video_bitrate
         audio_bitrate = self.audio_bitrate
         for platform in self.platforms:
-            platform.video_bitrate = video_bitrate
+            platform.video_bitrate = (
+                self.lan_video_bitrate
+                if platform.scheme == "srt" and platform.aspect_ratio == "9:16"
+                else video_bitrate
+            )
             platform.audio_bitrate = audio_bitrate
 
         try:
@@ -829,7 +869,7 @@ def main():
     if args.command == "run":
         return LivestreamService(args).run()
     if args.command == "validate":
-        platforms, _video, _audio = load_stream_config(args.config)
+        platforms, _video, _audio, _lan = load_stream_config(args.config)
         return 0 if platforms else 3
     if args.command == "is-active":
         status = get_remote_status()
