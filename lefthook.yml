@@ -42,8 +42,3 @@ pre-commit:
     qml:
       glob: "*.qml"
       run: /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml -i /usr/share/omarchy/shell/Commons/qmldir -i /usr/share/omarchy/shell/Ui/qmldir --max-warnings 0 {staged_files}
-
-pre-push:
-  commands:
-    lint:
-      run: mise run lint
