@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Omarchy agent usage collector.
 
-Discovers and invokes pi-usage CLI to fetch live quotas & local session stats,
+Discovers and invokes pi-quotas CLI to fetch live quotas & local session stats,
 and atomically writes state records to ~/.local/state/omarchy/agents/usage/.
 """
 
@@ -29,28 +29,21 @@ TIER_LABELS = {
 }
 
 
-def find_pi_usage_command() -> list[str] | None:
+def find_pi_quotas_command() -> list[str] | None:
     # 1. Explicit environment variable override
-    if custom := os.environ.get("PI_USAGE_BIN"):
+    if custom := os.environ.get("PI_QUOTAS_BIN") or os.environ.get("PI_USAGE_BIN"):
         return [custom]
 
-    # 2. Global binary in system PATH (e.g. npm install -g pi-usage)
-    if bin_path := shutil.which("pi-usage"):
+    # 2. Global binary in system PATH (e.g. npm install -g pi-quotas)
+    if bin_path := shutil.which("pi-quotas") or shutil.which("pi-usage"):
         return [bin_path]
 
     # 3. Pi package installation paths & local dev fallbacks
     pi_agent_dir = Path.home() / ".pi" / "agent"
     candidate_paths = [
+        pi_agent_dir / "npm" / "node_modules" / "pi-quotas" / "dist" / "cli.js",
+        Path.home() / "Code" / "pi-quotas" / "dist" / "cli.js",
         pi_agent_dir / "npm" / "node_modules" / "pi-usage" / "dist" / "cli.js",
-        (
-            pi_agent_dir
-            / "npm"
-            / "node_modules"
-            / "@xifan2284"
-            / "pi-usage"
-            / "dist"
-            / "cli.js"
-        ),
         Path.home() / "Code" / "pi-usage" / "dist" / "cli.js",
     ]
 
@@ -59,6 +52,10 @@ def find_pi_usage_command() -> list[str] | None:
             return ["node", str(cand)]
 
     # 4. Search git/symlink installations in Pi directory
+    for cand in pi_agent_dir.glob("**/pi-quotas/dist/cli.js"):
+        if cand.exists():
+            return ["node", str(cand)]
+
     for cand in pi_agent_dir.glob("**/pi-usage/dist/cli.js"):
         if cand.exists():
             return ["node", str(cand)]
@@ -157,9 +154,9 @@ def write_record_atomically(usage_dir: Path, agent_id: str, record: dict) -> Non
 
 
 def main() -> int:
-    cmd = find_pi_usage_command()
+    cmd = find_pi_quotas_command()
     if not cmd:
-        print("pi-usage executable not found in PATH or ~/.pi/agent", file=sys.stderr)
+        print("pi-quotas executable not found in PATH or ~/.pi/agent", file=sys.stderr)
         return 1
 
     args = [*cmd, "--json"]
@@ -169,7 +166,7 @@ def main() -> int:
     try:
         proc = subprocess.run(args, capture_output=True, text=True, check=False)
         if proc.returncode != 0:
-            print(f"pi-usage CLI error: {proc.stderr}", file=sys.stderr)
+            print(f"pi-quotas CLI error: {proc.stderr}", file=sys.stderr)
             return proc.returncode
 
         snapshots = json.loads(proc.stdout)
@@ -182,7 +179,7 @@ def main() -> int:
 
         return 0
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as e:
-        print(f"Failed to execute pi-usage collector: {e}", file=sys.stderr)
+        print(f"Failed to execute pi-quotas collector: {e}", file=sys.stderr)
         return 1
 
 
