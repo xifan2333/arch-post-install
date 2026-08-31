@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Omarchy agent usage collector.
 
-Discovers and invokes pi-quotas CLI to fetch live quotas & local session stats,
+Invokes pi-quotas CLI to fetch live quotas & local session stats,
 and atomically writes state records to ~/.local/state/omarchy/agents/usage/.
 """
 
@@ -30,35 +30,20 @@ TIER_LABELS = {
 
 
 def find_pi_quotas_command() -> list[str] | None:
-    # 1. Explicit environment variable override
-    if custom := os.environ.get("PI_QUOTAS_BIN") or os.environ.get("PI_USAGE_BIN"):
+    # 1. Explicit override
+    if custom := os.environ.get("PI_QUOTAS_BIN"):
         return [custom]
 
-    # 2. Global binary in system PATH (e.g. npm install -g pi-quotas)
-    if bin_path := shutil.which("pi-quotas") or shutil.which("pi-usage"):
+    # 2. Standard resolution via PATH including Pi package bin directory
+    pi_bin_dir = Path.home() / ".pi" / "agent" / "npm" / "node_modules" / ".bin"
+    search_path = f"{pi_bin_dir}:{os.environ.get('PATH', '')}"
+    if bin_path := shutil.which("pi-quotas", path=search_path):
         return [bin_path]
 
-    # 3. Pi package installation paths & local dev fallbacks
-    pi_agent_dir = Path.home() / ".pi" / "agent"
-    candidate_paths = [
-        pi_agent_dir / "npm" / "node_modules" / "pi-quotas" / "dist" / "cli.js",
-        Path.home() / "Code" / "pi-quotas" / "dist" / "cli.js",
-        pi_agent_dir / "npm" / "node_modules" / "pi-usage" / "dist" / "cli.js",
-        Path.home() / "Code" / "pi-usage" / "dist" / "cli.js",
-    ]
-
-    for cand in candidate_paths:
-        if cand.exists():
-            return ["node", str(cand)]
-
-    # 4. Search git/symlink installations in Pi directory
-    for cand in pi_agent_dir.glob("**/pi-quotas/dist/cli.js"):
-        if cand.exists():
-            return ["node", str(cand)]
-
-    for cand in pi_agent_dir.glob("**/pi-usage/dist/cli.js"):
-        if cand.exists():
-            return ["node", str(cand)]
+    # 3. Local repository fallback
+    dev_path = Path.home() / "Code" / "pi-quotas" / "dist" / "cli.js"
+    if dev_path.exists():
+        return ["node", str(dev_path)]
 
     return None
 
