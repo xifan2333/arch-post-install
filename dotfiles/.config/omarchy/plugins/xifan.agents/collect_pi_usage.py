@@ -586,7 +586,7 @@ def probe_oauth_provider(provider_id: str, auth_entry: dict | None) -> dict:
     return res
 
 
-def probe_codex(auth_entry: dict | None) -> dict:
+def probe_codex(auth_entry: dict | None, local_stats: dict | None = None) -> dict:
     res = empty_result()
     res["tierLabel"] = "ChatGPT Plus"
     if not auth_entry:
@@ -607,7 +607,35 @@ def probe_codex(auth_entry: dict | None) -> dict:
         res["tierLabel"] = f"ChatGPT {plan.capitalize()}"
     else:
         res["tierLabel"] = "ChatGPT Plus"
-    res["ready"] = True
+
+    # Pi persists the ChatGPT/Codex usage-limit error into the session log as
+    # a stopReason "error" message carrying a message like:
+    #   "You have hit your ChatGPT usage limit (plus plan). Try again in ~209 min."
+    # Read the most recent one so the dashboard shows when the plan unlocks
+    # again, matching what Pi reports to the user mid-session.
+    usage_limit = (local_stats or {}).get("codexUsageLimit")
+    if (
+        usage_limit
+        and usage_limit.get("resetsAtMs")
+        and usage_limit["resetsAtMs"] > time.time() * 1000
+    ):
+        reset_iso = (
+            datetime.fromtimestamp(usage_limit["resetsAtMs"] / 1000)
+            .astimezone()
+            .isoformat()
+        )
+        plan_label = (usage_limit.get("plan") or plan or "plus").capitalize()
+        res["ready"] = False
+        res["usageStatusText"] = f"{plan_label} plan usage limit"
+        res["limits"] = [
+            {
+                "title": f"ChatGPT {plan_label}",
+                "percent": 1.0,
+                "resetsAt": reset_iso,
+            }
+        ]
+    else:
+        res["ready"] = True
     return res
 
 
@@ -689,7 +717,7 @@ def probe_upstream(
     elif provider_id == "google":
         return probe_google(key, local_stats)
     elif provider_id == "codex":
-        return probe_codex(auth_entry)
+        return probe_codex(auth_entry, local_stats)
     elif provider_id == "xai":
         return probe_xai(auth_entry)
     else:
@@ -727,10 +755,61 @@ def parse_timestamp_to_pacific_day(ts_str: str, today_str: str) -> str:
 
 def scan_single_file(sf: Path, today_str: str, pacific_today_str: str) -> dict:
     stats: dict[str, dict] = {}
+    ERR_MSG_RE = re.compile(r'"errorMessage":\s*"([^"]+)"')
+    ERR_PLAN_RE = re.compile(r"\((\w+) plan\)")
+    ERR_MIN_RE = re.compile(r"~?(\d+)\s*min")
     try:
         with open(sf, encoding="utf-8", errors="ignore") as fh:
             for line in fh:
                 if '"usage":' not in line or '"role":"assistant"' not in line:
+                    continue
+
+                pm = PROV_RE.search(line)
+                raw_provider = pm.group(1) if pm else "unknown"
+                provider = PROVIDER_CANONICAL.get(raw_provider, raw_provider)
+
+                # Pi persists ChatGPT/Codex usage-limit failures as a
+                # stopReason "error" message. Surface the most recent one so
+                # the dashboard can show when the plan unlocks again.
+                is_codex = provider in ("openai-codex", "codex")
+                if is_codex and '"stopReason":"error"' in line:
+                    em_m = ERR_MSG_RE.search(line)
+                    if em_m and "usage limit" in em_m.group(1).lower():
+                        plan_m = ERR_PLAN_RE.search(em_m.group(1))
+                        min_m = ERR_MIN_RE.search(em_m.group(1))
+                        ts_ms = None
+                        m = re.search(r'"timestamp":\s*(\d{13})', line)
+                        if m:
+                            ts_ms = int(m.group(1))
+                        else:
+                            tm = TS_RE.search(line)
+                            ts_str = tm.group(1) if tm else ""
+                            tv = parse_timestamp_value(ts_str)
+                            if tv:
+                                ts_ms = int(tv.timestamp() * 1000)
+                        rec = stats.setdefault(
+                            provider,
+                            {
+                                "prompts_by_day": {},
+                                "tokens_by_day": {},
+                                "models_by_day": {},
+                                "prompts_by_pacific_day_model": {},
+                                "total_prompts": 0,
+                                "model_usage": {},
+                            },
+                        )
+                        candidate = {
+                            "plan": plan_m.group(1) if plan_m else "plus",
+                            "resetsAtMs": (
+                                ts_ms + int(min_m.group(1)) * 60000
+                                if ts_ms and min_m
+                                else 0
+                            ),
+                            "ts": ts_ms or 0,
+                        }
+                        cur = rec.get("codexUsageLimit")
+                        if not cur or candidate["ts"] > cur.get("ts", 0):
+                            rec["codexUsageLimit"] = candidate
                     continue
 
                 um = USAGE_RE.search(line)
@@ -740,10 +819,6 @@ def scan_single_file(sf: Path, today_str: str, pacific_today_str: str) -> dict:
                     usage = json.loads(um.group(1))
                 except COMMON_ERRORS:
                     continue
-
-                pm = PROV_RE.search(line)
-                raw_provider = pm.group(1) if pm else "unknown"
-                provider = PROVIDER_CANONICAL.get(raw_provider, raw_provider)
 
                 mm = MODEL_RE.search(line)
                 model = mm.group(1) if mm else "unknown"
@@ -881,6 +956,7 @@ def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
             "todayTotalTokens": 0,
             "todayTokensByModel": defaultdict(int),
             "quotaDayPromptsByModel": defaultdict(int),
+            "codexUsageLimit": None,
             "recentDays": {d: 0 for d in recent_days},
             "activeDates": set(),
             "modelUsage": defaultdict(
@@ -897,6 +973,13 @@ def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
     for path, entry in out_files.items():
         for provider, st in (entry.get("stats") or {}).items():
             rec = records[provider]
+
+            limit = st.get("codexUsageLimit")
+            if limit:
+                cur = rec.get("codexUsageLimit")
+                if not cur or limit.get("ts", 0) > cur.get("ts", 0):
+                    rec["codexUsageLimit"] = limit
+
             total_prompts = st.get("total_prompts", 0)
             if total_prompts <= 0:
                 continue
