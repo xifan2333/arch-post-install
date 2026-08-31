@@ -237,9 +237,20 @@ Item {
                       bottom: 100
                       top: 50000
                     }
+                    // Empty text is a paused edit, not a value: touching the
+                    // model here would re-evaluate the text binding and yank
+                    // the field back to the default (Number("") is 0, and
+                    // 0 || 6000 is 6000). Leave the current value alone so the
+                    // user can keep typing.
                     onTextEdited: {
-                      root.videoBitrate = Number(text) || 6000;
-                      root.scheduleSave();
+                      var t = text.trim();
+                      if (t === "")
+                        return;
+                      var n = Number(t);
+                      if (!isNaN(n)) {
+                        root.videoBitrate = n;
+                        root.scheduleSave();
+                      }
                     }
                   }
                 }
@@ -261,9 +272,17 @@ Item {
                       bottom: 32
                       top: 320
                     }
+                    // See video bitrate field: empty text must not write back
+                    // the default (Number("") is 0, 0 || 160 is 160).
                     onTextEdited: {
-                      root.audioBitrate = Number(text) || 160;
-                      root.scheduleSave();
+                      var t = text.trim();
+                      if (t === "")
+                        return;
+                      var n = Number(t);
+                      if (!isNaN(n)) {
+                        root.audioBitrate = n;
+                        root.scheduleSave();
+                      }
                     }
                   }
                 }
