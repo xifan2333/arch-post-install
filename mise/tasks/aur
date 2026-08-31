@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+#MISE description="Install required AUR applications"
+set -euo pipefail
+
+packages=(
+    dmnotifier-bin
+    fcitx5-vinput-bin
+    flac1.3
+    herdr-corral-bin
+    karing-bin
+    linuxqq-appimage
+    ttf-wps-fonts
+    unibarrage-bin
+    wechat-appimage
+    wps-office-365-edu
+    wps-office-365-edu-fonts
+)
+missing=()
+
+for package in "${packages[@]}"; do
+    pacman -Q "$package" &>/dev/null || missing+=("$package")
+done
+
+if [[ -z "${missing[*]-}" ]]; then
+    printf 'AUR applications are already installed\n'
+    exit 0
+fi
+
+if ! command -v yay &>/dev/null; then
+    printf 'yay is required to install: %s\n' "${missing[*]}" >&2
+    exit 1
+fi
+
+yay -S --needed --noconfirm "${missing[@]}"

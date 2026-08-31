@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Install or refresh lefthook git hooks"
+set -euo pipefail
+
+lefthook install

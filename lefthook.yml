@@ -21,6 +21,10 @@ pre-commit:
       glob: "*.{sh,bash}"
       run: shellcheck --rcfile=.shellcheckrc {staged_files} && shfmt -w -i 4 {staged_files}
       stage_fixed: true
+    mise-tasks:
+      glob: "mise/tasks/**"
+      run: shellcheck --rcfile=.shellcheckrc {staged_files} && shfmt -w -i 4 {staged_files}
+      stage_fixed: true
     zsh:
       glob: "*.zsh"
       run: zsh -n {staged_files}

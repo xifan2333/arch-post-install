@@ -1,0 +1,49 @@
+[settings]
+dotfiles.default_mode = "symlink"
+
+# Preserve per-file linking without scanning all of $HOME:
+# shared directories are recreated and each managed file is linked
+# individually, while files not owned by this repository remain untouched.
+[dotfiles]
+"~/.zshrc" = { source = "../../dotfiles/.zshrc" }
+"~/.config/autostart" = { source = "../../dotfiles/.config/autostart", mode = "symlink-each" }
+"~/.config/corral" = { source = "../../dotfiles/.config/corral", mode = "symlink-each" }
+"~/.config/dmnotifier" = { source = "../../dotfiles/.config/dmnotifier", mode = "symlink-each", exclude = [
+  "*.example",
+] }
+"~/.config/electron-flags.conf" = { source = "../../dotfiles/.config/electron-flags.conf" }
+"~/.config/mimeapps.list" = { source = "../../dotfiles/.config/mimeapps.list" }
+"~/.config/starship.toml" = { source = "../../dotfiles/.config/starship.toml" }
+"~/.config/xdg-terminals.list" = { source = "../../dotfiles/.config/xdg-terminals.list" }
+
+"~/.config/environment.d" = { source = "../../dotfiles/.config/environment.d", mode = "symlink-each" }
+"~/.config/fcitx5" = { source = "../../dotfiles/.config/fcitx5", mode = "symlink-each" }
+"~/.config/fontconfig" = { source = "../../dotfiles/.config/fontconfig", mode = "symlink-each" }
+"~/.config/git" = { source = "../../dotfiles/.config/git", mode = "symlink-each" }
+"~/.config/herdr" = { source = "../../dotfiles/.config/herdr", mode = "symlink-each" }
+"~/.config/hypr" = { source = "../../dotfiles/.config/hypr", mode = "symlink-each" }
+"~/.config/imv" = { source = "../../dotfiles/.config/imv", mode = "symlink-each" }
+"~/.config/livestream" = { source = "../../dotfiles/.config/livestream", mode = "symlink-each", exclude = [
+  "*.example",
+] }
+"~/.config/mise" = { source = "../../dotfiles/.config/mise", mode = "symlink-each" }
+"~/.config/wezterm" = { source = "../../dotfiles/.config/wezterm", mode = "symlink-each" }
+"~/.config/nvim" = { source = "../../dotfiles/.config/nvim", mode = "symlink-each" }
+"~/.config/omarchy" = { source = "../../dotfiles/.config/omarchy", mode = "symlink-each" }
+"~/.config/pipewire" = { source = "../../dotfiles/.config/pipewire", mode = "symlink-each" }
+"~/.config/qutebrowser" = { source = "../../dotfiles/.config/qutebrowser", mode = "symlink-each", exclude = [
+  "*.example",
+] }
+"~/.config/retroarch" = { source = "../../dotfiles/.config/retroarch", mode = "symlink-each" }
+"~/.config/systemd" = { source = "../../dotfiles/.config/systemd", mode = "symlink-each" }
+"~/.config/tensaku" = { source = "../../dotfiles/.config/tensaku", mode = "symlink-each" }
+"~/.config/tmux" = { source = "../../dotfiles/.config/tmux", mode = "symlink-each" }
+"~/.config/uv" = { source = "../../dotfiles/.config/uv", mode = "symlink-each" }
+"~/.config/vinput" = { source = "../../dotfiles/.config/vinput", mode = "symlink-each", exclude = [
+  "*.example",
+] }
+"~/.config/zsh" = { source = "../../dotfiles/.config/zsh", mode = "symlink-each" }
+
+"~/.local/bin" = { source = "../../dotfiles/.local/bin", mode = "symlink-each" }
+"~/.local/share/fcitx5" = { source = "../../dotfiles/.local/share/fcitx5", mode = "symlink-each" }
+"~/.local/share/qutebrowser" = { source = "../../dotfiles/.local/share/qutebrowser", mode = "symlink-each" }

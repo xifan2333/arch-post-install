@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#MISE description="Ensure WPS uses multi-component mode"
+set -euo pipefail
+
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/Kingsoft/Office.conf"
+mkdir -p "$(dirname "$cfg")"
+touch "$cfg"
+
+keys=(
+    'wpsoffice\Application%20Settings\AppComponentMode'
+    'wpsoffice\Application%20Settings\AppComponentModeInstall'
+)
+
+for key in "${keys[@]}"; do
+    if grep -qF "${key}=" "$cfg"; then
+        sed -i "s|^${key}=.*|${key}=prome_independ|" "$cfg"
+        printf '[updated] %s=prome_independ\n' "$key"
+    else
+        printf '%s=prome_independ\n' "$key" >>"$cfg"
+        printf '[added] %s=prome_independ\n' "$key"
+    fi
+done

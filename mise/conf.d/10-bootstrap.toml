@@ -1,0 +1,25 @@
+# Provides /usr/lib/ladspa/librnnoise_ladspa.so, which is loaded by the
+# PipeWire noise-canceling source configuration.
+[bootstrap.packages]
+"pacman:noise-suppression-for-voice" = "latest"
+"pacman:ttf-sarasa-gothic" = "latest"
+"pacman:unzip" = "latest"
+"pacman:yay" = "latest"
+# Official extra/wezterm (2024-02) fails to map windows on Hyprland 0.56 Wayland;
+# archlinuxcn ships a current enough build. Conflicts with pacman:wezterm.
+"pacman:wezterm-git" = "latest"
+# VAAPI 硬编驱动——仅本机（Intel Sandy Bridge i965）需要；其他硬件请按需取消注释
+# "pacman:libva-intel-driver" = "latest"
+# "pacman:libva-utils" = "latest"
+
+# Rebuild and reload Rime deployment when rime-wanxiang packages are updated.
+[bootstrap.directories."/etc/pacman.d/hooks"]
+owner = "root"
+group = "root"
+mode = "0755"
+
+[bootstrap.files."/etc/pacman.d/hooks/rime-wanxiang-deploy.hook"]
+source = "../hooks/rime-wanxiang-deploy.hook"
+owner = "root"
+group = "root"
+mode = "0644"
