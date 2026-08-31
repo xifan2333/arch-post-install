@@ -566,7 +566,7 @@ Panel {
                 required property var modelData
                 required property int index
 
-                text: modelData.providerName + (modelData.ready === false ? " ✕" : "")
+                text: modelData.providerName
                 selected: index === root.providerIndex
                 hasCursor: root.cursorActive && index === root.providerIndex
                 bordered: true
