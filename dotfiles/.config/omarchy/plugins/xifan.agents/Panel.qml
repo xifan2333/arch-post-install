@@ -193,7 +193,7 @@ Panel {
     if (!b || !(b.funded > 0))
       return "";
     var remainingRatio = b.funded > 0 ? root.clamp(b.remaining / b.funded, 0, 1) : 0;
-    var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " funded (" + Math.round(remainingRatio * 100) + "% remaining)";
+    var text = formatMoney(b.spent, b.currency) + " spent of " + formatMoney(b.funded, b.currency) + " (" + Math.round(remainingRatio * 100) + "% left)";
     if (b.estimated)
       text += " · estimated";
     return text;
@@ -570,53 +570,23 @@ Panel {
 
             visible: alertText !== ""
             width: parent.width
-            implicitHeight: alertRow.implicitHeight + Style.space(16)
+            implicitHeight: statusText.implicitHeight + Style.space(16)
             color: root.alpha(root.urgent, 0.10)
             borderSpec: Border.flat(root.alpha(root.urgent, 0.35), 1)
             radius: Style.cornerRadius
 
-            Row {
-              id: alertRow
+            Text {
+              id: statusText
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               anchors.leftMargin: Style.space(12)
               anchors.rightMargin: Style.space(12)
-              spacing: Style.space(8)
-
-              Text {
-                text: "󰅚"
-                color: root.urgent
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                anchors.verticalCenter: parent.verticalCenter
-              }
-
-              Text {
-                id: statusText
-                width: parent.width - Style.space(24)
-                text: parent.parent.alertText
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                wrapMode: Text.WordWrap
-                anchors.verticalCenter: parent.verticalCenter
-              }
-            }
-          }
-
-          // ---------- Direct API mode info ----------
-          Item {
-            visible: !balanceSection.visible && !limitsSection.visible && !!root.provider && root.provider.ready !== false
-            width: parent.width
-            implicitHeight: apiInfoText.implicitHeight + Style.space(8)
-
-            Text {
-              id: apiInfoText
-              text: "⚡ Pay-per-token API (Usage tracked from local logs)"
+              text: parent.alertText
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
             }
           }
 
