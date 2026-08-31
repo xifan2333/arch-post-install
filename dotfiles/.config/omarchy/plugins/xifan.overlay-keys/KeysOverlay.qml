@@ -17,6 +17,7 @@ Item {
   property var shell: null
   property var manifest: null
 
+  property bool enabled: false
   property bool opened: false
   property bool editing: false
   property bool inlineEditing: false
@@ -76,6 +77,8 @@ Item {
   }
 
   function onKeyState(raw) {
+    if (!root.enabled)
+      return;
     var t = String(raw || "").trim();
     if (t === "")
       return;
@@ -91,10 +94,10 @@ Item {
 
   Timer {
     interval: 250
-    running: root.autoHide && root.opened
+    running: root.autoHide && root.opened && !root.editing
     repeat: true
     onTriggered: {
-      if (root.autoHide && root.nowMs() - root.lastShow > root.timeoutMs)
+      if (root.autoHide && !root.editing && root.nowMs() - root.lastShow > root.timeoutMs)
         root.opened = false;
     }
   }
@@ -102,10 +105,11 @@ Item {
   Process {
     id: daemonProc
     command: ["python3", root.daemonPath]
-    running: true
+    running: root.enabled
     stdout: SplitParser {
       onRead: function (line) {
-        root.onKeyState(line);
+        if (root.enabled)
+          root.onKeyState(line);
       }
     }
     stderr: SplitParser {
@@ -117,7 +121,8 @@ Item {
     // hiccup) restart it so the HUD never goes silent mid-session. The timer
     // backoff keeps a crash-loop from pinning the CPU.
     onExited: function (code, status) {
-      daemonRestartTimer.start();
+      if (root.enabled)
+        daemonRestartTimer.start();
     }
   }
 
@@ -125,18 +130,28 @@ Item {
     id: daemonRestartTimer
     interval: 500
     onTriggered: {
-      daemonProc.running = false;
-      daemonProc.running = true;
+      if (root.enabled) {
+        daemonProc.running = false;
+        daemonProc.running = true;
+      }
     }
   }
 
   function toggle() {
-    if (root.opened) {
-      root.opened = false;
-      root.autoHide = false;
+    if (root.enabled) {
+      if (root.editing)
+        root.lockEdit();
+      else {
+        root.enabled = false;
+        root.opened = false;
+        root.autoHide = false;
+        root.text = "";
+      }
     } else {
-      root.opened = true;
+      root.enabled = true;
       root.autoHide = true;
+      root.opened = false;
+      root.text = "";
       root.lastShow = root.nowMs();
     }
   }
@@ -145,12 +160,19 @@ Item {
     root.saveConfig();
     root.inlineEditing = false;
     root.editing = false;
+    root.autoHide = true;
+    root.opened = false;
   }
 
   function toggleEdit() {
-    if (root.editing)
+    if (!root.enabled) {
+      root.enabled = true;
+      root.opened = true;
+      root.autoHide = false;
+      root.editing = true;
+    } else if (root.editing) {
       root.lockEdit();
-    else {
+    } else {
       root.opened = true;
       root.autoHide = false;
       root.editing = true;
@@ -166,27 +188,32 @@ Item {
     }
     function toggle(): string {
       root.toggle();
-      return root.opened ? "open" : "closed";
+      return root.enabled ? (root.editing ? "editing" : "open") : "closed";
     }
     function edit(): string {
       root.toggleEdit();
-      return root.editing ? "editing" : (root.opened ? "open" : "closed");
+      return root.editing ? "editing" : (root.enabled ? "open" : "closed");
     }
     function show(): string {
+      root.enabled = true;
       root.opened = true;
       root.autoHide = true;
+      root.editing = false;
       root.lastShow = root.nowMs();
       return "open";
     }
     function hide(): string {
+      root.enabled = false;
       root.opened = false;
       root.autoHide = false;
+      root.editing = false;
+      root.text = "";
       return "closed";
     }
     function state(): string {
-      if (!root.opened)
+      if (!root.enabled)
         return "closed";
-      return root.editing ? "editing" : "open";
+      return root.editing ? "editing" : (root.opened ? "open" : "active");
     }
   }
 

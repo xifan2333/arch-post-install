@@ -436,8 +436,14 @@ class LivestreamService:
         )
 
     @staticmethod
-    def vertical_filter():
-        return "scale=1080:-2:flags=lanczos,pad=1080:1920:0:(1920-ih)/2:black"
+    def has_vaapi():
+        return Path("/dev/dri/renderD128").exists()
+
+    def vertical_filter(self):
+        base = "scale=720:-2:flags=bilinear,pad=720:1280:0:(1280-ih)/2:black"
+        if self.has_vaapi():
+            return f"{base},format=nv12,hwupload"
+        return base
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -452,10 +458,21 @@ class LivestreamService:
             ]
             for mode in ("16:9", "9:16")
         }
+        use_vaapi = self.has_vaapi() and bool(groups["9:16"])
         filters = (
             [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
         )
-        command = ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-i", "-"]
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "warning"]
+        if use_vaapi:
+            command.extend(
+                [
+                    "-init_hw_device",
+                    "vaapi=va:/dev/dri/renderD128",
+                    "-filter_hw_device",
+                    "va",
+                ]
+            )
+        command.extend(["-i", "-"])
         if filters:
             command.extend(["-filter_complex", ";".join(filters)])
 
@@ -465,7 +482,7 @@ class LivestreamService:
             "drop_pkts_on_overflow=1:"
             "recovery_wait_time=2:"
             "restart_with_keyframe=1:"
-            "queue_size=300"
+            "queue_size=1000"
         )
 
         gop = max(1, self.args.framerate * self.args.keyint)
@@ -477,28 +494,46 @@ class LivestreamService:
             if mode == "16:9":
                 command.extend(["-map", "0:v", "-c:v", "copy"])
             else:
-                command.extend(
-                    [
-                        "-map",
-                        "[v_vertical]",
-                        "-c:v",
-                        "libx264",
-                        "-preset",
-                        "veryfast",
-                        "-tune",
-                        "zerolatency",
-                        "-b:v",
-                        f"{self.video_bitrate}k",
-                        "-pix_fmt",
-                        "yuv420p",
-                        "-g",
-                        str(gop),
-                        "-keyint_min",
-                        str(gop),
-                        "-sc_threshold",
-                        "0",
-                    ]
-                )
+                if use_vaapi:
+                    command.extend(
+                        [
+                            "-map",
+                            "[v_vertical]",
+                            "-c:v",
+                            "h264_vaapi",
+                            "-b:v",
+                            f"{self.video_bitrate}k",
+                            "-g",
+                            str(gop),
+                            "-keyint_min",
+                            str(gop),
+                            "-bf",
+                            "0",
+                        ]
+                    )
+                else:
+                    command.extend(
+                        [
+                            "-map",
+                            "[v_vertical]",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "ultrafast",
+                            "-tune",
+                            "zerolatency",
+                            "-b:v",
+                            f"{self.video_bitrate}k",
+                            "-pix_fmt",
+                            "yuv420p",
+                            "-g",
+                            str(gop),
+                            "-keyint_min",
+                            str(gop),
+                            "-sc_threshold",
+                            "0",
+                        ]
+                    )
 
             command.extend(
                 [

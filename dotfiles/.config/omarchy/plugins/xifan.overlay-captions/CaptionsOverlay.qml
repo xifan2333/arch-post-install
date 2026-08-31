@@ -17,6 +17,7 @@ Item {
   property var shell: null
   property var manifest: null
 
+  property bool enabled: false
   property bool opened: false
   property bool editing: false
   property bool inlineEditing: false
@@ -73,15 +74,45 @@ Item {
     return String(t || "").replace(/[\r\n]+/g, "");
   }
 
-  function startDaemon() {
-    Quickshell.execDetached(["python3", root.daemonPath]);
+  Process {
+    id: daemonProc
+    command: ["python3", root.daemonPath]
+    running: root.enabled
+    stderr: SplitParser {
+      onRead: function (line) {
+        console.log("screenrecord-captions-daemon:", line);
+      }
+    }
+    onExited: function (code, status) {
+      if (root.enabled)
+        daemonRestartTimer.start();
+    }
+  }
+
+  Timer {
+    id: daemonRestartTimer
+    interval: 500
+    onTriggered: {
+      if (root.enabled) {
+        daemonProc.running = false;
+        daemonProc.running = true;
+      }
+    }
   }
 
   function toggle() {
-    if (root.opened) {
-      root.opened = false;
+    if (root.enabled) {
+      if (root.editing)
+        root.lockEdit();
+      else {
+        root.enabled = false;
+        root.opened = false;
+        root.text = "";
+      }
     } else {
-      root.opened = true;
+      root.enabled = true;
+      root.opened = false;
+      root.text = "";
       root.lastUpdate = root.nowMs();
     }
   }
@@ -90,23 +121,29 @@ Item {
     root.saveConfig();
     root.inlineEditing = false;
     root.editing = false;
+    if (root.text === "")
+      root.opened = false;
   }
 
   function toggleEdit() {
-    if (root.editing)
+    if (!root.enabled) {
+      root.enabled = true;
+      root.opened = true;
+      root.editing = true;
+    } else if (root.editing) {
       root.lockEdit();
-    else {
+    } else {
       root.opened = true;
       root.editing = true;
     }
   }
 
-  Component.onCompleted: root.startDaemon()
-
   IpcHandler {
     target: "xifan.overlay-captions"
 
     function caption(text: string, kind: string): string {
+      if (!root.enabled)
+        return "ignored";
       var t = root.sanitizeCaption(text);
       if (kind === "clear" || t === "") {
         root.text = "";
@@ -120,24 +157,28 @@ Item {
     }
     function toggle(): string {
       root.toggle();
-      return root.opened ? "open" : "closed";
+      return root.enabled ? (root.editing ? "editing" : "open") : "closed";
     }
     function edit(): string {
       root.toggleEdit();
-      return root.editing ? "editing" : (root.opened ? "open" : "closed");
+      return root.editing ? "editing" : (root.enabled ? "open" : "closed");
     }
     function show(): string {
+      root.enabled = true;
       root.opened = true;
+      root.editing = false;
       root.lastUpdate = root.nowMs();
       return "open";
     }
     function hide(): string {
+      root.enabled = false;
       root.opened = false;
       root.text = "";
+      root.editing = false;
       return "closed";
     }
     function state(): string {
-      if (!root.opened)
+      if (!root.enabled)
         return "closed";
       return root.editing ? "editing" : "open";
     }
