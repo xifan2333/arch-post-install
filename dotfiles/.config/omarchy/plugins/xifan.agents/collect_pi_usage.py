@@ -17,6 +17,8 @@ Outputs display-ready JSON records to ~/.local/state/omarchy/agents/usage/.
 from __future__ import annotations
 
 import argparse
+import base64
+import contextlib
 import fcntl
 import json
 import os
@@ -60,19 +62,20 @@ PROVIDER_CANONICAL = {
     "cpa-xai": "xai",
     "kimi": "kimi-coding",
     "opencode-go": "opencode",
+    "openai-codex": "codex",
 }
 
 DEFAULT_TIERS = {
     "deepseek": "DeepSeek API",
     "google": "Gemini API",
-    "kimi-coding": "Kimi API",
+    "kimi-coding": "Kimi K3 Coding",
     "xai": "Grok API",
     "openrouter": "OpenRouter",
     "opencode": "OpenCode API",
-    "openai-codex": "Codex",
+    "codex": "ChatGPT / Codex",
 }
 
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 USAGE_RE = re.compile(r'"usage":\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})')
 PROV_RE = re.compile(r'"provider":\s*"([^"]+)"')
 MODEL_RE = re.compile(r'"model":\s*"([^"]+)"')
@@ -444,6 +447,89 @@ def probe_oauth_provider(provider_id: str, auth_entry: dict | None) -> dict:
     return res
 
 
+def probe_codex(auth_entry: dict | None) -> dict:
+    res = empty_result()
+    res["tierLabel"] = "ChatGPT Plus"
+    if not auth_entry:
+        return fail_res(res, "Not configured", "Authenticate in Pi")
+    access = auth_entry.get("access") or ""
+    plan = ""
+    if access and "." in access:
+        with contextlib.suppress(COMMON_ERRORS, IndexError):
+            parts = access.split(".")
+            if len(parts) >= 2:
+                padded = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+                payload = json.loads(
+                    base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+                )
+                auth_info = payload.get("https://api.openai.com/auth", {})
+                plan = auth_info.get("chatgpt_plan_type", "")
+    if plan:
+        res["tierLabel"] = f"ChatGPT {plan.capitalize()}"
+    else:
+        res["tierLabel"] = "ChatGPT Plus"
+    res["ready"] = True
+    return res
+
+
+def probe_xai(auth_entry: dict | None) -> dict:
+    res = empty_result()
+    res["tierLabel"] = "Grok API"
+    if not auth_entry:
+        return fail_res(res, "Not configured", "Authenticate in Pi")
+    token = (
+        auth_entry.get("access")
+        or auth_entry.get("key")
+        or auth_entry.get("token")
+        or ""
+    )
+    if not token:
+        return fail_res(res, "Token missing", "Authenticate in Pi")
+
+    if token and "." in token:
+        with contextlib.suppress(COMMON_ERRORS, IndexError):
+            parts = token.split(".")
+            if len(parts) >= 2:
+                padded = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+                payload = json.loads(
+                    base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+                )
+                tier = payload.get("tier")
+                if tier is not None:
+                    res["tierLabel"] = f"Grok API (Tier {tier})"
+
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        status, body = http_get("https://api.x.ai/v1/models", headers)
+        if status == 200:
+            res["ready"] = True
+        elif status == 403:
+            try:
+                data = json.loads(body)
+                if "spending-limit" in data.get("code", "") or "blocked" in data.get(
+                    "code", ""
+                ):
+                    return fail_res(
+                        res,
+                        "Spending limit reached",
+                        "Add credits at grok.com",
+                    )
+            except COMMON_ERRORS:
+                pass
+            return fail_res(res, "Access blocked (403)", "Check account at grok.com")
+        elif status == 401:
+            return fail_res(res, "Token expired", "Re-authenticate in Pi")
+        else:
+            return fail_res(res, f"xAI error ({status})", "")
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            return fail_res(res, "Spending limit reached", "Add credits at grok.com")
+        return fail_res(res, f"xAI error ({e.code})", "")
+    except COMMON_ERRORS as e:
+        print(f"xAI probe error: {e}", file=sys.stderr)
+    return res
+
+
 def probe_upstream(provider_id: str, auth_entry: dict | None) -> dict:
     if not auth_entry:
         return fail_res(empty_result(), "Not configured", "Authenticate in Pi")
@@ -461,6 +547,10 @@ def probe_upstream(provider_id: str, auth_entry: dict | None) -> dict:
         return probe_openrouter(key)
     elif provider_id == "google":
         return probe_google(key)
+    elif provider_id == "codex":
+        return probe_codex(auth_entry)
+    elif provider_id == "xai":
+        return probe_xai(auth_entry)
     else:
         return probe_oauth_provider(provider_id, auth_entry)
 
@@ -501,13 +591,7 @@ def scan_single_file(sf: Path, today_str: str) -> dict:
 
                 pm = PROV_RE.search(line)
                 raw_provider = pm.group(1) if pm else "unknown"
-
-                if raw_provider == "opencode":
-                    continue
-
                 provider = PROVIDER_CANONICAL.get(raw_provider, raw_provider)
-                if provider in ("openai-codex", "codex", "claude"):
-                    continue
 
                 mm = MODEL_RE.search(line)
                 model = mm.group(1) if mm else "unknown"
@@ -688,19 +772,25 @@ def scan_pi_sessions_cached(force: bool = False) -> dict[str, dict]:
 # ---------------------------------------------------------------- main merge
 
 
+def cleanup_orphaned_records(usage_dir: Path, active_ids: set[str]) -> None:
+    """Remove json records for providers that are no longer configured in auth.json."""
+    for p in usage_dir.glob("*.json"):
+        if p.stem not in active_ids:
+            with contextlib.suppress(OSError):
+                p.unlink()
+
+
 def collect_all_records(force: bool = False) -> dict[str, dict]:
     auth_map = load_auth_config()
 
     # 1. Fast incremental local log scan (< 0.05s cached)
     local_stats = scan_pi_sessions_cached(force=force)
 
+    # Active providers are strictly those currently configured in auth.json!
     provider_ids = set(PROVIDER_CANONICAL.get(k, k) for k in auth_map)
-    provider_ids |= set(local_stats.keys())
-    provider_ids = {
-        p
-        for p in provider_ids
-        if p in PROVIDER_NAMES and p not in ("openai-codex", "codex", "claude")
-    }
+
+    usage_dir = get_usage_dir()
+    cleanup_orphaned_records(usage_dir, provider_ids)
 
     today_dt = datetime.now().date()
     recent_days = [

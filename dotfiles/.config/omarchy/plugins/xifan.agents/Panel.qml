@@ -166,6 +166,32 @@ Panel {
     return Math.max(1, minutes) + "m";
   }
 
+  function formatResetTime(isoStr) {
+    if (!isoStr)
+      return "";
+    var d = new Date(isoStr);
+    if (isNaN(d.getTime()))
+      return "";
+    var month = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    var hours = String(d.getHours()).padStart(2, "0");
+    var mins = String(d.getMinutes()).padStart(2, "0");
+    return month + "-" + day + " " + hours + ":" + mins;
+  }
+
+  function effectiveBlockerReset(p) {
+    var windows = limitWindows(p);
+    var blocker = null;
+    for (var i = 0; i < windows.length; i++) {
+      var w = windows[i];
+      if (w.percent >= 1.0) {
+        if (!blocker || (w.resetAt && (!blocker.resetAt || new Date(w.resetAt) > new Date(blocker.resetAt))))
+          blocker = w;
+      }
+    }
+    return blocker;
+  }
+
   // ---------------------------------------------------------------- balance
   //
   // Prepaid agents report a credit ledger instead of rate-limit windows: the
@@ -206,14 +232,22 @@ Panel {
   function heroMeta(p) {
     if (!p)
       return "";
+    if (p.ready === false) {
+      var blocker = root.effectiveBlockerReset(p);
+      if (blocker) {
+        var remMs = root.resetMsFor(blocker);
+        if (remMs > 0)
+          return "Blocked · Resets in " + root.formatDuration(remMs) + " (" + root.formatResetTime(blocker.resetAt) + ")";
+      }
+      var status = String(p.usageStatusText || "").trim();
+      if (status !== "")
+        return "Blocked · " + status;
+      return "Blocked";
+    }
     var tier = String(p.tierLabel || "");
-    var status = String(p.usageStatusText || "").trim();
     if (tier === "")
       tier = "Subscription";
-    tier = tier.charAt(0).toUpperCase() + tier.slice(1);
-    if (status !== "" && status.toLowerCase() !== tier.toLowerCase())
-      return tier + " · " + status;
-    return tier;
+    return tier.charAt(0).toUpperCase() + tier.slice(1);
   }
 
   // Local calendar date, recomputed from nowMs so a panel left open across
@@ -532,11 +566,11 @@ Panel {
                 required property var modelData
                 required property int index
 
-                text: modelData.providerName
+                text: modelData.providerName + (modelData.ready === false ? " ✕" : "")
                 selected: index === root.providerIndex
                 hasCursor: root.cursorActive && index === root.providerIndex
                 bordered: true
-                foreground: root.foreground
+                foreground: modelData.ready === false && index !== root.providerIndex ? root.urgent : root.foreground
                 fontFamily: root.fontFamily
                 fontSize: Style.font.bodySmall
                 verticalPadding: Style.spacing.controlPaddingY
@@ -816,9 +850,13 @@ Panel {
       width: parent.width
       text: {
         var remainingMs = root.resetMsFor(limitRow.window);
-        return remainingMs > 0 ? "Resets in " + root.formatDuration(remainingMs) : "";
+        if (remainingMs > 0) {
+          var formattedTime = root.formatResetTime(limitRow.window.resetAt);
+          return "Resets in " + root.formatDuration(remainingMs) + (formattedTime ? " · " + formattedTime : "");
+        }
+        return "";
       }
-      color: root.dim
+      color: limitRow.alarming ? root.urgent : root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
     }
