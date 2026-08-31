@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Claude Code, Codex, and Fireworks usage, limits, and pace in a native Omarchy bar panel.",
+  "description": "Pi provider usage, availability, limits, and balances in a native Omarchy bar panel.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -13,22 +13,11 @@
   },
   "barWidget": {
     "displayName": "My Agents",
-    "description": "One bar icon and one panel: rate-limit meters with pace, today, the last week, and the all-time model breakdown for every subscription.",
+    "description": "One panel for the providers currently configured in Pi, with availability, reset times, balances, and local usage.",
     "category": "AI",
     "aliases": ["agents", "model-usage"],
     "allowMultiple": false,
     "defaults": {
-      "providers": {
-        "claude": {
-          "enabled": true
-        },
-        "codex": {
-          "enabled": true
-        },
-        "fireworks": {
-          "enabled": true
-        }
-      },
       "refreshIntervalSec": 900,
       "syncMode": "Off",
       "syncDir": "",

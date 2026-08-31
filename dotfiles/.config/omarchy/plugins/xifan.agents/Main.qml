@@ -97,7 +97,7 @@ Item {
     id: limitsRetry
     interval: 30000
     repeat: false
-    onTriggered: root.runUpdate("limits", root.retryAgentIds)
+    onTriggered: root.runUpdate("limits")
   }
 
   function scheduleLimitsRetry() {
@@ -153,26 +153,16 @@ Item {
     }
   }
 
-  function updateCommand(kind, agentIds) {
-    var script = "omarchy-agent-usage-update \"$@\" || true; python3 \"" + root.piCollectorPath + "\" \"$@\" || true";
-    var command = ["bash", "-c", script, "--"];
+  function updateCommand(kind) {
+    var command = ["python3", root.piCollectorPath];
     if (kind === "force")
       command.push("--force");
     if (kind === "limits")
       command.push("--limits-only");
-    var providers = settings && settings.providers ? settings.providers : {};
-    for (var id in providers) {
-      if (providers[id] && providers[id].enabled === false)
-        command.push("--except", id);
-    }
-    if (agentIds) {
-      for (var i = 0; i < agentIds.length; i++)
-        command.push(agentIds[i]);
-    }
     return command;
   }
 
-  function runUpdate(kind, agentIds) {
+  function runUpdate(kind) {
     if (updateProcess.running) {
       // Collapse queued requests to one full rerun; a forced refresh outranks
       // the cheaper kinds it might have been queued behind.
@@ -180,7 +170,7 @@ Item {
         root.pendingUpdateKind = kind;
       return;
     }
-    updateProcess.command = updateCommand(kind, agentIds);
+    updateProcess.command = updateCommand(kind);
     updateProcess.running = true;
   }
 
