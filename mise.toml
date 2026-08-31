@@ -10,3 +10,7 @@ shellcheck = "latest"
 shfmt = "latest"
 stylua = "latest"
 taplo = "latest"
+
+[tasks.hooks]
+description = "Install or refresh lefthook Git hooks"
+run = "lefthook install"
