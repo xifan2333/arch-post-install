@@ -474,8 +474,8 @@ class LivestreamService:
         return Path("/dev/dri/renderD128").exists()
 
     @staticmethod
-    def vertical_filter(use_vaapi=False):
-        return "scale=1080:-2:flags=lanczos+accurate_rnd,pad=1080:1920:0:(1920-ih)/2:black"
+    def vertical_filter():
+        return "scale=1080:-2,pad=1080:1920:0:(1920-ih)/2:black"
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -490,11 +490,8 @@ class LivestreamService:
             ]
             for mode in ("16:9", "9:16")
         }
-        use_vaapi = False
         filters = (
-            [f"[0:v]{self.vertical_filter(use_vaapi)}[v_vertical]"]
-            if groups["9:16"]
-            else []
+            [f"[0:v]{self.vertical_filter()}[v_vertical]"] if groups["9:16"] else []
         )
         command = [
             "ffmpeg",
