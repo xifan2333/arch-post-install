@@ -18,7 +18,7 @@
     "aliases": ["agents", "model-usage"],
     "allowMultiple": false,
     "defaults": {
-      "refreshIntervalSec": 900,
+      "refreshIntervalSec": 120,
       "syncMode": "Off",
       "syncDir": "",
       "syncFileName": "",
@@ -32,7 +32,7 @@
         "min": 30,
         "max": 3600,
         "step": 30,
-        "defaultValue": 900
+        "defaultValue": 120
       },
       {
         "key": "syncMode",
