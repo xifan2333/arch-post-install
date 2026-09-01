@@ -60,10 +60,10 @@ To re-bind an existing key:
 Omarchy shell runs inside a single Quickshell process (`omarchy-shell`). Choose the
 right reload command based on the nature of your change:
 
-| Command | When to use | Why |
-| ------- | ----------- | --- |
-| **`omarchy-shell shell rescanPlugins`** | • Adding a new plugin folder<br>• Editing `manifest.json` metadata<br>• Minor visual QML tweaks | Lightweight soft-scan; registers new plugin discovery without killing the shell process. |
-| **`omarchy restart shell`** *(Recommended)* | • Editing QML layout/hierarchy/properties<br>• Editing JavaScript models (`Model.js`)<br>• Adding/changing IPC handlers (`ipcTarget`)<br>• Clearing QML runtime `TypeError`/binding warnings | Full process restart; flushes QML JS module caches, re-evaluates all component bindings, and guarantees clean engine state. |
+| Command                                     | When to use                                                                                                                                                                                  | Why                                                                                                                         |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **`omarchy-shell shell rescanPlugins`**     | • Adding a new plugin folder<br>• Editing `manifest.json` metadata<br>• Minor visual QML tweaks                                                                                              | Lightweight soft-scan; registers new plugin discovery without killing the shell process.                                    |
+| **`omarchy restart shell`** _(Recommended)_ | • Editing QML layout/hierarchy/properties<br>• Editing JavaScript models (`Model.js`)<br>• Adding/changing IPC handlers (`ipcTarget`)<br>• Clearing QML runtime `TypeError`/binding warnings | Full process restart; flushes QML JS module caches, re-evaluates all component bindings, and guarantees clean engine state. |
 
 **Rule of thumb during active plugin development**: Always prefer `omarchy restart shell`. QML caches imported `.js` modules and instantiated widget state in memory — a full restart prevents chasing ghost issues caused by stale runtime caches.
 
@@ -111,14 +111,14 @@ journalctl --user -b -f
 For deep-dive topics provided by the system's `omarchy` skill, refer to
 `~/.pi/agent/skills/omarchy/`:
 
-| Topic | File | Covers |
-| ----- | ---- | ------ |
-| **Hyprland** | `hyprland.md` | Keybindings, monitors, window rules, layer rules, animations |
-| **Plugins & Bar** | `plugins.md` | Status bar layout, widgets, cloning plugins, idle/lock behavior |
-| **Theming** | `theming.md` | Themes, colors.toml, shell.toml overrides, backgrounds, fonts |
-| **Hooks** | `hooks.md` | Event automation hooks (`theme-set`, `post-install`) |
-| **Capture** | `capture.md` | Screenshots, screen recording, OCR text capture |
-| **Contributing** | `contributing.md` | Diagnostics and reporting upstream Omarchy bugs |
+| Topic             | File              | Covers                                                          |
+| ----------------- | ----------------- | --------------------------------------------------------------- |
+| **Hyprland**      | `hyprland.md`     | Keybindings, monitors, window rules, layer rules, animations    |
+| **Plugins & Bar** | `plugins.md`      | Status bar layout, widgets, cloning plugins, idle/lock behavior |
+| **Theming**       | `theming.md`      | Themes, colors.toml, shell.toml overrides, backgrounds, fonts   |
+| **Hooks**         | `hooks.md`        | Event automation hooks (`theme-set`, `post-install`)            |
+| **Capture**       | `capture.md`      | Screenshots, screen recording, OCR text capture                 |
+| **Contributing**  | `contributing.md` | Diagnostics and reporting upstream Omarchy bugs                 |
 
 ## Command discovery
 

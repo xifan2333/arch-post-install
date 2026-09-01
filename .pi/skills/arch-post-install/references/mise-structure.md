@@ -23,6 +23,7 @@ arch-post-install/
     └── tasks/                         # 3. SYSTEM FILE TASKS
         ├── aur                        #    [Bootstrap] AUR packages via yay
         ├── bootstrap                  #    [Bootstrap] Seed configs + nvim theme
+        ├── hardware                   #    [Bootstrap] Apply fan control & GPU permissions
         ├── wps                        #    [Bootstrap] Force WPS component mode
         └── fonts                      #    [Maintenance] Pixel fonts from GitHub
 ```
@@ -93,7 +94,7 @@ carries metadata via `#MISE` directives:
 set -euo pipefail
 ```
 
-- `bootstrap` depends on `aur` and `wps`, composing the system setup sequence.
+- `bootstrap` depends on `aur`, `wps`, and `hardware`, composing the system setup sequence.
 - `fonts` is a standalone asset maintenance task, kept independent of bootstrap.
 - All file tasks are linted with ShellCheck and formatted with Shfmt in Lefthook.
 

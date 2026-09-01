@@ -28,7 +28,9 @@ Read the matching reference before editing:
 - [`references/dotfiles.md`](references/dotfiles.md) — editing dotfiles safely
   (symlink model, `*.example` templating, source-over-target).
 - [`references/workflows.md`](references/workflows.md) — git/Lefthook
-  conventions, maintenance tasks, and the pi-quotas panel collector.
+  conventions, maintenance tasks, and repo development workflows.
+- [`references/related-projects.md`](references/related-projects.md) — index and
+  integration boundaries for standalone companion projects (`pi-quotas`, `vcam`, etc.).
 - **Omarchy Skill** (`omarchy`) — for system-wide desktop guides (Hyprland,
   themes, hooks, capture, built-in shell plugins), refer to the bundled
   Omarchy skill (`~/.pi/agent/skills/omarchy/SKILL.md`).
@@ -102,7 +104,8 @@ mise run format     # format all Python, Shell, Lua, TOML, and JSON/YAML files
 ### 2. System Bootstrap Layer (in `mise/tasks/`)
 
 ```bash
-mise run bootstrap  # seed .example configs + wire nvim theme (depends on aur, wps)
+mise run bootstrap  # seed .example configs + wire nvim theme (depends on aur, wps, hardware)
+mise run hardware   # apply ThinkPad fan control permissions & rebuild initramfs
 mise run aur        # install AUR-only packages via yay
 mise run wps        # force WPS multi-component mode
 ```
@@ -115,3 +118,10 @@ mise run fonts      # update pixel fonts from GitHub releases
 
 For privileged (`/etc`, root-owned) changes, use `sudo` when a terminal is
 available for the password, otherwise `pkexec` (agent/background).
+
+## Related Standalone Projects
+
+For detailed architecture boundaries, see [`references/related-projects.md`](references/related-projects.md):
+
+- **`pi-quotas`** (`/home/xifan/Code/pi-quotas`): Standalone Pi CLI/plugin for AI token quota tracking. Consumed by `xifan.agents` bar plugin (`collect_pi_usage.py`).
+- **`vcam`** (`/home/xifan/Code/vcam`): Android Camera2 Hook app for low-latency live streaming over LAN SRT. Driven by `livestream` / `livestream-service` on Linux.

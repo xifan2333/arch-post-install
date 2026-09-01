@@ -1,4 +1,4 @@
-# Workflows, Git, and the Pi-Quotas Panel Collector
+# Workflows, Git, and Development Conventions
 
 ## Git + Lefthook
 
@@ -42,55 +42,26 @@ Use these tasks only when doing whole-repository audits or batch cleanups:
 
 ## Complete Task Directory by Lifecycle
 
-| Task        | Lifecycle Layer     | Location               | Purpose                                   |
-| ----------- | ------------------- | ---------------------- | ----------------------------------------- |
-| `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh Lefthook git hooks        |
-| `lint`      | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files     |
-| `format`    | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                 |
-| `bootstrap` | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme |
-| `aur`       | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay         |
-| `wps`       | 2. System Bootstrap | `mise/tasks/wps`       | Force WPS multi-component mode            |
-| `fonts`     | 3. Asset Maint      | `mise/tasks/fonts`     | Update pixel fonts from GitHub releases   |
+| Task        | Lifecycle Layer     | Location               | Purpose                                            |
+| ----------- | ------------------- | ---------------------- | -------------------------------------------------- |
+| `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh Lefthook git hooks                 |
+| `lint`      | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files              |
+| `format`    | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                          |
+| `bootstrap` | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme          |
+| `hardware`  | 2. System Bootstrap | `mise/tasks/hardware`  | Apply ThinkPad fan control + Intel GPU permissions |
+| `aur`       | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay                  |
+| `wps`       | 2. System Bootstrap | `mise/tasks/wps`       | Force WPS multi-component mode                     |
+| `fonts`     | 3. Asset Maint      | `mise/tasks/fonts`     | Update pixel fonts from GitHub releases            |
 
 Commands may require `sudo`/`pkexec` for system-wide changes (e.g. AUR, `/etc`
 hooks). Follow the privilege rules in `omarchy.md`.
 
-## Pi-Quotas panel collector
+## Atomic writes and file watching
 
-The Omarchy **agents panel** (`xifan.agents`) shows model quota + usage. Its
-collector is `dotfiles/.config/omarchy/plugins/xifan.agents/collect_pi_usage.py`.
-
-Flow:
-
-```
-Quickshell (Main.qml)                   # triggers on start / 15m / manual
-  └─ collect_pi_usage.py                # Omarchy-only writer
-       ├─ find pi-quotas binary (bin dir)   # ~/.pi/agent/npm/node_modules/.bin
-       ├─ run  pi-quotas --json
-       └─ atomically write per-provider JSON
-            ~/.local/state/omarchy/agents/usage/{provider}.json
-  └─ Panel.qml / FileView              # pure display, watchChanges: true
-```
-
-### Finding the pi-quotas binary
-
-Resolve the CLI via standard `bin` discovery:
-
-```python
-pi_bin_dir = Path.home() / ".pi" / "agent" / "npm" / "node_modules" / ".bin"
-search_path = f"{pi_bin_dir}:{os.environ.get('PATH', '')}"
-bin_path = shutil.which("pi-quotas", path=search_path)
-```
-
-`pi-quotas` is a separately published Pi plugin (npm + GitHub). It is not part
-of this repo; this repo only consumes it. The panel writes one record per
-provider with `limits`, `balance`, `recentDays`, and `modelUsage`.
-
-### Atomic write requirement
-
-Collector writes are atomic: write to a temp file, then `os.replace` into the
-target. This avoids partial reads / multi-process races when FileView watches
-the directory.
+Any daemon, collector, or background script that outputs status records
+watched by Quickshell / Omarchy plugins must write files atomically:
+write to a temporary file in the same filesystem, then `os.replace` (or `mv`)
+into place. This eliminates partial reads or multi-process race conditions.
 
 ## Local timezone requirement
 
