@@ -476,17 +476,20 @@ class LivestreamService:
     @staticmethod
     def vertical_filter(use_vaapi):
         if use_vaapi:
-            # Scale 16:9 desktop to 1080x608 and center-pad with black to 1080x1920.
-            # When mobile live streaming apps (Douyin/WeChat/Kuaishou) in 16:9 mode
-            # crop the center 1080x608 window, it perfectly isolates the full 16:9
-            # desktop with 100% content visibility, 0% cropping, and 1:1 square pixels.
+            # Scale 16:9 desktop to 1080x608 with high-quality Lanczos interpolation
+            # and subtle text edge sharpening to maintain crisp code legibility on mobile.
             return (
-                "scale=1080:608,"
+                "scale=1080:608:flags=lanczos+accurate_rnd+full_chroma_int,"
+                "unsharp=3:3:0.8:3:3:0.0,"
                 "pad=1080:1920:0:(1920-608)/2:black,"
                 "format=nv12,"
                 "hwupload"
             )
-        return "scale=1080:608,pad=1080:1920:0:(1920-608)/2:black"
+        return (
+            "scale=1080:608:flags=lanczos+accurate_rnd+full_chroma_int,"
+            "unsharp=3:3:0.8:3:3:0.0,"
+            "pad=1080:1920:0:(1920-608)/2:black"
+        )
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -569,7 +572,7 @@ class LivestreamService:
                             "-rc_mode",
                             "CBR",
                             "-quality",
-                            "2",
+                            "1",
                             "-async_depth",
                             "2",
                             "-b:v",
