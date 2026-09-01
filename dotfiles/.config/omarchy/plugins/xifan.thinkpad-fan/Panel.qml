@@ -23,7 +23,6 @@ Panel {
   readonly property string iconText: Model.fanIcon(fanLevel)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color urgentColor: bar ? bar.urgent : Color.urgent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   implicitWidth: button.implicitWidth
@@ -203,7 +202,7 @@ Panel {
             id: heroIcon
             textFormat: Text.PlainText
             text: root.iconText
-            color: root.isMaxLevel ? root.urgentColor : root.foreground
+            color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.display
             anchors.left: parent.left
@@ -242,7 +241,7 @@ Panel {
           Text {
             id: heroRpm
             text: root.fanSpeed + " RPM"
-            color: root.isMaxLevel ? root.urgentColor : root.foreground
+            color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.headline
             font.bold: true
@@ -307,7 +306,7 @@ Panel {
             Text {
               id: maxLabel
               text: "MAX Boost"
-              color: root.isMaxLevel ? root.urgentColor : Qt.darker(root.foreground, 1.6)
+              color: root.isMaxLevel ? root.foreground : Qt.darker(root.foreground, 1.6)
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               font.bold: root.isMaxLevel
