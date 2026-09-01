@@ -2,6 +2,7 @@
 android-cli = "latest"
 android-sdk = "latest"
 aube = "latest"
+codex = "latest"
 gh = "latest"
 "github:bluenviron/mediamtx" = "latest"
 "github:go-musicfox/go-musicfox" = "latest"
