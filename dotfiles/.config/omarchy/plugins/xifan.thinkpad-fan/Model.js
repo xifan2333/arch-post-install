@@ -20,41 +20,24 @@ function stepLevel(currentLevel, steps) {
 
 // Weather Icons Beaufort wind scale and wind symbols from Nerd Fonts
 function fanIcon(level) {
-  const s = String(level || "auto").toLowerCase();
-  if (s === "auto") return "\ue31e"; // weather-windy 
-  if (s === "disengaged" || s === "64" || s === "full-speed" || s === "max") return "\ue34b"; // weather-strong_wind 
-  const num = parseInt(s, 10);
-  if (!isNaN(num) && num >= 1 && num <= 7) {
-    return String.fromCharCode(0xe3af + num); // \ue3b0 .. \ue3b6 (Beaufort 1..7)
-  }
-  return "\ue31e";
-}
-
-function levelBadgeText(level) {
-  const s = String(level || "auto").toLowerCase();
-  if (s === "auto") return "Auto";
-  if (s === "disengaged" || s === "64" || s === "full-speed" || s === "max") return "MAX";
-  return "L" + s;
+  const idx = levelToIndex(level);
+  if (idx === 0) return "\ue31e"; // weather-windy 
+  if (idx === 8) return "\ue34b"; // weather-strong_wind 
+  return String.fromCharCode(0xe3af + idx); // \ue3b0 .. \ue3b6 (Beaufort 1..7)
 }
 
 function levelOsdText(level) {
-  const s = String(level || "auto").toLowerCase();
-  if (s === "auto") return "Auto";
-  if (s === "disengaged" || s === "64" || s === "full-speed" || s === "max") return "MAX";
-  return "Level " + s;
+  const idx = levelToIndex(level);
+  if (idx === 0) return "Auto";
+  if (idx === 8) return "MAX";
+  return "Level " + idx;
 }
 
 function levelDisplayName(level) {
-  const s = String(level || "auto").toLowerCase();
-  if (s === "auto") return "BIOS Smart Curve";
-  if (s === "disengaged" || s === "64" || s === "full-speed" || s === "max")
-    return "MAX Turbo Boost";
-  return "Manual Level " + s;
-}
-
-function isMax(level) {
-  const s = String(level || "").toLowerCase();
-  return s === "disengaged" || s === "64" || s === "full-speed" || s === "max";
+  const idx = levelToIndex(level);
+  if (idx === 0) return "BIOS Smart Curve";
+  if (idx === 8) return "MAX Turbo Boost";
+  return "Manual Level " + idx;
 }
 
 if (typeof module !== "undefined") {
@@ -64,9 +47,7 @@ if (typeof module !== "undefined") {
     indexToLevel,
     stepLevel,
     fanIcon,
-    levelBadgeText,
     levelOsdText,
     levelDisplayName,
-    isMax,
   };
 }

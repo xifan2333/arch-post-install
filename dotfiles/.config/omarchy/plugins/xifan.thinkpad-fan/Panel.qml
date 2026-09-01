@@ -18,7 +18,6 @@ Panel {
   property real wheelAccumulator: 0
 
   readonly property bool isAuto: fanLevel === "auto"
-  readonly property bool isMaxLevel: Model.isMax(fanLevel)
   readonly property int sliderValue: Model.levelToIndex(fanLevel)
   readonly property string iconText: Model.fanIcon(fanLevel)
 
@@ -295,10 +294,10 @@ Panel {
 
             Text {
               text: "Level 4"
-              color: root.fanLevel === "4" ? root.foreground : Qt.darker(root.foreground, 1.8)
+              color: root.sliderValue === 4 ? root.foreground : Qt.darker(root.foreground, 1.8)
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              font.bold: root.fanLevel === "4"
+              font.bold: root.sliderValue === 4
               anchors.horizontalCenter: parent.horizontalCenter
               anchors.verticalCenter: parent.verticalCenter
             }
@@ -306,10 +305,10 @@ Panel {
             Text {
               id: maxLabel
               text: "MAX Boost"
-              color: root.isMaxLevel ? root.foreground : Qt.darker(root.foreground, 1.6)
+              color: root.sliderValue === 8 ? root.foreground : Qt.darker(root.foreground, 1.6)
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              font.bold: root.isMaxLevel
+              font.bold: root.sliderValue === 8
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
             }
