@@ -40,6 +40,11 @@
             "description": "RTMP/SRT livestream status"
           },
           {
+            "value": "Fan",
+            "label": "ThinkPad Fan",
+            "description": "Hardware fan turbo boost status"
+          },
+          {
             "value": "Reminder",
             "label": "Reminder",
             "description": "Queued reminder status"
