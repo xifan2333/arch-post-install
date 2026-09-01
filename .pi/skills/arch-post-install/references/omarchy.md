@@ -55,23 +55,17 @@ To re-bind an existing key:
 - Bar layout / widgets: `dotfiles/.config/omarchy/shell.json`
 - User plugins: `dotfiles/.config/omarchy/plugins/xifan.*`
 
-### Plugin development & reload commands
+### Plugin development: when to rescan vs when to restart
 
-Omarchy shell runs inside a single Quickshell process (`omarchy-shell`). During
-plugin development, use the following reload mechanisms:
+Omarchy shell runs inside a single Quickshell process (`omarchy-shell`). Choose the
+right reload command based on the nature of your change:
 
-1. **Automatic hot-reload (default)**: Saving any file under `dotfiles/.config/omarchy/plugins/`
-   or editing `shell.json` triggers an automatic hot-reload by the shell watcher.
-2. **Rescan plugins (soft reload, fast & seamless)**:
-   ```bash
-   omarchy-shell shell rescanPlugins
-   ```
-   Sends an IPC signal to the running shell to re-scan and instantiate updated plugin code without killing the shell process.
-3. **Full shell restart (when state or C++ services need a clean slate)**:
-   ```bash
-   omarchy restart shell
-   ```
-   Smoothly restarts the entire `omarchy-shell` / Quickshell daemon.
+| Command | When to use | Why |
+| ------- | ----------- | --- |
+| **`omarchy-shell shell rescanPlugins`** | • Adding a new plugin folder<br>• Editing `manifest.json` metadata<br>• Minor visual QML tweaks | Lightweight soft-scan; registers new plugin discovery without killing the shell process. |
+| **`omarchy restart shell`** *(Recommended)* | • Editing QML layout/hierarchy/properties<br>• Editing JavaScript models (`Model.js`)<br>• Adding/changing IPC handlers (`ipcTarget`)<br>• Clearing QML runtime `TypeError`/binding warnings | Full process restart; flushes QML JS module caches, re-evaluates all component bindings, and guarantees clean engine state. |
+
+**Rule of thumb during active plugin development**: Always prefer `omarchy restart shell`. QML caches imported `.js` modules and instantiated widget state in memory — a full restart prevents chasing ghost issues caused by stale runtime caches.
 
 ### Inspecting shell & plugin logs
 
