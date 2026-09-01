@@ -65,6 +65,8 @@ Panel {
   }
 
   function showFanOsd(lvl) {
+    if (root.opened)
+      return;
     if (!bar || !bar.shell)
       return;
     var targetLvl = String(lvl || root.fanLevel);
