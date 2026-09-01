@@ -118,7 +118,6 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.iconText
-    tooltipText: "Fan: " + (root.isAuto ? "Auto" : (root.isMaxLevel ? "MAX" : "Level " + root.fanLevel)) + " (" + root.fanSpeed + " RPM) · CPU " + root.cpuTemp
     onPressed: function (b) {
       if (b === Qt.RightButton) {
         root.toggleAutoManual(true);
@@ -190,7 +189,7 @@ Panel {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        implicitHeight: Math.max(iconItem.implicitHeight, fanSlider.implicitHeight)
+        implicitHeight: Math.max(iconItem.implicitHeight, fanSlider.implicitHeight, badgeText.implicitHeight)
 
         Item {
           id: iconItem
@@ -224,7 +223,8 @@ Panel {
           bar: root.bar
           anchors.left: iconItem.right
           anchors.leftMargin: Style.space(8)
-          anchors.right: parent.right
+          anchors.right: badgeText.left
+          anchors.rightMargin: Style.space(12)
           anchors.verticalCenter: parent.verticalCenter
           minimum: 0
           maximum: 8
@@ -240,6 +240,19 @@ Panel {
           onRightClicked: {
             root.toggleAutoManual(true);
           }
+        }
+
+        Text {
+          id: badgeText
+          text: Model.levelBadgeText(root.fanLevel)
+          color: root.isMaxLevel ? (root.bar ? root.bar.urgent : Color.urgent) : root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          font.bold: true
+          horizontalAlignment: Text.AlignRight
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(40)
         }
       }
     }
