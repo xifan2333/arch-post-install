@@ -242,7 +242,7 @@ Panel {
             text: root.fanSpeed + " RPM"
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.headline
+            font.pixelSize: Style.font.heading
             font.bold: true
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
