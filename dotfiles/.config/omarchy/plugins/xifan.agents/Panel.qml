@@ -113,10 +113,17 @@ Panel {
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
   function limitWindow(label, percent, resetAt, title) {
+    var rawPct = Number(percent);
+    var resetStr = String(resetAt || "");
+    if (rawPct >= 1.0 && resetStr !== "") {
+      var ms = new Date(resetStr).getTime();
+      if (isFinite(ms) && ms <= root.nowMs)
+        rawPct = 0.0;
+    }
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
-      percent: Number(percent),
-      resetAt: String(resetAt || "")
+      percent: rawPct,
+      resetAt: resetStr
     };
   }
 
@@ -372,7 +379,7 @@ Panel {
     nowMs = Date.now();
     if (panelFlick)
       panelFlick.contentY = 0;
-    usage.refreshLimits();
+    usage.refreshAll(true);
     Qt.callLater(function () {
       keyCatcher.forceActiveFocus();
     });

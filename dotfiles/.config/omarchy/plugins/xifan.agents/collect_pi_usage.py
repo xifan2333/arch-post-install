@@ -134,7 +134,7 @@ def main() -> int:
         return 1
 
     args = [*cmd, "--json"]
-    if "--force" in sys.argv:
+    if "--force" in sys.argv or "--limits-only" in sys.argv:
         args.append("--force")
 
     try:
