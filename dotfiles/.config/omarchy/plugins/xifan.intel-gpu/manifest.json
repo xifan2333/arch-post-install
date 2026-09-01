@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.intel-gpu",
+  "name": "Intel GPU",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "Hardware GPU frequency governor and live clock monitor",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Intel GPU",
+    "description": "Control Intel HD Graphics frequency levels (Auto / 650-1250 MHz / MAX Boost) and view live clock",
+    "category": "System",
+    "allowMultiple": false
+  }
+}

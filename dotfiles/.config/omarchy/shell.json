@@ -58,11 +58,14 @@
           "id": "xifan.thinkpad-fan"
         },
         {
+          "id": "xifan.intel-gpu"
+        },
+        {
           "id": "omarchy.monitor"
         },
         {
           "id": "omarchy.power",
-          "showPercentage": false
+          "showPercentage": true
         }
       ]
     }
@@ -70,6 +73,9 @@
   "plugins": [
     {
       "id": "xifan.thinkpad-fan"
+    },
+    {
+      "id": "xifan.intel-gpu"
     },
     {
       "id": "xifan.overlay-title"

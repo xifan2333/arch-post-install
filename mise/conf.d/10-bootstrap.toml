@@ -39,3 +39,10 @@ source = "../tmpfiles.d/thinkpad-fan.conf"
 owner = "root"
 group = "root"
 mode = "0644"
+
+# Grant non-root write access to Intel GPU frequency nodes
+[bootstrap.files."/etc/tmpfiles.d/intel-gpu.conf"]
+source = "../tmpfiles.d/intel-gpu.conf"
+owner = "root"
+group = "root"
+mode = "0644"
