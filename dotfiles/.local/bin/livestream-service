@@ -474,22 +474,8 @@ class LivestreamService:
         return Path("/dev/dri/renderD128").exists()
 
     @staticmethod
-    def vertical_filter(use_vaapi):
-        if use_vaapi:
-            # Scale 16:9 desktop to 1080x608 with high-quality Lanczos interpolation
-            # and subtle text edge sharpening to maintain crisp code legibility on mobile.
-            return (
-                "scale=1080:608:flags=lanczos+accurate_rnd+full_chroma_int,"
-                "unsharp=3:3:0.8:3:3:0.0,"
-                "pad=1080:1920:0:(1920-608)/2:black,"
-                "format=nv12,"
-                "hwupload"
-            )
-        return (
-            "scale=1080:608:flags=lanczos+accurate_rnd+full_chroma_int,"
-            "unsharp=3:3:0.8:3:3:0.0,"
-            "pad=1080:1920:0:(1920-608)/2:black"
-        )
+    def vertical_filter(use_vaapi=False):
+        return "scale=1080:-2:flags=lanczos+accurate_rnd,pad=1080:1920:0:(1920-ih)/2:black"
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -504,7 +490,7 @@ class LivestreamService:
             ]
             for mode in ("16:9", "9:16")
         }
-        use_vaapi = self.has_vaapi() and bool(groups["9:16"])
+        use_vaapi = False
         filters = (
             [f"[0:v]{self.vertical_filter(use_vaapi)}[v_vertical]"]
             if groups["9:16"]
