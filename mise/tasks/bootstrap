@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Apply post-bootstrap setup"
-#MISE depends=["aur", "wps"]
+#MISE depends=["aur", "wps", "hardware"]
 set -euo pipefail
 
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"

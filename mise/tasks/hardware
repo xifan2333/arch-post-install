@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#MISE description="Apply ThinkPad fan control and Intel GPU sysfs permissions"
+set -euo pipefail
+
+printf 'Applying tmpfiles permissions for ThinkPad fan and Intel GPU...\n'
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/thinkpad-fan.conf /etc/tmpfiles.d/intel-gpu.conf
+
+if [[ -e /proc/acpi/ibm/fan ]]; then
+    printf 'Configuring ThinkPad ACPI fan control...\n'
+    sudo modprobe -r thinkpad_acpi 2>/dev/null || true
+    sudo modprobe thinkpad_acpi fan_control=1
+fi
+
+if [[ -f /etc/modprobe.d/thinkpad_acpi.conf ]]; then
+    printf 'Rebuilding initramfs...\n'
+    sudo mkinitcpio -P
+fi
+
+printf 'Hardware controls ready\n'
