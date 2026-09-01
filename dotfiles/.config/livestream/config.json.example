@@ -1,6 +1,7 @@
 {
-  "bitrate": 4000,
+  "bitrate": 6000,
   "audio_bitrate": 160,
+  "lan_bitrate": 12000,
   "platforms": [
     {
       "enabled": true,
@@ -18,10 +19,17 @@
     },
     {
       "enabled": false,
-      "name": "local",
-      "server": "srt://127.0.0.1:9999?mode=caller&latency=200&tlpktdrop=1&connect_timeout=2000&pkt_size=1316",
+      "name": "vcam-douyin",
+      "server": "srt://192.168.1.100:9999?mode=caller&latency=50&tlpktdrop=1&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
       "key": "",
       "aspect_ratio": "9:16"
+    },
+    {
+      "enabled": false,
+      "name": "vcam-wechat",
+      "server": "srt://192.168.1.100:9999?mode=caller&latency=50&tlpktdrop=1&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
+      "key": "",
+      "aspect_ratio": "16:9"
     }
   ]
 }
