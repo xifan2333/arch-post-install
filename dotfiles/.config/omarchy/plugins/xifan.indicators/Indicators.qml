@@ -7,7 +7,7 @@ BarWidget {
   id: root
   moduleName: "xifan.indicators"
 
-  readonly property var defaultIndicatorEntries: ["Dictation", "ScreenRecording", "Livestream", "Fan", "Reminder", "NightLight", "Dnd", "StayAwake"]
+  readonly property var defaultIndicatorEntries: ["Dictation", "ScreenRecording", "Livestream", "Reminder", "NightLight", "Dnd", "StayAwake"]
   readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})

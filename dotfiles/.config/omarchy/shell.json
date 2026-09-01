@@ -20,15 +20,7 @@
       "center": [
         {
           "id": "xifan.indicators",
-          "items": [
-            "ScreenRecording",
-            "Livestream",
-            "Fan",
-            "Reminder",
-            "NightLight",
-            "Dnd",
-            "StayAwake"
-          ]
+          "items": ["ScreenRecording", "Livestream", "Reminder", "NightLight", "Dnd", "StayAwake"]
         },
         {
           "id": "omarchy.clock",
@@ -63,6 +55,9 @@
           "id": "omarchy.audio"
         },
         {
+          "id": "xifan.thinkpad-fan"
+        },
+        {
           "id": "omarchy.monitor"
         },
         {
@@ -72,6 +67,9 @@
     }
   },
   "plugins": [
+    {
+      "id": "xifan.thinkpad-fan"
+    },
     {
       "id": "xifan.overlay-title"
     },

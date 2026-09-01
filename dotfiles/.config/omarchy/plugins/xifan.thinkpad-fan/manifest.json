@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "xifan.thinkpad-fan",
+  "name": "ThinkPad Fan",
+  "version": "1.0.0",
+  "author": "xifan",
+  "license": "MIT",
+  "description": "Hardware fan control panel and RPM monitor",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "ThinkPad Fan",
+    "description": "Control ThinkPad hardware fan levels (Auto / 1-7 / MAX Boost) and view live RPM",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
