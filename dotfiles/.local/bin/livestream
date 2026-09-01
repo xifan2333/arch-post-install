@@ -49,6 +49,16 @@ unmute_audio() {
     fi
 }
 
+boost_hardware() {
+    command -v intel-gpu-freq >/dev/null 2>&1 && intel-gpu-freq max >/dev/null 2>&1 || true
+    command -v thinkpad-fan >/dev/null 2>&1 && thinkpad-fan max >/dev/null 2>&1 || true
+}
+
+restore_hardware() {
+    command -v intel-gpu-freq >/dev/null 2>&1 && intel-gpu-freq auto >/dev/null 2>&1 || true
+    command -v thinkpad-fan >/dev/null 2>&1 && thinkpad-fan auto >/dev/null 2>&1 || true
+}
+
 open_danmaku() {
     [ -x "$DANMAKU" ] || return 0
     "$DANMAKU" start >/dev/null 2>&1 &
@@ -74,8 +84,9 @@ start_stream() {
     fi
     "$SERVICE" validate --config "$CONFIG_FILE" >/dev/null 2>&1 || return 3
 
+    boost_hardware
     unmute_audio
-    PULSE_LATENCY_MSEC=40 setsid "$SERVICE" run \
+    PULSE_LATENCY_MSEC=40 nice -n -10 setsid "$SERVICE" run \
         --config "$CONFIG_FILE" \
         --target "$capture_target" \
         --audio-source "default_output|default_input" \
@@ -94,6 +105,7 @@ start_stream() {
         ;;
     *)
         "$SERVICE" stop --timeout 7 >/dev/null 2>&1 || true
+        restore_hardware
         return 4
         ;;
     esac
@@ -105,6 +117,7 @@ stop_stream() {
     if [ "$rc" -eq 0 ]; then
         close_danmaku
     fi
+    restore_hardware
     return "$rc"
 }
 
