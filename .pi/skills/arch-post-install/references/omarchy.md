@@ -54,8 +54,34 @@ To re-bind an existing key:
 
 - Bar layout / widgets: `dotfiles/.config/omarchy/shell.json`
 - User plugins: `dotfiles/.config/omarchy/plugins/xifan.*`
-- Plugin reload: saving a file hot-reloads; force with
-  `omarchy restart shell` or `omarchy-shell shell rescanPlugins`
+
+### Plugin development & reload commands
+
+Omarchy shell runs inside a single Quickshell process (`omarchy-shell`). During
+plugin development, use the following reload mechanisms:
+
+1. **Automatic hot-reload (default)**: Saving any file under `dotfiles/.config/omarchy/plugins/`
+   or editing `shell.json` triggers an automatic hot-reload by the shell watcher.
+2. **Rescan plugins (soft reload, fast & seamless)**:
+   ```bash
+   omarchy-shell shell rescanPlugins
+   ```
+   Sends an IPC signal to the running shell to re-scan and instantiate updated plugin code without killing the shell process.
+3. **Full shell restart (when state or C++ services need a clean slate)**:
+   ```bash
+   omarchy restart shell
+   ```
+   Smoothly restarts the entire `omarchy-shell` / Quickshell daemon.
+
+### Inspecting shell & plugin logs
+
+To monitor QML runtime warnings, binding errors, or debug output:
+
+```bash
+journalctl --user -b -n 50 --no-pager | grep -iE "quickshell|omarchy"
+# or follow live:
+journalctl --user -b -f
+```
 
 ### Plugin naming
 
@@ -85,6 +111,20 @@ To re-bind an existing key:
   keep network/API work in the collector.
 - Have collectors talk to external tools via standard `bin` resolution (see
   workflows.md) and write state files atomically (write temp, then `os.replace`).
+
+## Omarchy Desktop Skill Index
+
+For deep-dive topics provided by the system's `omarchy` skill, refer to
+`~/.pi/agent/skills/omarchy/`:
+
+| Topic | File | Covers |
+| ----- | ---- | ------ |
+| **Hyprland** | `hyprland.md` | Keybindings, monitors, window rules, layer rules, animations |
+| **Plugins & Bar** | `plugins.md` | Status bar layout, widgets, cloning plugins, idle/lock behavior |
+| **Theming** | `theming.md` | Themes, colors.toml, shell.toml overrides, backgrounds, fonts |
+| **Hooks** | `hooks.md` | Event automation hooks (`theme-set`, `post-install`) |
+| **Capture** | `capture.md` | Screenshots, screen recording, OCR text capture |
+| **Contributing** | `contributing.md` | Diagnostics and reporting upstream Omarchy bugs |
 
 ## Command discovery
 

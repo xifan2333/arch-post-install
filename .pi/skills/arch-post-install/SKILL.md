@@ -24,11 +24,14 @@ Read the matching reference before editing:
 - [`references/mise-structure.md`](references/mise-structure.md) — the two-layer
   mise configuration and where each concern belongs.
 - [`references/omarchy.md`](references/omarchy.md) — desktop rules: system dir
-  boundaries, Hyprland validation loop, shell plugins, panels.
+  boundaries, Hyprland validation loop, shell plugins, panels, and plugin reload commands.
 - [`references/dotfiles.md`](references/dotfiles.md) — editing dotfiles safely
   (symlink model, `*.example` templating, source-over-target).
 - [`references/workflows.md`](references/workflows.md) — git/Lefthook
   conventions, maintenance tasks, and the pi-quotas panel collector.
+- **Omarchy Skill** (`omarchy`) — for system-wide desktop guides (Hyprland,
+  themes, hooks, capture, built-in shell plugins), refer to the bundled
+  Omarchy skill (`~/.pi/agent/skills/omarchy/SKILL.md`).
 
 ## Where edits go
 
@@ -82,7 +85,9 @@ Put your change in the right home. This table answers "what do I edit?":
    across midnight.
 
 9. **Commit with Conventional Commits.** `feat:`, `fix:`, `refactor:`,
-   `chore:`, `docs:`, `style:`. Let the staged-file Lefthook gate run.
+   `chore:`, `docs:`, `style:`. The pre-commit hook (Lefthook) automatically runs
+   linter and formatter on staged files. Whole-repo `mise run lint` and `mise run format`
+   are for repo-wide verification, not required after every micro edit.
 
 ## Task commands by lifecycle
 

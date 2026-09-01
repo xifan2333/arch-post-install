@@ -6,7 +6,10 @@ This repo uses **Lefthook** for fast staged-file checks. Config is in
 `lefthook.yml`; install with `mise run hooks` (or `lefthook install`).
 
 `pre-commit` runs in parallel on **staged files only** (`{staged_files}`), so
-commits are near-instant (0.05s). Coverage:
+commits are near-instant (0.05s) and validate Python, Shell, Lua, TOML, JSON,
+YAML, and QML files automatically at commit time.
+
+Coverage:
 
 | File type                  | Tools                 |
 | -------------------------- | --------------------- |
@@ -20,9 +23,14 @@ commits are near-instant (0.05s). Coverage:
 
 `commit-msg` runs Commitlint (Conventional Commits).
 
-To run whole-repo checks at any time:
+### Whole-repo checks vs per-edit workflow
 
-- `mise run lint` — runs full static analysis across all files
+Because `pre-commit` already guards all staged files on git commit, **you do not
+need to run full-repo lint or format after every small file edit**.
+
+Use these tasks only when doing whole-repository audits or batch cleanups:
+
+- `mise run lint` — runs full static analysis across all files in the repository
 - `mise run format` — formats all files across the repository
 
 ### Commit conventions
@@ -37,7 +45,7 @@ To run whole-repo checks at any time:
 | Task        | Lifecycle Layer     | Location               | Purpose                                   |
 | ----------- | ------------------- | ---------------------- | ----------------------------------------- |
 | `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh Lefthook git hooks        |
-| `check`     | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files     |
+| `lint`      | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files     |
 | `format`    | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                 |
 | `bootstrap` | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme |
 | `aur`       | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay         |
