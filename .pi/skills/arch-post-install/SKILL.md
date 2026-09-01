@@ -13,8 +13,9 @@ description: >
 # Arch Post-Install & Omarchy System Kit
 
 This repository is the **single source of truth** for this personal Arch Linux
-+ Omarchy desktop system. It is a declarative infrastructure kit: every change
-flows through the documented mechanisms below.
+
+- Omarchy desktop system. It is a declarative infrastructure kit: every change
+  flows through the documented mechanisms below.
 
 ## Start here
 
@@ -33,19 +34,19 @@ Read the matching reference before editing:
 
 Put your change in the right home. This table answers "what do I edit?":
 
-| Goal                                      | Edit                                  |
-|-------------------------------------------|---------------------------------------|
-| Add/change a repo linter or dev tool      | `mise.toml` → `[tools]`               |
-| Add/update repo check or format tasks     | `mise.toml` → `[tasks.*]`             |
-| Install a system pacman package           | `mise/conf.d/10-bootstrap.toml`       |
-| Add a privileged file/dir or pacman hook  | `mise/conf.d/10-bootstrap.toml`       |
-| Map a dotfile into `~/.config` / `~/.local`| `mise/conf.d/20-dotfiles.toml`       |
-| Add an AUR-only package                   | `mise/tasks/aur`                      |
-| Change system bootstrap initialization    | `mise/tasks/bootstrap`                |
-| Update pixel fonts download automation    | `mise/tasks/fonts`                    |
-| Change WPS window component mode task     | `mise/tasks/wps`                      |
-| Adjust Hyprland keybind/monitor/windows   | `dotfiles/.config/hypr/*.lua`         |
-| Build/modify an Omarchy panel or plugin   | `dotfiles/.config/omarchy/`           |
+| Goal                                        | Edit                            |
+| ------------------------------------------- | ------------------------------- |
+| Add/change a repo linter or dev tool        | `mise.toml` → `[tools]`         |
+| Add/update repo check or format tasks       | `mise.toml` → `[tasks.*]`       |
+| Install a system pacman package             | `mise/conf.d/10-bootstrap.toml` |
+| Add a privileged file/dir or pacman hook    | `mise/conf.d/10-bootstrap.toml` |
+| Map a dotfile into `~/.config` / `~/.local` | `mise/conf.d/20-dotfiles.toml`  |
+| Add an AUR-only package                     | `mise/tasks/aur`                |
+| Change system bootstrap initialization      | `mise/tasks/bootstrap`          |
+| Update pixel fonts download automation      | `mise/tasks/fonts`              |
+| Change WPS window component mode task       | `mise/tasks/wps`                |
+| Adjust Hyprland keybind/monitor/windows     | `dotfiles/.config/hypr/*.lua`   |
+| Build/modify an Omarchy panel or plugin     | `dotfiles/.config/omarchy/`     |
 
 ## Workflow
 

@@ -8,19 +8,20 @@ This repo uses **Lefthook** for fast staged-file checks. Config is in
 `pre-commit` runs in parallel on **staged files only** (`{staged_files}`), so
 commits are near-instant (0.05s). Coverage:
 
-| File type | Tools |
-|-----------|-------|
-| `*.py` | Ruff (check + format) |
-| `*.{sh,bash}` | ShellCheck + Shfmt |
-| `**/mise/tasks/*` (no ext) | ShellCheck + Shfmt |
-| `*.lua` | Stylua + luac |
-| `*.toml` | Taplo (format + lint) |
-| `*.{json,jsonc,yaml,yml}` | Prettier |
-| `*.qml` | qmllint |
+| File type                  | Tools                 |
+| -------------------------- | --------------------- |
+| `*.py`                     | Ruff (check + format) |
+| `*.{sh,bash}`              | ShellCheck + Shfmt    |
+| `**/mise/tasks/*` (no ext) | ShellCheck + Shfmt    |
+| `*.lua`                    | Stylua + luac         |
+| `*.toml`                   | Taplo (format + lint) |
+| `*.{json,jsonc,yaml,yml}`  | Prettier              |
+| `*.qml`                    | qmllint               |
 
 `commit-msg` runs Commitlint (Conventional Commits).
 
 To run whole-repo checks at any time:
+
 - `mise run check` — runs full static analysis across all files
 - `mise run format` — formats all files across the repository
 
@@ -33,15 +34,15 @@ To run whole-repo checks at any time:
 
 ## Complete Task Directory by Lifecycle
 
-| Task | Lifecycle Layer | Location | Purpose |
-|------|-----------------|----------|---------|
-| `hooks` | 1. Repo Dev | `mise.toml` | Install/refresh Lefthook git hooks |
-| `check` | 1. Repo Dev | `mise.toml` | Full static analysis across all files |
-| `format` | 1. Repo Dev | `mise.toml` | Full repo auto-formatting |
+| Task        | Lifecycle Layer     | Location               | Purpose                                   |
+| ----------- | ------------------- | ---------------------- | ----------------------------------------- |
+| `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh Lefthook git hooks        |
+| `check`     | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files     |
+| `format`    | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                 |
 | `bootstrap` | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme |
-| `aur` | 2. System Bootstrap | `mise/tasks/aur` | Install AUR-only packages via yay |
-| `wps` | 2. System Bootstrap | `mise/tasks/wps` | Force WPS multi-component mode |
-| `fonts` | 3. Asset Maint | `mise/tasks/fonts` | Update pixel fonts from GitHub releases |
+| `aur`       | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay         |
+| `wps`       | 2. System Bootstrap | `mise/tasks/wps`       | Force WPS multi-component mode            |
+| `fonts`     | 3. Asset Maint      | `mise/tasks/fonts`     | Update pixel fonts from GitHub releases   |
 
 Commands may require `sudo`/`pkexec` for system-wide changes (e.g. AUR, `/etc`
 hooks). Follow the privilege rules in `omarchy.md`.

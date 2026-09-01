@@ -75,7 +75,7 @@ start_stream() {
     "$SERVICE" validate --config "$CONFIG_FILE" >/dev/null 2>&1 || return 3
 
     unmute_audio
-    PULSE_LATENCY_MSEC=100 setsid "$SERVICE" run \
+    PULSE_LATENCY_MSEC=40 setsid "$SERVICE" run \
         --config "$CONFIG_FILE" \
         --target "$capture_target" \
         --audio-source "default_output|default_input" \

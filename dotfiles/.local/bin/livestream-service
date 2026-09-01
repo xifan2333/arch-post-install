@@ -464,7 +464,10 @@ class LivestreamService:
                 "scale_vaapi=w=1080:h=-2,"
                 "pad_vaapi=w=1080:h=1920:x=0:y=(1920-ih)/2:color=black"
             )
-        return "scale=1080:-2:flags=lanczos,pad=1080:1920:0:(1920-ih)/2:black"
+        return (
+            "scale=1080:-2:flags=lanczos+accurate_rnd,"
+            "pad=1080:1920:0:(1920-ih)/2:black"
+        )
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -485,7 +488,20 @@ class LivestreamService:
             if groups["9:16"]
             else []
         )
-        command = ["ffmpeg", "-hide_banner", "-loglevel", "warning"]
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "warning",
+            "-fflags",
+            "nobuffer+flush_packets",
+            "-flags",
+            "low_delay",
+            "-probesize",
+            "32768",
+            "-analyzeduration",
+            "0",
+        ]
         if use_vaapi:
             command.extend(
                 [
@@ -545,6 +561,8 @@ class LivestreamService:
                             str(gop),
                             "-bf",
                             "0",
+                            "-bsf:v",
+                            "dump_extra=freq=keyframe",
                         ]
                     )
                 else:
@@ -568,6 +586,8 @@ class LivestreamService:
                             str(gop),
                             "-sc_threshold",
                             "0",
+                            "-bsf:v",
+                            "dump_extra=freq=keyframe",
                         ]
                     )
 
