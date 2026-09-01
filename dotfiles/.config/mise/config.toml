@@ -1,5 +1,4 @@
 [tools]
-android-cli = "latest"
 android-sdk = "latest"
 aube = "latest"
 codex = "latest"
@@ -21,6 +20,7 @@ pi = "latest"
 "pipx:yt-dlp" = { version = "latest", uvx_args = "--with secretstorage" }
 shfmt = "3.13.1"
 uv = "latest"
+yq = "latest"
 
 [settings]
 idiomatic_version_file_enable_tools = ["node"]

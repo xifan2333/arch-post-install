@@ -458,16 +458,16 @@ class LivestreamService:
     @staticmethod
     def vertical_filter(use_vaapi):
         if use_vaapi:
-            # Full-GPU path: hwaccel decode hands VAAPI frames straight to
-            # scale+pad, no CPU frame copies. pad_vaapi uses ih (not h).
+            # Keep the phone feed at full 1080x1920 because the mobile app
+            # performs a second crop for landscape broadcast. Decode and
+            # compose in system memory, then upload NV12 frames for VAAPI encode.
             return (
-                "scale_vaapi=w=1080:h=-2,"
-                "pad_vaapi=w=1080:h=1920:x=0:y=(1920-ih)/2:color=black"
+                "scale=1080:-2,"
+                "pad=1080:1920:0:(1920-ih)/2:black,"
+                "format=nv12,"
+                "hwupload"
             )
-        return (
-            "scale=1080:-2:flags=lanczos+accurate_rnd,"
-            "pad=1080:1920:0:(1920-ih)/2:black"
-        )
+        return "scale=1080:-2,pad=1080:1920:0:(1920-ih)/2:black"
 
     def tee_targets(self, platforms):
         return "|".join(
@@ -507,12 +507,6 @@ class LivestreamService:
                 [
                     "-init_hw_device",
                     "vaapi=va:/dev/dri/renderD128",
-                    "-hwaccel",
-                    "vaapi",
-                    "-hwaccel_device",
-                    "va",
-                    "-hwaccel_output_format",
-                    "vaapi",
                     "-filter_hw_device",
                     "va",
                 ]
@@ -553,8 +547,18 @@ class LivestreamService:
                             "[v_vertical]",
                             "-c:v",
                             "h264_vaapi",
+                            "-rc_mode",
+                            "CBR",
+                            "-quality",
+                            "2",
+                            "-async_depth",
+                            "2",
                             "-b:v",
                             f"{vertical_bitrate}k",
+                            "-maxrate",
+                            f"{vertical_bitrate}k",
+                            "-bufsize",
+                            f"{vertical_bitrate * 2}k",
                             "-g",
                             str(gop),
                             "-keyint_min",

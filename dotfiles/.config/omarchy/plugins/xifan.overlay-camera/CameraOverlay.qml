@@ -22,8 +22,8 @@ Item {
   property string device: "auto"
   property int widthPx: 200
   property int heightPx: 150
-  property int captureWidth: 1280
-  property int captureHeight: 720
+  property int captureWidth: 640
+  property int captureHeight: 480
   property int fps: 30
   property string anchorX: "right"
   property string anchorY: "bottom"

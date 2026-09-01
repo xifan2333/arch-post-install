@@ -1,6 +1,8 @@
 # Provides /usr/lib/ladspa/librnnoise_ladspa.so, which is loaded by the
 # PipeWire noise-canceling source configuration.
 [bootstrap.packages]
+"pacman:android-tools" = "latest"
+"pacman:android-udev" = "latest"
 "pacman:noise-suppression-for-voice" = "latest"
 "pacman:ttf-sarasa-gothic" = "latest"
 "pacman:unzip" = "latest"
