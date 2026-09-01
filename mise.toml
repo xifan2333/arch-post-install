@@ -21,14 +21,14 @@ run = """
 ruff check .
 taplo lint --no-schema
 prettier --check .
-shellcheck --rcfile=.shellcheckrc dotfiles/.local/bin/livestream mise/tasks/*
+shellcheck --rcfile=.shellcheckrc dotfiles/.local/bin/livestream dotfiles/.local/bin/thinkpad-fan mise/tasks/*
 """
 
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"
 run = """
 ruff format .
-shfmt -w -i 4 dotfiles/.local/bin/livestream mise/tasks/*
+shfmt -w -i 4 dotfiles/.local/bin/livestream dotfiles/.local/bin/thinkpad-fan mise/tasks/*
 stylua dotfiles/.config/hypr/
 taplo format
 prettier --write .

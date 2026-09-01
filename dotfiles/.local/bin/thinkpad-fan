@@ -1,0 +1,65 @@
+#!/bin/bash
+# ThinkPad hardware fan control helper.
+# Supports level: auto, 0-7, disengaged (unlocked max RPM), status.
+
+set -euo pipefail
+
+FAN_PROC="/proc/acpi/ibm/fan"
+
+get_status() {
+    if [ -r "$FAN_PROC" ]; then
+        cat "$FAN_PROC"
+    else
+        echo "Error: $FAN_PROC is not readable" >&2
+        return 1
+    fi
+}
+
+set_level() {
+    local lvl="$1"
+    if [ ! -w "$FAN_PROC" ]; then
+        if command -v pkexec >/dev/null 2>&1; then
+            echo "level $lvl" | pkexec tee "$FAN_PROC" >/dev/null
+        elif command -v sudo >/dev/null 2>&1; then
+            echo "level $lvl" | sudo tee "$FAN_PROC" >/dev/null
+        else
+            echo "Error: root permission required to write to $FAN_PROC" >&2
+            return 1
+        fi
+    else
+        echo "level $lvl" >"$FAN_PROC"
+    fi
+}
+
+case "${1:-status}" in
+status)
+    get_status
+    ;;
+max | boost | full | disengaged | 64)
+    set_level "disengaged"
+    echo "ThinkPad fan set to MAX (disengaged / 5000+ RPM)"
+    ;;
+auto)
+    set_level "auto"
+    echo "ThinkPad fan restored to BIOS auto"
+    ;;
+0 | 1 | 2 | 3 | 4 | 5 | 6 | 7)
+    set_level "$1"
+    echo "ThinkPad fan set to level $1"
+    ;;
+-h | --help)
+    cat <<EOF
+Usage: thinkpad-fan [status|auto|max|0-7]
+
+Commands:
+  status       Show current fan status, RPM and level
+  auto         Restore BIOS smart auto fan control
+  max          Boost fan to maximum speed (disengaged, 5000+ RPM)
+  0-7          Set specific fan level (0=off, 7=maximum BIOS speed)
+EOF
+    ;;
+*)
+    echo "Unknown command: $1 (run with --help for usage)" >&2
+    exit 1
+    ;;
+esac

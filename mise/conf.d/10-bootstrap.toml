@@ -25,3 +25,10 @@ source = "../hooks/rime-wanxiang-deploy.hook"
 owner = "root"
 group = "root"
 mode = "0644"
+
+# Enable manual hardware fan control on ThinkPad (/proc/acpi/ibm/fan)
+[bootstrap.files."/etc/modprobe.d/thinkpad_acpi.conf"]
+source = "../modprobe.d/thinkpad_acpi.conf"
+owner = "root"
+group = "root"
+mode = "0644"
