@@ -23,7 +23,7 @@ Use this index to understand architecture boundaries and locate the source of tr
 - **Role**: Android Camera2 Hook / Virtual Camera application for desktop-to-mobile live streaming (Douyin, WeChat Video Channels, Kuaishou).
 - **Integration Boundary**:
   - `vcam` on Android listens on port 9999 for SRT streams and decodes H.264 frames directly into the camera preview Surface via hardware `MediaCodec` (zero rendering overhead, transparent physical camera bypass when stopped).
-  - `arch-post-install` manages the Linux push pipeline via `livestream` / `livestream-service` (`dotfiles/.local/bin/livestream*`), which captures the screen, performs 9:16 vertical composition, VAAPI NV12 hardware encoding, and pushes over LAN SRT (`srt://<phone-ip>:9999?mode=caller&latency=50`).
+  - `arch-post-install` manages the Linux push pipeline via `livestream` / `livestream-service` (`dotfiles/.local/bin/livestream*`), which captures the screen, performs 9:16 vertical composition, VAAPI NV12 hardware encoding, and pushes over LAN SRT (`srt://<phone-ip>:9999?mode=caller&latency=200`).
   - Stream targets and bitrates (`lan_bitrate`, `aspect_ratio: "9:16"`) are configured in `~/.config/livestream/config.json`.
 
 ### 3. `dmnotifier` (Danmaku Desktop Notifier)

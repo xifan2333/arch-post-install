@@ -20,14 +20,14 @@
     {
       "enabled": false,
       "name": "vcam-douyin",
-      "server": "srt://192.168.1.100:9999?mode=caller&latency=50&tlpktdrop=1&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
+      "server": "srt://192.168.1.100:9999?mode=caller&latency=200&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
       "key": "",
       "aspect_ratio": "9:16"
     },
     {
       "enabled": false,
       "name": "vcam-wechat",
-      "server": "srt://192.168.1.100:9999?mode=caller&latency=50&tlpktdrop=1&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
+      "server": "srt://192.168.1.100:9999?mode=caller&latency=200&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
       "key": "",
       "aspect_ratio": "16:9"
     }
