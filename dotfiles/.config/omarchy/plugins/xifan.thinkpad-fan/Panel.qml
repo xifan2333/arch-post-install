@@ -1,10 +1,9 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 Panel {
   id: root
@@ -14,8 +13,13 @@ Panel {
 
   property string fanSpeed: "0"
   property string fanLevel: "auto"
+  property string lastManualLevel: "max"
   property string cpuTemp: "—"
-  property bool isMax: fanLevel === "disengaged" || fanLevel === "64" || fanLevel === "full-speed"
+  property real wheelAccumulator: 0
+
+  readonly property bool isAuto: fanLevel === "auto"
+  readonly property bool isMaxLevel: Model.isMax(fanLevel)
+  readonly property int sliderValue: Model.levelToIndex(fanLevel)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
@@ -46,7 +50,11 @@ Panel {
         var parts = String(data || "").trim().split(":");
         if (parts.length >= 2) {
           root.fanSpeed = parts[0] || "0";
-          root.fanLevel = parts[1] || "auto";
+          var lvl = parts[1] || "auto";
+          root.fanLevel = lvl;
+          if (lvl !== "auto") {
+            root.lastManualLevel = lvl;
+          }
           if (parts.length >= 3 && parts[2])
             root.cpuTemp = parts[2];
         }
@@ -55,17 +63,57 @@ Panel {
   }
 
   function setFanLevel(lvl) {
+    var targetLvl = String(lvl || "auto");
+    if (targetLvl !== "auto") {
+      root.lastManualLevel = targetLvl;
+    }
+    root.fanLevel = targetLvl;
     if (root.bar) {
-      root.bar.run("thinkpad-fan " + lvl);
-      root.fanLevel = lvl;
+      root.bar.run("thinkpad-fan " + targetLvl);
       refreshTimer.restart();
     }
+  }
+
+  function toggleAutoManual() {
+    if (root.isAuto) {
+      root.setFanLevel(root.lastManualLevel || "max");
+    } else {
+      root.setFanLevel("auto");
+    }
+  }
+
+  function stepFan(deltaSteps) {
+    var nextLvl = Model.stepLevel(root.fanLevel, deltaSteps);
+    root.setFanLevel(nextLvl);
   }
 
   Timer {
     id: refreshTimer
     interval: 600
     onTriggered: root.refresh()
+  }
+
+  BarIconButton {
+    id: button
+    anchors.fill: parent
+    bar: root.bar
+    text: root.isMaxLevel ? "󰈐" : "󰖝"
+    tooltipText: "Fan: " + (root.isAuto ? "Auto" : (root.isMaxLevel ? "MAX" : "Level " + root.fanLevel)) + " (" + root.fanSpeed + " RPM) · CPU " + root.cpuTemp
+    onPressed: function (b) {
+      if (b === Qt.RightButton) {
+        root.toggleAutoManual();
+      } else {
+        root.toggle();
+      }
+    }
+
+    onWheelMoved: function (delta) {
+      var wheel = Util.wheelSteps(root.wheelAccumulator, delta);
+      root.wheelAccumulator = wheel.remainder;
+      if (wheel.steps === 0)
+        return;
+      root.stepFan(wheel.steps);
+    }
   }
 
   IpcHandler {
@@ -79,6 +127,10 @@ Panel {
     function toggle(): void {
       root.toggle();
     }
+    function toggleAuto(): string {
+      root.toggleAutoManual();
+      return root.fanLevel;
+    }
     function setLevel(lvl: string): string {
       root.setFanLevel(lvl);
       return "ok";
@@ -88,176 +140,157 @@ Panel {
     }
   }
 
-  BarIconButton {
-    id: button
-    anchors.fill: parent
-    bar: root.bar
-    text: root.isMax ? "󰈐" : "󰖝"
-    tooltipText: "Fan: " + (root.isMax ? "MAX" : root.fanLevel) + " (" + root.fanSpeed + " RPM)"
-    onPressed: function (b) {
-      if (b === Qt.RightButton) {
-        root.setFanLevel(root.isMax ? "auto" : "max");
-      } else {
-        root.toggle();
-      }
-    }
-  }
-
   KeyboardPanel {
     id: panel
     anchorItem: button
     owner: root
     bar: root.bar
     open: root.opened
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(340))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
-    Column {
-      id: column
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.top: parent.top
-      spacing: Style.space(14)
+    PanelKeyCatcher {
+      id: keyCatcher
+      anchors.fill: parent
+      onMoveRequested: function (dx, dy) {
+        if (dx !== 0)
+          root.stepFan(dx > 0 ? 1 : -1);
+        else if (dy !== 0)
+          root.stepFan(dy > 0 ? 1 : -1);
+      }
+      onActivateRequested: root.toggleAutoManual()
+      onCloseRequested: root.close()
+      onTabRequested: function (direction) {
+        root.switchPanel(direction);
+      }
 
-      Item {
-        width: parent.width
-        implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroRpm.implicitHeight)
+      Column {
+        id: column
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: Style.space(14)
 
-        Text {
-          id: heroIcon
-          textFormat: Text.PlainText
-          text: root.isMax ? "󰈐" : "󰖝"
-          color: root.isMax ? Style.color.urgent : root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.display
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-        }
-
-        Column {
-          id: heroLabels
-          anchors.left: heroIcon.right
-          anchors.leftMargin: Style.space(14)
-          anchors.right: heroRpm.left
-          anchors.rightMargin: Style.space(10)
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(2)
+        // Hero Header
+        Item {
+          width: parent.width
+          implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroRpm.implicitHeight)
 
           Text {
-            text: "ThinkPad Fan"
-            color: root.foreground
+            id: heroIcon
+            textFormat: Text.PlainText
+            text: root.isMaxLevel ? "󰈐" : "󰖝"
+            color: root.isMaxLevel ? Style.color.urgent : root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.title
+            font.pixelSize: Style.font.display
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          Column {
+            id: heroLabels
+            anchors.left: heroIcon.right
+            anchors.leftMargin: Style.space(14)
+            anchors.right: heroRpm.left
+            anchors.rightMargin: Style.space(10)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Text {
+              text: "ThinkPad Fan"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+              font.bold: true
+              elide: Text.ElideRight
+              width: parent.width
+            }
+
+            Text {
+              text: Model.levelDisplayName(root.fanLevel) + " · CPU " + root.cpuTemp
+              color: Qt.darker(root.foreground, 1.4)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+              width: parent.width
+            }
+          }
+
+          Text {
+            id: heroRpm
+            text: root.fanSpeed + " RPM"
+            color: root.isMaxLevel ? Style.color.urgent : root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.headline
             font.bold: true
-            elide: Text.ElideRight
-            width: parent.width
-          }
-
-          Text {
-            text: (root.isMax ? "Turbo Blower" : (root.fanLevel === "auto" ? "BIOS Smart Curve" : ("Fixed Level " + root.fanLevel))) + " · CPU " + root.cpuTemp
-            color: Qt.darker(root.foreground, 1.4)
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            elide: Text.ElideRight
-            width: parent.width
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
           }
         }
 
-        Text {
-          id: heroRpm
-          text: root.fanSpeed + " RPM"
-          color: root.isMax ? Style.color.urgent : root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.headline
-          font.bold: true
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-        }
-      }
-
-      PanelSeparator {
-        foreground: root.foreground
-      }
-
-      Column {
-        width: parent.width
-        spacing: Style.space(10)
-
-        PanelSectionHeader {
-          text: "FAN PROFILE"
+        PanelSeparator {
           foreground: root.foreground
-          fontFamily: root.fontFamily
         }
 
-        Row {
-          id: profileRow
+        // Single Minimalist Fan Speed Slider
+        Column {
           width: parent.width
-          spacing: Style.space(6)
+          spacing: Style.space(8)
 
-          readonly property real cellWidth: (width - spacing * 2) / 3
+          PanelSlider {
+            id: fanSlider
+            bar: root.bar
+            width: parent.width
+            minimum: 0
+            maximum: 8
+            step: 1
+            value: root.sliderValue
+            opacity: root.isAuto ? 0.6 : 1.0
 
-          Button {
-            width: profileRow.cellWidth
-            text: "Auto"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            active: root.fanLevel === "auto"
-            onClicked: root.setFanLevel("auto")
+            onMoved: function (v) {
+              var newLvl = Model.indexToLevel(v);
+              root.setFanLevel(newLvl);
+            }
+            onRightClicked: {
+              root.setFanLevel("auto");
+            }
           }
 
-          Button {
-            width: profileRow.cellWidth
-            text: "Level 4"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            active: root.fanLevel === "4"
-            onClicked: root.setFanLevel("4")
-          }
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(autoLabel.implicitHeight, maxLabel.implicitHeight)
 
-          Button {
-            width: profileRow.cellWidth
-            text: "MAX Boost"
-            fontSize: Style.font.bodySmall
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            active: root.isMax
-            onClicked: root.setFanLevel("max")
-          }
-        }
-      }
+            Text {
+              id: autoLabel
+              text: "Auto"
+              color: root.isAuto ? root.foreground : Qt.darker(root.foreground, 1.6)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: root.isAuto
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+            }
 
-      Column {
-        width: parent.width
-        spacing: Style.space(8)
+            Text {
+              text: "Level 4"
+              color: root.fanLevel === "4" ? root.foreground : Qt.darker(root.foreground, 1.8)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: root.fanLevel === "4"
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.verticalCenter: parent.verticalCenter
+            }
 
-        PanelSectionHeader {
-          text: "MANUAL LEVEL"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-        }
-
-        Row {
-          id: levelGrid
-          width: parent.width
-          spacing: Style.space(4)
-
-          readonly property var levels: ["0", "1", "2", "3", "4", "5", "6", "7"]
-          readonly property real cellWidth: (width - spacing * (levels.length - 1)) / levels.length
-
-          Repeater {
-            model: levelGrid.levels
-
-            Button {
-              required property var modelData
-              width: levelGrid.cellWidth
-              text: String(modelData)
-              fontSize: Style.font.caption
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              active: root.fanLevel === String(modelData)
-              onClicked: root.setFanLevel(String(modelData))
+            Text {
+              id: maxLabel
+              text: "MAX Boost"
+              color: root.isMaxLevel ? Style.color.urgent : Qt.darker(root.foreground, 1.6)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: root.isMaxLevel
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
             }
           }
         }
