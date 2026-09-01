@@ -20,12 +20,12 @@ load_i18n() {
     # Fallback to English if translation doesn't exist
     if [[ ! -f "$i18n_file" ]]; then
         case "$lang" in
-            zh_CN | zh_TW | zh_HK)
-                i18n_file="$i18n_dir/i18n-zh-cn"
-                ;;
-            *)
-                i18n_file="$i18n_dir/i18n-en-us"
-                ;;
+        zh_CN | zh_TW | zh_HK)
+            i18n_file="$i18n_dir/i18n-zh-cn"
+            ;;
+        *)
+            i18n_file="$i18n_dir/i18n-en-us"
+            ;;
         esac
     fi
 
