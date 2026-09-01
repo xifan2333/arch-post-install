@@ -50,11 +50,11 @@ prints the record contract (see the `claude` and `codex` collectors in
 with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
 
-| Collector | Limits | Local stats |
-|---|---|---|
-| `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
-| `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
-| `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| Collector   | Limits                                                                  | Local stats                                                                                                                           |
+| ----------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `claude`    | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly)        | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
+| `codex`     | The Codex app-server RPC                                                | native Codex CLI session files (plus pi and opencode sessions)                                                                        |
+| `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days                                                                  |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -105,13 +105,13 @@ Settings live in the widget's entry in `~/.config/omarchy/shell.json`. The
 top-level keys can be set with
 `omarchy bar set omarchy.agents <key> <value>`:
 
-| Key | Default | What it does |
-|---|---|---|
-| `refreshIntervalSec` | `900` | How often the usage records regenerate |
-| `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
-| `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
-| `syncFileName` | `<hostname>.json` | This machine's snapshot file |
-| `syncDeviceId` | hostname | Stable device name inside the snapshot |
+| Key                  | Default           | What it does                                                |
+| -------------------- | ----------------- | ----------------------------------------------------------- |
+| `refreshIntervalSec` | `900`             | How often the usage records regenerate                      |
+| `syncMode`           | `"Off"`           | `"On"` writes this machine's snapshot and merges the others |
+| `syncDir`            | `""`              | A folder synced by Syncthing, Dropbox, rsync, …             |
+| `syncFileName`       | `<hostname>.json` | This machine's snapshot file                                |
+| `syncDeviceId`       | hostname          | Stable device name inside the snapshot                      |
 
 Numbers need `--json`, or they land in `shell.json` as strings:
 

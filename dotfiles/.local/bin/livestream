@@ -16,13 +16,13 @@ LOG_FILE="$RUNTIME_DIR/livestream.log"
 
 notify() {
     local body="$1" urgency="${2:-normal}"
-    if command -v notify-send > /dev/null 2>&1; then
+    if command -v notify-send >/dev/null 2>&1; then
         notify-send -u "$urgency" "$(msg livestream_notify_title)" "$body"
     fi
 }
 
 is_active() {
-    "$SERVICE" is-active > /dev/null 2>&1
+    "$SERVICE" is-active >/dev/null 2>&1
 }
 
 ensure_dirs() {
@@ -33,7 +33,7 @@ ensure_dirs() {
 check_deps() {
     local cmd
     for cmd in gpu-screen-recorder ffmpeg pactl ss "$SERVICE"; do
-        if ! command -v "$cmd" > /dev/null 2>&1; then
+        if ! command -v "$cmd" >/dev/null 2>&1; then
             printf 'Error: %s is not installed\n' "$cmd" >&2
             return 1
         fi
@@ -41,22 +41,22 @@ check_deps() {
 }
 
 unmute_audio() {
-    command -v pactl > /dev/null 2>&1 || return 0
+    command -v pactl >/dev/null 2>&1 || return 0
     local source
-    source=$(pactl get-default-source 2> /dev/null || true)
+    source=$(pactl get-default-source 2>/dev/null || true)
     if [ -n "$source" ]; then
-        pactl set-source-mute "$source" 0 2> /dev/null || true
+        pactl set-source-mute "$source" 0 2>/dev/null || true
     fi
 }
 
 open_danmaku() {
     [ -x "$DANMAKU" ] || return 0
-    "$DANMAKU" start > /dev/null 2>&1 &
+    "$DANMAKU" start >/dev/null 2>&1 &
 }
 
 close_danmaku() {
     [ -x "$DANMAKU" ] || return 0
-    "$DANMAKU" stop > /dev/null 2>&1 &
+    "$DANMAKU" stop >/dev/null 2>&1 &
 }
 
 start_stream() {
@@ -65,14 +65,14 @@ start_stream() {
     ensure_dirs
     check_deps || return 4
     case "$target" in
-        full) capture_target=screen ;;
-        *) capture_target=$target ;;
+    full) capture_target=screen ;;
+    *) capture_target=$target ;;
     esac
 
     if is_active; then
         return 2
     fi
-    "$SERVICE" validate --config "$CONFIG_FILE" > /dev/null 2>&1 || return 3
+    "$SERVICE" validate --config "$CONFIG_FILE" >/dev/null 2>&1 || return 3
 
     unmute_audio
     PULSE_LATENCY_MSEC=100 setsid "$SERVICE" run \
@@ -83,19 +83,19 @@ start_stream() {
         --keyint 2 \
         --scale-width 0 \
         --log-file "$LOG_FILE" \
-        > /dev/null 2>&1 &
+        >/dev/null 2>&1 &
 
     "$SERVICE" wait-ready --timeout 30
     rc=$?
     case "$rc" in
-        0)
-            open_danmaku
-            return 0
-            ;;
-        *)
-            "$SERVICE" stop --timeout 7 > /dev/null 2>&1 || true
-            return 4
-            ;;
+    0)
+        open_danmaku
+        return 0
+        ;;
+    *)
+        "$SERVICE" stop --timeout 7 >/dev/null 2>&1 || true
+        return 4
+        ;;
     esac
 }
 
@@ -116,10 +116,10 @@ cmd_start() {
     fi
     start_stream "$target" || rc=$?
     case "$rc" in
-        0) notify "$(msg livestream_notify_started_full)" ;;
-        2) notify "$(msg livestream_notify_already_active)" ;;
-        3) notify "$(msg livestream_notify_missing_rtmp)" ;;
-        *) notify "$(msg livestream_notify_start_failed)" critical ;;
+    0) notify "$(msg livestream_notify_started_full)" ;;
+    2) notify "$(msg livestream_notify_already_active)" ;;
+    3) notify "$(msg livestream_notify_missing_rtmp)" ;;
+    *) notify "$(msg livestream_notify_start_failed)" critical ;;
     esac
     return "$rc"
 }
@@ -148,33 +148,33 @@ cmd_toggle() {
 }
 
 case "${1:-status}" in
-    start)
-        shift
-        cmd_start "${1:-portal}"
-        ;;
-    stop)
-        cmd_stop
-        ;;
-    toggle)
-        shift
-        cmd_toggle "${1:-portal}"
-        ;;
-    status)
-        "$SERVICE" status
-        ;;
-    is-active)
-        is_active
-        ;;
-    config)
-        exec "${OMARCHY_PATH:-/usr/share/omarchy}"/bin/omarchy-shell xifan.livestream-config toggle
-        ;;
-    -h | --help)
-        cat << EOF
+start)
+    shift
+    cmd_start "${1:-portal}"
+    ;;
+stop)
+    cmd_stop
+    ;;
+toggle)
+    shift
+    cmd_toggle "${1:-portal}"
+    ;;
+status)
+    "$SERVICE" status
+    ;;
+is-active)
+    is_active
+    ;;
+config)
+    exec "${OMARCHY_PATH:-/usr/share/omarchy}"/bin/omarchy-shell xifan.livestream-config toggle
+    ;;
+-h | --help)
+    cat <<EOF
 Usage: livestream [start|stop|toggle|status|is-active|config] [portal|full]
 EOF
-        ;;
-    *)
-        echo "Unknown command: $1" >&2
-        exit 1
-        ;;
+    ;;
+*)
+    echo "Unknown command: $1" >&2
+    exit 1
+    ;;
 esac

@@ -257,18 +257,18 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 
 ### 快捷键（`~/.config/hypr/bindings.lua`）
 
-| 快捷键 | 动作 |
-|--------|------|
-| `Print` / `Shift+Print` | 选区截图 / 全屏截图存盘 |
-| `Ctrl+Print` | 选区 OCR 提取文字 |
-| `Alt+Print` | 屏幕吸管取色 |
-| `Win+G` | 录制与推流中心菜单 |
-| `Win+Ctrl+V` | 剪贴板历史（`Win+C/V/X` 为万能复制/粘贴/剪切） |
-| `Win+R` | 本地录屏 toggle（桌面声 + 麦克风） |
-| `Win+Alt+R` | 直播 toggle（portal 选区） |
-| `Win+Shift+R` | 直播平台配置 |
-| `Win+Alt+S/W/K/T` | 字幕 (S) / 摄像头 (W) / 按键 (K) / 标题 (T) 叠加层开关 |
-| `Win+Shift+S/W/K/T` | 对应叠加层拖动 / 样式编辑 |
+| 快捷键                  | 动作                                                   |
+| ----------------------- | ------------------------------------------------------ |
+| `Print` / `Shift+Print` | 选区截图 / 全屏截图存盘                                |
+| `Ctrl+Print`            | 选区 OCR 提取文字                                      |
+| `Alt+Print`             | 屏幕吸管取色                                           |
+| `Win+G`                 | 录制与推流中心菜单                                     |
+| `Win+Ctrl+V`            | 剪贴板历史（`Win+C/V/X` 为万能复制/粘贴/剪切）         |
+| `Win+R`                 | 本地录屏 toggle（桌面声 + 麦克风）                     |
+| `Win+Alt+R`             | 直播 toggle（portal 选区）                             |
+| `Win+Shift+R`           | 直播平台配置                                           |
+| `Win+Alt+S/W/K/T`       | 字幕 (S) / 摄像头 (W) / 按键 (K) / 标题 (T) 叠加层开关 |
+| `Win+Shift+S/W/K/T`     | 对应叠加层拖动 / 样式编辑                              |
 
 ### 直播平台
 
@@ -315,17 +315,17 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 
 ## 仓库包含什么
 
-| 类别 | 说明 |
-|------|------|
-| Hyprland | 按键、外观、显示器、空闲锁屏等配置 |
-| Neovim | LazyVim、补全、格式化和主题热加载 |
-| Zsh | 补全、插件、快捷键、别名和工具初始化 |
-| Tmux | C-Space 前缀、vi 模式、窗口和分屏快捷键（XDG 规范） |
-| 输入法 | Fcitx5 和 Rime 配置 |
-| 终端 | WezTerm 配置与主题联动 |
-| 状态栏 | `xifan.indicators`（clone 自 `omarchy.indicators`，录屏 + 直播两颗灯） |
-| 主题 | 切换 Omarchy 主题时同步其他程序的配色 |
-| 录制 | 音频录制和屏幕录制叠加层 |
-| 模拟器 | RetroArch 配置与全局着色器预设 |
-| 翻译 | 翻译脚本和 qutebrowser userscript |
-| 工具 | Node、Python、uv、pi 等命令行工具 |
+| 类别     | 说明                                                                   |
+| -------- | ---------------------------------------------------------------------- |
+| Hyprland | 按键、外观、显示器、空闲锁屏等配置                                     |
+| Neovim   | LazyVim、补全、格式化和主题热加载                                      |
+| Zsh      | 补全、插件、快捷键、别名和工具初始化                                   |
+| Tmux     | C-Space 前缀、vi 模式、窗口和分屏快捷键（XDG 规范）                    |
+| 输入法   | Fcitx5 和 Rime 配置                                                    |
+| 终端     | WezTerm 配置与主题联动                                                 |
+| 状态栏   | `xifan.indicators`（clone 自 `omarchy.indicators`，录屏 + 直播两颗灯） |
+| 主题     | 切换 Omarchy 主题时同步其他程序的配色                                  |
+| 录制     | 音频录制和屏幕录制叠加层                                               |
+| 模拟器   | RetroArch 配置与全局着色器预设                                         |
+| 翻译     | 翻译脚本和 qutebrowser userscript                                      |
+| 工具     | Node、Python、uv、pi 等命令行工具                                      |
