@@ -32,3 +32,10 @@ source = "../modprobe.d/thinkpad_acpi.conf"
 owner = "root"
 group = "root"
 mode = "0644"
+
+# Grant non-root write access to /proc/acpi/ibm/fan for instant UI control
+[bootstrap.files."/etc/tmpfiles.d/thinkpad-fan.conf"]
+source = "../tmpfiles.d/thinkpad-fan.conf"
+owner = "root"
+group = "root"
+mode = "0644"
