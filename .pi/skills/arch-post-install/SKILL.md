@@ -90,7 +90,7 @@ Put your change in the right home. This table answers "what do I edit?":
 
 ```bash
 mise run hooks      # install/refresh Lefthook git hooks
-mise run check      # run full static analysis across the entire repository
+mise run lint       # run full static analysis across the entire repository
 mise run format     # format all Python, Shell, Lua, TOML, and JSON/YAML files
 ```
 

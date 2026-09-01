@@ -22,7 +22,7 @@ commits are near-instant (0.05s). Coverage:
 
 To run whole-repo checks at any time:
 
-- `mise run check` — runs full static analysis across all files
+- `mise run lint` — runs full static analysis across all files
 - `mise run format` — formats all files across the repository
 
 ### Commit conventions

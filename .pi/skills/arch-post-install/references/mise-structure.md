@@ -11,7 +11,7 @@ arch-post-install/
 ├── mise.toml                          # 1. REPO DEV & QUALITY LAYER
 │   ├── [tools]                        #    Linters & formatters for this repo
 │   ├── [tasks.hooks]                  #    Lefthook installation (git hooks)
-│   ├── [tasks.check]                  #    Full repo static analysis
+│   ├── [tasks.lint]                   #    Full repo static analysis
 │   └── [tasks.format]                 #    Full repo auto-formatting
 │
 └── mise/
@@ -49,7 +49,7 @@ taplo = "latest"
 description = "Install or refresh Lefthook Git hooks"
 run = "lefthook install"
 
-[tasks.check]
+[tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
 run = """
 ruff check .
@@ -70,7 +70,7 @@ prettier --write .
 ```
 
 - Pre-commit uses Lefthook for fast incremental staged-file checks (0.05s).
-- `mise run check` and `mise run format` allow manual whole-repo sweeps anytime.
+- `mise run lint` and `mise run format` allow manual whole-repo sweeps anytime.
 
 ## Layer 2: System Bootstrap Config (`mise/conf.d/*.toml`)
 
