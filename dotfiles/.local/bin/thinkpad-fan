@@ -31,9 +31,40 @@ set_level() {
     fi
 }
 
+is_max() {
+    local lvl
+    lvl=$(grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto")
+    case "$lvl" in
+    disengaged | full-speed | 64 | 7) return 0 ;;
+    *) return 1 ;;
+    esac
+}
+
+toggle_level() {
+    if is_max; then
+        set_level "auto"
+        echo "ThinkPad fan restored to BIOS auto"
+    else
+        set_level "disengaged"
+        echo "ThinkPad fan set to MAX (disengaged / 5000+ RPM)"
+    fi
+}
+
 case "${1:-status}" in
 status)
     get_status
+    ;;
+is-max)
+    is_max
+    ;;
+toggle)
+    toggle_level
+    ;;
+speed)
+    grep "^speed:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "0"
+    ;;
+level)
+    grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto"
     ;;
 max | boost | full | disengaged | 64)
     set_level "disengaged"
