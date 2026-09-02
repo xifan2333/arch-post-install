@@ -1,0 +1,88 @@
+// hk git hooks — replaces lefthook.yml. Install with `mise run hooks` (runs `hk install`).
+//
+// pre-commit auto-formats and lints staged files in parallel; only files that fail
+// a read-only check are rewritten and re-staged (check_first). `stash = "git"`
+// protects unstaged changes while fixes apply to staged content.
+// commit-msg validates Conventional Commits via commitlint.
+// `hk check` / `hk fix` expose the same linters for whole-worktree sweeps.
+//
+// Bump the `amends` version and `min_hk_version` together with `mise ls hk` when
+// upgrading hk.
+amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
+
+min_hk_version = "1.57.0"
+
+// Match Lefthook's behavior: a failing step does not cancel other steps' fixes.
+fail_fast = false
+
+local lint_steps = new Mapping<String, Step> {
+  ["python"] {
+    glob = List("*.py")
+    check_first = true
+    check = "ruff check {{files}} && ruff format --check {{files}}"
+    fix = "ruff check --fix {{files}} && ruff format {{files}}"
+  }
+  ["shell"] {
+    glob = List("*.sh", "*.bash", "mise/tasks/**")
+    check_first = true
+    check = "shellcheck --rcfile=.shellcheckrc {{files}} && shfmt -d -i 4 {{files}}"
+    fix = "shellcheck --rcfile=.shellcheckrc {{files}} && shfmt -w -i 4 {{files}}"
+  }
+  ["zsh"] {
+    glob = List("*.zsh")
+    check = "zsh -n {{files}}"
+  }
+  ["lua"] {
+    glob = List("*.lua")
+    check_first = true
+    check = "stylua --check {{files}}"
+    fix = "stylua {{files}}"
+  }
+  ["luac"] {
+    glob = List("*.lua")
+    check = "luac -p {{files}}"
+  }
+  ["toml"] {
+    glob = List("*.toml")
+    check_first = true
+    check = "taplo lint --no-schema {{files}} && taplo format --check {{files}}"
+    fix = "taplo format {{files}} && taplo lint --no-schema {{files}}"
+  }
+  ["prettier"] {
+    glob = List("*.json", "*.jsonc", "*.yaml", "*.yml")
+    check_first = true
+    check = "prettier --check {{files}}"
+    fix = "prettier --write {{files}}"
+  }
+  ["javascript"] {
+    glob = List("*.js")
+    check = "oxlint {{files}}"
+  }
+  ["qml"] {
+    glob = List("*.qml")
+    check = "/usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml -i /usr/share/omarchy/shell/Commons/qmldir -i /usr/share/omarchy/shell/Ui/qmldir --max-warnings 0 {{files}}"
+  }
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = lint_steps
+  }
+  ["commit-msg"] {
+    steps {
+      ["commitlint"] {
+        check = "commitlint --edit {{commit_msg_file}}"
+      }
+    }
+  }
+  ["check"] {
+    fix = false
+    steps = lint_steps
+  }
+  ["fix"] {
+    fix = true
+    steps = lint_steps
+  }
+}

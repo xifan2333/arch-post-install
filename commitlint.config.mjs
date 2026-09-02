@@ -1,4 +1,4 @@
-// Conventional Commit message rules enforced by lefthook's commit-msg hook.
+// Conventional Commit message rules enforced by hk's commit-msg hook.
 // Example: `feat(livestream): add per-platform enabled flag`
 export default {
   extends: ["@commitlint/config-conventional"],

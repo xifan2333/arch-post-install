@@ -1,13 +1,17 @@
 # Workflows, Git, and Development Conventions
 
-## Git + Lefthook
+## Git + hk
 
-This repo uses **Lefthook** for fast staged-file checks. Config is in
-`lefthook.yml`; install with `mise run hooks` (or `lefthook install`).
+This repo uses **hk** for fast staged-file checks. Config is in
+`hk.pkl`; install with `mise run hooks` (or `hk install`).
 
-`pre-commit` runs in parallel on **staged files only** (`{staged_files}`), so
-commits are near-instant (0.05s) and validate Python, Shell, Lua, TOML, JSON,
-YAML, and QML files automatically at commit time.
+`pre-commit` runs in parallel on **staged files only** and auto-fixes + re-stages
+files that fail a read-only check (`check_first`), so commits stay fast and
+validate Python, Shell, Lua, TOML, JSON, YAML, and QML files automatically at
+commit time. Unstaged changes are stashed (`stash = "git"`) while fixes apply
+and restored afterwards, so partially staged edits are never swept into the
+commit. `fail_fast = false` keeps every step independent. Bypass hooks for one
+command with `HK=0 git commit`.
 
 Coverage:
 
@@ -21,7 +25,8 @@ Coverage:
 | `*.{json,jsonc,yaml,yml}`  | Prettier              |
 | `*.qml`                    | qmllint               |
 
-`commit-msg` runs Commitlint (Conventional Commits).
+`commit-msg` runs Commitlint (Conventional Commits). The same linters are also
+available as `hk check` (read-only) and `hk fix` (auto-fix) on modified files.
 
 ### Whole-repo checks vs per-edit workflow
 
@@ -44,7 +49,7 @@ Use these tasks only when doing whole-repository audits or batch cleanups:
 
 | Task        | Lifecycle Layer     | Location               | Purpose                                            |
 | ----------- | ------------------- | ---------------------- | -------------------------------------------------- |
-| `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh Lefthook git hooks                 |
+| `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh hk git hooks                 |
 | `lint`      | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files              |
 | `format`    | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                          |
 | `bootstrap` | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme          |

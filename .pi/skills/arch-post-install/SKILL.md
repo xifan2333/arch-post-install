@@ -27,7 +27,7 @@ Read the matching reference before editing:
   boundaries, Hyprland validation loop, shell plugins, panels, and plugin reload commands.
 - [`references/dotfiles.md`](references/dotfiles.md) — editing dotfiles safely
   (symlink model, `*.example` templating, source-over-target).
-- [`references/workflows.md`](references/workflows.md) — git/Lefthook
+- [`references/workflows.md`](references/workflows.md) — git/hk
   conventions, maintenance tasks, and repo development workflows.
 - [`references/related-projects.md`](references/related-projects.md) — index and
   integration boundaries for standalone companion projects (`pi-quotas`, `vcam`, etc.).
@@ -87,7 +87,7 @@ Put your change in the right home. This table answers "what do I edit?":
    across midnight.
 
 9. **Commit with Conventional Commits.** `feat:`, `fix:`, `refactor:`,
-   `chore:`, `docs:`, `style:`. The pre-commit hook (Lefthook) automatically runs
+   `chore:`, `docs:`, `style:`. The pre-commit hook (hk) automatically runs
    linter and formatter on staged files. Whole-repo `mise run lint` and `mise run format`
    are for repo-wide verification, not required after every micro edit.
 
@@ -96,7 +96,7 @@ Put your change in the right home. This table answers "what do I edit?":
 ### 1. Repo Development & Quality Layer (in `mise.toml`)
 
 ```bash
-mise run hooks      # install/refresh Lefthook git hooks
+mise run hooks      # install/refresh hk git hooks
 mise run lint       # run full static analysis across the entire repository
 mise run format     # format all Python, Shell, Lua, TOML, and JSON/YAML files
 ```

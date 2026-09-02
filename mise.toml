@@ -1,7 +1,7 @@
 min_version = "2026.8.2"
 
 [tools]
-lefthook = "latest"
+hk = "latest"
 lua = "latest"
 oxlint = "latest"
 prettier = "latest"
@@ -12,8 +12,8 @@ stylua = "latest"
 taplo = "latest"
 
 [tasks.hooks]
-description = "Install or refresh Lefthook Git hooks"
-run = "lefthook install"
+description = "Install or refresh hk Git hooks"
+run = "hk install"
 
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"

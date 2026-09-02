@@ -10,7 +10,7 @@ and tasks are structured into three distinct lifecycles so "repo dev tooling",
 arch-post-install/
 ├── mise.toml                          # 1. REPO DEV & QUALITY LAYER
 │   ├── [tools]                        #    Linters & formatters for this repo
-│   ├── [tasks.hooks]                  #    Lefthook installation (git hooks)
+│   ├── [tasks.hooks]                  #    hk installation (git hooks)
 │   ├── [tasks.lint]                   #    Full repo static analysis
 │   └── [tasks.format]                 #    Full repo auto-formatting
 │
@@ -36,7 +36,7 @@ Holds the tools and tasks needed to develop and maintain this repository:
 min_version = "2026.8.2"
 
 [tools]
-lefthook = "latest"
+hk = "latest"
 lua = "latest"
 oxlint = "latest"
 prettier = "latest"
@@ -47,8 +47,8 @@ stylua = "latest"
 taplo = "latest"
 
 [tasks.hooks]
-description = "Install or refresh Lefthook Git hooks"
-run = "lefthook install"
+description = "Install or refresh hk Git hooks"
+run = "hk install"
 
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
@@ -56,21 +56,21 @@ run = """
 ruff check .
 taplo lint --no-schema
 prettier --check .
-shellcheck --rcfile=.shellcheckrc dotfiles/.local/bin/livestream mise/tasks/*
+shfmt -f dotfiles/.local/bin mise/tasks | grep -vE 'i18n-(en|zh)' | xargs shellcheck --rcfile=.shellcheckrc
 """
 
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"
 run = """
 ruff format .
-shfmt -w -i 4 dotfiles/.local/bin/livestream mise/tasks/*
+shfmt -f dotfiles/.local/bin mise/tasks | xargs shfmt -w -i 4
 stylua dotfiles/.config/hypr/
 taplo format
 prettier --write .
 """
 ```
 
-- Pre-commit uses Lefthook for fast incremental staged-file checks (0.05s).
+- Pre-commit uses hk for fast incremental staged-file checks (~0.05s).
 - `mise run lint` and `mise run format` allow manual whole-repo sweeps anytime.
 
 ## Layer 2: System Bootstrap Config (`mise/conf.d/*.toml`)
@@ -96,7 +96,7 @@ set -euo pipefail
 
 - `bootstrap` depends on `aur`, `wps`, and `hardware`, composing the system setup sequence.
 - `fonts` is a standalone asset maintenance task, kept independent of bootstrap.
-- All file tasks are linted with ShellCheck and formatted with Shfmt in Lefthook.
+- All file tasks are linted with ShellCheck and formatted with Shfmt in hk's pre-commit.
 
 ## AUR packages belong in the `aur` task
 
