@@ -15,18 +15,28 @@ command with `HK=0 git commit`.
 
 Coverage:
 
-| File type                  | Tools                 |
-| -------------------------- | --------------------- |
-| `*.py`                     | Ruff (check + format) |
-| `*.{sh,bash}`              | ShellCheck + Shfmt    |
-| `**/mise/tasks/*` (no ext) | ShellCheck + Shfmt    |
-| `*.lua`                    | Stylua + luac         |
-| `*.toml`                   | Taplo (format + lint) |
-| `*.{json,jsonc,yaml,yml}`  | Prettier              |
-| `*.qml`                    | qmllint               |
+| File type                  | Tools (hk Builtins where available) |
+| -------------------------- | ----------------------------------- |
+| `*.py`                     | Builtins.ruff + Builtins.ruff_format |
+| `*.{sh,bash}` + shebang   | Builtins.shellcheck + Builtins.shfmt |
+| `*.lua`                    | Builtins.stylua + luac (CommandSpec) |
+| `*.toml`                   | Builtins.taplo (--no-schema) + Builtins.taplo_format |
+| `*.{json,jsonc,yaml,yml}`  | Builtins.prettier |
+| `*.zsh`                    | zsh -n (CommandSpec) |
+| `*.js`                     | oxlint (CommandSpec) |
+| `*.qml`                    | qmllint (CommandSpec) |
+
+Shellcheck and shfmt match extensionless `mise/tasks/*` scripts via shebang
+detection (`types: sh, bash`). Indentation is governed by `.editorconfig`
+(indent_size = 4 for `*.sh` and `mise/tasks/*`); no `-i` flag is needed.
+
+Every step declares its `effect` (`"read"` or `"write"`) so agent runs can
+use `--safe`. Builtins include effect declarations; custom steps use
+`CommandSpec`.
 
 `commit-msg` runs Commitlint (Conventional Commits). The same linters are also
-available as `hk check` (read-only) and `hk fix` (auto-fix) on modified files.
+available as `hk check` (read-only) and `hk fix` (auto-fix) on modified files;
+add `--all` for whole-repo sweeps.
 
 ### Whole-repo checks vs per-edit workflow
 
