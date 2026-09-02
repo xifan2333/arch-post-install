@@ -1,35 +1,17 @@
-// hk git hooks — replaces lefthook.yml. Install with `mise run hooks` (runs `hk install`).
-//
-// pre-commit auto-formats and lints staged files in parallel; only files that fail
-// a read-only check are rewritten and re-staged (check_first, the default). `stash =
-// "git"` protects unstaged changes while fixes apply to staged content.
-// commit-msg validates Conventional Commits via commitlint.
-// `hk check` / `hk fix` expose the same linters on modified files (`--all` for the
-// whole repo), and every step declares its effect so agent runs can use `--safe`.
-//
-// Bump the `amends` version and `min_hk_version` together with `mise ls hk` when
-// upgrading hk.
 amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Builtins.pkl"
 
 min_hk_version = "1.57.0"
 
-// Match Lefthook's behavior: a failing step does not cancel other steps' fixes.
 fail_fast = false
 
 local lint_steps = new Mapping<String, Step> {
-  // ── Python ────────────────────────────────────────────────────────────
   ["ruff"] = (Builtins.ruff) { glob = List("*.py") }
   ["ruff_format"] = (Builtins.ruff_format) { glob = List("*.py") }
 
-  // ── Shell (.sh/.bash + mise/tasks/* via shebang) ──────────────────────
-  // Builtins match shebang (types: sh, bash) so extensionless mise/tasks
-  // scripts are included automatically. shellcheck reads .shellcheckrc from
-  // the repo root; shfmt reads .editorconfig (indent_size = 4).
   ["shellcheck"] = Builtins.shellcheck
   ["shfmt"] = Builtins.shfmt
 
-  // ── Zsh (syntax check only) ───────────────────────────────────────────
   ["zsh"] {
     glob = List("*.zsh")
     check = new CommandSpec {
@@ -38,7 +20,6 @@ local lint_steps = new Mapping<String, Step> {
     }
   }
 
-  // ── Lua ────────────────────────────────────────────────────────────────
   ["stylua"] = (Builtins.stylua) { glob = List("*.lua") }
   ["luac"] {
     glob = List("*.lua")
@@ -48,9 +29,6 @@ local lint_steps = new Mapping<String, Step> {
     }
   }
 
-  // ── TOML ──────────────────────────────────────────────────────────────
-  // taplo lint with --no-schema: this project has no TOML schemas to validate
-  // against, and the default behavior emits spurious warnings.
   ["taplo"] = (Builtins.taplo) {
     check = new CommandSpec {
       command = new Command { argv = List("taplo", "lint", "--no-schema", "{{files}}") }
@@ -59,12 +37,10 @@ local lint_steps = new Mapping<String, Step> {
   }
   ["taplo_format"] = Builtins.taplo_format
 
-  // ── JSON / YAML ───────────────────────────────────────────────────────
   ["prettier"] = (Builtins.prettier) {
     glob = List("*.json", "*.jsonc", "*.yaml", "*.yml")
   }
 
-  // ── JavaScript ────────────────────────────────────────────────────────
   ["oxlint"] {
     glob = List("*.js")
     check = new CommandSpec {
@@ -73,7 +49,6 @@ local lint_steps = new Mapping<String, Step> {
     }
   }
 
-  // ── QML ───────────────────────────────────────────────────────────────
   ["qmllint"] {
     glob = List("*.qml")
     check = new CommandSpec {
