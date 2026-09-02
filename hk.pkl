@@ -1,14 +1,16 @@
 // hk git hooks — replaces lefthook.yml. Install with `mise run hooks` (runs `hk install`).
 //
 // pre-commit auto-formats and lints staged files in parallel; only files that fail
-// a read-only check are rewritten and re-staged (check_first). `stash = "git"`
-// protects unstaged changes while fixes apply to staged content.
+// a read-only check are rewritten and re-staged (check_first, the default). `stash =
+// "git"` protects unstaged changes while fixes apply to staged content.
 // commit-msg validates Conventional Commits via commitlint.
-// `hk check` / `hk fix` expose the same linters for whole-worktree sweeps.
+// `hk check` / `hk fix` expose the same linters on modified files (`--all` for the
+// whole repo), and every step declares its effect so agent runs can use `--safe`.
 //
 // Bump the `amends` version and `min_hk_version` together with `mise ls hk` when
 // upgrading hk.
 amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Builtins.pkl"
 
 min_hk_version = "1.57.0"
 
@@ -16,51 +18,77 @@ min_hk_version = "1.57.0"
 fail_fast = false
 
 local lint_steps = new Mapping<String, Step> {
-  ["python"] {
-    glob = List("*.py")
-    check_first = true
-    check = "ruff check {{files}} && ruff format --check {{files}}"
-    fix = "ruff check --fix {{files}} && ruff format {{files}}"
-  }
-  ["shell"] {
-    glob = List("*.sh", "*.bash", "mise/tasks/**")
-    check_first = true
-    check = "shellcheck --rcfile=.shellcheckrc {{files}} && shfmt -d -i 4 {{files}}"
-    fix = "shellcheck --rcfile=.shellcheckrc {{files}} && shfmt -w -i 4 {{files}}"
-  }
+  // ── Python ────────────────────────────────────────────────────────────
+  ["ruff"] = (Builtins.ruff) { glob = List("*.py") }
+  ["ruff_format"] = (Builtins.ruff_format) { glob = List("*.py") }
+
+  // ── Shell (.sh/.bash + mise/tasks/* via shebang) ──────────────────────
+  // Builtins match shebang (types: sh, bash) so extensionless mise/tasks
+  // scripts are included automatically. shellcheck reads .shellcheckrc from
+  // the repo root; shfmt reads .editorconfig (indent_size = 4).
+  ["shellcheck"] = Builtins.shellcheck
+  ["shfmt"] = Builtins.shfmt
+
+  // ── Zsh (syntax check only) ───────────────────────────────────────────
   ["zsh"] {
     glob = List("*.zsh")
-    check = "zsh -n {{files}}"
+    check = new CommandSpec {
+      command = new Command { argv = List("zsh", "-n", "{{files}}") }
+      effect = "read"
+    }
   }
-  ["lua"] {
-    glob = List("*.lua")
-    check_first = true
-    check = "stylua --check {{files}}"
-    fix = "stylua {{files}}"
-  }
+
+  // ── Lua ────────────────────────────────────────────────────────────────
+  ["stylua"] = (Builtins.stylua) { glob = List("*.lua") }
   ["luac"] {
     glob = List("*.lua")
-    check = "luac -p {{files}}"
+    check = new CommandSpec {
+      command = new Command { argv = List("luac", "-p", "{{files}}") }
+      effect = "read"
+    }
   }
-  ["toml"] {
-    glob = List("*.toml")
-    check_first = true
-    check = "taplo lint --no-schema {{files}} && taplo format --check {{files}}"
-    fix = "taplo format {{files}} && taplo lint --no-schema {{files}}"
+
+  // ── TOML ──────────────────────────────────────────────────────────────
+  // taplo lint with --no-schema: this project has no TOML schemas to validate
+  // against, and the default behavior emits spurious warnings.
+  ["taplo"] = (Builtins.taplo) {
+    check = new CommandSpec {
+      command = new Command { argv = List("taplo", "lint", "--no-schema", "{{files}}") }
+      effect = "read"
+    }
   }
-  ["prettier"] {
+  ["taplo_format"] = Builtins.taplo_format
+
+  // ── JSON / YAML ───────────────────────────────────────────────────────
+  ["prettier"] = (Builtins.prettier) {
     glob = List("*.json", "*.jsonc", "*.yaml", "*.yml")
-    check_first = true
-    check = "prettier --check {{files}}"
-    fix = "prettier --write {{files}}"
   }
-  ["javascript"] {
+
+  // ── JavaScript ────────────────────────────────────────────────────────
+  ["oxlint"] {
     glob = List("*.js")
-    check = "oxlint {{files}}"
+    check = new CommandSpec {
+      command = new Command { argv = List("oxlint", "{{files}}") }
+      effect = "read"
+    }
   }
-  ["qml"] {
+
+  // ── QML ───────────────────────────────────────────────────────────────
+  ["qmllint"] {
     glob = List("*.qml")
-    check = "/usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml -i /usr/share/omarchy/shell/Commons/qmldir -i /usr/share/omarchy/shell/Ui/qmldir --max-warnings 0 {{files}}"
+    check = new CommandSpec {
+      command = new Command {
+        argv = List(
+          "/usr/lib/qt6/bin/qmllint",
+          "-I", "/usr/lib/qt6/qml",
+          "-i", "/usr/share/omarchy/shell/Commons/qmldir",
+          "-i", "/usr/share/omarchy/shell/Ui/qmldir",
+          "--max-warnings", "0",
+          "{{files}}"
+        )
+      }
+      effect = "read"
+    }
   }
 }
 
@@ -73,7 +101,10 @@ hooks {
   ["commit-msg"] {
     steps {
       ["commitlint"] {
-        check = "commitlint --edit {{commit_msg_file}}"
+        check = new CommandSpec {
+          command = "commitlint --edit {{commit_msg_file}}"
+          effect = "read"
+        }
       }
     }
   }
@@ -83,6 +114,7 @@ hooks {
   }
   ["fix"] {
     fix = true
+    stash = "none"
     steps = lint_steps
   }
 }
