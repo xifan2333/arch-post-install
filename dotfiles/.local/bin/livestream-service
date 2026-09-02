@@ -507,15 +507,6 @@ class LivestreamService:
             "-analyzeduration",
             "0",
         ]
-        if use_vaapi:
-            command.extend(
-                [
-                    "-init_hw_device",
-                    "vaapi=va:/dev/dri/renderD128",
-                    "-filter_hw_device",
-                    "va",
-                ]
-            )
         command.extend(["-i", "-"])
         if filters:
             command.extend(["-filter_complex", ";".join(filters)])
@@ -545,60 +536,30 @@ class LivestreamService:
                     if any(p.scheme == "srt" for p in platforms)
                     else self.video_bitrate
                 )
-                if use_vaapi:
-                    command.extend(
-                        [
-                            "-map",
-                            "[v_vertical]",
-                            "-c:v",
-                            "h264_vaapi",
-                            "-rc_mode",
-                            "CBR",
-                            "-quality",
-                            "1",
-                            "-async_depth",
-                            "2",
-                            "-b:v",
-                            f"{vertical_bitrate}k",
-                            "-maxrate",
-                            f"{vertical_bitrate}k",
-                            "-bufsize",
-                            f"{vertical_bitrate * 2}k",
-                            "-g",
-                            str(gop),
-                            "-keyint_min",
-                            str(gop),
-                            "-bf",
-                            "0",
-                            "-bsf:v",
-                            "dump_extra=freq=keyframe",
-                        ]
-                    )
-                else:
-                    command.extend(
-                        [
-                            "-map",
-                            "[v_vertical]",
-                            "-c:v",
-                            "libx264",
-                            "-preset",
-                            "ultrafast",
-                            "-tune",
-                            "zerolatency",
-                            "-b:v",
-                            f"{vertical_bitrate}k",
-                            "-pix_fmt",
-                            "yuv420p",
-                            "-g",
-                            str(gop),
-                            "-keyint_min",
-                            str(gop),
-                            "-sc_threshold",
-                            "0",
-                            "-bsf:v",
-                            "dump_extra=freq=keyframe",
-                        ]
-                    )
+                command.extend(
+                    [
+                        "-map",
+                        "[v_vertical]",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "veryfast",
+                        "-tune",
+                        "zerolatency",
+                        "-b:v",
+                        f"{vertical_bitrate}k",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-g",
+                        str(gop),
+                        "-keyint_min",
+                        str(gop),
+                        "-sc_threshold",
+                        "0",
+                        "-bsf:v",
+                        "dump_extra=freq=keyframe",
+                    ]
+                )
 
             command.extend(
                 [
