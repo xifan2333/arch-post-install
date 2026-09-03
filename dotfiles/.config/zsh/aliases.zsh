@@ -1,12 +1,11 @@
 # zoxide - smarter cd
 # Note: cd is not aliased to z, use z directly for zoxide functionality
-if command -v zoxide &> /dev/null; then
-    # zoxide is available, but cd remains as original cd command
-    # Use 'z' command directly for zoxide functionality
+if command -v zoxide &>/dev/null; then
+
 fi
 
 # eza - modern ls replacement
-if command -v eza &> /dev/null; then
+if command -v eza &>/dev/null; then
     alias ls='eza'
     alias ll='eza -l --icons --git'
     alias la='eza -la --icons --git'
@@ -40,7 +39,7 @@ alias scr='sudo systemctl restart'
 alias scs='sudo systemctl status'
 
 # grep -> ripgrep
-if command -v rg &> /dev/null; then
+if command -v rg &>/dev/null; then
     alias grep='rg'
 fi
 
@@ -49,7 +48,7 @@ alias paci='package-install'
 alias pacr='package-remove'
 alias yayi='package-install-aur'
 alias yayr='package-remove'
-if command -v gh &> /dev/null; then
+if command -v gh &>/dev/null; then
     alias ghpr='gh pr create'
     alias ghprl='gh pr list'
     alias ghprv='gh pr view --web'

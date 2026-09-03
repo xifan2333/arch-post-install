@@ -138,36 +138,36 @@ _corral_nvim_socket() {
 
 _corral_owned_editor() {
     local herdr=$1 owner=$2
-    "$herdr" pane list 2> /dev/null |
+    "$herdr" pane list 2>/dev/null |
         jq -r --arg token "$CORRAL_EDITOR_TOKEN" --arg owner "$owner" \
-            'first(.result.panes[] | select(.tokens[$token] == $owner) | .pane_id) // empty' 2> /dev/null
+            'first(.result.panes[] | select(.tokens[$token] == $owner) | .pane_id) // empty' 2>/dev/null
 }
 
 _corral_focus_pane() {
     local herdr=$1 pane=$2
-    "$herdr" pane zoom "$pane" --on > /dev/null 2>&1 &&
-        "$herdr" pane zoom "$pane" --off > /dev/null 2>&1
+    "$herdr" pane zoom "$pane" --on >/dev/null 2>&1 &&
+        "$herdr" pane zoom "$pane" --off >/dev/null 2>&1
 }
 
 _corral_nvim_ready() {
     local herdr=$1 pane=$2 socket=$3 nvim=$4
     [[ -S "$socket" ]] || return 1
-    "$herdr" pane process-info --pane "$pane" 2> /dev/null |
-        jq -e 'any(.result.process_info.foreground_processes[]?; .name == "nvim")' > /dev/null ||
+    "$herdr" pane process-info --pane "$pane" 2>/dev/null |
+        jq -e 'any(.result.process_info.foreground_processes[]?; .name == "nvim")' >/dev/null ||
         return 1
-    [[ "$("$nvim" --server "$socket" --remote-expr '1' 2> /dev/null || true)" == 1 ]]
+    [[ "$("$nvim" --server "$socket" --remote-expr '1' 2>/dev/null || true)" == 1 ]]
 }
 
 _corral_restore_sidebar_width() {
     local herdr=$1 owner=$2 corral_bin plan direction amount
-    corral_bin=$(command -v corral 2> /dev/null || true)
+    corral_bin=$(command -v corral 2>/dev/null || true)
     [[ -n "$corral_bin" ]] || return 0
-    plan="$("$herdr" pane layout --pane "$owner" 2> /dev/null |
-        "$corral_bin" --resize-plan "$owner" 2> /dev/null || true)"
+    plan="$("$herdr" pane layout --pane "$owner" 2>/dev/null |
+        "$corral_bin" --resize-plan "$owner" 2>/dev/null || true)"
     [[ -n "$plan" ]] || return 0
-    IFS=$'\t' read -r direction amount <<< "$plan"
+    IFS=$'\t' read -r direction amount <<<"$plan"
     "$herdr" pane resize --pane "$owner" --direction "$direction" --amount "$amount" \
-        > /dev/null 2>&1
+        >/dev/null 2>&1
 }
 
 # Ensure one owner-scoped nvim RPC instance and echo "pane<TAB>socket<TAB>nvim".
@@ -176,7 +176,7 @@ _corral_ensure_nvim() {
     local neighbor split_target swap_target
     _corral_valid_pane_id "$owner" || return 1
     editor="${CORRAL_EDITOR:-${EDITOR:-${VISUAL:-nvim}}}"
-    nvim="$(command -v "${editor%% *}" 2> /dev/null || true)"
+    nvim="$(command -v "${editor%% *}" 2>/dev/null || true)"
     [[ -n "$nvim" && "$(basename "$nvim")" == nvim ]] || {
         printf 'corral: hosted pane reuse currently requires nvim\n' >&2
         return 1
@@ -201,33 +201,33 @@ _corral_ensure_nvim() {
     # then swap the new owned pane into the wide left slot of that editor area.
     split_target="$owner"
     swap_target=""
-    neighbor="$("$herdr" pane neighbor --direction right --pane "$owner" 2> /dev/null |
-        jq -r '.result.neighbor.neighbor_pane_id // empty' 2> /dev/null || true)"
+    neighbor="$("$herdr" pane neighbor --direction right --pane "$owner" 2>/dev/null |
+        jq -r '.result.neighbor.neighbor_pane_id // empty' 2>/dev/null || true)"
     if _corral_valid_pane_id "$neighbor" && [[ "$neighbor" != "$owner" ]]; then
         split_target="$neighbor"
         swap_target="$neighbor"
     fi
     out="$("$herdr" pane split "$split_target" --direction right --focus --ratio 0.75 2>&1)" || return 1
-    pid="$(printf '%s' "$out" | jq -r '.result.pane.pane_id // empty' 2> /dev/null || true)"
+    pid="$(printf '%s' "$out" | jq -r '.result.pane.pane_id // empty' 2>/dev/null || true)"
     _corral_valid_pane_id "$pid" || return 1
     if ! "$herdr" pane report-metadata "$pid" --source corral-editor \
-        --token "$CORRAL_EDITOR_TOKEN=$owner" > /dev/null 2>&1 ||
-        ! "$herdr" pane rename "$pid" "$CORRAL_EDITOR_LABEL" > /dev/null 2>&1; then
-        "$herdr" pane close "$pid" > /dev/null 2>&1 || true
+        --token "$CORRAL_EDITOR_TOKEN=$owner" >/dev/null 2>&1 ||
+        ! "$herdr" pane rename "$pid" "$CORRAL_EDITOR_LABEL" >/dev/null 2>&1; then
+        "$herdr" pane close "$pid" >/dev/null 2>&1 || true
         return 1
     fi
     printf -v cmd 'exec %q --listen %q' "$nvim" "$socket"
-    if ! "$herdr" pane run "$pid" "$cmd" > /dev/null 2>&1; then
-        "$herdr" pane close "$pid" > /dev/null 2>&1 || true
+    if ! "$herdr" pane run "$pid" "$cmd" >/dev/null 2>&1; then
+        "$herdr" pane close "$pid" >/dev/null 2>&1 || true
         return 1
     fi
     if [[ -n "$swap_target" ]] &&
-        ! "$herdr" pane swap --source-pane "$pid" --target-pane "$swap_target" > /dev/null 2>&1; then
-        "$herdr" pane close "$pid" > /dev/null 2>&1 || true
+        ! "$herdr" pane swap --source-pane "$pid" --target-pane "$swap_target" >/dev/null 2>&1; then
+        "$herdr" pane close "$pid" >/dev/null 2>&1 || true
         return 1
     fi
     _corral_restore_sidebar_width "$herdr" "$owner" || {
-        "$herdr" pane close "$pid" > /dev/null 2>&1 || true
+        "$herdr" pane close "$pid" >/dev/null 2>&1 || true
         return 1
     }
     for _ in $(seq 1 40); do
@@ -237,7 +237,7 @@ _corral_ensure_nvim() {
         fi
         sleep 0.05
     done
-    "$herdr" pane close "$pid" > /dev/null 2>&1 || true
+    "$herdr" pane close "$pid" >/dev/null 2>&1 || true
     rm -f -- "$socket"
     return 1
 }
@@ -247,19 +247,19 @@ _corral_ensure_nvim() {
 # (:edit / :terminal). If the target pane is not nvim, start one.
 _corral_wezterm_pane_title() {
     local pid=$1 panes
-    panes="$(wezterm cli list --format json 2> /dev/null || true)"
+    panes="$(wezterm cli list --format json 2>/dev/null || true)"
     jq -r --argjson id "$pid" '.[] | select(.pane_id == $id) | .title // empty' \
-        <<< "$panes" 2> /dev/null || true
+        <<<"$panes" 2>/dev/null || true
 }
 
 # Resolve an existing target pane: remembered → same-tab rightmost.
 # Prints pane id, or empty if none (caller starts nvim). Does not split.
 _corral_wezterm_pane() {
-    [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm > /dev/null 2>&1 || return 1
+    [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1 || return 1
     local me="$WEZTERM_PANE" state="$CORRAL_CONFIG_DIR/wezterm-editor.pane"
     local pid panes saved
-    panes="$(wezterm cli list --format json 2> /dev/null || true)"
-    saved="$(cat "$state" 2> /dev/null || true)"
+    panes="$(wezterm cli list --format json 2>/dev/null || true)"
+    saved="$(cat "$state" 2>/dev/null || true)"
     pid="$(jq -r --argjson me "$me" --arg saved "$saved" '
     ($saved | tonumber? // 0) as $s
     | if $s > 0 and any(.[]; .pane_id == $s) and $s != $me then $s
@@ -271,9 +271,9 @@ _corral_wezterm_pane() {
             // ($others | sort_by(-.left_col) | .[0].pane_id)
             // empty)
       end
-    ' <<< "$panes" 2> /dev/null || true)"
+    ' <<<"$panes" 2>/dev/null || true)"
     if [[ -n "$pid" ]]; then
-        printf '%s' "$pid" > "$state"
+        printf '%s' "$pid" >"$state"
         printf '%s' "$pid"
     fi
 }
@@ -284,7 +284,7 @@ _corral_wezterm_pane() {
 _corral_wezterm_ensure_nvim() {
     local pid=${1:-} me="$WEZTERM_PANE" state="$CORRAL_CONFIG_DIR/wezterm-editor.pane"
     local title bin new_pid _i
-    bin=$(command -v nvim 2> /dev/null || true)
+    bin=$(command -v nvim 2>/dev/null || true)
     [[ -n "$bin" ]] || {
         printf 'corral: wezterm pane reuse requires nvim\n' >&2
         return 1
@@ -297,9 +297,9 @@ _corral_wezterm_ensure_nvim() {
         fi
     fi
     # Missing or non-nvim target → dedicated nvim split (PROG form, reliable TTY).
-    new_pid="$(wezterm cli split-pane --pane-id "$me" --right --percent 75 -- "$bin" 2> /dev/null | tr -d '[:space:]')" || return 1
+    new_pid="$(wezterm cli split-pane --pane-id "$me" --right --percent 75 -- "$bin" 2>/dev/null | tr -d '[:space:]')" || return 1
     [[ -n "$new_pid" ]] || return 1
-    printf '%s' "$new_pid" > "$state"
+    printf '%s' "$new_pid" >"$state"
     for _i in $(seq 1 40); do
         title="$(_corral_wezterm_pane_title "$new_pid")"
         if [[ "$title" == *nvim* || "$title" == *vim* ]]; then
@@ -324,7 +324,7 @@ _corral_run_wezterm() {
         printf "trap 'rm -f -- \"\$0\"' EXIT\n"
         printf 'set -o pipefail\n'
         printf '%s\n' "$cmd"
-    } > "$script" || {
+    } >"$script" || {
         rm -f -- "$script"
         return 1
     }
@@ -333,8 +333,8 @@ _corral_run_wezterm() {
         return 1
     }
     qscript=$(printf '%q' "$script")
-    wezterm cli activate-pane --pane-id "$pid" > /dev/null 2>&1 || true
-    if ! wezterm cli send-text --pane-id "$pid" --no-paste $'\x1c\x0e\e' > /dev/null 2>&1; then
+    wezterm cli activate-pane --pane-id "$pid" >/dev/null 2>&1 || true
+    if ! wezterm cli send-text --pane-id "$pid" --no-paste $'\x1c\x0e\e' >/dev/null 2>&1; then
         rm -f -- "$script"
         return 1
     fi
@@ -342,7 +342,7 @@ _corral_run_wezterm() {
     # Private script path is shell-quoted. nvim :terminal gets a real PTY so
     # less / corral-github raw-mode work (unlike eval in the hosted action).
     if ! wezterm cli send-text --pane-id "$pid" --no-paste \
-        ":terminal bash ${qscript}"$'\r' > /dev/null 2>&1; then
+        ":terminal bash ${qscript}"$'\r' >/dev/null 2>&1; then
         rm -f -- "$script"
         return 1
     fi
@@ -350,11 +350,11 @@ _corral_run_wezterm() {
     # Exit terminal mode (C-\ C-n) and mark the buffer so Neovim config can
     # scope diff-review keymaps to Corral previews only. Re-enter insert when
     # the caller asked for terminal input.
-    wezterm cli send-text --pane-id "$pid" --no-paste $'\x1c\x0e' > /dev/null 2>&1 || true
-    wezterm cli send-text --pane-id "$pid" --no-paste ':let b:corral_preview = 1'$'\r' > /dev/null 2>&1 || true
+    wezterm cli send-text --pane-id "$pid" --no-paste $'\x1c\x0e' >/dev/null 2>&1 || true
+    wezterm cli send-text --pane-id "$pid" --no-paste ':let b:corral_preview = 1'$'\r' >/dev/null 2>&1 || true
     if [[ "$input_mode" == terminal ]]; then
         sleep 0.05
-        wezterm cli send-text --pane-id "$pid" --no-paste 'i' > /dev/null 2>&1 || true
+        wezterm cli send-text --pane-id "$pid" --no-paste 'i' >/dev/null 2>&1 || true
     fi
 }
 
@@ -367,7 +367,7 @@ _corral_preview() {
         _corral_run "$cmd" "$input_mode"
         return $?
     fi
-    if [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm > /dev/null 2>&1; then
+    if [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
         echo CORRAL_SUSPEND=0
         _corral_run_wezterm "$cmd" "$input_mode"
         return $?
@@ -382,7 +382,7 @@ open() {
     [[ -n "$file" && -e "$file" ]] || return 1
     local editor="${EDITOR:-${VISUAL:-vi}}" vfile
     local -a editor_cmd
-    read -r -a editor_cmd <<< "$editor"
+    read -r -a editor_cmd <<<"$editor"
     vfile=${file// /\\ }
 
     # --- herdr ---
@@ -390,8 +390,8 @@ open() {
         echo CORRAL_SUSPEND=0
         local endpoint pid socket nvim
         endpoint="$(_corral_ensure_nvim)" || return 1
-        IFS=$'\t' read -r pid socket nvim <<< "$endpoint"
-        "$nvim" --server "$socket" --remote "$file" > /dev/null 2>&1 || return 1
+        IFS=$'\t' read -r pid socket nvim <<<"$endpoint"
+        "$nvim" --server "$socket" --remote "$file" >/dev/null 2>&1 || return 1
         _corral_focus_pane "$HERDR_BIN_PATH" "$pid" || return 1
         return 0
     fi
@@ -399,13 +399,13 @@ open() {
     # --- wezterm ---
     # Reuse one nvim side pane: remembered → rightmost → split nvim if needed.
     # Always :edit into it; never `split-pane -- $editor file`.
-    if [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm > /dev/null 2>&1; then
+    if [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
         echo CORRAL_SUSPEND=0
         local pid
         pid="$(_corral_wezterm_pane)" || return 1
         pid="$(_corral_wezterm_ensure_nvim "$pid")" || return 1
-        wezterm cli activate-pane --pane-id "$pid" > /dev/null 2>&1 || true
-        wezterm cli send-text --pane-id "$pid" --no-paste $'\e:edit '"$vfile"$'\r' > /dev/null
+        wezterm cli activate-pane --pane-id "$pid" >/dev/null 2>&1 || true
+        wezterm cli send-text --pane-id "$pid" --no-paste $'\e:edit '"$vfile"$'\r' >/dev/null
         return 0
     fi
 
@@ -419,7 +419,7 @@ open() {
 _corral_run() {
     local cmd="$1" input_mode="${2:-normal}" endpoint pid socket nvim runtime script vim_path expr
     endpoint="$(_corral_ensure_nvim)" || return 1
-    IFS=$'\t' read -r pid socket nvim <<< "$endpoint"
+    IFS=$'\t' read -r pid socket nvim <<<"$endpoint"
     runtime="$(_corral_runtime_dir)" || return 1
     script="$(mktemp "$runtime/preview.XXXXXX")" || return 1
     {
@@ -427,7 +427,7 @@ _corral_run() {
         printf "trap 'rm -f -- \"\$0\"' EXIT\n"
         printf 'set -o pipefail\n'
         printf '%s\n' "$cmd"
-    } > "$script" || {
+    } >"$script" || {
         rm -f -- "$script"
         return 1
     }
@@ -446,7 +446,7 @@ _corral_run() {
     if [[ "$input_mode" == terminal ]]; then
         expr+=" . execute('startinsert')"
     fi
-    if ! "$nvim" --server "$socket" --remote-expr "$expr" > /dev/null 2>&1; then
+    if ! "$nvim" --server "$socket" --remote-expr "$expr" >/dev/null 2>&1; then
         rm -f -- "$script"
         return 1
     fi
@@ -486,9 +486,9 @@ _corral_diff_source() {
     paths=$qfile
     [[ -n "$qorig" ]] && paths="$paths $qorig"
     case "$kind" in
-        staged) printf 'git -C %s --literal-pathspecs %sdiff %s--cached -- %s' "$qdir" "$color_arg" "$ctx_arg" "$paths" ;;
-        untracked) printf '{ git -C %s --literal-pathspecs %sdiff %s--no-index -- /dev/null %s || test $? -eq 1; }' "$qdir" "$color_arg" "$ctx_arg" "$qfile" ;;
-        *) printf 'git -C %s --literal-pathspecs %sdiff %s-- %s' "$qdir" "$color_arg" "$ctx_arg" "$paths" ;;
+    staged) printf 'git -C %s --literal-pathspecs %sdiff %s--cached -- %s' "$qdir" "$color_arg" "$ctx_arg" "$paths" ;;
+    untracked) printf '{ git -C %s --literal-pathspecs %sdiff %s--no-index -- /dev/null %s || test $? -eq 1; }' "$qdir" "$color_arg" "$ctx_arg" "$qfile" ;;
+    *) printf 'git -C %s --literal-pathspecs %sdiff %s-- %s' "$qdir" "$color_arg" "$ctx_arg" "$paths" ;;
     esac
 }
 
@@ -505,39 +505,39 @@ _corral_diff_cmd() {
     source=$(_corral_diff_source "$kind" "$qdir" "$qfile" "$qorig")
 
     case "$tool" in
-        delta)
-            bin=$(command -v delta 2> /dev/null || true)
-            if [[ -n "$bin" ]]; then
-                printf '%s | %q %s' "$source" "$bin" "$(_corral_delta_opts)"
-                return
-            fi
-            ;;
-        difft)
-            bin=$(command -v difft 2> /dev/null || true)
-            if [[ -n "$bin" ]]; then
-                if [[ "$kind" == untracked ]]; then
-                    printf 'DFT_COLOR=always %q /dev/null %s | less -R' "$bin" "$qfile"
-                else
-                    local cached=""
-                    [[ "$kind" == staged ]] && cached='--cached '
-                    printf 'DFT_COLOR=always GIT_EXTERNAL_DIFF=%q git -C %s --literal-pathspecs --no-pager diff %s-- %s %s | less -R' "$bin" "$qdir" "$cached" "$qfile" "$qorig"
-                fi
-                return
-            fi
-            ;;
-        fancy)
-            bin=$(command -v diff-so-fancy 2> /dev/null || true)
-            if [[ -n "$bin" ]]; then
-                source=$(_corral_diff_source "$kind" "$qdir" "$qfile" "$qorig" always)
-                printf '%s | %q | less -R' "$source" "$bin"
-                return
-            fi
-            ;;
-        git | corral) ;;
-        *)
-            printf 'printf %q >&2; false' "corral: unknown CORRAL_DIFF_TOOL=$tool"
+    delta)
+        bin=$(command -v delta 2>/dev/null || true)
+        if [[ -n "$bin" ]]; then
+            printf '%s | %q %s' "$source" "$bin" "$(_corral_delta_opts)"
             return
-            ;;
+        fi
+        ;;
+    difft)
+        bin=$(command -v difft 2>/dev/null || true)
+        if [[ -n "$bin" ]]; then
+            if [[ "$kind" == untracked ]]; then
+                printf 'DFT_COLOR=always %q /dev/null %s | less -R' "$bin" "$qfile"
+            else
+                local cached=""
+                [[ "$kind" == staged ]] && cached='--cached '
+                printf 'DFT_COLOR=always GIT_EXTERNAL_DIFF=%q git -C %s --literal-pathspecs --no-pager diff %s-- %s %s | less -R' "$bin" "$qdir" "$cached" "$qfile" "$qorig"
+            fi
+            return
+        fi
+        ;;
+    fancy)
+        bin=$(command -v diff-so-fancy 2>/dev/null || true)
+        if [[ -n "$bin" ]]; then
+            source=$(_corral_diff_source "$kind" "$qdir" "$qfile" "$qorig" always)
+            printf '%s | %q | less -R' "$source" "$bin"
+            return
+        fi
+        ;;
+    git | corral) ;;
+    *)
+        printf 'printf %q >&2; false' "corral: unknown CORRAL_DIFF_TOOL=$tool"
+        return
+        ;;
     esac
 
     source=$(_corral_diff_source "$kind" "$qdir" "$qfile" "$qorig" always)
@@ -577,7 +577,7 @@ show_ref() {
         qpath=$(printf '%q' "$path")
         source="$source -- $qpath"
     fi
-    if [[ "$CORRAL_DIFF_TOOL" == "delta" ]] && command -v delta > /dev/null 2>&1; then
+    if [[ "$CORRAL_DIFF_TOOL" == "delta" ]] && command -v delta >/dev/null 2>&1; then
         printf -v cmd '%s | %q %s' "$source" "$(command -v delta)" "$(_corral_delta_opts)"
     else
         cmd="$source | less -R"
@@ -601,7 +601,7 @@ github_preview() {
     local number="${CORRAL_GITHUB_NUMBER:-}" run_id="${CORRAL_GITHUB_RUN_ID:-}"
     local gh_bin qgh qrepo cmd
     [[ -n "$repo" ]] || return 1
-    gh_bin=$(command -v gh 2> /dev/null || true)
+    gh_bin=$(command -v gh 2>/dev/null || true)
     [[ -n "$gh_bin" ]] || {
         printf 'corral: GitHub CLI (gh) not found\n' >&2
         return 1
@@ -609,40 +609,40 @@ github_preview() {
     qgh=$(printf '%q' "$gh_bin")
     qrepo=$(printf '%q' "$repo")
     case "$kind" in
-        issue)
-            [[ "$number" =~ ^[0-9]+$ ]] || return 1
-            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s issue view %s --repo %s --comments | less -R' "$qgh" "$number" "$qrepo"
-            ;;
-        pr)
-            [[ "$number" =~ ^[0-9]+$ ]] || return 1
-            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr view %s --repo %s --comments | less -R' "$qgh" "$number" "$qrepo"
-            ;;
-        diff)
-            [[ "$number" =~ ^[0-9]+$ ]] || return 1
-            if [[ "$CORRAL_DIFF_TOOL" == "delta" ]] && command -v delta > /dev/null 2>&1; then
-                printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr diff %s --repo %s | %q %s' "$qgh" "$number" "$qrepo" "$(command -v delta)" "$(_corral_delta_opts)"
-            else
-                printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr diff %s --repo %s | less -R' "$qgh" "$number" "$qrepo"
-            fi
-            ;;
-        checks)
-            [[ "$number" =~ ^[0-9]+$ ]] || return 1
-            # gh uses exit 8 for pending checks; it is a valid preview state.
-            printf -v cmd '{ GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr checks %s --repo %s; code=$?; (( code == 0 || code == 8 )); } | less -R' "$qgh" "$number" "$qrepo"
-            ;;
-        run)
-            [[ "$run_id" =~ ^[0-9]+$ ]] || return 1
-            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s run view %s --repo %s | less -R' "$qgh" "$run_id" "$qrepo"
-            ;;
-        log)
-            [[ "$run_id" =~ ^[0-9]+$ ]] || return 1
-            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s run view %s --repo %s --log | less -R' "$qgh" "$run_id" "$qrepo"
-            ;;
-        log-failed)
-            [[ "$run_id" =~ ^[0-9]+$ ]] || return 1
-            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s run view %s --repo %s --log-failed | less -R' "$qgh" "$run_id" "$qrepo"
-            ;;
-        *) return 1 ;;
+    issue)
+        [[ "$number" =~ ^[0-9]+$ ]] || return 1
+        printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s issue view %s --repo %s --comments | less -R' "$qgh" "$number" "$qrepo"
+        ;;
+    pr)
+        [[ "$number" =~ ^[0-9]+$ ]] || return 1
+        printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr view %s --repo %s --comments | less -R' "$qgh" "$number" "$qrepo"
+        ;;
+    diff)
+        [[ "$number" =~ ^[0-9]+$ ]] || return 1
+        if [[ "$CORRAL_DIFF_TOOL" == "delta" ]] && command -v delta >/dev/null 2>&1; then
+            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr diff %s --repo %s | %q %s' "$qgh" "$number" "$qrepo" "$(command -v delta)" "$(_corral_delta_opts)"
+        else
+            printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr diff %s --repo %s | less -R' "$qgh" "$number" "$qrepo"
+        fi
+        ;;
+    checks)
+        [[ "$number" =~ ^[0-9]+$ ]] || return 1
+        # gh uses exit 8 for pending checks; it is a valid preview state.
+        printf -v cmd '{ GH_PROMPT_DISABLED=1 GH_PAGER=cat %s pr checks %s --repo %s; code=$?; (( code == 0 || code == 8 )); } | less -R' "$qgh" "$number" "$qrepo"
+        ;;
+    run)
+        [[ "$run_id" =~ ^[0-9]+$ ]] || return 1
+        printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s run view %s --repo %s | less -R' "$qgh" "$run_id" "$qrepo"
+        ;;
+    log)
+        [[ "$run_id" =~ ^[0-9]+$ ]] || return 1
+        printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s run view %s --repo %s --log | less -R' "$qgh" "$run_id" "$qrepo"
+        ;;
+    log-failed)
+        [[ "$run_id" =~ ^[0-9]+$ ]] || return 1
+        printf -v cmd 'GH_PROMPT_DISABLED=1 GH_PAGER=cat %s run view %s --repo %s --log-failed | less -R' "$qgh" "$run_id" "$qrepo"
+        ;;
+    *) return 1 ;;
     esac
     _corral_preview "$cmd" terminal
 }
@@ -659,7 +659,7 @@ github_detail() {
     local number="${CORRAL_GITHUB_NUMBER:-}" run_id="${CORRAL_GITHUB_RUN_ID:-}"
     local bin qbin qrepo qviewer resource id view cmd
     [[ -n "$repo" ]] || return 1
-    bin=$(command -v corral-github 2> /dev/null || true)
+    bin=$(command -v corral-github 2>/dev/null || true)
     if [[ -z "$bin" && -n "${HERDR_PLUGIN_ROOT:-}" ]]; then
         for candidate in \
             "$HERDR_PLUGIN_ROOT/target/release/corral-github" \
@@ -675,42 +675,42 @@ github_detail() {
         return $?
     }
     case "$kind" in
-        issue)
-            resource='issue'
-            id="$number"
-            view='overview'
-            ;;
-        pr)
-            resource='pr'
-            id="$number"
-            view='overview'
-            ;;
-        diff)
-            resource='pr'
-            id="$number"
-            view='diff'
-            ;;
-        checks)
-            resource='pr'
-            id="$number"
-            view='checks'
-            ;;
-        run)
-            resource='run'
-            id="$run_id"
-            view='overview'
-            ;;
-        log)
-            resource='run'
-            id="$run_id"
-            view='log'
-            ;;
-        log-failed)
-            resource='run'
-            id="$run_id"
-            view='log-failed'
-            ;;
-        *) return 1 ;;
+    issue)
+        resource='issue'
+        id="$number"
+        view='overview'
+        ;;
+    pr)
+        resource='pr'
+        id="$number"
+        view='overview'
+        ;;
+    diff)
+        resource='pr'
+        id="$number"
+        view='diff'
+        ;;
+    checks)
+        resource='pr'
+        id="$number"
+        view='checks'
+        ;;
+    run)
+        resource='run'
+        id="$run_id"
+        view='overview'
+        ;;
+    log)
+        resource='run'
+        id="$run_id"
+        view='log'
+        ;;
+    log-failed)
+        resource='run'
+        id="$run_id"
+        view='log-failed'
+        ;;
+    *) return 1 ;;
     esac
     [[ "$id" =~ ^[0-9]+$ ]] || return 1
     qbin=$(printf '%q' "$bin")

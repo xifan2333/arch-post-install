@@ -13,27 +13,27 @@ IMAGE="$WORK_DIR/selection.png"
 RESULT="$WORK_DIR/result.json"
 
 cleanup() {
-    if [ -n "$PID" ]; then
-        kill "$PID" 2>/dev/null || true
-        wait "$PID" 2>/dev/null || true
-    fi
-    rm -rf "$WORK_DIR"
+	if [ -n "$PID" ]; then
+		kill "$PID" 2>/dev/null || true
+		wait "$PID" 2>/dev/null || true
+	fi
+	rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT INT TERM
 
 ocr_notify() {
-    command -v notify-send >/dev/null 2>&1 || return 0
-    notify-send -u "${2:-normal}" "$(msg ocr_notify_title)" "$1"
+	command -v notify-send >/dev/null 2>&1 || return 0
+	notify-send -u "${2:-normal}" "$(msg ocr_notify_title)" "$1"
 }
 
 NBOCR=$(command -v nbocr 2>/dev/null || true)
 if [ -z "$NBOCR" ] && command -v mise >/dev/null 2>&1; then
-    NBOCR_ROOT=$(mise where github:zibo-chen/newbee-ocr-cli 2>/dev/null || true)
-    [ -x "$NBOCR_ROOT/nbocr" ] && NBOCR="$NBOCR_ROOT/nbocr"
+	NBOCR_ROOT=$(mise where github:zibo-chen/newbee-ocr-cli 2>/dev/null || true)
+	[ -x "$NBOCR_ROOT/nbocr" ] && NBOCR="$NBOCR_ROOT/nbocr"
 fi
 if [ -z "$NBOCR" ]; then
-    ocr_notify "$(msg ocr_notify_backend_missing)" critical
-    exit 1
+	ocr_notify "$(msg ocr_notify_backend_missing)" critical
+	exit 1
 fi
 
 # Freeze the selected frame only until grim has captured it.
@@ -44,8 +44,8 @@ SELECTION=$(slurp 2>/dev/null)
 [ -n "$SELECTION" ] || exit 0
 
 grim -g "$SELECTION" "$IMAGE" || {
-    ocr_notify "$(msg ocr_notify_failed)" critical
-    exit 1
+	ocr_notify "$(msg ocr_notify_failed)" critical
+	exit 1
 }
 
 kill "$PID" 2>/dev/null || true
@@ -53,12 +53,12 @@ wait "$PID" 2>/dev/null || true
 PID=""
 
 "$NBOCR" recognize "$IMAGE" \
-    --language zh \
-    --format json \
-    --output "$RESULT" \
-    >/dev/null 2>&1 || {
-    ocr_notify "$(msg ocr_notify_failed)" critical
-    exit 1
+	--language zh \
+	--format json \
+	--output "$RESULT" \
+	>/dev/null 2>&1 || {
+	ocr_notify "$(msg ocr_notify_failed)" critical
+	exit 1
 }
 
 # Restore approximate visual reading order from the OCR bounding boxes. Nearby
@@ -81,13 +81,13 @@ TEXT=$(jq -r --argjson minimum 0.60 '
       | join("\n")
       end
 ' "$RESULT") || {
-    ocr_notify "$(msg ocr_notify_failed)" critical
-    exit 1
+	ocr_notify "$(msg ocr_notify_failed)" critical
+	exit 1
 }
 
 [ -n "$TEXT" ] || {
-    ocr_notify "$(msg ocr_notify_failed)" critical
-    exit 1
+	ocr_notify "$(msg ocr_notify_failed)" critical
+	exit 1
 }
 
 printf '%s' "$TEXT" | wl-copy

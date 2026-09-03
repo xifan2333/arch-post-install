@@ -12,161 +12,161 @@ RP0_NODE="$GPU_SYSFS/gt_RP0_freq_mhz"
 RPN_NODE="$GPU_SYSFS/gt_RPn_freq_mhz"
 
 get_max_limit() {
-    cat "$RP0_NODE" 2>/dev/null || echo "1300"
+	cat "$RP0_NODE" 2>/dev/null || echo "1300"
 }
 
 get_min_limit() {
-    cat "$RPN_NODE" 2>/dev/null || echo "650"
+	cat "$RPN_NODE" 2>/dev/null || echo "650"
 }
 
 get_cur_freq() {
-    cat "$CUR_NODE" 2>/dev/null || echo "650"
+	cat "$CUR_NODE" 2>/dev/null || echo "650"
 }
 
 get_min_freq() {
-    cat "$MIN_NODE" 2>/dev/null || echo "650"
+	cat "$MIN_NODE" 2>/dev/null || echo "650"
 }
 
 get_max_freq() {
-    cat "$MAX_NODE" 2>/dev/null || echo "1300"
+	cat "$MAX_NODE" 2>/dev/null || echo "1300"
 }
 
 is_max() {
-    local cur_min max_limit
-    cur_min=$(get_min_freq)
-    max_limit=$(get_max_limit)
-    [ "$cur_min" -ge "$max_limit" ]
+	local cur_min max_limit
+	cur_min=$(get_min_freq)
+	max_limit=$(get_max_limit)
+	[ "$cur_min" -ge "$max_limit" ]
 }
 
 is_auto() {
-    local cur_min min_limit
-    cur_min=$(get_min_freq)
-    min_limit=$(get_min_limit)
-    [ "$cur_min" -le "$min_limit" ]
+	local cur_min min_limit
+	cur_min=$(get_min_freq)
+	min_limit=$(get_min_limit)
+	[ "$cur_min" -le "$min_limit" ]
 }
 
 get_level() {
-    if is_auto; then
-        echo "auto"
-    elif is_max; then
-        echo "max"
-    else
-        get_min_freq
-    fi
+	if is_auto; then
+		echo "auto"
+	elif is_max; then
+		echo "max"
+	else
+		get_min_freq
+	fi
 }
 
 set_min_freq() {
-    local target="$1"
-    if [ -w "$MIN_NODE" ]; then
-        echo "$target" >"$MIN_NODE"
-    elif command -v pkexec >/dev/null 2>&1; then
-        echo "$target" | pkexec tee "$MIN_NODE" >/dev/null
-    elif command -v sudo >/dev/null 2>&1; then
-        echo "$target" | sudo tee "$MIN_NODE" >/dev/null
-    else
-        echo "Error: root permission required to write to $MIN_NODE" >&2
-        return 1
-    fi
+	local target="$1"
+	if [ -w "$MIN_NODE" ]; then
+		echo "$target" >"$MIN_NODE"
+	elif command -v pkexec >/dev/null 2>&1; then
+		echo "$target" | pkexec tee "$MIN_NODE" >/dev/null
+	elif command -v sudo >/dev/null 2>&1; then
+		echo "$target" | sudo tee "$MIN_NODE" >/dev/null
+	else
+		echo "Error: root permission required to write to $MIN_NODE" >&2
+		return 1
+	fi
 }
 
 set_max_freq() {
-    local target="$1"
-    if [ -w "$MAX_NODE" ]; then
-        echo "$target" >"$MAX_NODE"
-    elif command -v pkexec >/dev/null 2>&1; then
-        echo "$target" | pkexec tee "$MAX_NODE" >/dev/null
-    elif command -v sudo >/dev/null 2>&1; then
-        echo "$target" | sudo tee "$MAX_NODE" >/dev/null
-    else
-        echo "Error: root permission required to write to $MAX_NODE" >&2
-        return 1
-    fi
+	local target="$1"
+	if [ -w "$MAX_NODE" ]; then
+		echo "$target" >"$MAX_NODE"
+	elif command -v pkexec >/dev/null 2>&1; then
+		echo "$target" | pkexec tee "$MAX_NODE" >/dev/null
+	elif command -v sudo >/dev/null 2>&1; then
+		echo "$target" | sudo tee "$MAX_NODE" >/dev/null
+	else
+		echo "Error: root permission required to write to $MAX_NODE" >&2
+		return 1
+	fi
 }
 
 set_freq_mode() {
-    local target="$1"
-    local min_lim max_lim
-    min_lim=$(get_min_limit)
-    max_lim=$(get_max_limit)
+	local target="$1"
+	local min_lim max_lim
+	min_lim=$(get_min_limit)
+	max_lim=$(get_max_limit)
 
-    case "$target" in
-    auto | dynamic | default)
-        set_min_freq "$min_lim"
-        set_max_freq "$max_lim"
-        echo "Intel GPU restored to dynamic ($min_lim~$max_lim MHz)"
-        ;;
-    max | boost | performance)
-        set_min_freq "$max_lim"
-        set_max_freq "$max_lim"
-        echo "Intel GPU locked to MAX ($max_lim MHz)"
-        ;;
-    *)
-        # Numeric frequency in MHz
-        if [[ "$target" =~ ^[0-9]+$ ]]; then
-            if ((target < min_lim)); then target="$min_lim"; fi
-            if ((target > max_lim)); then target="$max_lim"; fi
-            set_min_freq "$target"
-            echo "Intel GPU frequency level set to $target MHz"
-        else
-            echo "Error: invalid target frequency or mode: $target" >&2
-            return 1
-        fi
-        ;;
-    esac
+	case "$target" in
+	auto | dynamic | default)
+		set_min_freq "$min_lim"
+		set_max_freq "$max_lim"
+		echo "Intel GPU restored to dynamic ($min_lim~$max_lim MHz)"
+		;;
+	max | boost | performance)
+		set_min_freq "$max_lim"
+		set_max_freq "$max_lim"
+		echo "Intel GPU locked to MAX ($max_lim MHz)"
+		;;
+	*)
+		# Numeric frequency in MHz
+		if [[ "$target" =~ ^[0-9]+$ ]]; then
+			if ((target < min_lim)); then target="$min_lim"; fi
+			if ((target > max_lim)); then target="$max_lim"; fi
+			set_min_freq "$target"
+			echo "Intel GPU frequency level set to $target MHz"
+		else
+			echo "Error: invalid target frequency or mode: $target" >&2
+			return 1
+		fi
+		;;
+	esac
 }
 
 toggle_mode() {
-    if is_auto; then
-        set_freq_mode "max"
-    else
-        set_freq_mode "auto"
-    fi
+	if is_auto; then
+		set_freq_mode "max"
+	else
+		set_freq_mode "auto"
+	fi
 }
 
 get_mode_desc() {
-    if is_max; then
-        echo "MAX (Locked)"
-    elif is_auto; then
-        echo "Auto (Dynamic)"
-    else
-        echo "Manual ($(get_min_freq) MHz)"
-    fi
+	if is_max; then
+		echo "MAX (Locked)"
+	elif is_auto; then
+		echo "Auto (Dynamic)"
+	else
+		echo "Manual ($(get_min_freq) MHz)"
+	fi
 }
 
 case "${1:-status}" in
 status)
-    echo "Current: $(get_cur_freq) MHz"
-    echo "Min:     $(get_min_freq) MHz"
-    echo "Max:     $(get_max_freq) MHz"
-    echo "Level:   $(get_level)"
-    echo "Mode:    $(get_mode_desc)"
-    ;;
+	echo "Current: $(get_cur_freq) MHz"
+	echo "Min:     $(get_min_freq) MHz"
+	echo "Max:     $(get_max_freq) MHz"
+	echo "Level:   $(get_level)"
+	echo "Mode:    $(get_mode_desc)"
+	;;
 cur | speed)
-    get_cur_freq
-    ;;
+	get_cur_freq
+	;;
 level | get)
-    get_level
-    ;;
+	get_level
+	;;
 is-max)
-    is_max
-    ;;
+	is_max
+	;;
 is-auto)
-    is_auto
-    ;;
+	is_auto
+	;;
 toggle)
-    toggle_mode
-    ;;
+	toggle_mode
+	;;
 max | boost | performance)
-    set_freq_mode "max"
-    ;;
+	set_freq_mode "max"
+	;;
 auto | dynamic | default)
-    set_freq_mode "auto"
-    ;;
+	set_freq_mode "auto"
+	;;
 [0-9]*)
-    set_freq_mode "$1"
-    ;;
+	set_freq_mode "$1"
+	;;
 -h | --help)
-    cat <<EOF
+	cat <<EOF
 Usage: intel-gpu-freq [status|cur|level|is-max|toggle|auto|max|<MHz>]
 
 Commands:
@@ -179,9 +179,9 @@ Commands:
   max          Lock frequency to maximum Turbo Boost (1300 MHz)
   <MHz>        Set specific frequency floor/level in MHz (e.g. 650, 800, 950, 1100, 1300)
 EOF
-    ;;
+	;;
 *)
-    echo "Unknown command: $1 (run with --help for usage)" >&2
-    exit 1
-    ;;
+	echo "Unknown command: $1 (run with --help for usage)" >&2
+	exit 1
+	;;
 esac

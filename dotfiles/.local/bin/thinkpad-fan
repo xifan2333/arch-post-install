@@ -7,79 +7,79 @@ set -euo pipefail
 FAN_PROC="/proc/acpi/ibm/fan"
 
 get_status() {
-    if [ -r "$FAN_PROC" ]; then
-        cat "$FAN_PROC"
-    else
-        echo "Error: $FAN_PROC is not readable" >&2
-        return 1
-    fi
+	if [ -r "$FAN_PROC" ]; then
+		cat "$FAN_PROC"
+	else
+		echo "Error: $FAN_PROC is not readable" >&2
+		return 1
+	fi
 }
 
 set_level() {
-    local lvl="$1"
-    if [ ! -w "$FAN_PROC" ]; then
-        if command -v pkexec >/dev/null 2>&1; then
-            echo "level $lvl" | pkexec tee "$FAN_PROC" >/dev/null
-        elif command -v sudo >/dev/null 2>&1; then
-            echo "level $lvl" | sudo tee "$FAN_PROC" >/dev/null
-        else
-            echo "Error: root permission required to write to $FAN_PROC" >&2
-            return 1
-        fi
-    else
-        echo "level $lvl" >"$FAN_PROC"
-    fi
+	local lvl="$1"
+	if [ ! -w "$FAN_PROC" ]; then
+		if command -v pkexec >/dev/null 2>&1; then
+			echo "level $lvl" | pkexec tee "$FAN_PROC" >/dev/null
+		elif command -v sudo >/dev/null 2>&1; then
+			echo "level $lvl" | sudo tee "$FAN_PROC" >/dev/null
+		else
+			echo "Error: root permission required to write to $FAN_PROC" >&2
+			return 1
+		fi
+	else
+		echo "level $lvl" >"$FAN_PROC"
+	fi
 }
 
 is_max() {
-    local lvl
-    lvl=$(grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto")
-    case "$lvl" in
-    disengaged | full-speed | 64 | 7) return 0 ;;
-    *) return 1 ;;
-    esac
+	local lvl
+	lvl=$(grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto")
+	case "$lvl" in
+	disengaged | full-speed | 64 | 7) return 0 ;;
+	*) return 1 ;;
+	esac
 }
 
 toggle_level() {
-    if is_max; then
-        set_level "auto"
-        echo "ThinkPad fan restored to BIOS auto"
-    else
-        set_level "disengaged"
-        echo "ThinkPad fan set to MAX (disengaged / 5000+ RPM)"
-    fi
+	if is_max; then
+		set_level "auto"
+		echo "ThinkPad fan restored to BIOS auto"
+	else
+		set_level "disengaged"
+		echo "ThinkPad fan set to MAX (disengaged / 5000+ RPM)"
+	fi
 }
 
 case "${1:-status}" in
 status)
-    get_status
-    ;;
+	get_status
+	;;
 is-max)
-    is_max
-    ;;
+	is_max
+	;;
 toggle)
-    toggle_level
-    ;;
+	toggle_level
+	;;
 speed)
-    grep "^speed:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "0"
-    ;;
+	grep "^speed:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "0"
+	;;
 level)
-    grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto"
-    ;;
+	grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto"
+	;;
 max | boost | full | disengaged | 64)
-    set_level "disengaged"
-    echo "ThinkPad fan set to MAX (disengaged / 5000+ RPM)"
-    ;;
+	set_level "disengaged"
+	echo "ThinkPad fan set to MAX (disengaged / 5000+ RPM)"
+	;;
 auto)
-    set_level "auto"
-    echo "ThinkPad fan restored to BIOS auto"
-    ;;
+	set_level "auto"
+	echo "ThinkPad fan restored to BIOS auto"
+	;;
 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7)
-    set_level "$1"
-    echo "ThinkPad fan set to level $1"
-    ;;
+	set_level "$1"
+	echo "ThinkPad fan set to level $1"
+	;;
 -h | --help)
-    cat <<EOF
+	cat <<EOF
 Usage: thinkpad-fan [status|auto|max|0-7]
 
 Commands:
@@ -88,9 +88,9 @@ Commands:
   max          Boost fan to maximum speed (disengaged, 5000+ RPM)
   0-7          Set specific fan level (0=off, 7=maximum BIOS speed)
 EOF
-    ;;
+	;;
 *)
-    echo "Unknown command: $1 (run with --help for usage)" >&2
-    exit 1
-    ;;
+	echo "Unknown command: $1 (run with --help for usage)" >&2
+	exit 1
+	;;
 esac

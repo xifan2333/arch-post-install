@@ -4,16 +4,16 @@ bindkey '^[[B' history-substring-search-down
 
 # Cheatsheet (Ctrl+/)
 zsh-cheatsheet() {
-  local file="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/cheatsheet.txt"
-  if [[ -f "$file" ]]; then
-    local selected
-    selected=$(fzf --prompt="Cheatsheet: " --print-query < "$file" | head -1)
-    if [[ -n "$selected" ]]; then
-      LBUFFER="$selected"
-      zle accept-line
+    local file="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/cheatsheet.txt"
+    if [[ -f "$file" ]]; then
+        local selected
+        selected=$(fzf --prompt="Cheatsheet: " --print-query <"$file" | head -1)
+        if [[ -n "$selected" ]]; then
+            LBUFFER="$selected"
+            zle accept-line
+        fi
     fi
-  fi
-  zle redisplay
+    zle redisplay
 }
 zle -N zsh-cheatsheet
 bindkey '^_' zsh-cheatsheet
