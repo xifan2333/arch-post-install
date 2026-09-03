@@ -22,7 +22,7 @@ Coverage:
 | `*.lua`                    | Builtins.stylua + luac (CommandSpec) |
 | `*.toml`                   | Builtins.taplo (--no-schema) + Builtins.taplo_format |
 | `*.{json,jsonc,yaml,yml}`  | Builtins.prettier |
-| `*.zsh`                    | zsh -n (CommandSpec) |
+| `*.zsh`                    | zsh -n + shfmt (CommandSpec)        |
 | `*.js`                     | oxlint (CommandSpec) |
 | `*.qml`                    | qmllint (CommandSpec) |
 

@@ -39,7 +39,7 @@ Supported formatters and linters:
 - **JSON / YAML**: `prettier`
 - **JavaScript**: `oxlint`
 - **QML**: `qmllint`
-- **Zsh**: `zsh -n`
+- **Zsh**: `zsh -n` (syntax check), `shfmt` (format)
 
 ---
 

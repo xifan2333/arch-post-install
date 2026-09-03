@@ -17,19 +17,8 @@ run = "hk install"
 
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
-run = """
-ruff check .
-taplo lint --no-schema
-prettier --check .
-shfmt -f dotfiles/.local/bin mise/tasks | grep -vE 'i18n-(en|zh)' | xargs shellcheck --rcfile=.shellcheckrc
-"""
+run = "hk check --all"
 
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"
-run = """
-ruff format .
-shfmt -f dotfiles/.local/bin mise/tasks | xargs shfmt -w -i 4
-stylua dotfiles/.config/hypr/
-taplo format
-prettier --write .
-"""
+run = "hk fix --all"
