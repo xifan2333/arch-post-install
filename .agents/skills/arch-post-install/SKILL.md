@@ -6,8 +6,11 @@ description: >
   (mise.toml, mise/conf.d/*, mise/tasks/*), managing system packages or
   bootstrapping a machine, modifying files under dotfiles/ (~/.config/,
   ~/.local/), developing Omarchy shell plugins (xifan.*), adjusting Hyprland
-  configs (*.lua), or running system setup tasks (aur, bootstrap, fonts, wps).
-  Also use before committing changes so repo conventions are upheld.
+  configs (*.lua), following the Issue + Draft PR development workflow (SOP),
+  or running system setup tasks (aur, bootstrap, fonts, wps). Trigger also on
+  requests such as 根据 issue 拆解开发、开 PR/提 PR、Draft PR 工作流、单任务循环提交、
+  代码体检与格式化自检. Also use before committing changes so repo conventions
+  are upheld.
 ---
 
 # Arch Post-Install & Omarchy System Kit
@@ -21,6 +24,8 @@ This repository is the **single source of truth** for this personal Arch Linux
 
 Read the matching reference before editing:
 
+- [`references/issue-pr-workflow.md`](references/issue-pr-workflow.md) — mandatory
+  Issue + Draft PR driven development workflow (SOP), Dual-Planning model, single-item loop, and merge.
 - [`references/mise-structure.md`](references/mise-structure.md) — the two-layer
   mise configuration and where each concern belongs.
 - [`references/omarchy.md`](references/omarchy.md) — desktop rules: system dir
@@ -34,6 +39,20 @@ Read the matching reference before editing:
 - **Omarchy Skill** (`omarchy`) — for system-wide desktop guides (Hyprland,
   themes, hooks, capture, built-in shell plugins), refer to the bundled
   Omarchy skill (`~/.pi/agent/skills/omarchy/SKILL.md`).
+
+## Issue + PR Driven Development Workflow (SOP)
+
+Development must follow a strict, chronological **Pre-Code Draft PR -> Single-Item Loop -> Merge** lifecycle:
+
+1. **Dual-Planning Model**:
+   - **Phase A: Task Planning (Pre-development - BEFORE CODING)**: Issue breakdown and opening Draft PR with an unchecked `- [ ]` checklist.
+   - **Phase B: Quality Gate Pre-check (Post-edit - AFTER EDIT)**: Previewing linters via `mise run check:plan`.
+2. **Chronological Steps**:
+   - `gh issue view <id>` -> checkout branch `<type>/issue-<id>-<name>` -> empty commit -> push -> `gh pr create --draft` (all `- [ ]`).
+   - For each `- [ ]` task in sequence: implement **only** that task -> run `mise run check:plan` & `mise run check:changed` -> local atomic commit.
+   - Finalize: `git push origin <branch>` -> `gh pr edit --body` (check `- [x]`) -> `gh pr checks` -> `gh pr ready` -> `gh pr merge --squash --delete-branch`.
+
+For full details, see [`references/issue-pr-workflow.md`](references/issue-pr-workflow.md).
 
 ## Where edits go
 
@@ -96,9 +115,12 @@ Put your change in the right home. This table answers "what do I edit?":
 ### 1. Repo Development & Quality Layer (in `mise.toml`)
 
 ```bash
-mise run hooks      # install/refresh hk git hooks
-mise run lint       # run full static analysis across the entire repository
-mise run format     # format all Python, Shell, Lua, TOML, and JSON/YAML files
+mise run hooks          # install/refresh hk git hooks
+mise run check:plan     # preview which linters will run on modified files
+mise run check:changed  # run hk checks across modified/staged/untracked files
+mise run fix            # auto-format modified files with hk
+mise run lint           # run full static analysis across the entire repository
+mise run format         # format all files across the repository
 ```
 
 ### 2. System Bootstrap Layer (in `mise/tasks/`)

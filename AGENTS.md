@@ -22,13 +22,77 @@ Always edit source files within this repository. The `~/.config` and `~/.local` 
 
 ---
 
-## 2. Code Quality & `hk` Workflow
+## 2. Dual-Planning Model for AI Agents
+
+To avoid ambiguity between functional task planning and toolchain validation, agents must distinguish between two distinct planning phases:
+
+| Phase | Concept & Terminology | Timing | Tool & Output | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase A** | **Task Planning**<br>*(Feature / Bugfix Breakdown)* | **Pre-development**<br>*(Before coding)* | GitHub Issue & Draft PR body (`- [ ]` checklist) | Defines *what* code/config to write, module boundaries, and task sequencing. |
+| **Phase B** | **Quality Gate Pre-check**<br>*(hk --plan)* | **Post-edit**<br>*(Before committing)* | `mise run check:plan`<br>*(or `hk run check --safe --plan`)* | Previews *which* linters/formatters will run and their effects on edited files. |
+
+---
+
+## 3. Strict Chronological Development Workflow (Issue + Draft PR)
+
+All coding agents must strictly operate within this closed-loop chronological lifecycle:
+
+```
++------------------------------------------------------------------------+
+| 1. Pre-Code Initialization (MANDATORY BEFORE ANY CODE IS WRITTEN)       |
+|    gh issue view <id>                                                  |
+|    git checkout -b <type>/issue-<id>-<name>                            |
+|    git commit --allow-empty -m "chore: initialize draft pr for #<id>"   |
+|    git push -u origin <type>/issue-<id>-<name>                         |
+|    gh pr create --draft (ALL tasks unchecked: - [ ])                   |
++-----------------------------------+------------------------------------+
+                                    |
+                +-------------------v-------------------+
+                | 2. Single-Item Focused Development    |
+                |    Only implement the first - [ ]     |
+                +-------------------+-------------------+
+                                    |
+                +-------------------v-------------------+
+                | 3. Local Quality Gate & Pre-check     |
+                |    mise run check:plan (preview steps)|
+                |    mise run check:changed             |
+                |    mise run fix (if needed)           |
+                |    Domain validations (Hypr/Omarchy)  |
+                +-------------------+-------------------+
+                                    |
+                +-------------------v-------------------+
+                | 4. Local Atomic Commit                |
+                |    git add <files>                    |
+                |    git commit -m "<type>(<scope>): ..."|
+                |    (Keep commit local)                |
+                +-------------------+-------------------+
+                                    | (Remaining tasks?)
+                                    +-------- Yes -------+
+                                    | No                 |
++-----------------------------------v-------------------+|
+| 5. Unified Push, Checks & Merge                       ||
+|    git push origin <branch>                           ||
+|    gh pr edit --body (check all - [x])                ||
+|    gh pr checks (verify PR CI status)                 ||
+|    gh pr ready (mark as ready for review)             ||
+|    gh pr merge --squash --delete-branch               ||
++-------------------------------------------------------+|
+                                    ^                    |
+                                    +--------------------+
+```
+
+For the complete SOP, refer to `.agents/skills/arch-post-install/references/issue-pr-workflow.md`.
+
+---
+
+## 4. Code Quality & `hk` Workflow
 
 This repository uses **hk** (`hk.pkl`) for git hooks and code quality checks.
 
-- **Scoped Checks**: Inspect and scope checks to modified files. Use `hk check --safe <files>` or `hk run check --safe --format json`.
+- **Scoped Checks**: Inspect and scope checks to modified files. Use `mise run check:plan` to preview, and `mise run check:changed` to run checks on changed/untracked files.
+- **Auto-Fixing**: Use `mise run fix` (or `hk fix`) to automatically format and fix style violations.
 - **Pre-commit Automation**: `pre-commit` runs in parallel on staged files only and auto-formats / fixes failing files before re-staging them.
-- **Avoid Micro Full-Sweeps**: Do not run full-repo lint (`mise run lint`) on every small file change; rely on scoped `hk` checks. Full sweeps are for batch audits.
+- **Avoid Micro Full-Sweeps**: Do not run full-repo lint (`mise run lint`) on every small file change; rely on scoped `mise run check:changed`. Full sweeps are for batch audits.
 - **Review Diff**: Always review the git diff produced by any auto-fix step before committing.
 
 Supported formatters and linters:
@@ -43,7 +107,7 @@ Supported formatters and linters:
 
 ---
 
-## 3. Omarchy Shell & Plugin Development Standards
+## 5. Omarchy Shell & Plugin Development Standards
 
 Omarchy desktop runs inside a single long-lived Quickshell process (`omarchy-shell`).
 
@@ -72,7 +136,7 @@ Omarchy desktop runs inside a single long-lived Quickshell process (`omarchy-she
 
 ---
 
-## 4. General Desktop & Coding Conventions
+## 6. General Desktop & Coding Conventions
 
 1. **Hyprland Validation**: After modifying any `dotfiles/.config/hypr/*.lua`, test configuration with `hyprctl reload` followed by `hyprctl configerrors`.
 2. **Typography & Glyphs**: Prefer NerdFont glyphs, ASCII, or SVG over emoji for terminal and panel consistency.

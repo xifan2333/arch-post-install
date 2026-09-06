@@ -38,12 +38,26 @@ use `--safe`. Builtins include effect declarations; custom steps use
 available as `hk check` (read-only) and `hk fix` (auto-fix) on modified files;
 add `--all` for whole-repo sweeps.
 
+### Issue + PR Driven Development Workflow (SOP)
+
+All feature development and bug fixes must follow the strict chronological Issue + PR workflow:
+1. **Pre-Code Draft PR**: Inspect issue (`gh issue view <id>`), create branch, push empty commit, and open Draft PR with unchecked checklist (`- [ ]`).
+2. **Single-Item Loop**: Implement one `- [ ]` task at a time, verify with `mise run check:plan` and `mise run check:changed`, and make a local atomic commit.
+3. **Unified Push & Merge**: Push all commits, update PR checklist (`- [x]`), verify CI status, mark `gh pr ready`, and merge via `gh pr merge --squash --delete-branch`.
+
+See [`references/issue-pr-workflow.md`](issue-pr-workflow.md) for full step-by-step SOP.
+
 ### Whole-repo checks vs per-edit workflow
 
 Because `pre-commit` already guards all staged files on git commit, **you do not
 need to run full-repo lint or format after every small file edit**.
 
-Use these tasks only when doing whole-repository audits or batch cleanups:
+Use scoped per-edit tasks during active development:
+- `mise run check:plan` — preview which linters will run on modified files
+- `mise run check:changed` — run hk checks on modified/staged/untracked files
+- `mise run fix` — auto-format modified files
+
+Use whole-repo tasks only when doing batch repository audits or cleanups:
 
 - `mise run lint` — runs full static analysis across all files in the repository
 - `mise run format` — formats all files across the repository
@@ -57,15 +71,19 @@ Use these tasks only when doing whole-repository audits or batch cleanups:
 
 ## Complete Task Directory by Lifecycle
 
-| Task        | Lifecycle Layer     | Location               | Purpose                                            |
-| ----------- | ------------------- | ---------------------- | -------------------------------------------------- |
-| `hooks`     | 1. Repo Dev         | `mise.toml`            | Install/refresh hk git hooks                 |
-| `lint`      | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files              |
-| `format`    | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                          |
-| `bootstrap` | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme          |
-| `hardware`  | 2. System Bootstrap | `mise/tasks/hardware`  | Apply ThinkPad fan control + Intel GPU permissions |
-| `aur`       | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay                  |
-| `wps`       | 2. System Bootstrap | `mise/tasks/wps`       | Force WPS multi-component mode                     |
+| Task            | Lifecycle Layer     | Location               | Purpose                                            |
+| --------------- | ------------------- | ---------------------- | -------------------------------------------------- |
+| `hooks`         | 1. Repo Dev         | `mise.toml`            | Install/refresh hk git hooks                       |
+| `check`         | 1. Repo Dev         | `mise.toml`            | Run hk checks across modified/staged files         |
+| `check:plan`    | 1. Repo Dev         | `mise.toml`            | Preview hk check execution plan without running    |
+| `check:changed` | 1. Repo Dev         | `mise.toml`            | Run hk check only on modified/staged/untracked     |
+| `fix`           | 1. Repo Dev         | `mise.toml`            | Auto-format modified files with hk                 |
+| `lint`          | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files              |
+| `format`        | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                          |
+| `bootstrap`     | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme          |
+| `hardware`      | 2. System Bootstrap | `mise/tasks/hardware`  | Apply ThinkPad fan control + Intel GPU permissions |
+| `aur`           | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay                  |
+| `wps`           | 2. System Bootstrap | `mise/tasks/wps`       | Force WPS multi-component mode                     |
 | `fonts`     | 3. Asset Maint      | `mise/tasks/fonts`     | Update pixel fonts from GitHub releases            |
 
 Commands may require `sudo`/`pkexec` for system-wide changes (e.g. AUR, `/etc`

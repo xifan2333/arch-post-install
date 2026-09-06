@@ -15,6 +15,30 @@ taplo = "latest"
 description = "Install or refresh hk Git hooks"
 run = "hk install"
 
+[tasks.check]
+description = "Run hk check across modified or staged files"
+run = "hk check"
+
+[tasks."check:plan"]
+description = "Preview hk check execution plan without running tools"
+run = "hk run check --plan"
+
+[tasks."check:changed"]
+description = "Run hk check only on modified/staged/untracked files"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+{
+  git diff --name-only -z
+  git diff --cached --name-only -z
+  git ls-files --others --exclude-standard -z
+} | hk run check --files0-from - "$@"
+"""
+
+[tasks.fix]
+description = "Run all hk fixers to format files"
+run = "hk fix"
+
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
 run = "hk check --all"
