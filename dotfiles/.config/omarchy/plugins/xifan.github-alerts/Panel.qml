@@ -164,7 +164,7 @@ Panel {
         anchors.centerIn: parent
         text: root.unreadCount > 99 ? "99+" : String(root.unreadCount)
         font.family: root.fontFamily
-        font.pixelSize: Style.font.micro
+        font.pixelSize: Style.font.caption
         font.bold: true
         color: "#ffffff"
       }
@@ -410,7 +410,7 @@ Panel {
                       text: modelData.reason || ""
                       color: Color.accent
                       font.family: root.fontFamily
-                      font.pixelSize: Style.font.micro
+                      font.pixelSize: Style.font.caption
                     }
                   }
 
@@ -418,7 +418,7 @@ Panel {
                     text: root.timeAgo(modelData.updated_at)
                     color: Qt.darker(root.foreground, 1.8)
                     font.family: root.fontFamily
-                    font.pixelSize: Style.font.micro
+                    font.pixelSize: Style.font.caption
                     anchors.verticalCenter: parent.verticalCenter
                   }
                 }
