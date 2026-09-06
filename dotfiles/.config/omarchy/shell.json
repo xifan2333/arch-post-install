@@ -43,6 +43,9 @@
           "id": "omarchy.tray"
         },
         {
+          "id": "xifan.github-alerts"
+        },
+        {
           "id": "omarchy.bluetooth"
         },
         {
@@ -71,6 +74,9 @@
     }
   },
   "plugins": [
+    {
+      "id": "xifan.github-alerts"
+    },
     {
       "id": "xifan.thinkpad-fan"
     },
