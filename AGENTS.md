@@ -11,9 +11,11 @@ Always edit source files within this repository. The `~/.config` and `~/.local` 
 | Goal | Target File / Directory |
 | --- | --- |
 | Repo dev tools & linters | `mise.toml` → `[tools]` |
-| Machine packages & system hooks | `mise/conf.d/10-bootstrap.toml` |
-| Dotfile symlink mappings | `mise/conf.d/20-dotfiles.toml` |
-| System bootstrap logic | `mise/tasks/bootstrap` |
+| System services, hooks & privileged files | `mise/conf.d/10-system.toml` |
+| Machine packages (pacman & aur) | `mise/conf.d/20-packages.toml` |
+| Dotfile symlink mappings | `mise/conf.d/30-dotfiles.toml` |
+| Pre-packages bootstrap hook | `mise/hooks/pre-packages.sh` |
+| System post-bootstrap logic | `mise/tasks/bootstrap` |
 | Window manager & compositor | `dotfiles/.config/river/` |
 | State collectors & CLI tools | `dotfiles/.local/bin/` |
 | Dotfile sources | `dotfiles/` (never edit target symlinks directly) |
