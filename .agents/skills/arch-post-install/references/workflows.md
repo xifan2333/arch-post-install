@@ -26,9 +26,9 @@ Coverage:
 | `*.js`                     | oxlint (CommandSpec) |
 | `*.qml`                    | qmllint (CommandSpec) |
 
-Shellcheck and shfmt match extensionless `mise/tasks/*` scripts via shebang
-detection (`types: sh, bash`). Indentation is governed by `.editorconfig`
-(indent_size = 4 for `*.sh` and `mise/tasks/*`); no `-i` flag is needed.
+Shellcheck and shfmt match shell scripts via shebang detection (`types: sh, bash`).
+Indentation is governed by `.editorconfig` (indent_size = 4 for `*.sh`); no `-i`
+flag is needed.
 
 Every step declares its `effect` (`"read"` or `"write"`) so agent runs can
 use `--safe`. Builtins include effect declarations; custom steps use
@@ -80,11 +80,11 @@ Use whole-repo tasks only when doing batch repository audits or cleanups:
 | `fix`           | 1. Repo Dev         | `mise.toml`            | Auto-format modified files with hk                 |
 | `lint`          | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files              |
 | `format`        | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                          |
-| `bootstrap`     | 2. System Bootstrap | `mise/tasks/bootstrap` | Seed `.example` configs + wire nvim theme          |
-| `hardware`      | 2. System Bootstrap | `mise/tasks/hardware`  | Apply ThinkPad fan control + Intel GPU permissions |
-| `aur`           | 2. System Bootstrap | `mise/tasks/aur`       | Install AUR-only packages via yay                  |
-| `wps`           | 2. System Bootstrap | `mise/tasks/wps`       | Force WPS multi-component mode                     |
-| `fonts`     | 3. Asset Maint      | `mise/tasks/fonts`     | Update pixel fonts from GitHub releases            |
+| `vm:start`      | 2. VM Sandbox       | `mise.toml`            | Start arch-basic testing VM                        |
+| `vm:stop`       | 2. VM Sandbox       | `mise.toml`            | Gracefully stop testing VM                         |
+| `vm:ssh`        | 2. VM Sandbox       | `mise.toml`            | SSH into testing VM                                |
+| `vm:status`     | 2. VM Sandbox       | `mise.toml`            | Show testing VM status and snapshots               |
+| `vm:reset`      | 2. VM Sandbox       | `mise.toml`            | Revert testing VM to clean snapshot                |
 
 Commands may require `sudo`/`pkexec` for system-wide changes (e.g. AUR, `/etc`
 hooks). Follow the privilege rules in `omarchy.md`.

@@ -1,16 +1,15 @@
 ---
 name: arch-post-install
 description: >
-  REQUIRED for maintaining and customizing this personal Arch Linux + Omarchy
-  system setup repository. Use whenever editing the mise configuration
-  (mise.toml, mise/conf.d/*, mise/tasks/*), managing system packages or
+  REQUIRED for maintaining and customizing this personal Arch Linux + River
+  desktop repository. Use whenever editing the mise configuration
+  (mise.toml, mise/conf.d/*, mise/hooks/*), managing system packages or
   bootstrapping a machine, modifying files under dotfiles/ (~/.config/,
-  ~/.local/), developing Omarchy shell plugins (xifan.*), adjusting Hyprland
-  configs (*.lua), following the Issue + Draft PR development workflow (SOP),
-  or running system setup tasks (aur, bootstrap, fonts, wps). Trigger also on
-  requests such as 根据 issue 拆解开发、开 PR/提 PR、Draft PR 工作流、单任务循环提交、
-  代码体检与格式化自检. Also use before committing changes so repo conventions
-  are upheld.
+  ~/.local/), configuring River window manager, following the Issue + Draft PR
+  development workflow (SOP), or managing the VM testing sandbox (vm:*).
+  Trigger also on requests such as 根据 issue 拆解开发、开 PR/提 PR、Draft PR 工作流、
+  单任务循环提交、代码体检与格式化自检. Also use before committing changes so
+  repo conventions are upheld.
 ---
 
 # Arch Post-Install & Omarchy System Kit
@@ -66,37 +65,37 @@ Put your change in the right home. This table answers "what do I edit?":
 | Add a system package (pacman or aur)        | `mise/conf.d/20-packages.toml`  |
 | Map a dotfile into `~/.config` / `~/.local` | `mise/conf.d/30-dotfiles.toml`  |
 | Update pre-packages setup hook              | `mise/hooks/pre-packages.sh`    |
-| Change system post-bootstrap logic          | `mise/tasks/bootstrap`          |
-| Update pixel fonts download automation      | `mise/tasks/fonts`              |
-| Change WPS window component mode task       | `mise/tasks/wps`                |
+| Update post-dotfiles runtime hook           | `mise/hooks/post-dotfiles.sh`   |
 | Manage window manager & compositor          | `dotfiles/.config/river/`       |
 | Manage state collectors & CLI tools         | `dotfiles/.local/bin/`          |
 
 ## Workflow
 
-1. **Separate the three task & config layers.** Repo dev tooling (linters,
-   formatters, `hooks`/`check`/`format` tasks) lives in root `mise.toml`. Machine
-   bootstrap (pacman packages, privileged files, dotfiles, AUR tasks) lives under
-   `mise/`. Asset maintenance (`fonts`) lives in `mise/tasks/`. Keep them apart.
+1. **Pure Declarative Bootstrap (No Task Mixing).** Machine provisioning is
+   driven 100% through declarative configuration (`mise/conf.d/*.toml`) and
+   lifecycle hooks (`mise/hooks/*.sh`). The task system (`[tasks.*]` in root
+   `mise.toml`) is strictly reserved for repository development tooling (linters,
+   formatters) and VM sandbox management (`vm:*`).
 
 2. **Edit `dotfiles/` source.** The `~/.config` and `~/.local` targets are
    symlinks managed by mise bootstrap; the source of truth lives in
    `dotfiles/`. Make your change there.
 
-3. **Place AUR-only packages in `mise/tasks/aur`.** Mise's `pacman:` manager
-   covers official repos. AUR packages need an AUR helper and build from source,
-   so they belong in the `aur` task (driven by `yay`), gated with `pacman -Q`.
+3. **Declare AUR packages natively in `20-packages.toml`.** Mise supports
+   `aur:` package declarations directly in `[bootstrap.packages]`. The
+   `pre-packages.sh` hook ensures `yay` and `base-devel` are available before
+   package installation runs.
 
-4. **Validate Hyprland Lua changes.** After editing any `dotfiles/.config/hypr/*.lua`,
-   run `hyprctl reload` then `hyprctl configerrors`, and fix until clean.
+4. **Validate River configs.** Keep river configurations minimal, modular, and
+   compliant with river 0.4+ protocol separation.
 
-5. **Keep tasks idempotent.** Mise bootstrap converges — re-running is safe and
-   skips already-correct state. Write `mise/tasks/*` accordingly.
+5. **Keep bootstrap idempotent.** Mise bootstrap converges — re-running is safe
+   and skips already-correct state.
 
 6. **Use read-only checks before applying.** When unsure, verify first:
    `mise bootstrap packages status`, `mise bootstrap files status`,
-   `mise bootstrap dotfiles status`, `mise tasks validate`. Apply only after
-   the plan looks right.
+   `mise bootstrap services status`, `mise bootstrap dotfiles status`. Apply only
+   after the plan looks right.
 
 7. **Write text with NerdFont, ASCII, or SVG.** This repo surfaces text to many
    places (terminals, panels, notifications), so prefer those over emoji.
@@ -110,7 +109,7 @@ Put your change in the right home. This table answers "what do I edit?":
    linter and formatter on staged files. Whole-repo `mise run lint` and `mise run format`
    are for repo-wide verification, not required after every micro edit.
 
-## Task commands by lifecycle
+## Commands by lifecycle
 
 ### 1. Repo Development & Quality Layer (in `mise.toml`)
 
@@ -123,19 +122,21 @@ mise run lint           # run full static analysis across the entire repository
 mise run format         # format all files across the repository
 ```
 
-### 2. System Bootstrap Layer (in `mise/tasks/`)
+### 2. VM Sandbox Management (in `mise.toml`)
 
 ```bash
-mise run bootstrap  # seed .example configs + wire nvim theme (depends on aur, wps, hardware)
-mise run hardware   # apply ThinkPad fan control permissions & rebuild initramfs
-mise run aur        # install AUR-only packages via yay
-mise run wps        # force WPS multi-component mode
+mise run vm:start       # start the arch-basic testing VM (--headless optional)
+mise run vm:stop        # ACPI graceful shutdown of VM
+mise run vm:ssh         # SSH into the VM (port 22220)
+mise run vm:status      # show VM running status and snapshots
+mise run vm:reset       # revert VM to clean-systemd-boot snapshot
 ```
 
-### 3. Asset & Maintenance Layer (in `mise/tasks/`)
+### 3. Machine System Bootstrap Layer (Pure Declarative)
 
 ```bash
-mise run fonts      # update pixel fonts from GitHub releases
+mise bootstrap          # converge packages, files, services, dotfiles, user shell
+mise bootstrap plan     # preview declarative convergence changes
 ```
 
 For privileged (`/etc`, root-owned) changes, use `sudo` when a terminal is

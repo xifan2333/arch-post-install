@@ -44,7 +44,7 @@ each target, its mode, its source, and whether it is `applied` or `differs`
 ## `.example` templating
 
 Sensitive or machine-specific configs are stored as `*.example` templates and
-excluded from symlinking. They are seeded by the `mise/tasks/bootstrap` task on
+excluded from symlinking. They are seeded by the `mise/hooks/post-dotfiles.sh` hook on
 first run only:
 
 - `dotfiles/.config/screenrecord/*.conf.example`

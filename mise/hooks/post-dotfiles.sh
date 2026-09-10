@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-#MISE description="Apply post-bootstrap setup"
-#MISE depends=["wps"]
+# Post-dotfiles hook: seed initial runtime configuration templates and sync themes
 set -euo pipefail
 
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 
-# Runtime configs stay local. Seed from git templates only when missing.
 seed_example() {
     local src="$1" dest="$2" mode="${3:-0644}"
     if [[ -e $dest ]]; then
         return 0
     fi
     install -D -m "$mode" "$src" "$dest"
-    printf 'bootstrap: seeded %s\n' "$dest"
+    printf 'post-dotfiles: seeded %s\n' "$dest"
 }
 
 seed_example dotfiles/.config/screenrecord/title.conf.example "$config_home/screenrecord/title.conf"
@@ -27,6 +25,6 @@ seed_example dotfiles/.config/qutebrowser/translate.json.example "$config_home/q
 # Sync fcitx5 theme in a standalone, self-contained way
 fcitx5_theme_sync="dotfiles/.local/bin/fcitx5-theme-sync"
 if [[ -x "$fcitx5_theme_sync" ]]; then
-    printf 'bootstrap: syncing fcitx5 theme...\n'
+    printf 'post-dotfiles: syncing fcitx5 theme...\n'
     "$fcitx5_theme_sync"
 fi

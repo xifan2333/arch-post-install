@@ -15,7 +15,7 @@ Always edit source files within this repository. The `~/.config` and `~/.local` 
 | Machine packages (pacman & aur) | `mise/conf.d/20-packages.toml` |
 | Dotfile symlink mappings | `mise/conf.d/30-dotfiles.toml` |
 | Pre-packages bootstrap hook | `mise/hooks/pre-packages.sh` |
-| System post-bootstrap logic | `mise/tasks/bootstrap` |
+| Post-dotfiles runtime hook | `mise/hooks/post-dotfiles.sh` |
 | Window manager & compositor | `dotfiles/.config/river/` |
 | State collectors & CLI tools | `dotfiles/.local/bin/` |
 | Dotfile sources | `dotfiles/` (never edit target symlinks directly) |
