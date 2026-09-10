@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Sync and generate fcitx5 custom theme from global palette with zero external dependencies
+set -euo pipefail
+
+config_theme="${XDG_CONFIG_HOME:-$HOME/.config}/theme/colors.toml"
+state_theme="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme/colors.toml"
+
+if [[ -f "$config_theme" ]]; then
+	colors_file="$config_theme"
+elif [[ -f "$state_theme" ]]; then
+	colors_file="$state_theme"
+else
+	colors_file=""
+fi
+
+get_color() {
+	local key="$1" default="$2"
+	if [[ -n "$colors_file" && -f "$colors_file" ]]; then
+		local val
+		val="$(grep -E "^${key}\s*=" "$colors_file" | head -1 | cut -d'"' -f2 || true)"
+		if [[ -n "$val" ]]; then
+			printf '%s' "$val"
+			return 0
+		fi
+	fi
+	printf '%s' "$default"
+}
+
+blend() {
+	local base="${1#\#}" over="${2#\#}" ratio="$3"
+	local br=$((16#${base:0:2})) bg=$((16#${base:2:2})) bb=$((16#${base:4:2}))
+	local or=$((16#${over:0:2})) og=$((16#${over:2:2})) ob=$((16#${over:4:2}))
+	printf "#%02x%02x%02x" \
+		$((br + (or - br) * ratio / 100)) \
+		$((bg + (og - bg) * ratio / 100)) \
+		$((bb + (ob - bb) * ratio / 100))
+}
+
+background="$(get_color background '#1a1b26')"
+foreground="$(get_color foreground '#a9b1d6')"
+accent="$(get_color accent '#7aa2f7')"
+separator="$(get_color muted '#414868')"
+highlight_bg="$(blend "$background" "$accent" 18)"
+
+fcitx5_theme_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/themes/custom"
+fcitx5_theme_conf="$fcitx5_theme_dir/theme.conf"
+fcitx5_classicui="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/conf/classicui.conf"
+
+mkdir -p "$fcitx5_theme_dir"
+
+cat >"$fcitx5_theme_conf" <<EOF
+[Metadata]
+Name=Custom
+ScaleWithDPI=True
+
+[InputPanel]
+Font=Sans 12
+NormalColor=$foreground
+HighlightCandidateColor=$accent
+HighlightColor=$foreground
+HighlightBackgroundColor=$highlight_bg
+PageButtonAlignment=Last Candidate
+
+[InputPanel/TextMargin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+
+[InputPanel/ContentMargin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[InputPanel/Background]
+Color=$background
+BorderColor=$accent
+BorderWidth=2
+
+[InputPanel/Background/Margin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[InputPanel/Highlight]
+Color=$highlight_bg
+
+[InputPanel/Highlight/Margin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+
+[InputPanel/PrevPage]
+Image=prev.svg
+
+[InputPanel/PrevPage/ClickMargin]
+Left=5
+Right=5
+Top=4
+Bottom=4
+
+[InputPanel/NextPage]
+Image=next.svg
+
+[InputPanel/NextPage/ClickMargin]
+Left=5
+Right=5
+Top=4
+Bottom=4
+
+[Menu]
+NormalColor=$foreground
+HighlightCandidateColor=$accent
+
+[Menu/ContentMargin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[Menu/Background]
+Color=$background
+BorderColor=$accent
+BorderWidth=2
+
+[Menu/Background/Margin]
+Left=2
+Right=2
+Top=2
+Bottom=2
+
+[Menu/CheckBox]
+Image=radio.svg
+
+[Menu/SubMenu]
+Image=arrow.svg
+
+[Menu/Highlight]
+Color=$highlight_bg
+
+[Menu/Highlight/Margin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+
+[Menu/Separator]
+Color=$separator
+
+[Menu/TextMargin]
+Left=5
+Right=5
+Top=5
+Bottom=5
+EOF
+
+for svg in arrow.svg next.svg prev.svg radio.svg; do
+	if [[ -f "/usr/share/fcitx5/themes/default/$svg" && ! -e "$fcitx5_theme_dir/$svg" ]]; then
+		ln -sf "/usr/share/fcitx5/themes/default/$svg" "$fcitx5_theme_dir/$svg"
+	fi
+done
+
+if [[ ! -f "$fcitx5_classicui" ]]; then
+	mkdir -p "$(dirname "$fcitx5_classicui")"
+	cat >"$fcitx5_classicui" <<'EOF'
+Vertical Candidate List=False
+Font=Sans 12
+Theme=custom
+EOF
+fi
+
+if systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
+	systemctl --user restart fcitx5.service
+elif systemctl --user is-active --quiet omarchy-fcitx5.service 2>/dev/null; then
+	systemctl --user restart omarchy-fcitx5.service
+elif pgrep -x fcitx5 >/dev/null; then
+	pkill -x fcitx5 && nohup /usr/bin/fcitx5 >/dev/null 2>&1 &
+fi
