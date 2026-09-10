@@ -14,10 +14,27 @@ description: >
 
 This skill governs the engineering standards, quality gates, and development workflows for contributing to and maintaining this personal Arch Linux + River repository.
 
+## Supreme Architectural Principles (最高原则)
+
+All engineering, architecture, and code decisions MUST strictly adhere to the Suckless and Unix philosophies documented in [`references/principles.md`](references/principles.md):
+
+1. **Unix Philosophy in Desktop Governance**:
+   - **Compositor vs. Window Manager Separation**: The compositor (`river`) strictly handles hardware rendering and low-level Wayland protocols; the window manager (dedicated client) strictly handles layout policy, focus, and bindings.
+   - **Collector / Display Separation**: Standalone collectors (`dotfiles/.local/bin/`) poll data and atomically replace `$XDG_RUNTIME_DIR/state/*.json`; UI displays (`waybar`) strictly read state reactively with zero blocking I/O or polling.
+   - **Text as the Universal Interface**: Human-readable formats (TOML, JSON, INI) for all state, config, and IPC.
+2. **Suckless Philosophy in Architecture**:
+   - **Mechanism Over Policy**: System provides mechanism; user code determines policy.
+   - **Cognitive Maintainability**: Keep code small and understandable. No bloated wrappers or monolithic frameworks.
+   - **Zero Bloat & Resource Frugality**: Minimalist infrastructure (`iwd` + `systemd-networkd` + `systemd-resolved`), lightweight Wayland-native clients (`foot`), and zero background daemons where timers or socket activation suffice.
+3. **Engineering & Delivery Standards**:
+   - **Absolute Self-Containment**: Zero external framework lock-in. No non-standard proprietary directories.
+   - **100% Declarative & Idempotent**: Pure `mise bootstrap` convergence; re-running is safe and deterministic.
+
 ## Start Here
 
 Read the matching reference before editing:
 
+- [`references/principles.md`](references/principles.md) — supreme architectural manifesto and guidelines.
 - [`references/issue-pr-workflow.md`](references/issue-pr-workflow.md) — mandatory Issue + Draft PR driven development workflow (SOP), Dual-Planning model, single-item loop, and merge.
 - [`references/mise-structure.md`](references/mise-structure.md) — the two-layer mise configuration (Repo Dev in `mise.toml`, Declarative Machine Spec in `mise/conf.d/*.toml`, Lifecycle Hooks in `mise/hooks/*.sh`).
 - [`references/workflows.md`](references/workflows.md) — git/hk conventions, linters, formatters, and task commands.
