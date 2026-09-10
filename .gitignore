@@ -19,6 +19,7 @@ vms/*/*.socket
 vms/*/*.ports
 vms/*/*.log
 vms/*/*.pid
+vms/*/*.spice
 
 
 
