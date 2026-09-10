@@ -38,3 +38,9 @@ if [[ -f "$theme" ]]; then
         printf 'bootstrap: preserving unmanaged file: %s\n' "$target" >&2
     fi
 fi
+
+fcitx5_theme_hook="dotfiles/.config/omarchy/hooks/theme-set.d/fcitx5-sync.hook"
+if [[ -f "$fcitx5_theme_hook" ]]; then
+    printf 'bootstrap: initializing fcitx5 theme...\n'
+    bash "$fcitx5_theme_hook"
+fi
