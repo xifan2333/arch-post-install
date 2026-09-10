@@ -59,17 +59,31 @@ def render_value(val: str, modifier: str | None) -> str:
 
 
 def render_template(template_text: str, colors: dict[str, str]) -> str:
-    # Match {{ key }} or {{ key_modifier }} or {{ key | modifier }}
-    pattern = re.compile(
-        r"\{\{\s*([a-zA-Z0-9_]+)(?:(?:_([a-zA-Z0-9_:]+))|(?:\s*\|\s*([a-zA-Z0-9_:]+)))?\s*\}\}"
-    )
+    pattern = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
 
     def replace_match(m: re.Match[str]) -> str:
-        key = m.group(1)
-        modifier = m.group(2) or m.group(3)
+        expr = m.group(1).strip()
+        if "|" in expr:
+            parts = expr.split("|", 1)
+            key = parts[0].strip()
+            mod = parts[1].strip()
+        else:
+            key = expr
+            mod = None
+            for suffix in ("strip", "rgb", "rgba", "alpha_hex"):
+                if expr.endswith(f"_{suffix}"):
+                    key = expr[: -len(suffix) - 1]
+                    mod = suffix
+                    break
+                elif f"_{suffix}:" in expr:
+                    idx = expr.index(f"_{suffix}:")
+                    key = expr[:idx]
+                    mod = expr[idx + 1 :]
+                    break
+
         if key in colors:
             val = str(colors[key])
-            return render_value(val, modifier)
+            return render_value(val, mod)
         return m.group(0)
 
     return pattern.sub(replace_match, template_text)
