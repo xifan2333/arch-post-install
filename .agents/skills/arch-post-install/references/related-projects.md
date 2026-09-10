@@ -13,9 +13,9 @@ Use this index to understand architecture boundaries and locate the source of tr
 - **Location**: `/home/xifan/Code/pi-quotas` · [GitHub](https://github.com/xifan2333/pi-quotas)
 - **Role**: Independent Pi extension and CLI tool for AI coding agent token quota calculation, reset window tracking, and multi-provider token usage metrics (Google AI Pro, OpenAI Codex, Claude, DeepSeek, Kimi, OpenCode, OpenRouter, xAI, Fireworks).
 - **Integration Boundary**:
-  - `arch-post-install` consumes the `pi-quotas` CLI binary through the `xifan.agents` Omarchy bar plugin (`dotfiles/.config/omarchy/plugins/xifan.agents/collect_pi_usage.py`).
-  - `collect_pi_usage.py` invokes `pi-quotas --json` on a 15-minute timer / manual refresh and atomically writes provider records to `~/.local/state/omarchy/agents/usage/{provider}.json`.
-  - The UI widget (`Panel.qml`, `Agent.qml`) is purely a view layer watching those files.
+  - `arch-post-install` consumes the `pi-quotas` CLI binary through standalone state collectors.
+  - Periodic collector tasks invoke `pi-quotas --json` on a timer and atomically write provider records to `$XDG_RUNTIME_DIR/state/agents/{provider}.json`.
+  - The presentation layer is purely a view watching those state files.
 
 ### 2. `vcam` (Virtual Camera Companion)
 

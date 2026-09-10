@@ -324,7 +324,7 @@ capture-text-extraction                             # 选区 OCR（也可 Ctrl+P
 | Tmux     | C-Space 前缀、vi 模式、窗口和分屏快捷键（XDG 规范）                    |
 | 输入法   | Fcitx5 和 Rime 配置                                                    |
 | 终端     | WezTerm 配置与主题联动                                                 |
-| 状态栏   | `xifan.indicators`（clone 自 `omarchy.indicators`，录屏 + 直播两颗灯） |
+| 状态栏   | 状态指示灯（录屏 + 直播状态指示） |
 | 主题     | 切换 Omarchy 主题时同步其他程序的配色                                  |
 | 录制     | 音频录制和屏幕录制叠加层                                               |
 | 模拟器   | RetroArch 配置与全局着色器预设                                         |
