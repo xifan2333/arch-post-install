@@ -86,13 +86,12 @@ Use whole-repo tasks only when doing batch repository audits or cleanups:
 | `vm:status`     | 2. VM Sandbox       | `mise.toml`            | Show testing VM status and snapshots               |
 | `vm:reset`      | 2. VM Sandbox       | `mise.toml`            | Revert testing VM to clean snapshot                |
 
-Commands may require `sudo`/`pkexec` for system-wide changes (e.g. AUR, `/etc`
-hooks). Follow the privilege rules in `omarchy.md`.
+Commands may require `sudo`/`pkexec` for system-wide changes (e.g. `/etc` files).
 
 ## Atomic writes and file watching
 
 Any daemon, collector, or background script that outputs status records
-watched by Quickshell / Omarchy plugins must write files atomically:
+watched by status bars (such as Waybar) must write files atomically:
 write to a temporary file in the same filesystem, then `os.replace` (or `mv`)
 into place. This eliminates partial reads or multi-process race conditions.
 

@@ -37,7 +37,7 @@ To maintain clear separation of concerns between functional task design and tool
                 |    mise run check:plan (preview steps)|
                 |    mise run check:changed             |
                 |    mise run fix (if needed)           |
-                |    Domain validations (Hypr/Omarchy)  |
+                |    Domain validations (Mise/River)    |
                 +-------------------+-------------------+
                                     |
                 +-------------------v-------------------+
@@ -111,22 +111,13 @@ For each unchecked `- [ ]` task in order:
    hk run check --safe --format jsonl
    ```
 3. **Domain-Specific Verification**:
-   - **Hyprland configs (`dotfiles/.config/hypr/*.lua`)**:
-     ```bash
-     hyprctl reload && hyprctl configerrors
-     ```
-   - **Omarchy shell plugins (`dotfiles/.config/omarchy/plugins/<name>/`)**:
-     ```bash
-     # Verify QML syntax
-     qmllint dotfiles/.config/omarchy/plugins/<name>/*.qml
-     # Rescan or restart shell
-     omarchy-shell shell rescanPlugins
-     # or full restart for clean QML engine cache:
-     omarchy restart shell
-     ```
    - **Mise tasks (`mise.toml`)**:
      ```bash
      mise tasks validate
+     ```
+   - **Mise bootstrap plan**:
+     ```bash
+     mise bootstrap plan
      ```
 4. **Local Atomic Commit**:
    Keep commits strictly atomic (one commit per `- [ ]` task) and keep them **local** during intermediate steps:

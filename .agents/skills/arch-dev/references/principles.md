@@ -47,7 +47,7 @@
 ## 3. Engineering & Delivery Standards
 
 ### 3.1 Absolute Self-Containment & Portability
-- The repository must not depend on non-standard directories (such as `/usr/share/omarchy/`).
+- All desktop configurations, scripts, and assets are fully self-contained within this repository and standard XDG locations (`$XDG_CONFIG_HOME`, `$XDG_DATA_HOME`, `$XDG_STATE_HOME`).
 - A freshly installed vanilla Arch Linux machine must be able to bootstrap the full environment cleanly via `mise bootstrap`.
 
 ### 3.2 Declarative & Strictly Idempotent
