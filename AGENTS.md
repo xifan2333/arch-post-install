@@ -1,6 +1,6 @@
 # Agent Instructions & Project Guidelines
 
-This repository is the single source of truth for a personal Arch Linux desktop environment adhering to Suckless and Unix philosophies (see `PRINCIPLES.md`).
+This repository is the single source of truth for a personal Arch Linux desktop environment adhering to Suckless and Unix philosophies (see `.agents/skills/arch-dev/references/principles.md`).
 
 ---
 
@@ -109,7 +109,7 @@ Supported formatters and linters:
 
 ## 5. System Architecture & Suckless Standards
 
-This system follows the principles documented in `PRINCIPLES.md`:
+This system follows the principles documented in `.agents/skills/arch-dev/references/principles.md`:
 
 1. **Self-Containment & Zero External Framework Lock-in**:
    - Never reference `/usr/share/omarchy/` or rely on proprietary distribution hooks.
