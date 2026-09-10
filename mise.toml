@@ -1,4 +1,4 @@
-min_version = "2026.8.2"
+min_version = "2026.9.4"
 
 [tools]
 hk = "latest"
