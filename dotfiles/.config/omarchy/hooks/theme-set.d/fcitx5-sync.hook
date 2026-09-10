@@ -54,7 +54,9 @@ ScaleWithDPI=True
 Font=Sans 12
 NormalColor=$FOREGROUND
 HighlightCandidateColor=$ACCENT
-HighlightColor=$ACCENT
+HighlightColor=$FOREGROUND
+HighlightBackgroundColor=$HIGHLIGHT_BG
+PageButtonAlignment=Last Candidate
 
 [InputPanel/TextMargin]
 Left=5
@@ -88,6 +90,24 @@ Right=5
 Top=5
 Bottom=5
 
+[InputPanel/PrevPage]
+Image=prev.svg
+
+[InputPanel/PrevPage/ClickMargin]
+Left=5
+Right=5
+Top=4
+Bottom=4
+
+[InputPanel/NextPage]
+Image=next.svg
+
+[InputPanel/NextPage/ClickMargin]
+Left=5
+Right=5
+Top=4
+Bottom=4
+
 [Menu]
 NormalColor=$FOREGROUND
 HighlightCandidateColor=$ACCENT
@@ -108,6 +128,12 @@ Left=2
 Right=2
 Top=2
 Bottom=2
+
+[Menu/CheckBox]
+Image=radio.svg
+
+[Menu/SubMenu]
+Image=arrow.svg
 
 [Menu/Highlight]
 Color=$HIGHLIGHT_BG
@@ -134,6 +160,12 @@ if [[ ! -L $FCITX5_THEME_LINK ]] || [[ $(readlink "$FCITX5_THEME_LINK") != "$GEN
     ln -sf "$GENERATED_THEME" "$FCITX5_THEME_LINK"
 fi
 
+for svg in arrow.svg next.svg prev.svg radio.svg; do
+    if [[ -f "/usr/share/fcitx5/themes/default/$svg" && ! -e "$FCITX5_THEME_DIR/$svg" ]]; then
+        ln -sf "/usr/share/fcitx5/themes/default/$svg" "$FCITX5_THEME_DIR/$svg"
+    fi
+done
+
 if [[ ! -f $FCITX5_CLASSICUI ]]; then
     mkdir -p "$(dirname "$FCITX5_CLASSICUI")"
     cat >"$FCITX5_CLASSICUI" <<'EOF'
@@ -143,11 +175,9 @@ Theme=custom
 EOF
 fi
 
-# Reload classicui addon (verified working method)
-if pgrep -x fcitx5 >/dev/null; then
-    gdbus call --session \
-        --dest org.fcitx.Fcitx5 \
-        --object-path /controller \
-        --method org.fcitx.Fcitx.Controller1.ReloadAddonConfig \
-        "classicui" >/dev/null
+# Restart fcitx5 service to fully reload and apply the new theme
+if systemctl --user is-active --quiet omarchy-fcitx5.service; then
+    systemctl --user restart omarchy-fcitx5.service
+elif pgrep -x fcitx5 >/dev/null; then
+    pkill -x fcitx5 && nohup /usr/bin/fcitx5 >/dev/null 2>&1 &
 fi
