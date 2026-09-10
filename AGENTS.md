@@ -81,7 +81,7 @@ All coding agents must strictly operate within this closed-loop chronological li
                                     +--------------------+
 ```
 
-For the complete SOP, refer to `.agents/skills/arch-post-install/references/issue-pr-workflow.md`.
+For the complete SOP, refer to `.agents/skills/arch-dev/references/issue-pr-workflow.md`.
 
 ---
 
