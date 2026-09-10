@@ -1,0 +1,24 @@
+[bootstrap.packages]
+# Base & Dev Tools
+"pacman:android-tools" = "latest"
+"pacman:android-udev" = "latest"
+"pacman:git" = "latest"
+"pacman:unzip" = "latest"
+"pacman:yay" = "latest"
+
+# IME (Fcitx5 + Rime Xiaohe Double Pinyin)
+"pacman:fcitx5-configtool" = "latest"
+"pacman:fcitx5-rime" = "latest"
+"pacman:rime-wanxiang-flypy" = "latest"
+
+# Fonts
+"pacman:ttf-sarasa-gothic" = "latest"
+
+# Terminal
+# Official extra/wezterm fails to map windows on recent Wayland;
+# archlinuxcn ships a current enough build. Conflicts with pacman:wezterm.
+"pacman:wezterm-git" = "latest"
+
+# Audio & Voice
+# Provides /usr/lib/ladspa/librnnoise_ladspa.so for PipeWire noise-canceling
+"pacman:noise-suppression-for-voice" = "latest"
