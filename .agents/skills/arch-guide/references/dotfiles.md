@@ -53,16 +53,5 @@ first run only:
 - `dotfiles/.config/vinput/config.json.example` (mode 0600)
 - `dotfiles/.config/qutebrowser/translate.json.example` (mode 0600)
 
-`bootstrap` uses `install -D -m <mode>` and writes only when the file is
+`mise/hooks/post-dotfiles.sh` uses `install -D -m <mode>` and writes only when the file is
 **missing**, so it preserves an existing local config.
-
-## Dynamic theme link
-
-`bootstrap` also wires the Omarchy Neovim theme into nvim:
-
-```
-$XDG_STATE_HOME/omarchy/current/theme/neovim.lua
-  → ~/.config/nvim/lua/plugins/theme.lua
-```
-
-It preserves an existing unmanaged file rather than overwriting.
