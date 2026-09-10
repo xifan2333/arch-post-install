@@ -7,9 +7,6 @@
 "pacman:ttf-sarasa-gothic" = "latest"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
-# Official extra/wezterm (2024-02) fails to map windows on Hyprland 0.56 Wayland;
-# archlinuxcn ships a current enough build. Conflicts with pacman:wezterm.
-"pacman:wezterm-git" = "latest"
 # VAAPI 硬编驱动——仅本机（Intel Sandy Bridge i965）需要；其他硬件请按需取消注释
 # "pacman:libva-intel-driver" = "latest"
 # "pacman:libva-utils" = "latest"
