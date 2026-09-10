@@ -18,16 +18,12 @@ arch-post-install/
 └── mise/
     ├── hooks/
     │   ├── pre-packages.sh            #    Pre-packages setup hook (base-devel, archlinuxcn, yay)
+    │   ├── post-dotfiles.sh           #    Post-dotfiles runtime config seeding & theme sync
     │   └── rime-wanxiang-deploy.hook  #    Pacman deployment hook (for /etc)
-    ├── conf.d/                        # 2. SYSTEM STATE CONFIG (FRAGMENTS)
-    │   ├── 10-system.toml             #    System services, hooks & privileged files
-    │   ├── 20-packages.toml           #    Declarative pacman: and aur: packages
-    │   └── 30-dotfiles.toml           #    Dotfiles symlink-each mappings
-    └── tasks/                         # 3. SYSTEM FILE TASKS
-        ├── bootstrap                  #    [Bootstrap] Seed configs + nvim theme
-        ├── hardware                   #    [Bootstrap] Apply fan control & GPU permissions
-        ├── wps                        #    [Bootstrap] Force WPS component mode
-        └── fonts                      #    [Maintenance] Pixel fonts from GitHub
+    └── conf.d/                        # 2. SYSTEM STATE CONFIG (FRAGMENTS)
+        ├── 10-system.toml             #    System services, hooks & privileged files
+        ├── 20-packages.toml           #    Declarative pacman: and aur: packages
+        └── 30-dotfiles.toml           #    Dotfiles symlink-each mappings
 ```
 
 ## Layer 1: Repo Dev & Quality (`mise.toml`)
@@ -58,14 +54,14 @@ run = """
 ruff check .
 taplo lint --no-schema
 prettier --check .
-shfmt -f dotfiles/.local/bin mise/tasks | grep -vE 'i18n-(en|zh)' | xargs shellcheck --rcfile=.shellcheckrc
+shfmt -f dotfiles/.local/bin mise/hooks | grep -vE 'i18n-(en|zh)' | xargs shellcheck --rcfile=.shellcheckrc
 """
 
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"
 run = """
 ruff format .
-shfmt -f dotfiles/.local/bin mise/tasks | xargs shfmt -w -i 4
+shfmt -f dotfiles/.local/bin mise/hooks | xargs shfmt -w -i 4
 stylua dotfiles/.config/hypr/
 taplo format
 prettier --write .
@@ -80,20 +76,18 @@ prettier --write .
 Mise auto-loads `mise/conf.d/*.toml` fragments **alphabetically**. The numeric
 prefix establishes dependency order:
 
-- `10-system.toml` — system services, privileged files, and pre-packages hook
+- `10-system.toml` — system services, privileged files, and lifecycle hooks
 - `20-packages.toml` — declarative OS packages (`pacman:*` and `aur:*`)
 - `30-dotfiles.toml` — dotfile symlink-each mappings
 
 `[settings] dotfiles.default_mode = "symlink"` lives in the dotfiles fragment.
 
-## Layer 3: System & Maintenance Tasks (`mise/tasks/*`)
+## Declarative Bootstrap vs Task Runner
 
-These are **mise file tasks**: executable scripts discovered by mise. Each
-carries metadata via `#MISE` directives:
-
-- `bootstrap` depends on `wps`, composing the post-convergence seeding sequence.
-- `fonts` is a standalone asset maintenance task, kept independent of bootstrap.
-- All file tasks are linted with ShellCheck and formatted with Shfmt in hk's pre-commit.
+Machine provisioning is 100% declarative via `mise bootstrap`. There is no
+`mise/tasks/` directory: procedural task runners must never be mixed into the
+declarative state convergence process. All machine state is expressed through
+native `[bootstrap.*]` and `[dotfiles]` sections.
 
 ## Declarative AUR Package Management
 

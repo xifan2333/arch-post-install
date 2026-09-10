@@ -124,7 +124,7 @@ For each unchecked `- [ ]` task in order:
      # or full restart for clean QML engine cache:
      omarchy restart shell
      ```
-   - **Mise tasks (`mise/tasks/*`)**:
+   - **Mise tasks (`mise.toml`)**:
      ```bash
      mise tasks validate
      ```
