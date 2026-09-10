@@ -1,6 +1,6 @@
 #!/bin/bash
-# Sync herdr [theme.custom] colors from the current Omarchy theme.
-# Maps ~/.local/state/omarchy/current/theme/colors.toml tokens to herdr's
+# Sync herdr [theme.custom] colors from the current theme palette.
+# Maps ~/.local/state/theme/colors.toml tokens to herdr's
 # semantic slots and replaces the marked block in herdr config.toml.
 #
 # Usage: theme-sync-herdr
@@ -9,13 +9,13 @@
 
 set -e
 
-COLORS="${COLORS:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme/colors.toml}"
+COLORS="${COLORS:-${XDG_STATE_HOME:-$HOME/.local/state}/theme/colors.toml}"
 CONFIG="${CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml}"
 BEGIN_MARK="# --- BEGIN herdr theme ---"
 END_MARK="# --- END herdr theme ---"
 
 if [[ ! -f $COLORS ]]; then
-	echo "No Omarchy colors.toml at $COLORS" >&2
+	echo "No colors.toml at $COLORS" >&2
 	exit 1
 fi
 

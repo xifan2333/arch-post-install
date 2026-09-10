@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Interactive theme selector for River desktop using fuzzel or bemenu
+set -euo pipefail
+
+themes=$(theme-set --list | sed 's/^[ *]*//')
+if [[ -z "$themes" ]]; then
+	printf 'No themes found\n' >&2
+	exit 1
+fi
+
+if command -v fuzzel &>/dev/null; then
+	selected=$(echo "$themes" | fuzzel --dmenu --prompt "Theme: ")
+elif command -v bemenu &>/dev/null; then
+	selected=$(echo "$themes" | bemenu -p "Theme: ")
+else
+	selected=$(echo "$themes" | head -1)
+fi
+
+if [[ -n "${selected:-}" ]]; then
+	theme-set "$selected"
+fi

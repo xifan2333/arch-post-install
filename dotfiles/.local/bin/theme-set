@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""Universal Semantic Theme Switcher for Arch Linux + River Desktop.
+
+Parses colors.toml palettes, renders template files from ~/.config/themed/,
+updates ~/.local/state/theme, and broadcasts reload signals to desktop components.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import tomllib
+from pathlib import Path
+
+
+def get_config_dir() -> Path:
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    cfg = Path(xdg) if xdg else Path.home() / ".config"
+    if not (cfg / "themes").is_dir():
+        repo_cfg = Path(__file__).resolve().parent.parent.parent / ".config"
+        if (repo_cfg / "themes").is_dir():
+            return repo_cfg
+    return cfg
+
+
+def get_state_dir() -> Path:
+    xdg = os.environ.get("XDG_STATE_HOME")
+    return Path(xdg) if xdg else Path.home() / ".local" / "state"
+
+
+def hex_to_rgb(hex_str: str) -> tuple[int, int, int]:
+    h = hex_str.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def render_value(val: str, modifier: str | None) -> str:
+    if not modifier:
+        return val
+    if modifier == "strip":
+        return val.lstrip("#")
+    if modifier == "rgb":
+        r, g, b = hex_to_rgb(val)
+        return f"{r},{g},{b}"
+    if modifier.startswith("rgba:"):
+        alpha = modifier.split(":", 1)[1]
+        r, g, b = hex_to_rgb(val)
+        return f"rgba({r},{g},{b},{alpha})"
+    if modifier.startswith("alpha_hex:"):
+        # e.g. alpha_hex:dd
+        a_hex = modifier.split(":", 1)[1]
+        return val.lstrip("#") + a_hex
+    return val
+
+
+def render_template(template_text: str, colors: dict[str, str]) -> str:
+    # Match {{ key }} or {{ key_modifier }} or {{ key | modifier }}
+    pattern = re.compile(
+        r"\{\{\s*([a-zA-Z0-9_]+)(?:(?:_([a-zA-Z0-9_:]+))|(?:\s*\|\s*([a-zA-Z0-9_:]+)))?\s*\}\}"
+    )
+
+    def replace_match(m: re.Match[str]) -> str:
+        key = m.group(1)
+        modifier = m.group(2) or m.group(3)
+        if key in colors:
+            val = str(colors[key])
+            return render_value(val, modifier)
+        return m.group(0)
+
+    return pattern.sub(replace_match, template_text)
+
+
+def extract_target(template_text: str) -> Path | None:
+    for line in template_text.splitlines()[:5]:
+        line = line.strip()
+        m = re.match(
+            r"^(?:#|//|/\*|--)\s*TARGET:\s*([^\s\*]+)(?:\s*\*\/)?$", line
+        )
+        if m:
+            raw_path = m.group(1).strip()
+            return Path(os.path.expanduser(raw_path))
+    return None
+
+
+def atomic_write(target: Path, content: str, mode: int = 0o644) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=target.parent,
+        prefix=f".{target.name}.tmp",
+        delete=False,
+    ) as f:
+        f.write(content)
+        tmp_path = Path(f.name)
+    tmp_path.chmod(mode)
+    os.replace(tmp_path, target)
+
+
+def list_themes(themes_dir: Path) -> list[str]:
+    if not themes_dir.is_dir():
+        return []
+    result = []
+    for d in sorted(themes_dir.iterdir()):
+        if d.is_dir() and (d / "colors.toml").is_file():
+            result.append(d.name)
+    return result
+
+
+def get_current_theme(state_dir: Path) -> str | None:
+    name_file = state_dir / "theme" / "current.name"
+    if name_file.is_file():
+        return name_file.read_text().strip()
+    link = state_dir / "theme"
+    if link.is_symlink():
+        target = link.resolve()
+        return target.name
+    return None
+
+
+def broadcast_reloads() -> None:
+    # 1. Waybar CSS reload (SIGUSR2)
+    subprocess.run(["pkill", "-SIGUSR2", "waybar"], stderr=subprocess.DEVNULL)
+
+    # 2. Fnott reload (SIGUSR1)
+    subprocess.run(["pkill", "-SIGUSR1", "fnott"], stderr=subprocess.DEVNULL)
+
+    # 3. Fcitx5 theme sync
+    fcitx_sync = shutil.which("fcitx5-theme-sync")
+    if fcitx_sync:
+        subprocess.run([fcitx_sync], stderr=subprocess.DEVNULL)
+
+    # 4. Herdr theme sync
+    herdr_sync = shutil.which("theme-sync-herdr")
+    if herdr_sync:
+        subprocess.run([herdr_sync], stderr=subprocess.DEVNULL)
+
+    # 5. River theme script execution (if WAYLAND_DISPLAY is active)
+    if os.environ.get("WAYLAND_DISPLAY"):
+        river_theme = get_config_dir() / "river" / "theme.sh"
+        if river_theme.is_file() and os.access(river_theme, os.X_OK):
+            subprocess.run([str(river_theme)], stderr=subprocess.DEVNULL)
+
+
+def apply_theme(theme_name: str) -> None:
+    config_dir = get_config_dir()
+    state_dir = get_state_dir()
+    theme_path = config_dir / "themes" / theme_name
+    colors_file = theme_path / "colors.toml"
+
+    if not colors_file.is_file():
+        print(
+            f"Error: Theme '{theme_name}' not found at {colors_file}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    with open(colors_file, "rb") as f:
+        colors_data = tomllib.load(f)
+
+    # Flatten strings/scalars into string map
+    colors: dict[str, str] = {
+        k: str(v) for k, v in colors_data.items() if isinstance(v, (str, int))
+    }
+
+    # 1. Render templates in ~/.config/themed/
+    themed_dir = config_dir / "themed"
+    rendered_count = 0
+    if themed_dir.is_dir():
+        for tpl_path in sorted(themed_dir.glob("*.tpl")):
+            content = tpl_path.read_text()
+            target_path = extract_target(content)
+            rendered = render_template(content, colors)
+
+            if target_path:
+                is_exec = tpl_path.suffix == ".sh.tpl" or target_path.suffix in (
+                    ".sh",
+                    ".bash",
+                )
+                atomic_write(
+                    target_path, rendered, mode=0o755 if is_exec else 0o644
+                )
+                rendered_count += 1
+
+    # 2. Update state directory: ~/.local/state/theme
+    theme_state_dir = state_dir / "theme"
+    theme_state_dir.mkdir(parents=True, exist_ok=True)
+
+    # Atomically link current theme and copy active colors.toml
+    atomic_write(theme_state_dir / "colors.toml", colors_file.read_text())
+    atomic_write(theme_state_dir / "current.name", f"{theme_name}\n")
+
+    # Symlink ~/.local/state/theme/current -> theme_path
+    current_symlink = theme_state_dir / "current"
+    if current_symlink.is_symlink() or current_symlink.is_file():
+        current_symlink.unlink()
+    try:
+        current_symlink.symlink_to(theme_path)
+    except OSError:
+        pass
+
+    # 3. Broadcast reload signals
+    broadcast_reloads()
+
+    print(
+        f"✓ Applied theme '{theme_name}' ({rendered_count} template(s) rendered)"
+    )
+
+
+def main() -> None:
+    config_dir = get_config_dir()
+    state_dir = get_state_dir()
+    themes_dir = config_dir / "themes"
+
+    if len(sys.argv) < 2:
+        curr = get_current_theme(state_dir)
+        print("Usage: theme-set <theme-name> | --list | --current | --refresh")
+        if curr:
+            print(f"Active theme: {curr}")
+        sys.exit(0)
+
+    arg = sys.argv[1]
+    if arg in ("-l", "--list"):
+        for t in list_themes(themes_dir):
+            prefix = "* " if t == get_current_theme(state_dir) else "  "
+            print(f"{prefix}{t}")
+    elif arg in ("-c", "--current"):
+        curr = get_current_theme(state_dir)
+        print(curr or "none")
+    elif arg in ("-r", "--refresh"):
+        curr = get_current_theme(state_dir)
+        if not curr:
+            print(
+                "Error: No active theme found to refresh.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        apply_theme(curr)
+    elif arg in ("-h", "--help", "help"):
+        print("Usage: theme-set <theme-name> | --list | --current | --refresh")
+    else:
+        apply_theme(arg)
+
+
+if __name__ == "__main__":
+    main()
