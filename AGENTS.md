@@ -57,7 +57,7 @@ All coding agents must strictly operate within this closed-loop chronological li
                 |    mise run check:plan (preview steps)|
                 |    mise run check:changed             |
                 |    mise run fix (if needed)           |
-                |    Domain validations (Hypr/Omarchy)  |
+                |    Domain validations (Mise/River)    |
                 +-------------------+-------------------+
                                     |
                 +-------------------v-------------------+
@@ -102,7 +102,6 @@ Supported formatters and linters:
 - **TOML**: `taplo` (with `--no-schema`)
 - **JSON / YAML**: `prettier`
 - **JavaScript**: `oxlint`
-- **QML**: `qmllint`
 - **Zsh**: `zsh -n` (syntax check), `shfmt` (format)
 
 ---
@@ -111,9 +110,8 @@ Supported formatters and linters:
 
 This system follows the principles documented in `.agents/skills/arch-dev/references/principles.md`:
 
-1. **Self-Containment & Zero External Framework Lock-in**:
-   - Never reference `/usr/share/omarchy/` or rely on proprietary distribution hooks.
-   - All desktop logic, keybindings, and theme pipelines must reside self-contained within this repository.
+1. **Self-Containment & Standard XDG Compliance**:
+   - All desktop logic, keybindings, and theme pipelines must reside self-contained within this repository and standard XDG locations.
 2. **Collector / Display Separation**:
    - **Display UI**: Pure presentation (e.g. Waybar, minimal river client). Read state reactively from `$XDG_RUNTIME_DIR/state/` JSON files. Never perform heavy compute, blocking I/O, or network polling in UI components.
    - **Collectors / Daemons**: Polling, sensor queries, hardware state, and API sync belong in standalone scripts under `dotfiles/.local/bin/` managed by user timers or background services.
