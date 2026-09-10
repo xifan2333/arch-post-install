@@ -2,6 +2,10 @@
 [bootstrap.hooks.pre-packages]
 run = "mise/hooks/pre-packages.sh"
 
+# Post-dotfiles hook: seed runtime configuration templates and sync themes
+[bootstrap.hooks.post-dotfiles]
+run = "mise/hooks/post-dotfiles.sh"
+
 # Default login shell for the user
 [bootstrap.user]
 login_shell = "/usr/bin/zsh"
