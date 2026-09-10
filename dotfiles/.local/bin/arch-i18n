@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+# arch:summary=Get localized UI strings based on system language
+# arch:args=get <key> [var=val ...] | current | list | env
+# arch:examples=arch i18n get ocr_notify_title | arch i18n current
+"""Universal pure script i18n resolver for Arch Linux + River Desktop.
+
+Reads JSON dictionaries from ~/.config/i18n/ and returns localized strings.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def get_i18n_dir() -> Path:
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    cfg = Path(xdg) if xdg else Path.home() / ".config"
+    target = cfg / "i18n"
+    if not target.is_dir():
+        repo_dir = Path(__file__).resolve().parent.parent.parent / ".config" / "i18n"
+        if repo_dir.is_dir():
+            return repo_dir
+    return target
+
+
+def detect_language() -> str:
+    lang = (
+        os.environ.get("LC_ALL")
+        or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG")
+        or "en_US"
+    )
+    lang_code = lang.split(".")[0].lower().replace("_", "-")
+
+    if lang_code.startswith("zh"):
+        return "zh-cn"
+    return "en-us"
+
+
+def load_dictionary(lang: str) -> dict[str, str]:
+    i18n_dir = get_i18n_dir()
+    dict_file = i18n_dir / f"{lang}.json"
+
+    if not dict_file.is_file():
+        dict_file = i18n_dir / "en-us.json"
+
+    if not dict_file.is_file():
+        return {}
+
+    try:
+        with open(dict_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return {k: str(v) for k, v in data.items()}
+    except Exception:
+        return {}
+
+
+def get_message(
+    dictionary: dict[str, str], key: str, variables: list[str]
+) -> str:
+    msg = dictionary.get(key, f"[{key}]")
+
+    # Variable replacements e.g. foo=bar
+    for item in variables:
+        if "=" in item:
+            k, v = item.split("=", 1)
+            msg = msg.replace(f"{{{k}}}", v)
+
+    return msg
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print("Usage: arch-i18n get <key> [var=val ...] | current | list | env")
+        sys.exit(0)
+
+    action = sys.argv[1]
+    lang = detect_language()
+    dictionary = load_dictionary(lang)
+
+    if action == "current":
+        print(lang)
+    elif action == "get":
+        if len(sys.argv) < 3:
+            print("Error: Missing key argument for 'get'", file=sys.stderr)
+            sys.exit(1)
+        key = sys.argv[2]
+        variables = sys.argv[3:]
+        print(get_message(dictionary, key, variables))
+    elif action == "list":
+        for k, v in sorted(dictionary.items()):
+            print(f"{k}: {v}")
+    elif action == "env":
+        print("declare -gA i18n")
+        for k, v in sorted(dictionary.items()):
+            escaped = v.replace('"', '\\"')
+            print(f'i18n["{k}"]="{escaped}"')
+    else:
+        # Direct key shorthand: arch-i18n <key>
+        key = action
+        variables = sys.argv[2:]
+        print(get_message(dictionary, key, variables))
+
+
+if __name__ == "__main__":
+    main()
