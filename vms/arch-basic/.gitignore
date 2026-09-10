@@ -1,0 +1,12 @@
+# VM disk images and firmware
+*.qcow2
+*.fd
+*.img
+
+# Quickemu runtime state
+*.socket
+*.ports
+*.log
+*.pid
+*.spice
+arch-basic.sh

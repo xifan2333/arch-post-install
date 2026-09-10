@@ -46,3 +46,23 @@ run = "hk check --all"
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"
 run = "hk fix --all"
+
+[tasks."vm:start"]
+description = "Start the arch-basic testing VM (pass --headless for no GUI)"
+run = "./vms/arch-basic/vm.sh start \"$@\""
+
+[tasks."vm:stop"]
+description = "Gracefully stop the arch-basic testing VM"
+run = "./vms/arch-basic/vm.sh stop"
+
+[tasks."vm:ssh"]
+description = "SSH into the arch-basic testing VM (user: arch, port: 22220)"
+run = "./vms/arch-basic/vm.sh ssh \"$@\""
+
+[tasks."vm:status"]
+description = "Show arch-basic VM running status, disk usage, and snapshots"
+run = "./vms/arch-basic/vm.sh status"
+
+[tasks."vm:reset"]
+description = "Stop arch-basic VM and revert disk to clean-systemd-boot snapshot"
+run = "./vms/arch-basic/vm.sh reset"
