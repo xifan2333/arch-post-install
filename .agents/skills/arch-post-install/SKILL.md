@@ -62,14 +62,14 @@ Put your change in the right home. This table answers "what do I edit?":
 | ------------------------------------------- | ------------------------------- |
 | Add/change a repo linter or dev tool        | `mise.toml` → `[tools]`         |
 | Add/update repo check or format tasks       | `mise.toml` → `[tasks.*]`       |
-| Install a system pacman package             | `mise/conf.d/10-bootstrap.toml` |
-| Add a privileged file/dir or pacman hook    | `mise/conf.d/10-bootstrap.toml` |
-| Map a dotfile into `~/.config` / `~/.local` | `mise/conf.d/20-dotfiles.toml`  |
-| Add an AUR-only package                     | `mise/tasks/aur`                |
-| Change system bootstrap initialization      | `mise/tasks/bootstrap`          |
+| Configure system services or privileged file| `mise/conf.d/10-system.toml`    |
+| Add a system package (pacman or aur)        | `mise/conf.d/20-packages.toml`  |
+| Map a dotfile into `~/.config` / `~/.local` | `mise/conf.d/30-dotfiles.toml`  |
+| Update pre-packages setup hook              | `mise/hooks/pre-packages.sh`    |
+| Change system post-bootstrap logic          | `mise/tasks/bootstrap`          |
 | Update pixel fonts download automation      | `mise/tasks/fonts`              |
 | Change WPS window component mode task       | `mise/tasks/wps`                |
-| Adjust Hyprland keybind/monitor/windows     | `dotfiles/.config/hypr/*.lua`   |
+| Manage window manager & compositor          | `dotfiles/.config/river/`       |
 | Manage state collectors & CLI tools         | `dotfiles/.local/bin/`          |
 
 ## Workflow

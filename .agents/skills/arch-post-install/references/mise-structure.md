@@ -12,16 +12,18 @@ arch-post-install/
 │   ├── [tools]                        #    Linters & formatters for this repo
 │   ├── [tasks.hooks]                  #    hk installation (git hooks)
 │   ├── [tasks.lint]                   #    Full repo static analysis
-│   └── [tasks.format]                 #    Full repo auto-formatting
+│   ├── [tasks.format]                 #    Full repo auto-formatting
+│   └── [tasks."vm:*"]                 #    VM test sandbox commands
 │
 └── mise/
-    ├── conf.d/                        # 2. SYSTEM STATE CONFIG (FRAGMENTS)
-    │   ├── 10-bootstrap.toml          #    Pacman packages + privileged files
-    │   └── 20-dotfiles.toml           #    Dotfiles symlink-each mappings
     ├── hooks/
+    │   ├── pre-packages.sh            #    Pre-packages setup hook (base-devel, archlinuxcn, yay)
     │   └── rime-wanxiang-deploy.hook  #    Pacman deployment hook (for /etc)
+    ├── conf.d/                        # 2. SYSTEM STATE CONFIG (FRAGMENTS)
+    │   ├── 10-system.toml             #    System services, hooks & privileged files
+    │   ├── 20-packages.toml           #    Declarative pacman: and aur: packages
+    │   └── 30-dotfiles.toml           #    Dotfiles symlink-each mappings
     └── tasks/                         # 3. SYSTEM FILE TASKS
-        ├── aur                        #    [Bootstrap] AUR packages via yay
         ├── bootstrap                  #    [Bootstrap] Seed configs + nvim theme
         ├── hardware                   #    [Bootstrap] Apply fan control & GPU permissions
         ├── wps                        #    [Bootstrap] Force WPS component mode
@@ -78,8 +80,9 @@ prettier --write .
 Mise auto-loads `mise/conf.d/*.toml` fragments **alphabetically**. The numeric
 prefix establishes dependency order:
 
-- `10-bootstrap.toml` — packages and privileged files (applied first)
-- `20-dotfiles.toml` — dotfile symlink-each mappings (applied after packages)
+- `10-system.toml` — system services, privileged files, and pre-packages hook
+- `20-packages.toml` — declarative OS packages (`pacman:*` and `aur:*`)
+- `30-dotfiles.toml` — dotfile symlink-each mappings
 
 `[settings] dotfiles.default_mode = "symlink"` lives in the dotfiles fragment.
 
@@ -88,26 +91,17 @@ prefix establishes dependency order:
 These are **mise file tasks**: executable scripts discovered by mise. Each
 carries metadata via `#MISE` directives:
 
-```bash
-#!/usr/bin/env bash
-#MISE description="Install required AUR applications"
-set -euo pipefail
-```
-
-- `bootstrap` depends on `aur`, `wps`, and `hardware`, composing the system setup sequence.
+- `bootstrap` depends on `wps`, composing the post-convergence seeding sequence.
 - `fonts` is a standalone asset maintenance task, kept independent of bootstrap.
 - All file tasks are linted with ShellCheck and formatted with Shfmt in hk's pre-commit.
 
-## AUR packages belong in the `aur` task
+## Declarative AUR Package Management
 
-Mise's built-in `pacman:` manager covers official repositories. AUR packages
-require an AUR helper and building from source, so they belong in
-`mise/tasks/aur`, driven by `yay` and gated with `pacman -Q` (AUR packages also
-register in pacman's local database). The bootstrap flow:
-
-1. `[bootstrap.packages] "pacman:yay" = "latest"` installs yay.
-2. `bootstrap` task runs, depends on `aur`.
-3. `aur` task runs `yay -S --needed` for the AUR-only packages.
+Mise natively supports `aur:` package declarations inside `[bootstrap.packages]`
+alongside official `pacman:` packages. The pre-packages hook (`mise/hooks/pre-packages.sh`)
+ensures `base-devel`, the official `[archlinuxcn]` repository, and `yay` are
+installed before package resolution begins. Mise then uses `yay` to install
+all declared `aur:*` packages without requiring imperative bash scripts.
 
 ## Verification commands (read-only)
 
