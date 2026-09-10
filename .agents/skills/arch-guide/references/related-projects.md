@@ -1,6 +1,6 @@
 # Related Standalone Projects Index
 
-This repository (`arch-post-install`) is the central declarative kit for the personal Arch Linux + Omarchy desktop environment. Several specialized subsystems live in standalone repositories but integrate directly with components configured here.
+This repository (`arch-post-install`) is the central declarative kit for the personal Arch Linux + River desktop environment. Several specialized subsystems live in standalone repositories but integrate directly with components configured here.
 
 Use this index to understand architecture boundaries and locate the source of truth for external dependencies.
 
