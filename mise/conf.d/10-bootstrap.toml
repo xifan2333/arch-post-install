@@ -3,7 +3,10 @@
 [bootstrap.packages]
 "pacman:android-tools" = "latest"
 "pacman:android-udev" = "latest"
+"pacman:fcitx5-configtool" = "latest"
+"pacman:fcitx5-rime" = "latest"
 "pacman:noise-suppression-for-voice" = "latest"
+"pacman:rime-wanxiang-pinyin" = "latest"
 "pacman:ttf-sarasa-gothic" = "latest"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
