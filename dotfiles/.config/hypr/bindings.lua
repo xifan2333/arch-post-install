@@ -1,5 +1,5 @@
--- Personal keybindings on top of Omarchy defaults.
--- View the effective bindings with: omarchy menu keybindings --print
+-- Personal keybindings on top of personal defaults.
+-- [DEPRECATED / MIGRATION]: Proprietary command wrappers being transitioned to standard utilities.
 
 -- ============================================================================
 -- Daily Applications (Win = primary, Win+Alt = secondary variant)
@@ -8,13 +8,13 @@ hl.unbind("SUPER + RETURN")
 o.bind(
   "SUPER + RETURN",
   "Terminal",
-  [[uwsm-app -- wezterm start --cwd "$(omarchy-cmd-terminal-cwd)"]]
+  [[uwsm-app -- wezterm start --cwd "$(command -v omarchy-cmd-terminal-cwd >/dev/null 2>&1 && omarchy-cmd-terminal-cwd || echo "$HOME")"]]
 )
 hl.unbind("SUPER + ALT + RETURN")
 o.bind(
   "SUPER + ALT + RETURN",
   "Herdr",
-  [[uwsm-app -- wezterm start --cwd "$(omarchy-cmd-terminal-cwd)" -- herdr]]
+  [[uwsm-app -- wezterm start --cwd "$(command -v omarchy-cmd-terminal-cwd >/dev/null 2>&1 && omarchy-cmd-terminal-cwd || echo "$HOME")" -- herdr]]
 )
 
 -- Browser (B)
