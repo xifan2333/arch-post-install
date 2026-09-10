@@ -3,7 +3,7 @@
 set -euo pipefail
 
 config_theme="${XDG_CONFIG_HOME:-$HOME/.config}/theme/colors.toml"
-state_theme="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme/colors.toml"
+state_theme="${XDG_STATE_HOME:-$HOME/.local/state}/theme/colors.toml"
 
 if [[ -f "$config_theme" ]]; then
 	colors_file="$config_theme"
@@ -174,8 +174,6 @@ fi
 
 if systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
 	systemctl --user restart fcitx5.service
-elif systemctl --user is-active --quiet omarchy-fcitx5.service 2>/dev/null; then
-	systemctl --user restart omarchy-fcitx5.service
 elif pgrep -x fcitx5 >/dev/null; then
 	pkill -x fcitx5 && nohup /usr/bin/fcitx5 >/dev/null 2>&1 &
 fi

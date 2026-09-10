@@ -37,6 +37,8 @@ dotfiles.default_mode = "symlink"
 "~/.config/retroarch" = { source = "../../dotfiles/.config/retroarch", mode = "symlink-each" }
 "~/.config/systemd" = { source = "../../dotfiles/.config/systemd", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "../../dotfiles/.config/tensaku", mode = "symlink-each" }
+"~/.config/themes" = { source = "../../dotfiles/.config/themes", mode = "symlink-each" }
+"~/.config/themed" = { source = "../../dotfiles/.config/themed", mode = "symlink-each" }
 "~/.config/tmux" = { source = "../../dotfiles/.config/tmux", mode = "symlink-each" }
 "~/.config/uv" = { source = "../../dotfiles/.config/uv", mode = "symlink-each" }
 "~/.config/vinput" = { source = "../../dotfiles/.config/vinput", mode = "symlink-each", exclude = [
