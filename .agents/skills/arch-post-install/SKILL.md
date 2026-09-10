@@ -70,7 +70,7 @@ Put your change in the right home. This table answers "what do I edit?":
 | Update pixel fonts download automation      | `mise/tasks/fonts`              |
 | Change WPS window component mode task       | `mise/tasks/wps`                |
 | Adjust Hyprland keybind/monitor/windows     | `dotfiles/.config/hypr/*.lua`   |
-| Build/modify an Omarchy panel or plugin     | `dotfiles/.config/omarchy/`     |
+| Manage state collectors & CLI tools         | `dotfiles/.local/bin/`          |
 
 ## Workflow
 
