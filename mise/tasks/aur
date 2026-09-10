@@ -12,6 +12,7 @@ packages=(
     ttf-wps-fonts
     unibarrage-bin
     wechat-appimage
+    wezterm-git
     wps-office-365-edu
     wps-office-365-edu-fonts
 )
