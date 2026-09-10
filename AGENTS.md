@@ -14,7 +14,7 @@ Always edit source files within this repository. The `~/.config` and `~/.local` 
 | Machine packages & system hooks | `mise/conf.d/10-bootstrap.toml` |
 | Dotfile symlink mappings | `mise/conf.d/20-dotfiles.toml` |
 | System bootstrap logic | `mise/tasks/bootstrap` |
-| Window manager & compositor | `dotfiles/.config/river/` / `dotfiles/.config/hypr/` |
+| Window manager & compositor | `dotfiles/.config/river/` |
 | State collectors & CLI tools | `dotfiles/.local/bin/` |
 | Dotfile sources | `dotfiles/` (never edit target symlinks directly) |
 
@@ -124,7 +124,6 @@ This system follows the principles documented in `PRINCIPLES.md`:
 
 ## 6. General Desktop & Coding Conventions
 
-1. **Hyprland Validation**: After modifying any `dotfiles/.config/hypr/*.lua`, test configuration with `hyprctl reload` followed by `hyprctl configerrors`.
-2. **Typography & Glyphs**: Prefer NerdFont glyphs, ASCII, or SVG over emoji for terminal and panel consistency.
-3. **Timezone**: Compute rolling metrics (e.g. 7-day usage, daily buckets) using the system local calendar day to prevent midnight rollover drift.
-4. **Commit Messages**: Follow Conventional Commits format (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`).
+1. **Typography & Glyphs**: Prefer NerdFont glyphs, ASCII, or SVG over emoji for terminal and panel consistency.
+2. **Timezone**: Compute rolling metrics (e.g. 7-day usage, daily buckets) using the system local calendar day to prevent midnight rollover drift.
+3. **Commit Messages**: Follow Conventional Commits format (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`).
