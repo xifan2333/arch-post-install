@@ -56,3 +56,8 @@
 
 ### 3.3 Local-First & Resilient
 - The core desktop experience, window management, terminal, and Chinese IME (Fcitx5 + Rime Xiaohe Double Pinyin) must operate 100% offline without external network dependencies.
+
+### 3.4 Pure Script Standards (Hierarchy: `sh` > `perl` > `py`)
+- **First Priority: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, and CLI dispatchers. 0ms startup, zero cache files.
+- **Second Priority: Pure Perl (`perl`)**: Preferred when complex text manipulation, in-memory regex mappings, or template rendering is required. Native, purely in-memory execution, and never leaves disk bytecode cache.
+- **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to standard library only (zero pip dependencies). Zero bytecode cache is enforced via `PYTHONDONTWRITEBYTECODE=1` in environment and script shebangs (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).

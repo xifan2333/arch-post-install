@@ -29,9 +29,12 @@ All engineering, architecture, and code decisions MUST strictly adhere to the Su
 3. **Engineering & Delivery Standards**:
    - **Absolute Self-Containment**: Zero external framework lock-in. No non-standard proprietary directories.
    - **100% Declarative & Idempotent**: Pure `mise bootstrap` convergence; re-running is safe and deterministic.
-   - **Pure Script First-Class Citizens (Shell-First)**:
-     - Priority 1: Pure POSIX Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`) for all system control, collectors, and CLI glue.
-     - Priority 2: Pure Python 3 (standard library only) for complex structured data or long-running daemons. Never introduce pip dependencies.
+   - **Pure Script First-Class Citizens (Language Priority: `sh` > `perl` > `py`)**:
+     - Priority 1: Pure POSIX Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`) for all system control, collectors, and CLI glue (instant startup, zero cache files).
+     - Priority 2: Pure Perl (`perl`) for complex text transformations, in-memory regex mappings, or multi-dimensional template rendering where shell/awk becomes convoluted (native, purely in-memory, zero bytecode cache).
+     - Priority 3: Pure Python 3 (`python3`) for complex structured data or long-running daemons. **Strict constraints**:
+       * Standard library only (zero `pip` dependencies).
+       * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
    - **Universal CLI Convention (`arch-<domain>-<action>`)**: All user-facing tools follow `arch-<domain>-<action>` and are routable via the unified `arch` dispatcher (`arch <domain> <action>`). Every script carries `# arch:summary=...` metadata.
 
 ## Start Here
