@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# arch:summary=Inspect or control ThinkPad ACPI fan speed
+# arch:args=[status | auto | full-speed | 0-7]
+# arch:examples=arch hw fan | arch hw fan auto | arch hw fan 7
 # ThinkPad hardware fan control helper.
 # Supports level: auto, 0-7, disengaged (unlocked max RPM), status.
 

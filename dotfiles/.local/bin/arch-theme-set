@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# arch:summary=Apply or switch desktop semantic color theme
+# arch:args=<theme-name> | --list | --current | --refresh
+# arch:examples=arch theme set tokyo-night | arch theme set --list
 """Universal Semantic Theme Switcher for Arch Linux + River Desktop.
 
 Parses colors.toml palettes, renders template files from ~/.config/themed/,
@@ -144,12 +147,12 @@ def broadcast_reloads() -> None:
     subprocess.run(["pkill", "-SIGUSR1", "fnott"], stderr=subprocess.DEVNULL)
 
     # 3. Fcitx5 theme sync
-    fcitx_sync = shutil.which("fcitx5-theme-sync")
+    fcitx_sync = shutil.which("arch-theme-sync-fcitx5") or shutil.which("fcitx5-theme-sync")
     if fcitx_sync:
         subprocess.run([fcitx_sync], stderr=subprocess.DEVNULL)
 
     # 4. Herdr theme sync
-    herdr_sync = shutil.which("theme-sync-herdr")
+    herdr_sync = shutil.which("arch-theme-sync-herdr") or shutil.which("theme-sync-herdr")
     if herdr_sync:
         subprocess.run([herdr_sync], stderr=subprocess.DEVNULL)
 

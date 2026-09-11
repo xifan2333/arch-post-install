@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# arch:summary=Sync Fcitx5 IME skin from active desktop theme
+# arch:examples=arch theme sync fcitx5
 # Sync and generate fcitx5 custom theme from global palette with zero external dependencies
 set -euo pipefail
 

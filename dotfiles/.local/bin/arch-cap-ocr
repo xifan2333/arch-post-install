@@ -1,5 +1,7 @@
-#!/bin/bash
-# Omarchy-compatible region OCR using the native Rust nbocr CLI.
+#!/usr/bin/env bash
+# arch:summary=Capture screen region and copy recognized text to clipboard
+# arch:examples=arch cap ocr
+# Wayland screen region OCR using local nbocr CLI.
 
 set -o pipefail
 

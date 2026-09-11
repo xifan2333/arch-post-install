@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# arch:summary=Open interactive theme selector menu
+# arch:examples=arch theme menu
 # Interactive theme selector for River desktop using fuzzel or bemenu
 set -euo pipefail
 
-themes=$(theme-set --list | sed 's/^[ *]*//')
+themes=$(arch-theme-set --list | sed 's/^[ *]*//')
 if [[ -z "$themes" ]]; then
 	printf 'No themes found\n' >&2
 	exit 1
@@ -17,5 +19,5 @@ else
 fi
 
 if [[ -n "${selected:-}" ]]; then
-	theme-set "$selected"
+	arch-theme-set "$selected"
 fi
