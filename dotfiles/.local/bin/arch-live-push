@@ -55,13 +55,13 @@ unmute_audio() {
 }
 
 boost_hardware() {
-	command -v intel-gpu-freq >/dev/null 2>&1 && intel-gpu-freq max >/dev/null 2>&1 || true
-	command -v thinkpad-fan >/dev/null 2>&1 && thinkpad-fan max >/dev/null 2>&1 || true
+	command -v arch-hw-gpu >/dev/null 2>&1 && arch-hw-gpu max >/dev/null 2>&1 || true
+	command -v arch-hw-fan >/dev/null 2>&1 && arch-hw-fan full-speed >/dev/null 2>&1 || true
 }
 
 restore_hardware() {
-	command -v intel-gpu-freq >/dev/null 2>&1 && intel-gpu-freq auto >/dev/null 2>&1 || true
-	command -v thinkpad-fan >/dev/null 2>&1 && thinkpad-fan auto >/dev/null 2>&1 || true
+	command -v arch-hw-gpu >/dev/null 2>&1 && arch-hw-gpu auto >/dev/null 2>&1 || true
+	command -v arch-hw-fan >/dev/null 2>&1 && arch-hw-fan auto >/dev/null 2>&1 || true
 }
 
 open_danmaku() {
@@ -75,13 +75,13 @@ close_danmaku() {
 }
 
 start_stream() {
-	local target="${1:-portal}" capture_target rc
+	local target="${1:-screen}" capture_target="screen" rc
 
 	ensure_dirs
 	check_deps || return 4
 	case "$target" in
-	full) capture_target=screen ;;
-	*) capture_target=$target ;;
+	portal) capture_target="portal" ;;
+	*) capture_target="screen" ;;
 	esac
 
 	if is_active; then
@@ -184,11 +184,11 @@ is-active)
 	is_active
 	;;
 config)
-	exec "${OMARCHY_PATH:-/usr/share/omarchy}"/bin/omarchy-shell xifan.livestream-config toggle
+	exec "${EDITOR:-nvim}" "$CONFIG_FILE"
 	;;
 -h | --help)
 	cat <<EOF
-Usage: livestream [start|stop|toggle|status|is-active|config] [portal|full]
+Usage: arch live push [start|stop|toggle|status|is-active|config] [screen|portal]
 EOF
 	;;
 *)
