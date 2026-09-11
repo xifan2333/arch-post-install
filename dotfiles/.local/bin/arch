@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Universal CLI dispatcher for Arch Linux + River personal workstation
+set -euo pipefail
+
+BIN_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+
+# Scan metadata header from a script file
+get_metadata() {
+	local file="$1" key="$2"
+	grep -m 30 -E "^#[[:space:]]*arch:${key}=" "$file" 2>/dev/null | head -1 | sed "s/^#[[:space:]]*arch:${key}=//" || true
+}
+
+show_help() {
+	cat <<'EOF'
+Arch Linux Workstation Command Center
+
+Usage:
+  arch <group> <action> [args...]
+  arch <command> [args...]
+  arch --help | -h
+  arch commands
+
+Available Commands:
+EOF
+
+	for bin in "$BIN_DIR"/arch-*; do
+		[[ -x "$bin" ]] || continue
+		local name="${bin##*/arch-}"
+		local summary
+		summary="$(get_metadata "$bin" "summary")"
+		[[ -n "$summary" ]] || summary="Run $name"
+
+		local route="arch ${name//-/ }"
+		printf '  %-26s %s\n' "$route" "$summary"
+	done
+
+	cat <<'EOF'
+
+Hint:
+  All underlying commands can also be run directly as `arch-<group>-<action>`.
+EOF
+}
+
+# Resolve route arguments into a matching binary
+resolve_and_exec() {
+	local args=("$@")
+	local count=${#args[@]}
+
+	# Try exact hyphen combinations from longest to shortest
+	for ((i = count; i >= 1; i--)); do
+		local sub_name
+		sub_name=$(
+			IFS='-'
+			echo "${args[*]:0:i}"
+		)
+		local candidate="$BIN_DIR/arch-$sub_name"
+
+		if [[ -x "$candidate" ]]; then
+			local remaining=("${args[@]:i}")
+			exec "$candidate" "${remaining[@]}"
+		fi
+	done
+
+	printf 'Unknown arch command: arch %s\n' "${args[*]}" >&2
+	printf "Run 'arch --help' to see available commands.\n" >&2
+	return 127
+}
+
+main() {
+	if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+		show_help
+		return 0
+	fi
+
+	if [[ "$1" == "commands" ]]; then
+		for bin in "$BIN_DIR"/arch-*; do
+			[[ -x "$bin" ]] || continue
+			local name="${bin##*/}"
+			local summary
+			summary="$(get_metadata "$bin" "summary")"
+			printf '%-24s %s\n' "$name" "$summary"
+		done
+		return 0
+	fi
+
+	resolve_and_exec "$@"
+}
+
+main "$@"

@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# arch:summary=Inspect or set Intel GPU min/max/cur frequencies
+# arch:args=[status | cur | level | max | auto | <mhz>]
+# arch:examples=arch hw gpu | arch hw gpu max | arch hw gpu auto
 # Intel HD Graphics frequency governor helper.
 # Supports: status, cur, level, is-max, toggle, auto, max, and specific frequency in MHz (e.g. 950).
 

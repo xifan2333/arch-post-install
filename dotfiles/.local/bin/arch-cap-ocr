@@ -1,11 +1,13 @@
-#!/bin/bash
-# Omarchy-compatible region OCR using the native Rust nbocr CLI.
+#!/usr/bin/env bash
+# arch:summary=Capture screen region and copy recognized text to clipboard
+# arch:examples=arch cap ocr
+# Wayland screen region OCR using local nbocr CLI.
 
 set -o pipefail
 
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/i18n-core"
+msg() {
+	arch-i18n get "$@"
+}
 
 PID=""
 WORK_DIR=$(mktemp -d)

@@ -21,6 +21,7 @@ dotfiles.default_mode = "symlink"
 "~/.config/fontconfig" = { source = "../../dotfiles/.config/fontconfig", mode = "symlink-each" }
 "~/.config/git" = { source = "../../dotfiles/.config/git", mode = "symlink-each" }
 "~/.config/herdr" = { source = "../../dotfiles/.config/herdr", mode = "symlink-each" }
+"~/.config/i18n" = { source = "../../dotfiles/.config/i18n", mode = "symlink-each" }
 # Hyprland decoupled for River 0.4 suckless migration
 # "~/.config/hypr" = { source = "../../dotfiles/.config/hypr", mode = "symlink-each" }
 "~/.config/imv" = { source = "../../dotfiles/.config/imv", mode = "symlink-each" }

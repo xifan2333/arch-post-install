@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# arch:summary=Live stream danmaku and chat listener sidecar
 # Herdr live danmaku desk: unibarrage | dmnotifier
 # Usage: livestream-danmaku start|stop
 # Intended to be fully silent when called from livestream hooks.

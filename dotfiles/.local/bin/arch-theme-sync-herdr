@@ -1,4 +1,6 @@
 #!/bin/bash
+# arch:summary=Sync Herdr terminal multiplexer colors from active theme
+# arch:examples=arch theme sync herdr
 # Sync herdr [theme.custom] colors from the current theme palette.
 # Maps ~/.local/state/theme/colors.toml tokens to herdr's
 # semantic slots and replaces the marked block in herdr config.toml.

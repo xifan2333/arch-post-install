@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# arch:summary=Get localized UI strings based on system language
+# arch:args=get <key> [var=val ...] | current | list | env
+# arch:examples=arch i18n get ocr_notify_title | arch i18n current
+set -euo pipefail
+
+get_i18n_dir() {
+	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/i18n"
+	if [[ -d "$cfg" ]]; then
+		printf '%s' "$cfg"
+		return 0
+	fi
+	local repo_dir
+	repo_dir="$(dirname "$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")")/.config/i18n"
+	if [[ -d "$repo_dir" ]]; then
+		printf '%s' "$repo_dir"
+		return 0
+	fi
+	printf '%s' "$cfg"
+}
+
+detect_language() {
+	local raw="${LC_ALL:-${LC_MESSAGES:-${LANG:-en_US}}}"
+	local lang="${raw%%.*}"
+	lang="${lang,,}"
+	lang="${lang/_/-}"
+	if [[ "$lang" == zh* ]]; then
+		printf 'zh-cn'
+	else
+		printf 'en-us'
+	fi
+}
+
+main() {
+	if [[ $# -lt 1 ]]; then
+		printf 'Usage: arch-i18n get <key> [var=val ...] | current | list | env\n'
+		return 0
+	fi
+
+	local lang
+	lang="$(detect_language)"
+
+	if [[ "$1" == "current" ]]; then
+		printf '%s\n' "$lang"
+		return 0
+	fi
+
+	local i18n_dir
+	i18n_dir="$(get_i18n_dir)"
+	local dict="$i18n_dir/${lang}.json"
+	if [[ ! -f "$dict" ]]; then
+		dict="$i18n_dir/en-us.json"
+	fi
+
+	if [[ ! -f "$dict" ]]; then
+		printf '[%s]\n' "${2:-unknown}"
+		return 0
+	fi
+
+	case "$1" in
+	list)
+		jq -r 'to_entries | .[] | "\(.key): \(.value)"' "$dict"
+		;;
+	env)
+		printf 'declare -gA i18n\n'
+		jq -r 'to_entries | .[] | "i18n[\"\(.key)\"]=\"\(.value)\""' "$dict"
+		;;
+	get)
+		if [[ $# -lt 2 ]]; then
+			printf 'Error: Missing key argument for get\n' >&2
+			return 1
+		fi
+		local key="$2"
+		shift 2
+		local val
+		val=$(jq -r --arg k "$key" '.[$k] // ("[" + $k + "]")' "$dict")
+		while [[ $# -ge 1 ]]; do
+			local k="${1%%=*}"
+			local v="${1#*=}"
+			val="${val//\{$k\}/$v}"
+			shift
+		done
+		printf '%s\n' "$val"
+		;;
+	*)
+		local key="$1"
+		shift
+		local val
+		val=$(jq -r --arg k "$key" '.[$k] // ("[" + $k + "]")' "$dict")
+		while [[ $# -ge 1 ]]; do
+			local k="${1%%=*}"
+			local v="${1#*=}"
+			val="${val//\{$k\}/$v}"
+			shift
+		done
+		printf '%s\n' "$val"
+		;;
+	esac
+}
+
+main "$@"

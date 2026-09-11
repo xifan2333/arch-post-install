@@ -103,10 +103,20 @@ mise bootstrap dotfiles apply
 
 - Schema: **Wanxiang Flypy (万象小鹤双拼)** from `archlinuxcn/rime-wanxiang-flypy`.
 - Auto-Deployment: A pacman hook (`/etc/pacman.d/hooks/rime-wanxiang-deploy.hook`) automatically redeploys Rime when dictionary or schema packages update.
-- Theme: Standalone custom theme synchronized via `dotfiles/.local/bin/fcitx5-theme-sync`.
+- Theme: Standalone custom theme synchronized via `arch theme sync fcitx5`.
 
 ## 4. Hardware Controls (ThinkPad & Intel GPU)
 
 Non-root write permissions are granted via `/etc/tmpfiles.d/`:
-- **ThinkPad Fan**: `/proc/acpi/ibm/fan` controlled via `dotfiles/.local/bin/thinkpad-fan`.
-- **Intel GPU Frequencies**: Controlled via `dotfiles/.local/bin/intel-gpu-freq`.
+- **ThinkPad Fan**: `/proc/acpi/ibm/fan` controlled via `arch hw fan [status|auto|0-7]`.
+- **Intel GPU Frequencies**: Controlled via `arch hw gpu [status|auto|max]`.
+
+## 5. Universal Desktop CLI (`arch`)
+
+All desktop utilities can be invoked via `arch <group> <action>` or `arch-<group>-<action>`:
+- `arch theme set <name>` / `arch theme menu`: switch desktop themes.
+- `arch hw fan` / `arch hw gpu`: inspect/control hardware.
+- `arch cap ocr`: capture screen region and copy recognized text.
+- `arch i18n get <key>`: query localized strings.
+- `arch font sync`: sync pixel fonts from GitHub releases.
+- `arch live push [start|stop|status]`: control live streaming pipeline.

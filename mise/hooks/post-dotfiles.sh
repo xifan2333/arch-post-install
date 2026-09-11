@@ -23,7 +23,10 @@ seed_example dotfiles/.config/vinput/config.json.example "$config_home/vinput/co
 seed_example dotfiles/.config/qutebrowser/translate.json.example "$config_home/qutebrowser/translate.json" 0600
 
 # Sync fcitx5 theme in a standalone, self-contained way
-fcitx5_theme_sync="dotfiles/.local/bin/fcitx5-theme-sync"
+fcitx5_theme_sync="dotfiles/.local/bin/arch-theme-sync-fcitx5"
+if [[ ! -x "$fcitx5_theme_sync" ]]; then
+    fcitx5_theme_sync="dotfiles/.local/bin/fcitx5-theme-sync"
+fi
 if [[ -x "$fcitx5_theme_sync" ]]; then
     printf 'post-dotfiles: syncing fcitx5 theme...\n'
     "$fcitx5_theme_sync"

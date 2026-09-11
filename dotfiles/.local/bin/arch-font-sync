@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# arch:summary=Download and update pixel fonts from GitHub releases
+# arch:examples=arch font sync
 # Install or update pixel fonts from GitHub releases
 set -euo pipefail
 

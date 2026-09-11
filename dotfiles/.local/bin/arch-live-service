@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
+# arch:summary=Background streaming pipeline daemon for screen capture and SRT encoding
 """Session D-Bus service and client for multi-platform RTMP/SRT streaming.
 
 One gpu-screen-recorder encode is fanned out to N targets (Bilibili 16:9 + Phone 9:16)
@@ -39,17 +40,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def translate(key, fallback="", **values):
-    bin_dir = Path(__file__).resolve().parent
-    i18n_core = bin_dir / "i18n-core"
-    command = [
-        "bash",
-        "-c",
-        f'source "{i18n_core}" 2>/dev/null || exit 1; msg "$@"',
-        "livestream-i18n",
-        key,
-    ]
+    command = ["arch-i18n", "get", key]
     for name, value in values.items():
-        command.extend([name, str(value)])
+        command.append(f"{name}={value}")
 
     try:
         result = subprocess.run(
