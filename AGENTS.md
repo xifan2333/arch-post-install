@@ -119,9 +119,12 @@ This system follows the principles documented in `.agents/skills/arch-dev/refere
 3. **Suckless Frugality**:
    - Favor minimal C / Zig / POSIX Shell components over bloated GUI wrappers or multi-megabyte daemon frameworks.
    - Mechanism over policy: The window manager and shell should remain strictly within the user's cognitive control.
-4. **Pure Script First-Class Citizens (Shell-First)**:
-   - **First Priority: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: All system glue, hardware controls, and state collectors must be written in pure shell.
-   - **Second Priority: Pure Python 3 (Standard Library Only)**: For complex structured data or long-running daemons. Never introduce pip dependencies.
+4. **Pure Script First-Class Citizens (Language Priority: `sh` > `perl` > `py`)**:
+   - **Priority 1: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: All system glue, hardware controls, state collectors, and CLI dispatchers must be written in pure shell. 100% native, instant startup (< 1ms), and zero cache files.
+   - **Priority 2: Pure Perl (`perl`)**: For complex text transformations, in-memory regex mappings, or multi-dimensional template rendering where shell/awk becomes convoluted. 100% native, runs purely in memory, and never produces disk bytecode cache.
+   - **Priority 3: Pure Python 3 (`python3`)**: Reserved for complex structured data or long-running daemons. **Strict constraints**:
+     * Standard library only (zero `pip` dependencies).
+     * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
 5. **Universal CLI Convention (`arch-<domain>-<action>`)**:
    - All scripts in `dotfiles/.local/bin/` follow `arch-<domain>-<action>` and are accessible via the root dispatcher `arch <domain> <action>`. Every script includes `# arch:summary=...` metadata.
 

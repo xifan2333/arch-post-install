@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
 # arch:summary=Background streaming pipeline daemon for screen capture and SRT encoding
 """Session D-Bus service and client for multi-platform RTMP/SRT streaming.
 
