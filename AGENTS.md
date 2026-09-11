@@ -119,6 +119,11 @@ This system follows the principles documented in `.agents/skills/arch-dev/refere
 3. **Suckless Frugality**:
    - Favor minimal C / Zig / POSIX Shell components over bloated GUI wrappers or multi-megabyte daemon frameworks.
    - Mechanism over policy: The window manager and shell should remain strictly within the user's cognitive control.
+4. **Pure Script First-Class Citizens (Shell-First)**:
+   - **First Priority: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: All system glue, hardware controls, and state collectors must be written in pure shell.
+   - **Second Priority: Pure Python 3 (Standard Library Only)**: For complex structured data or long-running daemons. Never introduce pip dependencies.
+5. **Universal CLI Convention (`arch-<domain>-<action>`)**:
+   - All scripts in `dotfiles/.local/bin/` follow `arch-<domain>-<action>` and are accessible via the root dispatcher `arch <domain> <action>`. Every script includes `# arch:summary=...` metadata.
 
 ---
 
