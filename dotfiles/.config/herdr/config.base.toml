@@ -109,6 +109,3 @@ kitty_graphics = true
 
 [advanced]
 scrollback_limit_bytes = 10000000
-
-[theme]
-name = "terminal"
