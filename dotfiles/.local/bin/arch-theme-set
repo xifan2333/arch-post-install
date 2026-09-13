@@ -64,11 +64,11 @@ broadcast_reloads() {
 	fi
 
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-		local cfg
-		cfg="$(get_config_dir)"
-		local river_theme="$cfg/river/theme.sh"
-		if [[ -x "$river_theme" ]]; then
-			"$river_theme" >/dev/null 2>&1 || true
+		local state_dir
+		state_dir="$(get_state_dir)"
+		local xrwm_theme="$state_dir/theme/xrwm.sh"
+		if [[ -x "$xrwm_theme" ]]; then
+			"$xrwm_theme" >/dev/null 2>&1 || true
 		fi
 	fi
 }
