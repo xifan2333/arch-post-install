@@ -58,7 +58,7 @@ broadcast_reloads() {
 	pkill -SIGUSR1 fnott 2>/dev/null || true
 
 	# Gracefully reload Fcitx5 via native DBus Controller interface or fcitx5-remote
-	if command -v fcitx5-remote >/dev/null 2>&1 && fcitx5-remote --check >/dev/null 2>&1; then
+	if pgrep -x fcitx5 >/dev/null 2>&1; then
 		busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Restart 2>/dev/null || fcitx5-remote -r 2>/dev/null || true
 	elif systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
 		systemctl --user restart fcitx5.service 2>/dev/null || true
