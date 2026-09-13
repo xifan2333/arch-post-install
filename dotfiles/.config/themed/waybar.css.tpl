@@ -1,4 +1,3 @@
-/* TARGET: ~/.config/waybar/theme.css */
 @define-color bg {{ background }};
 @define-color bg_dark {{ dark_background }};
 @define-color bg_light {{ lighter_background }};

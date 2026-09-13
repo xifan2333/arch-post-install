@@ -1,4 +1,3 @@
-# TARGET: ~/.config/fuzzel/theme.ini
 [colors]
 background={{ background_strip }}f2
 text={{ foreground_strip }}ff

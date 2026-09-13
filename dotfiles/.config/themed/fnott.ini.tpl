@@ -1,4 +1,3 @@
-# TARGET: ~/.config/fnott/theme.ini
 [main]
 background={{ background_strip }}f0
 border-color={{ accent_strip }}ff

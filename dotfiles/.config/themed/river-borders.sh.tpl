@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# TARGET: ~/.config/river/theme.sh
 # Update River border colors and theme variables dynamically
 set -euo pipefail
 
