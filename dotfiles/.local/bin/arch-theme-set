@@ -57,16 +57,10 @@ broadcast_reloads() {
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	pkill -SIGUSR1 fnott 2>/dev/null || true
 
-	local fcitx_sync
-	fcitx_sync="$(command -v arch-theme-sync-fcitx5 || command -v fcitx5-theme-sync || true)"
-	if [[ -n "$fcitx_sync" ]]; then
-		"$fcitx_sync" >/dev/null 2>&1 || true
-	fi
-
-	local herdr_sync
-	herdr_sync="$(command -v arch-theme-sync-herdr || command -v theme-sync-herdr || true)"
-	if [[ -n "$herdr_sync" ]]; then
-		"$herdr_sync" >/dev/null 2>&1 || true
+	if systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
+		systemctl --user restart fcitx5.service 2>/dev/null || true
+	elif pgrep -x fcitx5 >/dev/null 2>&1; then
+		pkill -x fcitx5 2>/dev/null && nohup /usr/bin/fcitx5 >/dev/null 2>&1 &
 	fi
 
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
