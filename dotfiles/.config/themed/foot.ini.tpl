@@ -1,4 +1,3 @@
-# TARGET: ~/.config/foot/theme.ini
 [colors]
 background={{ background_strip }}
 foreground={{ foreground_strip }}

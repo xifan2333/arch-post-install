@@ -57,24 +57,18 @@ broadcast_reloads() {
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	pkill -SIGUSR1 fnott 2>/dev/null || true
 
-	local fcitx_sync
-	fcitx_sync="$(command -v arch-theme-sync-fcitx5 || command -v fcitx5-theme-sync || true)"
-	if [[ -n "$fcitx_sync" ]]; then
-		"$fcitx_sync" >/dev/null 2>&1 || true
-	fi
-
-	local herdr_sync
-	herdr_sync="$(command -v arch-theme-sync-herdr || command -v theme-sync-herdr || true)"
-	if [[ -n "$herdr_sync" ]]; then
-		"$herdr_sync" >/dev/null 2>&1 || true
+	if systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
+		systemctl --user restart fcitx5.service 2>/dev/null || true
+	elif pgrep -x fcitx5 >/dev/null 2>&1; then
+		pkill -x fcitx5 2>/dev/null && nohup /usr/bin/fcitx5 >/dev/null 2>&1 &
 	fi
 
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-		local cfg
-		cfg="$(get_config_dir)"
-		local river_theme="$cfg/river/theme.sh"
-		if [[ -x "$river_theme" ]]; then
-			"$river_theme" >/dev/null 2>&1 || true
+		local state_dir
+		state_dir="$(get_state_dir)"
+		local xrwm_theme="$state_dir/theme/xrwm.sh"
+		if [[ -x "$xrwm_theme" ]]; then
+			"$xrwm_theme" >/dev/null 2>&1 || true
 		fi
 	fi
 }
@@ -146,18 +140,6 @@ render_template() {
 	mv -f "$tmp" "$target_file"
 }
 
-extract_target() {
-	local file="$1"
-	local line
-	line=$(head -n 5 "$file" | grep -E '^(#|//|/\*|--)[[:space:]]*TARGET:[[:space:]]*' | head -1 || true)
-	if [[ -n "$line" ]]; then
-		local raw
-		raw=$(echo "$line" | sed -E 's/^(#|\/\/|\/\*|--)[[:space:]]*TARGET:[[:space:]]*//; s/[[:space:]]*\*\/$//')
-		raw="${raw/#\~/$HOME}"
-		printf '%s' "$raw"
-	fi
-}
-
 apply_theme() {
 	local theme_name="$1"
 	local cfg
@@ -172,26 +154,26 @@ apply_theme() {
 		return 1
 	fi
 
+	local theme_state="$state_dir/theme"
+	mkdir -p "$theme_state"
+
 	local themed_dir="$cfg/themed"
 	local rendered_count=0
 	if [[ -d "$themed_dir" ]]; then
 		for tpl in "$themed_dir"/*.tpl; do
 			[[ -f "$tpl" ]] || continue
-			local target
-			target="$(extract_target "$tpl")"
-			if [[ -n "$target" ]]; then
-				local is_exec=0
-				if [[ "$tpl" == *.sh.tpl || "$target" == *.sh ]]; then
-					is_exec=1
-				fi
-				render_template "$colors_file" "$tpl" "$target" "$is_exec"
-				rendered_count=$((rendered_count + 1))
+			local filename="${tpl##*/}"
+			local target_name="${filename%.tpl}"
+			local target="$theme_state/$target_name"
+			local is_exec=0
+			if [[ "$target_name" == *.sh ]]; then
+				is_exec=1
 			fi
+			render_template "$colors_file" "$tpl" "$target" "$is_exec"
+			rendered_count=$((rendered_count + 1))
 		done
 	fi
 
-	local theme_state="$state_dir/theme"
-	mkdir -p "$theme_state"
 	cp -f "$colors_file" "$theme_state/colors.toml"
 	printf '%s\n' "$theme_name" >"$theme_state/current.name"
 
