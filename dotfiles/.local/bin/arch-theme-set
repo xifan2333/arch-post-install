@@ -69,6 +69,15 @@ broadcast_reloads() {
 		herdr server reload-config >/dev/null 2>&1 || true
 	fi
 
+	# Reload running Neovim instances over active Unix domain sockets
+	local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+	if [[ -d "$runtime_dir" ]]; then
+		while IFS= read -r sock; do
+			[[ -S "$sock" ]] || continue
+			nvim --server "$sock" --remote-send "<Cmd>doautocmd User LazyReload<CR>" >/dev/null 2>&1 || true
+		done < <(find "$runtime_dir" -type s -name "*nvim*.sock" 2>/dev/null)
+	fi
+
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
 		local state_dir
 		state_dir="$(get_state_dir)"
@@ -96,6 +105,20 @@ ensure_fcitx5_theme() {
 			ln -sf "/usr/share/fcitx5/themes/default/$svg" "$fcitx_dir/$svg"
 		fi
 	done
+}
+
+ensure_neovim_theme() {
+	local state_theme="$1"
+	[[ -f "$state_theme" ]] || return 0
+
+	local nvim_plugins_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lua/plugins"
+	mkdir -p "$nvim_plugins_dir"
+
+	local target_conf="$nvim_plugins_dir/theme.lua"
+	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_theme" ]]; then
+		ln -sf "$state_theme" "$target_conf"
+	fi
+	touch -c "$target_conf" 2>/dev/null || true
 }
 
 blend_color() {
@@ -236,6 +259,14 @@ render_template() {
         next
     }
 
+    FNR == 1 {
+        if (!("orange" in colors) && ("yellow" in colors)) colors["orange"] = colors["yellow"]
+        if (!("brown" in colors) && ("muted" in colors)) colors["brown"] = colors["muted"]
+        if (!("darker_background" in colors) && ("dark_background" in colors)) colors["darker_background"] = colors["dark_background"]
+        if (!("selection_foreground" in colors) && ("bright_foreground" in colors)) colors["selection_foreground"] = colors["bright_foreground"]
+        if (!("selection_background" in colors) && ("selection" in colors)) colors["selection_background"] = colors["selection"]
+    }
+
     {
         line = $0
         for (k in colors) {
@@ -306,6 +337,7 @@ apply_theme() {
 	ln -s "$theme_path" "$current_symlink" 2>/dev/null || true
 
 	ensure_fcitx5_theme "$theme_state/fcitx5-theme.conf"
+	ensure_neovim_theme "$theme_state/neovim.lua"
 	assemble_herdr_theme "$colors_file" "$theme_state"
 	broadcast_reloads
 
