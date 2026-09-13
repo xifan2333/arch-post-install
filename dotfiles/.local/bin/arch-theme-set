@@ -57,10 +57,11 @@ broadcast_reloads() {
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	pkill -SIGUSR1 fnott 2>/dev/null || true
 
-	if systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
+	# Gracefully reload Fcitx5 via native DBus Controller interface or fcitx5-remote
+	if command -v fcitx5-remote >/dev/null 2>&1 && fcitx5-remote --check >/dev/null 2>&1; then
+		busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Restart 2>/dev/null || fcitx5-remote -r 2>/dev/null || true
+	elif systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
 		systemctl --user restart fcitx5.service 2>/dev/null || true
-	elif pgrep -x fcitx5 >/dev/null 2>&1; then
-		pkill -x fcitx5 2>/dev/null && nohup /usr/bin/fcitx5 >/dev/null 2>&1 &
 	fi
 
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
@@ -71,6 +72,25 @@ broadcast_reloads() {
 			"$xrwm_theme" >/dev/null 2>&1 || true
 		fi
 	fi
+}
+
+ensure_fcitx5_theme() {
+	local state_theme="$1"
+	[[ -f "$state_theme" ]] || return 0
+
+	local fcitx_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/themes/custom"
+	mkdir -p "$fcitx_dir"
+
+	local target_conf="$fcitx_dir/theme.conf"
+	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_theme" ]]; then
+		ln -sf "$state_theme" "$target_conf"
+	fi
+
+	for svg in arrow.svg next.svg prev.svg radio.svg; do
+		if [[ -f "/usr/share/fcitx5/themes/default/$svg" && ! -e "$fcitx_dir/$svg" ]]; then
+			ln -sf "/usr/share/fcitx5/themes/default/$svg" "$fcitx_dir/$svg"
+		fi
+	done
 }
 
 render_template() {
@@ -181,6 +201,7 @@ apply_theme() {
 	rm -f "$current_symlink"
 	ln -s "$theme_path" "$current_symlink" 2>/dev/null || true
 
+	ensure_fcitx5_theme "$theme_state/fcitx5-theme.conf"
 	broadcast_reloads
 
 	printf '✓ Applied theme "%s" (%d template(s) rendered)\n' "$theme_name" "$rendered_count"
