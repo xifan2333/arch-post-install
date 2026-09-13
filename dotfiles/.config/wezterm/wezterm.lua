@@ -1,16 +1,15 @@
--- WezTerm host terminal for Omarchy.
--- Theme: ~/.local/state/omarchy/current/theme/wezterm.lua  (omarchy themed/*.tpl)
--- Font:  ~/.config/wezterm/font.lua                 (omarchy font-set hook)
+-- WezTerm host terminal configuration
+-- Theme: ~/.local/state/theme/wezterm.lua
 
 local wezterm = require("wezterm")
 local config = wezterm.config_builder and wezterm.config_builder() or {}
 local act = wezterm.action
 
 local home = wezterm.home_dir
-local theme_path = home .. "/.local/state/omarchy/current/theme/wezterm.lua"
+local theme_path = home .. "/.local/state/theme/wezterm.lua"
 local font_path = home .. "/.config/wezterm/font.lua"
 
--- Reload when Omarchy rewrites theme/font overlays without touching this file.
+-- Reload when theme or font overlays update without touching this file.
 wezterm.add_to_config_reload_watch_list(theme_path)
 wezterm.add_to_config_reload_watch_list(font_path)
 
