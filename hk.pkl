@@ -79,12 +79,7 @@ hooks {
   }
   ["commit-msg"] {
     steps {
-      ["commitlint"] {
-        check = new CommandSpec {
-          command = "commitlint --edit {{commit_msg_file}}"
-          effect = "read"
-        }
-      }
+      ["conventional-commit"] = Builtins.check_conventional_commit
     }
   }
   ["check"] {
