@@ -47,4 +47,5 @@ application/ogg=mpv.desktop
 x-scheme-handler/mailto=HEY.desktop
 x-scheme-handler/karing=karing.desktop
 x-scheme-handler/zcode=zcode.desktop
+x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 
