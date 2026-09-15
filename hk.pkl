@@ -71,6 +71,38 @@ local lint_steps = new Mapping<String, Step> {
   }
 }
 
+local conventional_types = "build,chore,docs,feat,fix,perf,refactor,revert,style,test"
+
+local commit_msg_steps = new Mapping<String, Step> {
+  ["conventional-commit"] = (Builtins.check_conventional_commit) {
+    check = new CommandSpec {
+      command = "hk util check-conventional-commit --allowed-types \(conventional_types) {{commit_msg_file}}"
+      effect = "read"
+    }
+  }
+
+  ["commit-header-length"] {
+    check = new CommandSpec {
+      command = #"
+        set -euo pipefail
+
+        header=$(head -n 1 "{{commit_msg_file}}")
+
+        # `git rebase --autosquash` temporary commits skip validation.
+        case "$header" in
+          "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+        esac
+
+        if [ "$(printf '%s' "$header" | wc -m)" -gt 100 ]; then
+          printf 'commit header exceeds 100 characters: %s\n' "$header" >&2
+          exit 1
+        fi
+      "#
+      effect = "read"
+    }
+  }
+}
+
 hooks {
   ["pre-commit"] {
     fix = true
@@ -78,9 +110,7 @@ hooks {
     steps = lint_steps
   }
   ["commit-msg"] {
-    steps {
-      ["conventional-commit"] = Builtins.check_conventional_commit
-    }
+    steps = commit_msg_steps
   }
   ["check"] {
     fix = false

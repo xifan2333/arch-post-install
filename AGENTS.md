@@ -92,6 +92,7 @@ This repository uses **hk** (`hk.pkl`) for git hooks and code quality checks.
 - **Scoped Checks**: Inspect and scope checks to modified files. Use `mise run check:plan` to preview, and `mise run check:changed` to run checks on changed/untracked files.
 - **Auto-Fixing**: Use `mise run fix` (or `hk fix`) to automatically format and fix style violations.
 - **Pre-commit Automation**: `pre-commit` runs in parallel on staged files only and auto-formats / fixes failing files before re-staging them.
+- **Commit Message Automation**: `commit-msg` validates Conventional Commits via `hk util check-conventional-commit` (allowed types: `build`, `chore`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`) and caps the header at 100 characters. `fixup!` / `squash!` / `amend!` temporary commits are exempt.
 - **Avoid Micro Full-Sweeps**: Do not run full-repo lint (`mise run lint`) on every small file change; rely on scoped `mise run check:changed`. Full sweeps are for batch audits.
 - **Review Diff**: Always review the git diff produced by any auto-fix step before committing.
 
@@ -103,6 +104,7 @@ Supported formatters and linters:
 - **JSON / YAML**: `prettier`
 - **JavaScript**: `oxlint`
 - **Zsh**: `zsh -n` (syntax check), `shfmt` (format)
+- **Commit Messages**: `hk util check-conventional-commit` plus a 100-character header cap
 
 ---
 

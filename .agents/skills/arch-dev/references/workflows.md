@@ -34,9 +34,12 @@ Every step declares its `effect` (`"read"` or `"write"`) so agent runs can
 use `--safe`. Builtins include effect declarations; custom steps use
 `CommandSpec`.
 
-`commit-msg` runs Commitlint (Conventional Commits). The same linters are also
-available as `hk check` (read-only) and `hk fix` (auto-fix) on modified files;
-add `--all` for whole-repo sweeps.
+`commit-msg` runs `Builtins.check_conventional_commit` (hk's native checker, no
+Node/Commitlint dependency) restricted to the repo's allowed types, plus a
+100-character commit header cap. `fixup!` / `squash!` / `amend!` temporary
+commits are exempt from both. The same linters are also available as
+`hk check` (read-only) and `hk fix` (auto-fix) on modified files; add `--all`
+for whole-repo sweeps.
 
 ### Issue + PR Driven Development Workflow (SOP)
 
@@ -64,8 +67,10 @@ Use whole-repo tasks only when doing batch repository audits or cleanups:
 
 ### Commit conventions
 
-- Conventional Commits only: `feat:`, `fix:`, `refactor:`, `chore:`,
-  `docs:`, `style:`.
+- Conventional Commits only, validated by the `commit-msg` hook: `build`,
+  `chore`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`,
+  `test`. `ci` is intentionally not allowed.
+- Commit headers are capped at 100 characters.
 - Keep commits focused. Write any user-facing text with NerdFont, ASCII, or SVG
   (this repo surfaces text to terminals, panels, and notifications).
 
