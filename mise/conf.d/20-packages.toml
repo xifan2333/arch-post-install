@@ -3,35 +3,92 @@
 "pacman:android-tools" = "latest"
 "pacman:android-udev" = "latest"
 "pacman:git" = "latest"
+"pacman:git-delta" = "latest"
+"pacman:lazygit" = "latest"
+"pacman:neovim" = "latest"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
 
+# Compositor & Wayland Desktop Core
+"pacman:river" = "latest"
+"pacman:uwsm" = "latest"
+"pacman:swaybg" = "latest"
+"pacman:hyprlock" = "latest"
+"pacman:swayidle" = "latest"
+"pacman:xdg-desktop-portal" = "latest"
+"pacman:xdg-desktop-portal-gtk" = "latest"
+"pacman:xdg-desktop-portal-wlr" = "latest"
+"pacman:grim" = "latest"
+"pacman:slurp" = "latest"
+"pacman:wl-clipboard" = "latest"
+"pacman:wlr-randr" = "latest"
+"pacman:brightnessctl" = "latest"
+
+# Terminal, Shell & Multiplexer
+"pacman:wezterm-git" = "latest"
+"aur:herdr-bin" = "latest"
+"aur:herdr-corral-bin" = "latest"
+"pacman:zsh" = "latest"
+"pacman:starship" = "latest"
+"pacman:ripgrep" = "latest"
+"pacman:fd" = "latest"
+"pacman:fzf" = "latest"
+"pacman:jq" = "latest"
+"pacman:bat" = "latest"
+"pacman:eza" = "latest"
+
+# Interactive UI & Notifications
+"pacman:fuzzel" = "latest"
+"pacman:waybar" = "latest"
+"pacman:mako" = "latest"
+
 # IME (Fcitx5 + Rime Xiaohe Double Pinyin)
+"pacman:fcitx5" = "latest"
 "pacman:fcitx5-configtool" = "latest"
+"pacman:fcitx5-gtk" = "latest"
+"pacman:fcitx5-qt" = "latest"
 "pacman:fcitx5-rime" = "latest"
 "pacman:rime-wanxiang-flypy" = "latest"
 "aur:fcitx5-vinput-bin" = "latest"
 
-# Fonts
-"pacman:ttf-sarasa-gothic" = "latest"
-"aur:ttf-wps-fonts" = "latest"
-"aur:wps-office-365-edu-fonts" = "latest"
-
-# Terminal
-# Official extra/wezterm fails to map windows on recent Wayland;
-# archlinuxcn ships a current enough build. Conflicts with pacman:wezterm.
-"pacman:wezterm-git" = "latest"
+# Network, Hardware & Biometrics
+"pacman:networkmanager" = "latest"
+"pacman:qrencode" = "latest"
+"pacman:fprintd" = "latest"
+"aur:howdy" = "latest"
+"pacman:bluez" = "latest"
+"pacman:bluez-utils" = "latest"
+"pacman:thermald" = "latest"
+"pacman:power-profiles-daemon" = "latest"
 
 # Audio & Voice
-# Provides /usr/lib/ladspa/librnnoise_ladspa.so for PipeWire noise-canceling
+"pacman:pipewire" = "latest"
+"pacman:pipewire-pulse" = "latest"
+"pacman:wireplumber" = "latest"
 "pacman:noise-suppression-for-voice" = "latest"
 "aur:flac1.3" = "latest"
 
-# Applications (AUR)
+# Media & File Utilities
+"pacman:imv" = "latest"
+"pacman:mpv" = "latest"
+"pacman:mpv-mpris" = "latest"
+"pacman:yazi" = "latest"
+
+# Daily Applications (GUI & AUR)
+"pacman:chromium" = "latest"
+"pacman:localsend" = "latest"
+"pacman:obsidian" = "latest"
 "aur:dmnotifier-bin" = "latest"
-"aur:herdr-corral-bin" = "latest"
 "aur:karing-bin" = "latest"
 "aur:linuxqq-appimage" = "latest"
 "aur:unibarrage-bin" = "latest"
 "aur:wechat-appimage" = "latest"
 "aur:wps-office-365-edu" = "latest"
+
+# Fonts
+"pacman:noto-fonts-cjk" = "latest"
+"pacman:ttf-sarasa-gothic" = "latest"
+"pacman:ttf-jetbrains-mono-nerd" = "latest"
+"pacman:woff2-font-awesome" = "latest"
+"aur:ttf-wps-fonts" = "latest"
+"aur:wps-office-365-edu-fonts" = "latest"
