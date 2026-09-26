@@ -3,9 +3,6 @@
 "pacman:android-tools" = "latest"
 "pacman:android-udev" = "latest"
 "pacman:git" = "latest"
-"pacman:git-delta" = "latest"
-"pacman:lazygit" = "latest"
-"pacman:neovim" = "latest"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
 
@@ -24,18 +21,11 @@
 "pacman:wlr-randr" = "latest"
 "pacman:brightnessctl" = "latest"
 
-# Terminal, Shell & Multiplexer
+# Terminal & Shell Fallback
+# Note: CLI productivity tools (ripgrep, fd, fzf, jq, bat, eza, yazi, starship,
+# neovim, lazygit, delta, btop, fastfetch, zoxide, herdr) are managed via mise.
 "pacman:wezterm-git" = "latest"
-"aur:herdr-bin" = "latest"
-"aur:herdr-corral-bin" = "latest"
 "pacman:zsh" = "latest"
-"pacman:starship" = "latest"
-"pacman:ripgrep" = "latest"
-"pacman:fd" = "latest"
-"pacman:fzf" = "latest"
-"pacman:jq" = "latest"
-"pacman:bat" = "latest"
-"pacman:eza" = "latest"
 
 # Interactive UI & Notifications
 "pacman:fuzzel" = "latest"
@@ -68,16 +58,16 @@
 "pacman:noise-suppression-for-voice" = "latest"
 "aur:flac1.3" = "latest"
 
-# Media & File Utilities
+# Media Viewers
 "pacman:imv" = "latest"
 "pacman:mpv" = "latest"
 "pacman:mpv-mpris" = "latest"
-"pacman:yazi" = "latest"
 
 # Daily Applications (GUI & AUR)
 "pacman:chromium" = "latest"
 "pacman:localsend" = "latest"
 "pacman:obsidian" = "latest"
+"aur:herdr-corral-bin" = "latest"
 "aur:dmnotifier-bin" = "latest"
 "aur:karing-bin" = "latest"
 "aur:linuxqq-appimage" = "latest"
