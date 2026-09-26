@@ -11,6 +11,10 @@ run = "mise/hooks/post-dotfiles.sh"
 login_shell = "/usr/bin/zsh"
 
 # Declarative Linux systemd system services
+[bootstrap.services.NetworkManager]
+state = "running"
+enabled = true
+
 [bootstrap.services.bluetooth]
 state = "running"
 enabled = true
@@ -18,6 +22,26 @@ enabled = true
 [bootstrap.services.systemd-timesyncd]
 state = "running"
 enabled = true
+
+[bootstrap.services.thermald]
+state = "running"
+enabled = true
+
+[bootstrap.services.power-profiles-daemon]
+state = "running"
+enabled = true
+
+# Disable Wi-Fi power saving in NetworkManager to eliminate latency spikes
+[bootstrap.directories."/etc/NetworkManager/conf.d"]
+owner = "root"
+group = "root"
+mode = "0755"
+
+[bootstrap.files."/etc/NetworkManager/conf.d/wifi-powersave.conf"]
+source = "../NetworkManager/conf.d/wifi-powersave.conf"
+owner = "root"
+group = "root"
+mode = "0644"
 
 # Rebuild and reload Rime deployment when rime-wanxiang packages are updated.
 [bootstrap.directories."/etc/pacman.d/hooks"]
