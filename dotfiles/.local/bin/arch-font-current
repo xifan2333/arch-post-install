@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# arch:summary=Show current system monospace font from fontconfig
+# arch:examples=arch font current
+set -euo pipefail
+
+# fontconfig is the single source of truth for the active font mapping.
+# fc-match returns the primary matched family name for the monospace alias.
+fc-match monospace -f '%{family}\n' 2>/dev/null | head -n1 | cut -d, -f1

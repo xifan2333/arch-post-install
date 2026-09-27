@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# arch:summary=List available programming monospace fonts
+# arch:examples=arch font list | arch font set "Sarasa Mono SC"
+set -euo pipefail
+
+get_current_font() {
+	if command -v arch-font-current >/dev/null 2>&1; then
+		arch-font-current
+	else
+		fc-match monospace -f '%{family}\n' 2>/dev/null | head -n1 | cut -d, -f1
+	fi
+}
+
+curr="$(get_current_font || echo "")"
+
+# Filter monospace families, prioritizing quality programming fonts
+fonts=$(fc-list : family 2>/dev/null |
+	tr ',' '\n' |
+	grep -E "^(Sarasa Mono SC|JetBrainsMono Nerd Font|Maple Mono|Noto Sans Mono CJK SC|Fira Code|Hack|Iosevka)" |
+	sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+	grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic|NL)" |
+	sort -u || true)
+
+if [[ -z "$fonts" ]]; then
+	fonts="Sarasa Mono SC
+JetBrainsMono Nerd Font
+Noto Sans Mono CJK SC"
+fi
+
+while IFS= read -r f; do
+	[[ -z "$f" ]] && continue
+	prefix="  "
+	[[ "$f" == "$curr" ]] && prefix="* "
+	printf '%s%s\n' "$prefix" "$f"
+done <<<"$fonts"
