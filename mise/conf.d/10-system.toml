@@ -31,6 +31,23 @@ enabled = true
 state = "running"
 enabled = true
 
+# Retire SDDM display manager in favor of direct tty1 autologin to River
+[bootstrap.services.sddm]
+state = "stopped"
+enabled = false
+
+# Autologin on tty1 for direct graphical session bootstrap
+[bootstrap.directories."/etc/systemd/system/getty@tty1.service.d"]
+owner = "root"
+group = "root"
+mode = "0755"
+
+[bootstrap.files."/etc/systemd/system/getty@tty1.service.d/autologin.conf"]
+source = "../systemd/system/getty@tty1.service.d/autologin.conf"
+owner = "root"
+group = "root"
+mode = "0644"
+
 # Disable Wi-Fi power saving in NetworkManager to eliminate latency spikes
 [bootstrap.directories."/etc/NetworkManager/conf.d"]
 owner = "root"
