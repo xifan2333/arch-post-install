@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ftty
+Comment=Ultra-lightweight minimalist Wayland terminal emulator with native Kitty graphics protocol
+Exec=ftty %F
+Icon=utilities-terminal
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupWMClass=ftty

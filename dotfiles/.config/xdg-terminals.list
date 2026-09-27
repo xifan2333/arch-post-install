@@ -1,5 +1,3 @@
 # Terminal emulator preference order for xdg-terminal-exec
 # The first found and valid terminal will be used
-# Keep Omarchy's stock default (Alacritty) so screensaver / menus / TUIs stay upstream-compatible.
-# Personal daily driver is WezTerm via Hyprland SUPER+Return binding, not this list.
-Alacritty.desktop
+ftty.desktop

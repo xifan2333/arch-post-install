@@ -34,12 +34,12 @@ herdr_client_up() {
 
 launch_herdr() {
 	local cwd="${HOME:-/}"
-	if command -v uwsm-app >/dev/null 2>&1 && command -v wezterm >/dev/null 2>&1; then
-		log_null setsid uwsm-app -- wezterm start --cwd "$cwd" -- herdr &
+	if command -v uwsm-app >/dev/null 2>&1 && command -v ftty >/dev/null 2>&1; then
+		log_null setsid uwsm-app -- ftty -d "$cwd" -e herdr &
 		return 0
 	fi
-	if command -v wezterm >/dev/null 2>&1; then
-		log_null setsid wezterm start --cwd "$cwd" -- herdr &
+	if command -v ftty >/dev/null 2>&1; then
+		log_null setsid ftty -d "$cwd" -e herdr &
 		return 0
 	fi
 	# Last resort: headless-ish server+client in background.
