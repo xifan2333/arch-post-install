@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# arch:summary=Interactive Wi-Fi connection menu driven by Fuzzel (native iwctl/iwd)
+# arch:summary=Interactive Wi-Fi connection menu driven by Fuzzel and iwctl
 set -euo pipefail
+
+if ! command -v iwctl >/dev/null 2>&1; then
+	printf 'Error: iwctl not found. Please install iwd\n' >&2
+	exit 1
+fi
 
 if ! command -v fuzzel >/dev/null 2>&1; then
 	printf 'Error: fuzzel not found\n' >&2
@@ -13,265 +18,126 @@ notify() {
 	fi
 }
 
-# ---------------------------------------------------------------------------
-# Backend 1: Native iwctl / iwd engine (Primary Suckless stack)
-# ---------------------------------------------------------------------------
-run_iwctl_menu() {
-	# Find first active wireless station device
-	local dev
-	dev=$(iwctl device list 2>/dev/null | awk '/station/ { print $2; exit }' || true)
-	if [[ -z "$dev" ]]; then
-		dev=$(iwctl device list 2>/dev/null | awk 'NR>4 && NF>1 { print $2; exit }' || true)
-	fi
+# Find active wireless station device
+dev=$(iwctl device list 2>/dev/null | awk '/station/ { print $2; exit }' || true)
+if [[ -z "$dev" ]]; then
+	dev=$(iwctl device list 2>/dev/null | awk 'NR>4 && NF>1 { print $2; exit }' || true)
+fi
 
-	if [[ -z "$dev" ]]; then
-		notify -u critical "Wi-Fi" "No wireless device detected by iwd"
-		exit 1
-	fi
+if [[ -z "$dev" ]]; then
+	notify -u critical "Wi-Fi" "No wireless device detected by iwd"
+	exit 1
+fi
 
-	# Trigger non-blocking scan
-	iwctl station "$dev" scan 2>/dev/null || true
+# Trigger non-blocking scan
+iwctl station "$dev" scan 2>/dev/null || true
 
-	# Check current connection status
-	local dev_state connected_ssid
-	dev_state=$(iwctl station "$dev" show 2>/dev/null || true)
-	connected_ssid=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$dev_state" | xargs || true)
+# Query station state
+dev_state=$(iwctl station "$dev" show 2>/dev/null || true)
+connected_ssid=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$dev_state" | xargs || true)
 
-	local actions=()
-	if [[ -n "$connected_ssid" ]]; then
-		actions+=("󰖪  Disconnect: $connected_ssid")
-	fi
-	actions+=("󰑐  Rescan Wi-Fi Networks")
-	actions+=("󰍹  Launch Interactive IWCTL")
+actions=()
+if [[ -n "$connected_ssid" ]]; then
+	actions+=("󰖪  Disconnect: $connected_ssid")
+fi
+actions+=("󰑐  Rescan Wi-Fi Networks")
+actions+=("󰍹  Launch Interactive IWCTL")
 
-	# Fetch networks from iwd
-	local network_lines=()
-	while IFS= read -r line; do
-		[[ "$line" =~ ^[-[:space:]]+$ || "$line" =~ Network\ name ]] && continue
-		local is_active=false
-		[[ "$line" =~ \>[[:space:]]*([^[:space:]]+) ]] && is_active=true
+# Parse networks from iwctl
+network_lines=()
+while IFS= read -r line; do
+	[[ "$line" =~ ^[-[:space:]]+$ || "$line" =~ Network\ name ]] && continue
+	is_active=false
+	[[ "$line" =~ \>[[:space:]]*([^[:space:]]+) ]] && is_active=true
 
-		# Strip ANSI escape codes
-		local clean_line parts=()
-		clean_line=$(sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g" <<<"$line")
-		read -r -a parts <<<"$clean_line"
-		[[ ${#parts[@]} -lt 2 ]] && continue
+	clean_line=$(sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g" <<<"$line")
+	parts=()
+	read -r -a parts <<<"$clean_line"
+	[[ ${#parts[@]} -lt 2 ]] && continue
 
-		local ssid sec sig star lock
-		if $is_active; then
-			ssid="${parts[1]}"
-			sig="${parts[-1]}"
-			sec="${parts[2]:-}"
-			star="●"
-		else
-			ssid="${parts[0]}"
-			sig="${parts[-1]}"
-			sec="${parts[1]:-}"
-			star=" "
-		fi
-
-		lock="  "
-		[[ "$sec" =~ (psk|8021x) ]] && lock="󰌾"
-		network_lines+=("$(printf '%s %s %-24s [%s]' "$star" "$lock" "$ssid" "$sig")")
-	done < <(iwctl station "$dev" get-networks 2>/dev/null || true)
-
-	local menu_input
-	menu_input=$(
-		for a in "${actions[@]}"; do printf '%s\n' "$a"; done
-		for n in "${network_lines[@]}"; do printf '%s\n' "$n"; done
-	)
-
-	local chosen
-	chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "Wi-Fi ($dev) > " --lines 15 --width 45 || true)
-	[[ -z "$chosen" ]] && exit 0
-
-	case "$chosen" in
-	*"Disconnect:"*)
-		iwctl station "$dev" disconnect
-		notify "Wi-Fi" "Disconnected from $connected_ssid"
-		exit 0
-		;;
-	*"Rescan"*)
-		iwctl station "$dev" scan
-		notify "Wi-Fi" "Scanning Wi-Fi..."
-		sleep 1
-		exec "$0"
-		;;
-	*"Launch Interactive IWCTL"*)
-		if command -v ftty >/dev/null 2>&1; then
-			exec ftty -e iwctl
-		else
-			exec xdg-terminal-exec iwctl
-		fi
-		;;
-	esac
-
-	# Parse target SSID
-	local target_ssid
-	target_ssid=$(printf '%s' "$chosen" | sed -E 's/^[● ] (󰌾|  ) //; s/ +\[[^]]+\]$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-	[[ -z "$target_ssid" ]] && exit 0
-
-	local is_known=false
-	if iwctl known-networks list 2>/dev/null | grep -Fq "$target_ssid"; then
-		is_known=true
-	fi
-
-	if $is_known; then
-		notify "Wi-Fi" "Connecting to $target_ssid..."
-		if iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-			notify "Wi-Fi" "Connected to $target_ssid"
-		else
-			notify -u critical "Wi-Fi Error" "Failed to connect to $target_ssid"
-		fi
-		exit 0
-	fi
-
-	local is_secure=false
-	[[ "$chosen" == *"󰌾"* ]] && is_secure=true
-
-	if $is_secure; then
-		local password
-		password=$(fuzzel --dmenu --password --prompt "Password for $target_ssid > " --lines 0 --width 35 || true)
-		[[ -z "$password" ]] && exit 0
-
-		notify "Wi-Fi" "Connecting to $target_ssid..."
-		if iwctl --passphrase "$password" station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-			notify "Wi-Fi" "Connected to $target_ssid"
-		else
-			notify -u critical "Wi-Fi Error" "Authentication failed for $target_ssid"
-		fi
+	if $is_active; then
+		ssid="${parts[1]}"
+		sig="${parts[-1]}"
+		sec="${parts[2]:-}"
+		star="●"
 	else
-		notify "Wi-Fi" "Connecting to $target_ssid..."
-		if iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-			notify "Wi-Fi" "Connected to $target_ssid"
-		else
-			notify -u critical "Wi-Fi Error" "Failed to connect to $target_ssid"
-		fi
+		ssid="${parts[0]}"
+		sig="${parts[-1]}"
+		sec="${parts[1]:-}"
+		star=" "
 	fi
-}
 
-# ---------------------------------------------------------------------------
-# Backend 2: nmcli fallback engine (when iwd daemon is not running)
-# ---------------------------------------------------------------------------
-run_nmcli_menu() {
-	local wifi_state current_ssid actions network_lines menu_input chosen
-	wifi_state=$(nmcli -t -f WIFI g 2>/dev/null || echo "unknown")
-	current_ssid=$(nmcli -t -f IN-USE,SSID dev wifi list 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }' || true)
+	lock="  "
+	[[ "$sec" =~ (psk|8021x) ]] && lock="󰌾"
+	network_lines+=("$(printf '%s %s %-24s [%s]' "$star" "$lock" "$ssid" "$sig")")
+done < <(iwctl station "$dev" get-networks 2>/dev/null || true)
 
-	actions=()
-	if [[ "$wifi_state" == "enabled" ]]; then
-		[[ -n "$current_ssid" ]] && actions+=("󰖪  Disconnect: $current_ssid")
-		actions+=("󰑐  Rescan Wi-Fi Networks")
-		actions+=("󰖩  Wi-Fi Power: Disable")
+menu_input=$(
+	for a in "${actions[@]}"; do printf '%s\n' "$a"; done
+	for n in "${network_lines[@]}"; do printf '%s\n' "$n"; done
+)
+
+chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "Wi-Fi ($dev) > " --lines 15 --width 45 || true)
+[[ -z "$chosen" ]] && exit 0
+
+case "$chosen" in
+*"Disconnect:"*)
+	iwctl station "$dev" disconnect
+	notify "Wi-Fi" "Disconnected from $connected_ssid"
+	exit 0
+	;;
+*"Rescan"*)
+	iwctl station "$dev" scan
+	notify "Wi-Fi" "Scanning Wi-Fi..."
+	sleep 1
+	exec "$0"
+	;;
+*"Launch Interactive IWCTL"*)
+	if command -v ftty >/dev/null 2>&1; then
+		exec ftty -e iwctl
 	else
-		actions+=("󰖩  Wi-Fi Power: Enable")
+		exec xdg-terminal-exec iwctl
 	fi
-	actions+=("󰍹  Launch Terminal NMTUI")
+	;;
+esac
 
-	network_lines=()
-	if [[ "$wifi_state" == "enabled" ]]; then
-		while IFS=':' read -r in_use signal security ssid; do
-			[[ -z "$ssid" ]] && continue
-			local local_star=" "
-			[[ "$in_use" == "*" ]] && local_star="●"
-			local lock_icon="  "
-			[[ -n "$security" && "$security" != "--" ]] && lock_icon="󰌾"
-			network_lines+=("$(printf '%s %s %-24s [%3s%%]' "$local_star" "$lock_icon" "$ssid" "$signal")")
-		done < <(nmcli -t -f IN-USE,SIGNAL,SECURITY,SSID dev wifi list --rescan no 2>/dev/null | awk '!seen[$4]++' || true)
-	fi
+# Parse selected target SSID
+target_ssid=$(printf '%s' "$chosen" | sed -E 's/^[● ] (󰌾|  ) //; s/ +\[[^]]+\]$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+[[ -z "$target_ssid" ]] && exit 0
 
-	menu_input=$(
-		for a in "${actions[@]}"; do printf '%s\n' "$a"; done
-		for n in "${network_lines[@]}"; do printf '%s\n' "$n"; done
-	)
+is_known=false
+if iwctl known-networks list 2>/dev/null | grep -Fq "$target_ssid"; then
+	is_known=true
+fi
 
-	chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "Wi-Fi > " --lines 15 --width 45 || true)
-	[[ -z "$chosen" ]] && exit 0
-
-	case "$chosen" in
-	*"Disconnect:"*)
-		nmcli dev disconnect iface "$(nmcli -t -f DEVICE,TYPE dev | awk -F: '$2=="wifi"{print $1; exit}')" 2>/dev/null || true
-		notify "Wi-Fi" "Disconnected from $current_ssid"
-		exit 0
-		;;
-	*"Rescan"*)
-		nmcli dev wifi rescan 2>/dev/null || true
-		notify "Wi-Fi" "Rescanned networks"
-		exec "$0"
-		;;
-	*"Wi-Fi Power: Disable"*)
-		nmcli radio wifi off
-		notify "Wi-Fi" "Wi-Fi disabled"
-		exit 0
-		;;
-	*"Wi-Fi Power: Enable"*)
-		nmcli radio wifi on
-		notify "Wi-Fi" "Wi-Fi enabled"
-		exit 0
-		;;
-	*"Terminal NMTUI"*)
-		if command -v ftty >/dev/null 2>&1; then
-			exec ftty -e nmtui
-		else
-			exec xdg-terminal-exec nmtui
-		fi
-		;;
-	esac
-
-	local target_ssid
-	target_ssid=$(printf '%s' "$chosen" | sed -E 's/^[● ] (󰌾|  ) //; s/ +\[[0-9]+%\]$//' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-	[[ -z "$target_ssid" ]] && exit 0
-
-	local is_known=false
-	if nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$target_ssid"; then
-		is_known=true
-	fi
-
-	if $is_known; then
-		notify "Wi-Fi" "Connecting to $target_ssid..."
-		if nmcli connection up id "$target_ssid" >/dev/null 2>&1; then
-			notify "Wi-Fi" "Connected to $target_ssid"
-		else
-			notify -u critical "Wi-Fi Error" "Failed to connect to $target_ssid"
-		fi
-		exit 0
-	fi
-
-	local is_secure=false
-	[[ "$chosen" == *"󰌾"* ]] && is_secure=true
-
-	if $is_secure; then
-		local password
-		password=$(fuzzel --dmenu --password --prompt "Password for $target_ssid > " --lines 0 --width 35 || true)
-		[[ -z "$password" ]] && exit 0
-
-		notify "Wi-Fi" "Connecting to $target_ssid..."
-		if nmcli dev wifi connect "$target_ssid" password "$password" >/dev/null 2>&1; then
-			notify "Wi-Fi" "Connected to $target_ssid"
-		else
-			notify -u critical "Wi-Fi Error" "Authentication failed for $target_ssid"
-		fi
+if $is_known; then
+	notify "Wi-Fi" "Connecting to $target_ssid..."
+	if iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
+		notify "Wi-Fi" "Connected to $target_ssid"
 	else
-		notify "Wi-Fi" "Connecting to $target_ssid..."
-		if nmcli dev wifi connect "$target_ssid" >/dev/null 2>&1; then
-			notify "Wi-Fi" "Connected to $target_ssid"
-		else
-			notify -u critical "Wi-Fi Error" "Failed to connect to $target_ssid"
-		fi
+		notify -u critical "Wi-Fi Error" "Failed to connect to $target_ssid"
 	fi
-}
+	exit 0
+fi
 
-main() {
-	if command -v iwctl >/dev/null 2>&1 && systemctl is-active --quiet iwd 2>/dev/null; then
-		run_iwctl_menu
-	elif command -v nmcli >/dev/null 2>&1; then
-		run_nmcli_menu
-	elif command -v iwctl >/dev/null 2>&1; then
-		run_iwctl_menu
+is_secure=false
+[[ "$chosen" == *"󰌾"* ]] && is_secure=true
+
+if $is_secure; then
+	password=$(fuzzel --dmenu --password --prompt "Password for $target_ssid > " --lines 0 --width 35 || true)
+	[[ -z "$password" ]] && exit 0
+
+	notify "Wi-Fi" "Connecting to $target_ssid..."
+	if iwctl --passphrase "$password" station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
+		notify "Wi-Fi" "Connected to $target_ssid"
 	else
-		notify -u critical "Network" "Neither iwctl nor nmcli found"
-		exit 1
+		notify -u critical "Wi-Fi Error" "Authentication failed for $target_ssid"
 	fi
-}
-
-main "$@"
+else
+	notify "Wi-Fi" "Connecting to $target_ssid..."
+	if iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
+		notify "Wi-Fi" "Connected to $target_ssid"
+	else
+		notify -u critical "Wi-Fi Error" "Failed to connect to $target_ssid"
+	fi
+fi

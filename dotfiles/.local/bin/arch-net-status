@@ -1,60 +1,27 @@
 #!/usr/bin/env bash
-# arch:summary=Display active network status, IP, SSID, and signal
+# arch:summary=Display active wireless station status, SSID, and IP via iwctl
 set -euo pipefail
 
-# 1. Primary: Native iwd / iwctl status
-if command -v iwctl >/dev/null 2>&1 && systemctl is-active --quiet iwd 2>/dev/null; then
-	dev=$(iwctl device list 2>/dev/null | awk '/station/ { print $2; exit }' || true)
-	[[ -z "$dev" ]] && dev=$(iwctl device list 2>/dev/null | awk 'NR>4 && NF>1 { print $2; exit }' || true)
-
-	if [[ -n "$dev" ]]; then
-		station_info=$(iwctl station "$dev" show 2>/dev/null || true)
-		state=$(awk -F': ' '/State/ { print $2; exit }' <<<"$station_info" | xargs || true)
-		connected_network=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$station_info" | xargs || true)
-		ip_addr=$(ip -4 addr show dev "$dev" 2>/dev/null | awk '/inet / { print $2 }' | cut -d/ -f1 | head -1 || true)
-
-		printf 'Backend:   iwd (iwctl)\n'
-		printf 'Device:    %s (wireless)\n' "$dev"
-		printf 'State:     %s\n' "${state:-disconnected}"
-		[[ -n "$connected_network" ]] && printf 'SSID:      %s\n' "$connected_network"
-		[[ -n "$ip_addr" ]] && printf 'IP Address: %s\n' "$ip_addr"
-		exit 0
-	fi
+if ! command -v iwctl >/dev/null 2>&1; then
+	printf 'Error: iwctl not found. Please install iwd\n' >&2
+	exit 1
 fi
 
-# 2. Fallback: NetworkManager / nmcli
-if command -v nmcli >/dev/null 2>&1; then
-	active_conn=$(nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null | head -1 || true)
-	if [[ -z "$active_conn" ]]; then
-		printf 'Network: Disconnected\n'
-		exit 0
-	fi
+dev=$(iwctl device list 2>/dev/null | awk '/station/ { print $2; exit }' || true)
+[[ -z "$dev" ]] && dev=$(iwctl device list 2>/dev/null | awk 'NR>4 && NF>1 { print $2; exit }' || true)
 
-	name=$(cut -d: -f1 <<<"$active_conn")
-	type=$(cut -d: -f2 <<<"$active_conn")
-	dev=$(cut -d: -f3 <<<"$active_conn")
-	ip_addr=$(ip -4 addr show dev "$dev" 2>/dev/null | awk '/inet / { print $2 }' | cut -d/ -f1 | head -1 || true)
-
-	printf 'Backend:   NetworkManager (nmcli)\n'
-	printf 'Device:    %s (%s)\n' "$dev" "$type"
-	printf 'Profile:   %s\n' "$name"
-	[[ -n "$ip_addr" ]] && printf 'IP Address: %s\n' "$ip_addr"
-
-	if [[ "$type" == *"wireless"* || "$type" == *"wifi"* ]]; then
-		wifi_info=$(nmcli -t -f IN-USE,SSID,SIGNAL,FREQ,SECURITY dev wifi list 2>/dev/null | awk -F: '$1 == "*" { print $0; exit }' || true)
-		if [[ -n "$wifi_info" ]]; then
-			ssid=$(cut -d: -f2 <<<"$wifi_info")
-			sig=$(cut -d: -f3 <<<"$wifi_info")
-			freq=$(cut -d: -f4 <<<"$wifi_info")
-			sec=$(cut -d: -f5 <<<"$wifi_info")
-			printf 'SSID:      %s\n' "$ssid"
-			printf 'Signal:    %s%%\n' "$sig"
-			printf 'Frequency: %s\n' "$freq"
-			printf 'Security:  %s\n' "$sec"
-		fi
-	fi
-	exit 0
+if [[ -z "$dev" ]]; then
+	printf 'Error: No wireless device found\n' >&2
+	exit 1
 fi
 
-printf 'Error: Neither iwd nor NetworkManager found\n' >&2
-exit 1
+station_info=$(iwctl station "$dev" show 2>/dev/null || true)
+state=$(awk -F': ' '/State/ { print $2; exit }' <<<"$station_info" | xargs || true)
+connected_network=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$station_info" | xargs || true)
+ip_addr=$(ip -4 addr show dev "$dev" 2>/dev/null | awk '/inet / { print $2 }' | cut -d/ -f1 | head -1 || true)
+
+printf 'Backend:   iwd (iwctl)\n'
+printf 'Device:    %s (wireless)\n' "$dev"
+printf 'State:     %s\n' "${state:-disconnected}"
+[[ -n "$connected_network" ]] && printf 'SSID:      %s\n' "$connected_network"
+[[ -n "$ip_addr" ]] && printf 'IP Address: %s\n' "$ip_addr"

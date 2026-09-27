@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# arch:summary=Generate terminal QR code for the active Wi-Fi connection
+# arch:summary=Generate terminal QR code for the active iwd Wi-Fi connection
 set -euo pipefail
 
-if ! command -v nmcli >/dev/null 2>&1; then
-	printf 'Error: nmcli not found\n' >&2
+if ! command -v iwctl >/dev/null 2>&1; then
+	printf 'Error: iwctl not found. Please install iwd\n' >&2
 	exit 1
 fi
 
@@ -12,24 +12,30 @@ if ! command -v qrencode >/dev/null 2>&1; then
 	exit 1
 fi
 
-wifi_pass_info=$(nmcli dev wifi show-password 2>/dev/null || true)
-if [[ -z "$wifi_pass_info" ]]; then
-	printf 'Error: No active Wi-Fi connection found or cannot access password\n' >&2
+dev=$(iwctl device list 2>/dev/null | awk '/station/ { print $2; exit }' || true)
+[[ -z "$dev" ]] && dev=$(iwctl device list 2>/dev/null | awk 'NR>4 && NF>1 { print $2; exit }' || true)
+
+if [[ -z "$dev" ]]; then
+	printf 'Error: No active wireless device found\n' >&2
 	exit 1
 fi
 
-ssid=$(awk '/SSID:/ { print $2; exit }' <<<"$wifi_pass_info")
-pass=$(awk '/(Password|密码):/ { print $2; exit }' <<<"$wifi_pass_info")
-sec=$(awk '/(Security|安全性):/ { print $2; exit }' <<<"$wifi_pass_info")
-
+ssid=$(iwctl station "$dev" show 2>/dev/null | awk -F': ' '/Connected network/ { print $2; exit }' | xargs || true)
 if [[ -z "$ssid" ]]; then
-	printf 'Error: Unable to detect SSID\n' >&2
+	printf 'Error: No active Wi-Fi connection found on %s\n' "$dev" >&2
 	exit 1
+fi
+
+psk_file="/var/lib/iwd/${ssid}.psk"
+pass=""
+if [[ -r "$psk_file" ]]; then
+	pass=$(awk -F'=' '/^Passphrase=/ { print $2; exit }' "$psk_file" || true)
+elif command -v sudo >/dev/null 2>&1; then
+	pass=$(sudo awk -F'=' '/^Passphrase=/ { print $2; exit }' "$psk_file" 2>/dev/null || true)
 fi
 
 qr_sec="WPA"
-[[ "$sec" == *"WEP"* ]] && qr_sec="WEP"
-[[ -z "$pass" || "$sec" == *"none"* ]] && qr_sec="nopass"
+[[ -z "$pass" ]] && qr_sec="nopass"
 
 qr_payload="WIFI:T:${qr_sec};S:${ssid};P:${pass};;"
 
