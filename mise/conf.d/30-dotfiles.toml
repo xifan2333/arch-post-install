@@ -6,6 +6,7 @@ dotfiles.default_mode = "symlink"
 # individually, while files not owned by this repository remain untouched.
 [dotfiles]
 "~/.zshrc" = { source = "../../dotfiles/.zshrc" }
+"~/.zprofile" = { source = "../../dotfiles/.zprofile" }
 "~/.config/autostart" = { source = "../../dotfiles/.config/autostart", mode = "symlink-each" }
 "~/.config/corral" = { source = "../../dotfiles/.config/corral", mode = "symlink-each" }
 "~/.config/dmnotifier" = { source = "../../dotfiles/.config/dmnotifier", mode = "symlink-each", exclude = [
