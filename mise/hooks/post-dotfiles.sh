@@ -2,6 +2,16 @@
 # Post-dotfiles hook: seed initial runtime configuration templates and sync themes
 set -euo pipefail
 
+if [[ $EUID -eq 0 ]]; then
+    SUDO=""
+elif command -v sudo &>/dev/null; then
+    SUDO="sudo"
+elif command -v pkexec &>/dev/null; then
+    SUDO="pkexec"
+else
+    SUDO=""
+fi
+
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 seed_example() {
@@ -28,10 +38,11 @@ if [[ -d "$plymouth_target" && -d "mise/plymouth/themes/arch" ]]; then
     for img in mise/plymouth/themes/arch/*.png; do
         [[ -f "$img" ]] || continue
         base=$(basename "$img")
-        if [[ ! -f "$plymouth_target/$base" ]] && [[ $EUID -eq 0 || -w "$plymouth_target" ]]; then
-            install -m 0644 "$img" "$plymouth_target/$base"
-        fi
+        $SUDO install -D -m 0644 "$img" "$plymouth_target/$base"
     done
+    if command -v plymouth-set-default-theme &>/dev/null; then
+        $SUDO plymouth-set-default-theme arch 2>/dev/null || true
+    fi
 fi
 
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
