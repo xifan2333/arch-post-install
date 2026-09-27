@@ -116,3 +116,15 @@ source = "../plymouth/plymouthd.conf"
 owner = "root"
 group = "root"
 mode = "0644"
+
+# Early initramfs Plymouth splash hook to eliminate boot log text
+[bootstrap.directories."/etc/mkinitcpio.conf.d"]
+owner = "root"
+group = "root"
+mode = "0755"
+
+[bootstrap.files."/etc/mkinitcpio.conf.d/plymouth.conf"]
+source = "../mkinitcpio.conf.d/plymouth.conf"
+owner = "root"
+group = "root"
+mode = "0644"
