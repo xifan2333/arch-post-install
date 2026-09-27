@@ -25,6 +25,10 @@ riverctl map normal Super+Shift Q exit
 # Screen locker: hyprlock
 riverctl map normal Super Escape spawn hyprlock
 
+# Wi-Fi network menu: fuzzel-driven
+riverctl map normal Super+Control W spawn arch-net-menu
+riverctl map normal Super N spawn arch-net-menu
+
 # Screenshots: grim + slurp -> clipboard
 # shellcheck disable=SC2016
 riverctl map normal Super+Shift S spawn 'sh -c "grim -g \"\$(slurp)\" - | wl-copy"'

@@ -36,6 +36,15 @@ enabled = true
 state = "stopped"
 enabled = false
 
+# Mask competing network services that cause boot timeouts and interface conflicts
+[bootstrap.services.systemd-networkd]
+state = "stopped"
+enabled = false
+
+[bootstrap.services.systemd-networkd-wait-online]
+state = "stopped"
+enabled = false
+
 # Autologin on tty1 for direct graphical session bootstrap
 [bootstrap.directories."/etc/systemd/system/getty@tty1.service.d"]
 owner = "root"
