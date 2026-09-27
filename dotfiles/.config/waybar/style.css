@@ -1,6 +1,6 @@
 /* Waybar style with dynamic theme and font state imports */
-@import url("../../../.local/state/theme/waybar.css");
-@import url("../../../.local/state/font/waybar.css");
+@import url("../../.local/state/theme/waybar.css");
+@import url("../../.local/state/font/waybar.css");
 
 * {
     border: none;
