@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# arch:summary=Pin active Wi-Fi connection to 5GHz, 2.4GHz, or auto
+set -euo pipefail
+
+if ! command -v nmcli >/dev/null 2>&1; then
+	printf 'Error: nmcli not found\n' >&2
+	exit 1
+fi
+
+target_band="${1:-}"
+
+if [[ -z "$target_band" || "$target_band" == "-h" || "$target_band" == "--help" ]]; then
+	cat <<'EOF'
+Usage:
+  arch net band <5 | 2.4 | auto> [connection_name]
+
+Options:
+  5       Pin connection to 5GHz band (802.11a/n/ac/ax)
+  2.4     Pin connection to 2.4GHz band (802.11b/g/n)
+  auto    Clear band pinning and allow dynamic roaming
+EOF
+	exit 0
+fi
+
+conn_name="${2:-}"
+if [[ -z "$conn_name" ]]; then
+	conn_name=$(nmcli -t -f IN-USE,SSID dev wifi list 2>/dev/null | awk -F: '$1 == "*" { print $2; exit }' || true)
+fi
+
+if [[ -z "$conn_name" ]]; then
+	printf 'Error: No active Wi-Fi connection found. Specify connection name as second argument.\n' >&2
+	exit 1
+fi
+
+case "$target_band" in
+5 | 5g | 5GHz)
+	nmcli connection modify "$conn_name" 802-11-wireless.band a
+	printf 'Pinned %s to 5GHz band (802.11a). Reconnecting...\n' "$conn_name"
+	nmcli connection up id "$conn_name" >/dev/null 2>&1 || true
+	;;
+2.4 | 2.4g | 2.4GHz)
+	nmcli connection modify "$conn_name" 802-11-wireless.band bg
+	printf 'Pinned %s to 2.4GHz band (802.11bg). Reconnecting...\n' "$conn_name"
+	nmcli connection up id "$conn_name" >/dev/null 2>&1 || true
+	;;
+auto)
+	nmcli connection modify "$conn_name" 802-11-wireless.band ""
+	printf 'Reset %s band pinning to auto. Reconnecting...\n' "$conn_name"
+	nmcli connection up id "$conn_name" >/dev/null 2>&1 || true
+	;;
+*)
+	printf 'Invalid band: %s. Expected: 5, 2.4, auto\n' "$target_band" >&2
+	exit 1
+	;;
+esac

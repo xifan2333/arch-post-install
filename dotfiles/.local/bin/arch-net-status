@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# arch:summary=Display active network status, IP, SSID, and signal
+set -euo pipefail
+
+if ! command -v nmcli >/dev/null 2>&1; then
+	printf 'Error: nmcli not found\n' >&2
+	exit 1
+fi
+
+active_conn=$(nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null | head -1 || true)
+if [[ -z "$active_conn" ]]; then
+	printf 'Network: Disconnected\n'
+	exit 0
+fi
+
+name=$(cut -d: -f1 <<<"$active_conn")
+type=$(cut -d: -f2 <<<"$active_conn")
+dev=$(cut -d: -f3 <<<"$active_conn")
+
+ip_addr=$(ip -4 addr show dev "$dev" 2>/dev/null | awk '/inet / { print $2 }' | cut -d/ -f1 | head -1 || true)
+
+printf 'Status:    Connected\n'
+printf 'Device:    %s (%s)\n' "$dev" "$type"
+printf 'Profile:   %s\n' "$name"
+[[ -n "$ip_addr" ]] && printf 'IP Address: %s\n' "$ip_addr"
+
+if [[ "$type" == *"wireless"* || "$type" == *"wifi"* ]]; then
+	wifi_info=$(nmcli -t -f IN-USE,SSID,SIGNAL,FREQ,SECURITY dev wifi list 2>/dev/null | awk -F: '$1 == "*" { print $0; exit }' || true)
+	if [[ -n "$wifi_info" ]]; then
+		ssid=$(cut -d: -f2 <<<"$wifi_info")
+		sig=$(cut -d: -f3 <<<"$wifi_info")
+		freq=$(cut -d: -f4 <<<"$wifi_info")
+		sec=$(cut -d: -f5 <<<"$wifi_info")
+		printf 'SSID:      %s\n' "$ssid"
+		printf 'Signal:    %s%%\n' "$sig"
+		printf 'Frequency: %s\n' "$freq"
+		printf 'Security:  %s\n' "$sec"
+	fi
+fi
