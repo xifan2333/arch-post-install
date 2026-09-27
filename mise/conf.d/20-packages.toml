@@ -8,6 +8,7 @@
 
 # Compositor & Wayland Desktop Core
 "pacman:river" = "latest"
+"aur:xrwm-bin" = "latest"
 "pacman:uwsm" = "latest"
 "pacman:swaybg" = "latest"
 "pacman:hyprlock" = "latest"
@@ -21,10 +22,10 @@
 "pacman:wlr-randr" = "latest"
 "pacman:brightnessctl" = "latest"
 
-# Terminal & Shell Fallback
+# Terminal & Shell
 # Note: CLI productivity tools (ripgrep, fd, fzf, jq, bat, eza, yazi, starship,
 # neovim, lazygit, delta, btop, fastfetch, zoxide, herdr) are managed via mise.
-"pacman:wezterm-git" = "latest"
+"aur:ftty-bin" = "latest"
 "pacman:zsh" = "latest"
 
 # Interactive UI & Notifications
