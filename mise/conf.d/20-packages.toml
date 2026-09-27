@@ -44,7 +44,7 @@
 "aur:fcitx5-vinput-bin" = "latest"
 
 # Network, Hardware & Biometrics
-"pacman:networkmanager" = "latest"
+"pacman:iwd" = "latest"
 "pacman:qrencode" = "latest"
 "pacman:fprintd" = "latest"
 "aur:howdy" = "latest"
