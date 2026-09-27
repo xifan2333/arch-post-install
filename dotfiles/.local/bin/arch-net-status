@@ -1,27 +1,34 @@
 #!/usr/bin/env bash
-# arch:summary=Display active wireless station status, SSID, and IP via iwctl
+# arch:summary=Display active network status and IP address
 set -euo pipefail
 
-if ! command -v iwctl >/dev/null 2>&1; then
-	printf 'Error: iwctl not found. Please install iwd\n' >&2
-	exit 1
-fi
-
-dev=$(iwctl device list 2>/dev/null | awk '/station/ { print $2; exit }' || true)
-[[ -z "$dev" ]] && dev=$(iwctl device list 2>/dev/null | awk 'NR>4 && NF>1 { print $2; exit }' || true)
+# Detect wireless interface directly from kernel sysfs
+dev=""
+for d in /sys/class/net/*/wireless; do
+	if [[ -d "$d" ]]; then
+		dev=$(basename "$(dirname "$d")")
+		break
+	fi
+done
 
 if [[ -z "$dev" ]]; then
-	printf 'Error: No wireless device found\n' >&2
-	exit 1
+	dev=$(ip route show default 2>/dev/null | awk '{ for (i=1; i<=NF; i++) if ($i=="dev") { print $(i+1); exit } }' || true)
 fi
 
-station_info=$(iwctl station "$dev" show 2>/dev/null || true)
-state=$(awk -F': ' '/State/ { print $2; exit }' <<<"$station_info" | xargs || true)
-connected_network=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$station_info" | xargs || true)
+if [[ -z "$dev" ]]; then
+	printf 'Network: Disconnected\n'
+	exit 0
+fi
+
+state=$(cat "/sys/class/net/$dev/operstate" 2>/dev/null || echo "unknown")
 ip_addr=$(ip -4 addr show dev "$dev" 2>/dev/null | awk '/inet / { print $2 }' | cut -d/ -f1 | head -1 || true)
 
-printf 'Backend:   iwd (iwctl)\n'
-printf 'Device:    %s (wireless)\n' "$dev"
-printf 'State:     %s\n' "${state:-disconnected}"
-[[ -n "$connected_network" ]] && printf 'SSID:      %s\n' "$connected_network"
+printf 'Device:     %s\n' "$dev"
+printf 'State:      %s\n' "$state"
 [[ -n "$ip_addr" ]] && printf 'IP Address: %s\n' "$ip_addr"
+
+# If iwd station show is available, print station details
+if command -v iwctl >/dev/null 2>&1 && [[ -d "/sys/class/net/$dev/wireless" ]]; then
+	printf '\nStation details (iwctl):\n'
+	iwctl station "$dev" show || true
+fi

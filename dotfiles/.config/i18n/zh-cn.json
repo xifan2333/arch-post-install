@@ -47,5 +47,17 @@
   "livestream_state_connecting": "正在连接",
   "livestream_state_stalled": "已连接但发送停滞",
   "livestream_state_failed": "连接失败",
-  "livestream_state_stopping": "正在停止"
+  "livestream_state_stopping": "正在停止",
+  "net_notify_title": "无线网络",
+  "net_rescan": "重新扫描无线网络",
+  "net_disconnect": "断开连接：{ssid}",
+  "net_prompt": "无线网络 ({dev}) > ",
+  "net_password_prompt": "请输入 {ssid} 的密码 > ",
+  "net_connecting": "正在连接 {ssid}...",
+  "net_connected": "已连接到 {ssid}",
+  "net_failed": "连接失败：{ssid}",
+  "net_auth_failed": "认证失败，密码错误：{ssid}",
+  "net_scanning": "正在扫描网络...",
+  "net_disconnected": "已断开与 {ssid} 的连接",
+  "net_no_device": "未检测到可用的无线设备"
 }
