@@ -11,9 +11,13 @@ run = "mise/hooks/post-dotfiles.sh"
 login_shell = "/usr/bin/zsh"
 
 # Declarative Linux systemd system services
-[bootstrap.services.NetworkManager]
+[bootstrap.services.iwd]
 state = "running"
 enabled = true
+
+[bootstrap.services.NetworkManager]
+state = "stopped"
+enabled = false
 
 [bootstrap.services.bluetooth]
 state = "running"
@@ -57,14 +61,14 @@ owner = "root"
 group = "root"
 mode = "0644"
 
-# Disable Wi-Fi power saving in NetworkManager to eliminate latency spikes
-[bootstrap.directories."/etc/NetworkManager/conf.d"]
+# Configure iwd with built-in lightweight network/DHCP configuration
+[bootstrap.directories."/etc/iwd"]
 owner = "root"
 group = "root"
 mode = "0755"
 
-[bootstrap.files."/etc/NetworkManager/conf.d/wifi-powersave.conf"]
-source = "../NetworkManager/conf.d/wifi-powersave.conf"
+[bootstrap.files."/etc/iwd/main.conf"]
+source = "../iwd/main.conf"
 owner = "root"
 group = "root"
 mode = "0644"
