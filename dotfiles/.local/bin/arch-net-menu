@@ -98,8 +98,8 @@ while IFS= read -r line; do
 	lock_icon="󰌿"
 	[[ "$sec" =~ (psk|8021x) ]] && lock_icon="󰌾"
 
-	# Fixed column layout: all icons on the left, SSID starts on a unified column
-	network_lines+=("$star $sig_icon $lock_icon  $ssid")
+	# Fixed column layout: all icons on the left, separated by comfortable spacing
+	network_lines+=("$star $sig_icon   $lock_icon   $ssid")
 done <<<"$raw_list"
 
 # 7. Display fuzzel menu
@@ -124,8 +124,8 @@ elif [[ "$chosen" =~ ^󰑐[[:space:]] ]]; then
 	exec "$0"
 fi
 
-# 9. Extract target SSID (strip the fixed "$star $sig_icon $lock_icon  " prefix)
-target_ssid=$(sed -E 's/^[● ] [^[:space:]]+ [^[:space:]]+[[:space:]]+//' <<<"$chosen" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+# 9. Extract target SSID (strip the fixed "$star $sig_icon   $lock_icon   " prefix)
+target_ssid=$(sed -E 's/^[● ] [^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+//' <<<"$chosen" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 [[ -z "$target_ssid" ]] && exit 0
 
 # 10. Check if network is known (already saved)
