@@ -59,5 +59,7 @@
   "net_auth_failed": "Authentication failed for {ssid}",
   "net_scanning": "Scanning networks...",
   "net_disconnected": "Disconnected from {ssid}",
-  "net_no_device": "No wireless device detected"
+  "net_no_device": "No wireless device detected",
+  "font_title": "Typography",
+  "font_switched": "Monospace font switched to: {font}"
 }
