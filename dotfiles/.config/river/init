@@ -1,0 +1,111 @@
+#!/bin/sh
+# River 0.4 initialization script
+# Integrates xrwm window manager, ftty, fuzzel, and theme hooks.
+
+# Set keyboard repeat rate and delay
+riverctl set-repeat 50 300
+
+# ---------------------------------------------------------------------------
+# Core Navigation & Application Keybindings
+# ---------------------------------------------------------------------------
+
+# Terminal: ftty
+riverctl map normal Super Return spawn ftty
+
+# Application launcher: fuzzel
+riverctl map normal Super Space spawn fuzzel
+riverctl map normal Super D spawn fuzzel
+
+# Close focused view
+riverctl map normal Super Q close
+
+# Exit River compositor
+riverctl map normal Super+Shift Q exit
+
+# Screen locker: hyprlock
+riverctl map normal Super Escape spawn hyprlock
+
+# Screenshots: grim + slurp -> clipboard
+# shellcheck disable=SC2016
+riverctl map normal Super+Shift S spawn 'sh -c "grim -g \"\$(slurp)\" - | wl-copy"'
+riverctl map normal None Print spawn 'sh -c "grim - | wl-copy"'
+
+# ---------------------------------------------------------------------------
+# Window Management & Focus (Vim keys)
+# ---------------------------------------------------------------------------
+
+riverctl map normal Super J focus-view next
+riverctl map normal Super K focus-view previous
+riverctl map normal Super+Shift J swap next
+riverctl map normal Super+Shift K swap previous
+
+# Zoom (promote view to master)
+riverctl map normal Super M zoom
+
+# Fullscreen & Floating toggles
+riverctl map normal Super F toggle-fullscreen
+riverctl map normal Super+Shift Space toggle-float
+
+# ---------------------------------------------------------------------------
+# Workspaces / Tags (1 - 9)
+# ---------------------------------------------------------------------------
+
+for i in $(seq 1 9); do
+	tags=$((1 << (i - 1)))
+	# Super+[1-9] to focus tag
+	riverctl map normal Super "$i" set-focused-tags "$tags"
+	# Super+Shift+[1-9] to tag focused view
+	riverctl map normal Super+Shift "$i" set-view-tags "$tags"
+	# Super+Control+[1-9] to toggle focus of tag
+	riverctl map normal Super+Control "$i" toggle-focused-tags "$tags"
+	# Super+Shift+Control+[1-9] to toggle tag of focused view
+	riverctl map normal Super+Shift+Control "$i" toggle-view-tags "$tags"
+done
+
+# Focus all tags (Super+0)
+all_tags=$(((1 << 32) - 1))
+riverctl map normal Super 0 set-focused-tags "$all_tags"
+riverctl map normal Super+Shift 0 set-view-tags "$all_tags"
+
+# ---------------------------------------------------------------------------
+# Mouse Pointer Bindings
+# ---------------------------------------------------------------------------
+
+riverctl map-pointer normal Super BTN_LEFT move-view
+riverctl map-pointer normal Super BTN_RIGHT resize-view
+riverctl map-pointer normal Super BTN_MIDDLE toggle-float
+
+# ---------------------------------------------------------------------------
+# Hardware & Multimedia Controls (Audio & Backlight)
+# ---------------------------------------------------------------------------
+
+# Volume control via PipeWire wpctl
+riverctl map -repeat normal None XF86AudioRaiseVolume spawn "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+"
+riverctl map -repeat normal None XF86AudioLowerVolume spawn "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+riverctl map normal None XF86AudioMute spawn "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+riverctl map normal None XF86AudioMicMute spawn "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
+
+# Backlight control via brightnessctl
+riverctl map -repeat normal None XF86MonBrightnessUp spawn "brightnessctl set +5%"
+riverctl map -repeat normal None XF86MonBrightnessDown spawn "brightnessctl set 5%-"
+
+# ---------------------------------------------------------------------------
+# Window Manager & Background Daemons
+# ---------------------------------------------------------------------------
+
+# Start custom window manager xrwm
+if command -v xrwm >/dev/null 2>&1; then
+	xrwm &
+fi
+
+# Apply active theme colors to xrwm if generated
+theme_xrwm="${XDG_STATE_HOME:-$HOME/.local/state}/theme/xrwm.sh"
+if [ -x "$theme_xrwm" ]; then
+	"$theme_xrwm" &
+fi
+
+# Start desktop background daemons
+command -v fcitx5 >/dev/null 2>&1 && fcitx5 -d --replace &
+command -v mako >/dev/null 2>&1 && mako &
+command -v waybar >/dev/null 2>&1 && waybar &
+command -v swaybg >/dev/null 2>&1 && swaybg -c "#1a1b26" &

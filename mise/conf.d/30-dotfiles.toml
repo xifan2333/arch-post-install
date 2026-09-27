@@ -38,6 +38,7 @@ dotfiles.default_mode = "symlink"
   "*.example",
 ] }
 "~/.config/retroarch" = { source = "../../dotfiles/.config/retroarch", mode = "symlink-each" }
+"~/.config/river" = { source = "../../dotfiles/.config/river", mode = "symlink-each" }
 "~/.config/tensaku" = { source = "../../dotfiles/.config/tensaku", mode = "symlink-each" }
 "~/.config/themes" = { source = "../../dotfiles/.config/themes", mode = "symlink-each" }
 "~/.config/themed" = { source = "../../dotfiles/.config/themed", mode = "symlink-each" }
