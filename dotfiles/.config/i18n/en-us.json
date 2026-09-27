@@ -47,5 +47,17 @@
   "livestream_state_connecting": "connecting",
   "livestream_state_stalled": "connected but stalled",
   "livestream_state_failed": "connection failed",
-  "livestream_state_stopping": "stopping"
+  "livestream_state_stopping": "stopping",
+  "net_notify_title": "Wi-Fi",
+  "net_rescan": "Rescan Wi-Fi Networks",
+  "net_disconnect": "Disconnect: {ssid}",
+  "net_prompt": "Wi-Fi ({dev}) > ",
+  "net_password_prompt": "Password for {ssid} > ",
+  "net_connecting": "Connecting to {ssid}...",
+  "net_connected": "Connected to {ssid}",
+  "net_failed": "Failed to connect to {ssid}",
+  "net_auth_failed": "Authentication failed for {ssid}",
+  "net_scanning": "Scanning networks...",
+  "net_disconnected": "Disconnected from {ssid}",
+  "net_no_device": "No wireless device detected"
 }
