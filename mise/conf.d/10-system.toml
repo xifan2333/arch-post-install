@@ -111,42 +111,6 @@ owner = "root"
 group = "root"
 mode = "0644"
 
-[bootstrap.files."/usr/share/plymouth/themes/arch/logo.png"]
-source = "../plymouth/themes/arch/logo.png"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/usr/share/plymouth/themes/arch/entry.png"]
-source = "../plymouth/themes/arch/entry.png"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/usr/share/plymouth/themes/arch/lock.png"]
-source = "../plymouth/themes/arch/lock.png"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/usr/share/plymouth/themes/arch/bullet.png"]
-source = "../plymouth/themes/arch/bullet.png"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/usr/share/plymouth/themes/arch/progress_box.png"]
-source = "../plymouth/themes/arch/progress_box.png"
-owner = "root"
-group = "root"
-mode = "0644"
-
-[bootstrap.files."/usr/share/plymouth/themes/arch/progress_bar.png"]
-source = "../plymouth/themes/arch/progress_bar.png"
-owner = "root"
-group = "root"
-mode = "0644"
-
 [bootstrap.files."/etc/plymouth/plymouthd.conf"]
 source = "../plymouth/plymouthd.conf"
 owner = "root"
