@@ -22,6 +22,18 @@ seed_example dotfiles/.config/dmnotifier/config.yaml.example "$config_home/dmnot
 seed_example dotfiles/.config/vinput/config.json.example "$config_home/vinput/config.json" 0600
 seed_example dotfiles/.config/qutebrowser/translate.json.example "$config_home/qutebrowser/translate.json" 0600
 
+# Seed Plymouth binary image assets if Plymouth theme directory exists
+plymouth_target="/usr/share/plymouth/themes/arch"
+if [[ -d "$plymouth_target" && -d "mise/plymouth/themes/arch" ]]; then
+    for img in mise/plymouth/themes/arch/*.png; do
+        [[ -f "$img" ]] || continue
+        base=$(basename "$img")
+        if [[ ! -f "$plymouth_target/$base" ]] && [[ $EUID -eq 0 || -w "$plymouth_target" ]]; then
+            install -m 0644 "$img" "$plymouth_target/$base"
+        fi
+    done
+fi
+
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
 if [[ -x "dotfiles/.local/bin/arch-theme-set" ]]; then
     printf 'post-dotfiles: refreshing desktop theme...\n'
