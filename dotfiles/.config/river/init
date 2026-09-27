@@ -50,6 +50,9 @@ riverctl map normal Super M zoom
 riverctl map normal Super F toggle-fullscreen
 riverctl map normal Super+Shift Space toggle-float
 
+# Floating rules for utility dialogs
+riverctl rule-add -app-id "ftty-float" float
+
 # ---------------------------------------------------------------------------
 # Workspaces / Tags (1 - 9)
 # ---------------------------------------------------------------------------
