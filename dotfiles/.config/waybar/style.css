@@ -1,0 +1,167 @@
+/* Waybar style with dynamic theme and font state imports */
+@import url("../../.local/state/theme/waybar.css");
+@import url("../../.local/state/font/waybar.css");
+
+* {
+    border: none;
+    border-radius: 0;
+    font-size: 14px;
+    min-height: 0;
+}
+
+window#waybar {
+    background: @bg;
+    color: @fg;
+    padding: 2px 0;
+    border-bottom: 1px solid @bg_dark;
+}
+
+/* River Workspaces / Tags */
+#tags button {
+    padding: 0 10px;
+    background: transparent;
+    color: @muted;
+    border-bottom: 2px solid transparent;
+}
+
+#tags button.occupied {
+    color: @fg;
+}
+
+#tags button.focused {
+    color: @accent;
+    border-bottom: 2px solid @accent;
+    font-weight: bold;
+}
+
+#tags button.focused.occupied {
+    color: @accent;
+    background: @bg_dark;
+    border-bottom: 2px solid @accent;
+    font-weight: bold;
+}
+
+#tags button:hover {
+    background: @selection;
+    color: @fg_bright;
+}
+
+/* Window Title */
+#window {
+    padding: 0 12px;
+    color: @fg_dark;
+    font-style: italic;
+}
+
+/* Clock */
+#clock {
+    padding: 0 10px;
+    color: @fg_bright;
+    font-weight: bold;
+}
+
+/* System Tray */
+#tray {
+    padding: 0 10px;
+}
+
+#tray > * {
+    background: transparent;
+}
+
+#tray > .needs-attention {
+    background: @red;
+}
+
+/* Network */
+#network {
+    padding: 0 8px;
+    color: @cyan;
+}
+
+#network.disconnected {
+    color: @red;
+}
+
+/* Pulseaudio */
+#pulseaudio {
+    padding: 0 8px;
+    color: @green;
+}
+
+#pulseaudio.muted {
+    color: @muted;
+}
+
+/* Backlight */
+#backlight {
+    padding: 0 8px;
+    color: @yellow;
+}
+
+/* Battery */
+#battery {
+    padding: 0 8px;
+    color: @yellow;
+}
+
+#battery.charging {
+    color: @green;
+}
+
+#battery.warning:not(.charging) {
+    color: @yellow;
+}
+
+#battery.critical:not(.charging) {
+    color: @red;
+    animation: blink 1s linear infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* Power Menu */
+#custom-power {
+    padding: 0 10px;
+    color: @red;
+}
+
+#custom-power:hover {
+    background: @selection;
+    color: @fg_bright;
+}
+
+/* Power Menu Popup */
+menu {
+    background: @bg_dark;
+    color: @fg;
+    border: 1px solid @accent;
+    border-radius: 8px;
+    padding: 6px;
+}
+
+menu * {
+    border: none;
+    outline: none;
+}
+
+menuitem {
+    color: @fg;
+    padding: 6px 14px;
+    border-radius: 4px;
+    min-width: 110px;
+}
+
+menuitem:hover {
+    background: @selection;
+    color: @accent;
+}
+
+separator {
+    background: @muted;
+    margin: 4px 6px;
+}
