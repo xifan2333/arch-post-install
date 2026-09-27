@@ -1,3 +1,10 @@
-# Dotfiles management transitioned to Mise 2026.9.2+ native `mode = "track"`
-# (zero-symlink, in-place regular files, automatic checkpointing).
-# All live dotfile tracking is declared in ~/.config/mise/config.toml.
+[settings]
+dotfiles.default_mode = "symlink-each"
+
+# Stow-style single-rule dotfiles tree governance:
+# Recursively walks dotfiles/ and establishes individual symlinks for all managed files,
+# allowing zero-boilerplate file additions while leaving unmanaged home files untouched.
+[dotfiles]
+"~" = { source = "../../dotfiles", mode = "symlink-each", exclude = [
+  "*.example",
+] }
