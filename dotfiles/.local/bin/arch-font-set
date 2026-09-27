@@ -41,12 +41,11 @@ list_available_fonts() {
 
 	# Filter popular coding and terminal monospace fonts installed on system
 	local fonts
-	fonts=$(fc-list : family spacing 2>/dev/null |
-		grep -E "spacing=(100|110)" |
-		cut -d: -f1 |
+	fonts=$(fc-list : family 2>/dev/null |
 		tr ',' '\n' |
-		grep -E "^(Sarasa Mono|JetBrains|Maple Mono|Noto Sans Mono|Fira Code|Hack|Iosevka|Inconsolata|Source Code Pro)" |
+		grep -E "^(Sarasa Mono SC|JetBrainsMono Nerd Font|Maple Mono|Noto Sans Mono CJK SC|Fira Code|Hack|Iosevka)" |
 		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+		grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic|NL)" |
 		sort -u || true)
 
 	if [[ -z "$fonts" ]]; then
@@ -67,7 +66,7 @@ apply_font() {
 	local font_name="$1"
 
 	# Validate that font exists on the system
-	if ! fc-list : family 2>/dev/null | grep -iqF "$font_name"; then
+	if ! fc-list : family 2>/dev/null | grep -iF "$font_name" >/dev/null 2>&1; then
 		printf 'Warning: Font "%s" was not found in fontconfig cache. Applying anyway.\n' "$font_name" >&2
 	fi
 
