@@ -32,6 +32,8 @@ if ! grep -q '^\s*\[archlinuxcn\]' /etc/pacman.conf; then
     cat <<'REPO' | $SUDO tee -a /etc/pacman.conf >/dev/null
 
 [archlinuxcn]
+Server = https://mirrors.tuna.tsinghua.edu.cn/archlinuxcn/$arch
+Server = https://mirrors.ustc.edu.cn/archlinuxcn/$arch
 Server = https://repo.archlinuxcn.org/$arch
 REPO
 fi

@@ -32,16 +32,18 @@
   },
 
   "network": {
-    "format-wifi": "󰤨 {essid}",
-    "format-ethernet": "󰈀 {ipaddr}",
-    "format-disconnected": "󰖪 断开",
-    "tooltip-format": "{ifname} via {gwaddr}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
+    "format-wifi": "{icon}",
+    "format-ethernet": "󰈀",
+    "format-disconnected": "󰖪",
+    "format-icons": ["󰤟", "󰤢", "󰤥", "󰤨"],
+    "tooltip-format": "{ifname} via {gwaddr}\nSSID: {essid}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
+    "tooltip-format-disconnected": "网络已断开",
     "on-click": "arch-net-menu"
   },
 
   "pulseaudio": {
-    "format": "{icon} {volume}%",
-    "format-muted": "󰖁 静音",
+    "format": "{icon}  {volume}%",
+    "format-muted": "󰖁  静音",
     "format-icons": {
       "default": ["󰕿", "󰖀", "󰕾"]
     },
@@ -51,14 +53,16 @@
   },
 
   "backlight": {
-    "format": "{icon} {percent}%",
+    "format": "{icon}  {percent}%",
     "format-icons": ["󰃞", "󰃟", "󰃠"],
     "on-scroll-up": "brightnessctl set +5%",
     "on-scroll-down": "brightnessctl set 5%-"
   },
 
   "battery": {
-    "format": "{icon} {capacity}%",
+    "format": "{icon}  {capacity}%",
+    "format-charging": "󰂄  {capacity}%",
+    "format-plugged": "󰚥  {capacity}%",
     "format-icons": [
       "󰂎",
       "󰁺",
@@ -72,8 +76,6 @@
       "󰂂",
       "󰁹"
     ],
-    "format-charging": "󰂄 {capacity}%",
-    "format-plugged": "󰚥 {capacity}%",
     "states": {
       "warning": 30,
       "critical": 15
