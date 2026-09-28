@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# xrwm window rules configuration
+set -euo pipefail
+
+# Server-side decorations (SSD) for all client windows
+xrwm rule-add -app-id "*" ssd
+
+# Utility floating dialogs & terminal popups
+xrwm rule-add -app-id "ftty-float" float
+xrwm rule-add -app-id "ftty-float" dimensions 960 540
+
+xrwm rule-add -app-id "scratchpad" float
+xrwm rule-add -app-id "scratchpad" dimensions 960 540
+
+xrwm rule-add -app-id "lxqt-openssh-askpass" float
+xrwm rule-add -app-id "lxqt-openssh-askpass" dimensions 400 200
+
+# Media viewers & previews
+xrwm rule-add -app-id "imv" float
+xrwm rule-add -app-id "imv" dimensions 960 540
+
+xrwm rule-add -app-id "mpv" float
+xrwm rule-add -app-id "mpv" dimensions 960 540
+
+xrwm rule-add -title "Screenshot Preview" float
+xrwm rule-add -title "Screenshot Preview" dimensions 600 400
+
+# Custom tools
+xrwm rule-add -app-id "satty" float
+xrwm rule-add -app-id "fuzzel" csd

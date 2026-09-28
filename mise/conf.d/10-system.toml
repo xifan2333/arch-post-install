@@ -49,17 +49,21 @@ enabled = false
 state = "stopped"
 enabled = false
 
-# Autologin on tty1 for direct graphical session bootstrap
-[bootstrap.directories."/etc/systemd/system/getty@tty1.service.d"]
-owner = "root"
-group = "root"
-mode = "0755"
-
-[bootstrap.files."/etc/systemd/system/getty@tty1.service.d/autologin.conf"]
-source = "../systemd/system/getty@tty1.service.d/autologin.conf"
+# Direct seamless auto-login service to River with xrwm (bypassing DM and Shell)
+[bootstrap.files."/etc/systemd/system/arch-seamless-login.service"]
+source = "../systemd/system/arch-seamless-login.service"
 owner = "root"
 group = "root"
 mode = "0644"
+
+[bootstrap.services.arch-seamless-login]
+state = "running"
+enabled = true
+
+# Disable conflicting getty on tty1
+[bootstrap.services."getty@tty1"]
+state = "stopped"
+enabled = false
 
 # Configure iwd with built-in lightweight network/DHCP configuration
 [bootstrap.directories."/etc/iwd"]
