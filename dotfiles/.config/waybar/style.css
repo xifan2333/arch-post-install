@@ -5,20 +5,20 @@
 * {
     border: none;
     border-radius: 0;
-    font-size: 14px;
+    font-size: 12px;
     min-height: 0;
 }
 
 window#waybar {
     background: @bg;
     color: @fg;
-    padding: 2px 0;
+    padding: 0;
     border-bottom: 1px solid @bg_dark;
 }
 
 /* River Workspaces / Tags */
 #tags button {
-    padding: 0 10px;
+    padding: 0 8px;
     background: transparent;
     color: @muted;
     border-bottom: 2px solid transparent;
@@ -75,8 +75,8 @@ window#waybar {
 
 /* Network */
 #network {
-    padding: 0 10px;
-    margin: 3px 2px;
+    padding: 0 8px;
+    margin: 1px 2px;
     color: @cyan;
 }
 
@@ -86,8 +86,8 @@ window#waybar {
 
 /* Pulseaudio */
 #pulseaudio {
-    padding: 0 10px;
-    margin: 3px 2px;
+    padding: 0 8px;
+    margin: 1px 2px;
     color: @green;
 }
 
@@ -97,15 +97,15 @@ window#waybar {
 
 /* Backlight */
 #backlight {
-    padding: 0 10px;
-    margin: 3px 2px;
+    padding: 0 8px;
+    margin: 1px 2px;
     color: @yellow;
 }
 
 /* Battery */
 #battery {
-    padding: 0 10px;
-    margin: 3px 2px;
+    padding: 0 8px;
+    margin: 1px 2px;
     color: @yellow;
 }
 
