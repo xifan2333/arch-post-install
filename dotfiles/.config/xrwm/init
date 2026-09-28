@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# xrwm — River 0.4+ Window Manager Configuration
+# Modular architecture: init -> rules, bindings, theme
+# ==============================================================================
+set -euo pipefail
+
+export PATH="$HOME/.local/bin:$PATH"
+XRWM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/xrwm"
+
+# 1. 基础布局与间隙 (Layout & Gaps)
+xrwm view-padding 4
+xrwm main-ratio 0.55
+xrwm stack-ratio 0.50
+xrwm main-count 1
+xrwm main-location left
+xrwm default-attach-mode top
+
+# 2. 边框、焦点策略与动画引擎 (Policies & Animations)
+xrwm border-width 2
+xrwm focus-follows-cursor normal
+xrwm set-cursor-warp on-output-change
+xrwm animation true
+xrwm animation-duration 150
+
+# 3. 模块化加载窗口规则与快捷键全集
+if [[ -f "$XRWM_CONFIG/rules" ]]; then
+	# shellcheck source=/dev/null
+	source "$XRWM_CONFIG/rules"
+fi
+
+if [[ -f "$XRWM_CONFIG/bindings" ]]; then
+	# shellcheck source=/dev/null
+	source "$XRWM_CONFIG/bindings"
+fi
+
+# 4. 执行动态主题色彩钩子 (边框色跟随 22 款主题联动)
+theme_xrwm="${XDG_STATE_HOME:-$HOME/.local/state}/theme/xrwm.sh"
+if [[ -x "$theme_xrwm" ]]; then
+	"$theme_xrwm" &
+fi
+
+# 5. 自启桌面后台守护程序
+command -v fcitx5 >/dev/null 2>&1 && fcitx5 -d --replace &
+command -v mako >/dev/null 2>&1 && mako &
+command -v waybar >/dev/null 2>&1 && waybar &
+command -v swaybg >/dev/null 2>&1 && swaybg -c "#1a1b26" &
+
+# 6. 移交 UWSM 环境变量 (若在 uwsm 会话下运行)
+if command -v uwsm >/dev/null 2>&1; then
+	uwsm finalize 2>/dev/null || true
+fi
