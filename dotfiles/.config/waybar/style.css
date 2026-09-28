@@ -75,7 +75,8 @@ window#waybar {
 
 /* Network */
 #network {
-    padding: 0 8px;
+    padding: 0 10px;
+    margin: 3px 2px;
     color: @cyan;
 }
 
@@ -85,7 +86,8 @@ window#waybar {
 
 /* Pulseaudio */
 #pulseaudio {
-    padding: 0 8px;
+    padding: 0 10px;
+    margin: 3px 2px;
     color: @green;
 }
 
@@ -95,13 +97,15 @@ window#waybar {
 
 /* Backlight */
 #backlight {
-    padding: 0 8px;
+    padding: 0 10px;
+    margin: 3px 2px;
     color: @yellow;
 }
 
 /* Battery */
 #battery {
-    padding: 0 8px;
+    padding: 0 10px;
+    margin: 3px 2px;
     color: @yellow;
 }
 
