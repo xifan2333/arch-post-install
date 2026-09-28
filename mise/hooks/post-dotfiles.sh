@@ -50,8 +50,9 @@ if [[ -f "src/seamless-login.c" ]] && command -v gcc &>/dev/null; then
     if [[ ! -x "/usr/local/bin/seamless-login" || "src/seamless-login.c" -nt "/usr/local/bin/seamless-login" ]]; then
         printf 'post-dotfiles: building seamless-login VT switcher...\n'
         tmp_bin=$(mktemp)
-        gcc -O2 src/seamless-login.c -o "$tmp_bin"
-        $SUDO install -D -m 0755 "$tmp_bin" "/usr/local/bin/seamless-login"
+        if gcc -O2 src/seamless-login.c -o "$tmp_bin" 2>/dev/null; then
+            $SUDO install -D -m 0755 "$tmp_bin" "/usr/local/bin/seamless-login" 2>/dev/null || true
+        fi
         rm -f "$tmp_bin"
     fi
 fi
