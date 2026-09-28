@@ -45,6 +45,17 @@ if [[ -d "$plymouth_target" && -d "mise/plymouth/themes/arch" ]]; then
     fi
 fi
 
+# Compile and install seamless-login helper if src exists
+if [[ -f "src/seamless-login.c" ]] && command -v gcc &>/dev/null; then
+    if [[ ! -x "/usr/local/bin/seamless-login" || "src/seamless-login.c" -nt "/usr/local/bin/seamless-login" ]]; then
+        printf 'post-dotfiles: building seamless-login VT switcher...\n'
+        tmp_bin=$(mktemp)
+        gcc -O2 src/seamless-login.c -o "$tmp_bin"
+        $SUDO install -D -m 0755 "$tmp_bin" "/usr/local/bin/seamless-login"
+        rm -f "$tmp_bin"
+    fi
+fi
+
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
 if [[ -x "dotfiles/.local/bin/arch-theme-set" ]]; then
     printf 'post-dotfiles: refreshing desktop theme...\n'
