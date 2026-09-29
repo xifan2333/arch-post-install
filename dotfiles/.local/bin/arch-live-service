@@ -86,18 +86,6 @@ def restore_hardware():
         )
 
 
-def refresh_capture_indicator():
-    """Ping Omarchy's stock ScreenRecording indicator bus."""
-    with contextlib.suppress(OSError, subprocess.TimeoutExpired):
-        subprocess.run(
-            ["omarchy-shell", "-q", "omarchy.indicators", "refresh"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=2,
-            check=False,
-        )
-
-
 BUS_NAME = "com.xifan.Livestream"
 OBJECT_PATH = "/com/xifan/Livestream"
 INTERFACE = "com.xifan.Livestream"
@@ -756,7 +744,6 @@ class LivestreamService:
     def on_name_acquired(self, connection, name):
         self.name_acquired = True
         self.start_stream()
-        refresh_capture_indicator()
 
     def on_name_lost(self, connection, name):
         if not self.name_acquired:
@@ -844,7 +831,6 @@ class LivestreamService:
                 if thread is not None:
                     thread.join(timeout=1)
             self.log_handle.close()
-            refresh_capture_indicator()
         return 0
 
 
