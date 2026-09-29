@@ -77,13 +77,10 @@ mise bootstrap --force-dotfiles --yes
 
 `--force-dotfiles` 会替换冲突文件，不要在没检查的情况下随便加。
 
-### Agent 提权
-
-本项目使用 Omarchy 4 的原生提权机制，不设置 `SUDO_ASKPASS`：
+### 权限与鉴权
 
 - 有可见终端时使用普通 `sudo`，由用户在终端输入密码；
-- Agent 或图形后台任务没有可交互终端时使用 `pkexec`，密码窗口由 Omarchy Shell 的 Polkit 插件显示；
-- 需要连续执行多条 root 命令时，由用户在终端运行 `omarchy sudo passwordless 15` 临时授权，完成后再次运行 `omarchy sudo passwordless` 提前关闭。
+- 图形后台任务或 Agent 请求提权时使用 `pkexec`，由轻量鉴权代理 `polkit-gnome` 弹出密码窗口。
 
 ## 平时怎么用
 
@@ -239,94 +236,46 @@ mise run fonts
 
 每次运行都会下载对应 GitHub 项目的最新 release 并刷新字体缓存。脚本依赖 `gh` 和 `unzip`，两者分别由 `~/.config/mise/config.toml` 的 `[tools]` 和 `[bootstrap.packages]` 提供。
 
-## 录屏与直播
+## 快捷键与会话管理
 
-本地录屏走 Omarchy 原生命令（`omarchy capture screenrecording`）。状态灯在 clone 的 `xifan.indicators` 里：`ScreenRecording` 只在本地录屏时亮，`Livestream` 只在直播时亮（同一排、同一套 hover）。两边都用 `gpu-screen-recorder`，不要同时开。
-
-### 常用命令
-
-```bash
-omarchy menu toggle trigger.capture                 # Omarchy Capture 菜单（含直播子菜单）
-omarchy capture screenrecording [...]               # 本地录屏
-livestream start|stop|toggle [portal]               # 直播
-livestream status|is-active                         # 各平台状态 / 是否在播
-livestream config                                   # 直播平台与全局码率（也可 Super+Shift+R）
-capture-text-extraction                             # 选区 OCR（也可 Ctrl+Print）
-```
-
-### 快捷键与会话管理
-
-桌面环境正在向 River 0.4 架构演进，会话由 `uwsm` 管理。
+桌面环境基于 River 0.4 与自研的 xrwm 窗口管理器，开机由 `arch-seamless-login` 结合 `uwsm` 直接拉起，无需显示管理器（DM）或登录 Shell。
 
 | 快捷键                  | 动作                                                   |
 | ----------------------- | ------------------------------------------------------ |
-| `Print` / `Shift+Print` | 选区截图 / 全屏截图存盘                                |
-| `Ctrl+Print`            | 选区 OCR 提取文字                                      |
-| `Alt+Print`             | 屏幕吸管取色                                           |
-| `Win+G`                 | 录制与推流中心菜单                                     |
-| `Win+Ctrl+V`            | 剪贴板历史（`Win+C/V/X` 为万能复制/粘贴/剪切）         |
-| `Win+R`                 | 本地录屏 toggle（桌面声 + 麦克风）                     |
-| `Win+Alt+R`             | 直播 toggle（portal 选区）                             |
-| `Win+Shift+R`           | 直播平台配置                                           |
-| `Win+Alt+S/W/K/T`       | 字幕 (S) / 摄像头 (W) / 按键 (K) / 标题 (T) 叠加层开关 |
-| `Win+Shift+S/W/K/T`     | 对应叠加层拖动 / 样式编辑                              |
-
-### 直播平台
-
-全部写在 `~/.config/livestream/config.json`：全局码率 + 平台列表（每项包含 `name` / `server` / `key`，可选 `enabled` / `aspect_ratio`）。支持 RTMP/RTMPS 和 SRT；也可用 `Super+Shift+R` 或 `livestream config` 打开图形配置。
-
-```json
-{
-  "bitrate": 6000,
-  "audio_bitrate": 160,
-  "lan_bitrate": 12000,
-  "platforms": [
-    {
-      "name": "bilibili",
-      "enabled": true,
-      "server": "rtmp://live-push.example.com/live",
-      "key": "STREAM_KEY",
-      "aspect_ratio": "16:9"
-    }
-  ]
-}
-```
-
-`enabled` 控制该平台是否参与推流（缺省为 `true`）。`aspect_ratio` 只接受 `16:9` 和 `9:16`，其中 9:16 会把 16:9 原画居中放入 1080x1920 竖屏画布。在图形配置界面可临时禁用平台或切换比例，无需删除配置。
-
-`lan_bitrate`（缺省 `12000`）只作用于 SRT 竖屏重编码（推手机 vcam 的局域网链路）：高于互联网码率以减少手机端二次编码前的代际损失，同时避免过高导致 WiFi 波动时 SRT 缓冲堆积、卡顿和延迟飙升。信号差的无线网络可降到 `8000`，5GHz 近距离可提到 `20000`。
-
-对外只有 `livestream`。`livestream-service` 是内部 D-Bus 守护进程（读这份 JSON：单个未合成的 RTMP/RTMPS 由 `gpu-screen-recorder` 直推；SRT、多平台或需要合成时经 ffmpeg 分组分发）。`livestream-danmaku` 只在开播时拉起 Herdr 弹幕桌。若全部平台禁用，视为未配置有效推流目标。
-
-`livestream-service` 在 Session D-Bus 上提供 `GetStatus`、`Stop` 和 `StatusChanged`，所有状态只保存在服务内存中；运行时只落一个权限为 `600` 的脱敏日志。RTMP/RTMPS 在检测到持续 TCP 发送后标记为 `sending`；SRT 由已建立并持续运行的 ffmpeg 会话表示。这里确认的是本机推流管线状态，平台是否正式开播、是否对观众可见，仍以平台控制台为准。
-
-### 选区 OCR
-
-- 命令：`capture-text-extraction`（`Ctrl+Print`；Omarchy Capture 菜单的 Text Extraction 也会优先走它）
-- 后端：mise 工具 `github:zibo-chen/newbee-ocr-cli`（`nbocr`，内嵌 PP-OCRv6）
-- 流程：冻结帧 → `slurp` 选区 → `grim` → `nbocr` JSON → 按坐标排成行 → `wl-copy`
-- 依赖：`nbocr`、`jq`、`grim`、`slurp`、`hyprpicker`、`wl-copy`
-- 默认语言：`zh`（中英混合界面通常可用）；通知文案走 i18n
-
-### Omarchy 适配边界
-
-- 本地录屏只调用公开命令 `omarchy capture screenrecording`，**不修改** `~/.local/share/omarchy`
-- 用户扩展点：`~/.config/omarchy/extensions/omarchy-menu.jsonc` 与 `hooks/post-update.d/`；截图标注使用 Omarchy 4 默认的 Tensaku
-- PATH 保持 Omarchy 默认顺序（`$OMARCHY_PATH/bin` 在 `~/.local/bin` 前）；本仓库用独立命令名（`livestream`、`capture-text-extraction`），不靠同名覆盖 Omarchy 工具
+| `Super+Return`          | 打开超轻量 Wayland 终端 (`ftty`)                       |
+| `Super+Space` / `Super+D` | 应用启动器 (`fuzzel`)                                  |
+| `Super+Shift+E`         | 终端文件管理器 (`yazi`)                                |
+| `Super+B`               | 打开网页浏览器 (`chromium`)                            |
+| `Super+N` / `Super+Ctrl+W` | Wi-Fi 与网络控制菜单 (`arch-net-menu`)                |
+| `Super+Escape`          | 屏幕锁屏 (`hyprlock`)                                  |
+| `Super+Q` / `Super+W`   | 关闭当前窗口                                           |
+| `Super+F` / `F11`       | 全屏切换                                               |
+| `Super+P`               | 浮动窗口切换                                           |
+| `Super+H/J/K/L`         | 焦点移动 (Vim 风格导航)                                |
+| `Super+Shift+H/J/K/L`   | 窗口交换与移动                                         |
+| `Super+1..9`            | 工作区切换 (Tag 1-9)                                   |
+| `Super+Shift+1..9`      | 移动窗口至指定工作区                                   |
+| `Super+Shift+S`         | 区域截图并存入剪贴板 (`grim + slurp`)                  |
+| `Print`                 | 全屏截图并存入剪贴板                                   |
+| `XF86AudioRaise/Lower`  | 扬声器音量增减 (`PipeWire wpctl`)                      |
+| `XF86AudioMute`         | 扬声器静音切换                                         |
+| `XF86AudioMicMute`      | 麦克风静音切换                                         |
+| `XF86MonBrightnessUp/Dn`| 屏幕亮度调节 (`brightnessctl`)                         |
+| `XF86AudioPlay/Next/Prev` | 媒体播放控制 (`playerctl`)                           |
 
 ## 仓库包含什么
 
 | 类别     | 说明                                                                   |
 | -------- | ---------------------------------------------------------------------- |
-| Hyprland | 按键、外观、显示器、空闲锁屏等配置                                     |
-| Neovim   | LazyVim、补全、格式化和主题热加载                                      |
+| 窗口管理 | River 0.4 与 xrwm 模块化规则、快捷键与状态栏配置                        |
+| 终端     | ftty 超轻量 Wayland 终端与 Kitty 图像协议支持                          |
+| 启动与锁屏 | seamless-login 零闪烁直启系统服务与 hyprlock 生物识别锁屏             |
+| Neovim   | LazyVim、补全、格式化和动态主题热加载 (`theme-hotreload`)               |
 | Zsh      | 补全、插件、快捷键、别名和工具初始化                                   |
-| Tmux     | C-Space 前缀、vi 模式、窗口和分屏快捷键（XDG 规范）                    |
-| 输入法   | Fcitx5 和 Rime 配置                                                    |
-| 终端     | WezTerm 配置与主题联动                                                 |
-| 状态栏   | 状态指示灯（录屏 + 直播状态指示） |
-| 主题     | 切换 Omarchy 主题时同步其他程序的配色                                  |
-| 录制     | 音频录制和屏幕录制叠加层                                               |
+| 输入法   | Fcitx5 与万象小鹤双拼 (`rime-wanxiang-flypy`) 离线主题联动              |
+| 状态栏   | Waybar 极简暗黑与语义主题状态栏                                        |
+| 网络管理 | iwd 与 fuzzel 驱动的纯粹无依赖 Wi-Fi 控制套件 (`arch-net-*`)            |
+| 主题引擎 | 22 款语义化配色方案联动全桌面 (`arch-theme-set`)                       |
 | 模拟器   | RetroArch 配置与全局着色器预设                                         |
 | 翻译     | 翻译脚本和 qutebrowser userscript                                      |
 | 工具     | Node、Python、uv、pi 等命令行工具                                      |
