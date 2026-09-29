@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# arch:summary=Initialize xrwm desktop layout, rules, and background services
 # ==============================================================================
 # xrwm — River 0.4+ Window Manager Configuration
 # Modular architecture: init -> rules, bindings, theme
@@ -45,6 +46,12 @@ command -v fcitx5 >/dev/null 2>&1 && fcitx5 -d --replace &
 command -v mako >/dev/null 2>&1 && mako &
 command -v waybar >/dev/null 2>&1 && waybar &
 command -v swaybg >/dev/null 2>&1 && swaybg -c "#1a1b26" &
+if [[ -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 ]]; then
+	/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
+fi
+if command -v swayidle >/dev/null 2>&1; then
+	swayidle -w timeout 300 hyprlock before-sleep hyprlock &
+fi
 
 # 6. 移交 UWSM 环境变量 (若在 uwsm 会话下运行)
 if command -v uwsm >/dev/null 2>&1; then

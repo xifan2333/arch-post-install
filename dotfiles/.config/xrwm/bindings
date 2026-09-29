@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# arch:summary=Configure xrwm keyboard and pointer bindings
 # xrwm keybindings and pointer configuration
 set -euo pipefail
 
@@ -16,7 +17,7 @@ xrwm map normal Super D spawn fuzzel
 # Browser & File Manager
 xrwm map normal Super B spawn "${BROWSER:-chromium}"
 xrwm map normal Super E spawn "${FILE_MANAGER:-nautilus}"
-xrwm map normal "Super+Shift" E spawn "ftty -e yazi"
+xrwm map normal "Super+Shift" E spawn ftty -e yazi
 
 # Network Control Center
 xrwm map normal "Super+Control" W spawn arch-net-menu
@@ -130,21 +131,20 @@ xrwm map normal Super Escape spawn hyprlock
 
 # Screenshots: grim + slurp
 # shellcheck disable=SC2016
-xrwm map normal "Super+Shift" S spawn 'sh -c "grim -g \"\$(slurp)\" - | wl-copy"'
-# shellcheck disable=SC2016
-xrwm map normal None Print spawn 'sh -c "grim - | wl-copy"'
+xrwm map normal "Super+Shift" S spawn sh -c 'grim -g "$(slurp)" - | wl-copy'
+xrwm map normal None Print spawn sh -c 'grim - | wl-copy'
 
 # Volume control via PipeWire wpctl
-xrwm map normal None XF86AudioRaiseVolume spawn "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+"
-xrwm map normal None XF86AudioLowerVolume spawn "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
-xrwm map normal None XF86AudioMute spawn "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
-xrwm map normal None XF86AudioMicMute spawn "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
+xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+
+xrwm map normal None XF86AudioLowerVolume spawn wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+xrwm map normal None XF86AudioMute spawn wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+xrwm map normal None XF86AudioMicMute spawn wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 
 # Backlight control via brightnessctl
-xrwm map normal None XF86MonBrightnessUp spawn "brightnessctl set +5%"
-xrwm map normal None XF86MonBrightnessDown spawn "brightnessctl set 5%-"
+xrwm map normal None XF86MonBrightnessUp spawn brightnessctl set +5%
+xrwm map normal None XF86MonBrightnessDown spawn brightnessctl set 5%-
 
 # Media playback controls
-xrwm map normal None XF86AudioPlay spawn "playerctl play-pause"
-xrwm map normal None XF86AudioNext spawn "playerctl next"
-xrwm map normal None XF86AudioPrev spawn "playerctl previous"
+xrwm map normal None XF86AudioPlay spawn playerctl play-pause
+xrwm map normal None XF86AudioNext spawn playerctl next
+xrwm map normal None XF86AudioPrev spawn playerctl previous
