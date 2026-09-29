@@ -52,23 +52,6 @@ local lint_steps = new Mapping<String, Step> {
       effect = "read"
     }
   }
-
-  ["qmllint"] {
-    glob = List("*.qml")
-    check = new CommandSpec {
-      command = new Command {
-        argv = List(
-          "/usr/lib/qt6/bin/qmllint",
-          "-I", "/usr/lib/qt6/qml",
-          "-i", "/usr/share/omarchy/shell/Commons/qmldir",
-          "-i", "/usr/share/omarchy/shell/Ui/qmldir",
-          "--max-warnings", "0",
-          "{{files}}"
-        )
-      }
-      effect = "read"
-    }
-  }
 }
 
 local conventional_types = "build,chore,docs,feat,fix,perf,refactor,revert,style,test"

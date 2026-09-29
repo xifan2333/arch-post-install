@@ -62,3 +62,18 @@ if [[ -f "$REPO_ROOT/src/seamless-login.c" ]] && command -v gcc &>/dev/null; the
         rm -f "$tmp_bin"
     fi
 fi
+
+# 7. Configure dynamic user drop-in for arch-seamless-login.service
+target_user="${SUDO_USER:-$USER}"
+if [[ "$target_user" == "root" ]]; then
+    target_user=$(awk -F: '$3 >= 1000 && $3 < 60000 {print $1; exit}' /etc/passwd || true)
+fi
+
+if [[ -n "$target_user" ]]; then
+    printf 'pre-packages: configuring arch-seamless-login user drop-in for "%s"...\n' "$target_user"
+    $SUDO mkdir -p /etc/systemd/system/arch-seamless-login.service.d
+    cat <<EOF | $SUDO tee /etc/systemd/system/arch-seamless-login.service.d/user.conf >/dev/null
+[Service]
+User=$target_user
+EOF
+fi
