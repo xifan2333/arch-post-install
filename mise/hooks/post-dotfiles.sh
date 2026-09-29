@@ -43,6 +43,10 @@ if [[ -d "$plymouth_target" && -d "mise/plymouth/themes/arch" ]]; then
     if command -v plymouth-set-default-theme &>/dev/null; then
         $SUDO plymouth-set-default-theme arch 2>/dev/null || true
     fi
+    if command -v mkinitcpio &>/dev/null; then
+        printf 'post-dotfiles: regenerating initramfs with early Plymouth splash...\n'
+        $SUDO mkinitcpio -P 2>/dev/null || true
+    fi
 fi
 
 # Compile and install seamless-login helper if src exists
