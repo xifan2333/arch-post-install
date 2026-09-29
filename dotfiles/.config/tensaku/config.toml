@@ -1,5 +1,5 @@
 # Tensaku annotation editor configuration.
-# Managed by arch-post-install; Preferences writes back here via `omarchy`.
+# Managed by arch-post-install.
 
 [general]
 annotation-size-factor = 1.0
