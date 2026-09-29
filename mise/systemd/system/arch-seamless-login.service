@@ -10,7 +10,6 @@ Type=simple
 ExecStart=/usr/local/bin/seamless-login uwsm start -- river -c xrwm
 Restart=always
 RestartSec=2
-User=xifan
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
