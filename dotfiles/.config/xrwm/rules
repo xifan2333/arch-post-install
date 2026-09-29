@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# arch:summary=Configure xrwm window rules, floating dialogs, and decorations
 # xrwm window rules configuration
 set -euo pipefail
 

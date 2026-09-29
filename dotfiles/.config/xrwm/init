@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# arch:summary=Initialize xrwm desktop layout, rules, and background services
 # ==============================================================================
 # xrwm — River 0.4+ Window Manager Configuration
 # Modular architecture: init -> rules, bindings, theme
