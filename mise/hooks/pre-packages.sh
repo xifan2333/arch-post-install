@@ -49,14 +49,20 @@ if ! pacman -Q yay &>/dev/null; then
     printf 'pre-packages: installing yay from archlinuxcn...\n'
     $SUDO pacman -S --needed --noconfirm yay
 fi
+hash -r 2>/dev/null || true
 
 # 6. Build and install seamless-login VT switcher before systemd services stage
 REPO_ROOT="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
-if [[ -f "$REPO_ROOT/src/seamless-login.c" ]] && command -v gcc &>/dev/null; then
+CC="${CC:-gcc}"
+if ! command -v "$CC" &>/dev/null && [[ -x /usr/bin/gcc ]]; then
+    CC="/usr/bin/gcc"
+fi
+
+if [[ -f "$REPO_ROOT/src/seamless-login.c" ]] && (command -v "$CC" &>/dev/null || [[ -x "$CC" ]]); then
     if [[ ! -x "/usr/local/bin/seamless-login" || "$REPO_ROOT/src/seamless-login.c" -nt "/usr/local/bin/seamless-login" ]]; then
         printf 'pre-packages: building seamless-login VT switcher...\n'
         tmp_bin=$(mktemp)
-        if gcc -O2 "$REPO_ROOT/src/seamless-login.c" -o "$tmp_bin"; then
+        if "$CC" -O2 "$REPO_ROOT/src/seamless-login.c" -o "$tmp_bin"; then
             $SUDO install -D -m 0755 "$tmp_bin" "/usr/local/bin/seamless-login"
         fi
         rm -f "$tmp_bin"
@@ -77,3 +83,10 @@ if [[ -n "$target_user" ]]; then
 User=$target_user
 EOF
 fi
+
+# 8. Disable conflicting legacy display managers and network daemons if present
+for svc in sddm NetworkManager; do
+    if systemctl list-unit-files "$svc.service" &>/dev/null; then
+        $SUDO systemctl disable --now "$svc" 2>/dev/null || true
+    fi
+done

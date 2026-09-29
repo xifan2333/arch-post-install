@@ -15,10 +15,6 @@ login_shell = "/usr/bin/zsh"
 state = "running"
 enabled = true
 
-[bootstrap.services.NetworkManager]
-state = "stopped"
-enabled = false
-
 [bootstrap.services.bluetooth]
 state = "running"
 enabled = true
@@ -35,16 +31,12 @@ enabled = true
 state = "running"
 enabled = true
 
-# Retire SDDM display manager in favor of direct tty1 autologin to River
-[bootstrap.services.sddm]
-state = "stopped"
-enabled = false
-
-# Mask competing network services that cause boot timeouts and interface conflicts
+# Pure suckless network stack: systemd-networkd for wired, iwd for Wi-Fi
 [bootstrap.services.systemd-networkd]
-state = "stopped"
-enabled = false
+state = "running"
+enabled = true
 
+# Mask wait-online service to avoid 2-minute boot timeouts when offline
 [bootstrap.services.systemd-networkd-wait-online]
 state = "stopped"
 enabled = false
@@ -73,6 +65,24 @@ mode = "0755"
 
 [bootstrap.files."/etc/iwd/main.conf"]
 source = "../iwd/main.conf"
+owner = "root"
+group = "root"
+mode = "0644"
+
+# Configure systemd-networkd for wired interfaces while delegating Wi-Fi to iwd
+[bootstrap.directories."/etc/systemd/network"]
+owner = "root"
+group = "root"
+mode = "0755"
+
+[bootstrap.files."/etc/systemd/network/20-wired.network"]
+source = "../systemd/network/20-wired.network"
+owner = "root"
+group = "root"
+mode = "0644"
+
+[bootstrap.files."/etc/systemd/network/80-wifi.network"]
+source = "../systemd/network/80-wifi.network"
 owner = "root"
 group = "root"
 mode = "0644"
