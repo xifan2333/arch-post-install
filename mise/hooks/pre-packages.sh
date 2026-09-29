@@ -83,3 +83,10 @@ if [[ -n "$target_user" ]]; then
 User=$target_user
 EOF
 fi
+
+# 8. Disable conflicting legacy display managers and network daemons if present
+for svc in sddm NetworkManager; do
+    if systemctl list-unit-files "$svc.service" &>/dev/null; then
+        $SUDO systemctl disable --now "$svc" 2>/dev/null || true
+    fi
+done

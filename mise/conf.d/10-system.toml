@@ -15,10 +15,6 @@ login_shell = "/usr/bin/zsh"
 state = "running"
 enabled = true
 
-[bootstrap.services.NetworkManager]
-state = "stopped"
-enabled = false
-
 [bootstrap.services.bluetooth]
 state = "running"
 enabled = true
@@ -34,11 +30,6 @@ enabled = true
 [bootstrap.services.power-profiles-daemon]
 state = "running"
 enabled = true
-
-# Retire SDDM display manager in favor of direct tty1 autologin to River
-[bootstrap.services.sddm]
-state = "stopped"
-enabled = false
 
 # Pure suckless network stack: systemd-networkd for wired, iwd for Wi-Fi
 [bootstrap.services.systemd-networkd]
