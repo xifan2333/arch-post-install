@@ -81,3 +81,9 @@ if [[ -x "dotfiles/.local/bin/arch-theme-set" ]]; then
     printf 'post-dotfiles: refreshing desktop theme...\n'
     dotfiles/.local/bin/arch-theme-set --refresh 2>/dev/null || dotfiles/.local/bin/arch-theme-set tokyo-night
 fi
+
+# Seed initial desktop monospace font configuration for Waybar and terminal UI
+if [[ -x "dotfiles/.local/bin/arch-font-set" ]]; then
+    printf 'post-dotfiles: initializing desktop monospace font...\n'
+    dotfiles/.local/bin/arch-font-set "Sarasa Mono SC" 2>/dev/null || true
+fi
