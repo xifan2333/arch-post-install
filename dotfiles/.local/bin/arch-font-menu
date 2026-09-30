@@ -18,18 +18,15 @@ dmenu_exec() {
 
 # Step 1: Select Monospace / Nerd Font
 mono_list="$(arch-font-list --mono)"
-selected_mono=$(echo "$mono_list" | dmenu_exec "代码与图标字体 (Nerd Font): ")
+selected_mono=$(echo "$mono_list" | dmenu_exec "Mono: ")
 [[ -n "${selected_mono:-}" ]] || exit 0
-selected_mono="${selected_mono#\* }"
 
 # Step 2: Select CJK Fallback Font
 cjk_list="$(arch-font-list --cjk)"
-selected_cjk=$(echo "$cjk_list" | dmenu_exec "中文字体 (CJK Fallback): ")
+selected_cjk=$(echo "$cjk_list" | dmenu_exec "CJK: ")
 if [[ -z "${selected_cjk:-}" ]]; then
 	# User cancelled step 2: retain active CJK font and apply chosen mono font
 	selected_cjk="$curr_cjk"
-else
-	selected_cjk="${selected_cjk#\* }"
 fi
 
 # Step 3: Apply dual fonts atomically
