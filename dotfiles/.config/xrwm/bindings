@@ -14,6 +14,9 @@ xrwm map normal Super Return spawn ftty
 xrwm map normal Super Space spawn fuzzel
 xrwm map normal Super D spawn fuzzel
 
+# Wallpaper picker
+xrwm map normal "Super+Shift" W spawn arch-wallpaper-menu
+
 # Browser & File Manager
 xrwm map normal Super B spawn "${BROWSER:-chromium}"
 xrwm map normal Super E spawn "${FILE_MANAGER:-nautilus}"

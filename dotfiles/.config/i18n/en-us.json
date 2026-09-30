@@ -61,5 +61,21 @@
   "net_disconnected": "Disconnected from {ssid}",
   "net_no_device": "No wireless device detected",
   "font_title": "Typography",
-  "font_switched": "Monospace font switched to: {font}"
+  "font_switched": "Monospace font switched to: {font}",
+  "wallpaper_notify_title": "Wallpaper",
+  "wallpaper_failed": "Wallpaper failed",
+  "wallpaper_set_success": "Wallpaper set: {name}",
+  "wallpaper_invalid_target": "Invalid wallpaper path or URL",
+  "wallpaper_none_found": "No wallpapers found in {dir}",
+  "wallpaper_fetching": "Fetching wallpaper...",
+  "wallpaper_mode_prompt": "Wallpaper: ",
+  "wallpaper_mode_search": "🔍 Search Wallhaven",
+  "wallpaper_mode_local": "🖼 Local wallpapers",
+  "wallpaper_mode_random_online": "🎲 Random (Wallhaven)",
+  "wallpaper_mode_random_local": "🎲 Random (local)",
+  "wallpaper_back": "← Back",
+  "wallpaper_prev": "← Prev page",
+  "wallpaper_next": "Next page →",
+  "wallpaper_search_prompt": "Search: ",
+  "wallpaper_pick_prompt": "Pick wallpaper: "
 }

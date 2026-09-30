@@ -45,7 +45,18 @@ fi
 command -v fcitx5 >/dev/null 2>&1 && fcitx5 -d --replace &
 command -v mako >/dev/null 2>&1 && mako &
 command -v waybar >/dev/null 2>&1 && waybar &
-command -v swaybg >/dev/null 2>&1 && swaybg -c "#1a1b26" &
+if command -v swaybg >/dev/null 2>&1; then
+	wallpaper_state="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
+	wallpaper_img=""
+	if [[ -s "$wallpaper_state" ]]; then
+		wallpaper_img="$(<"$wallpaper_state")"
+	fi
+	if [[ -n "$wallpaper_img" && -f "$wallpaper_img" ]]; then
+		swaybg -i "$wallpaper_img" -m fill &
+	else
+		swaybg -c "#1a1b26" &
+	fi
+fi
 if [[ -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 ]]; then
 	/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
 fi

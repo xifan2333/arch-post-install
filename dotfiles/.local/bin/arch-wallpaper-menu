@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# arch:summary=Interactive wallpaper picker (Wallhaven search / local / random)
+# arch:examples=arch wallpaper menu
+set -euo pipefail
+
+wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+notify() {
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$(tr_msg wallpaper_notify_title)" "$1"
+	fi
+}
+
+# fuzzel-first dmenu wrapper; cancels (Esc) yield an empty selection.
+dmenu() {
+	local prompt="$1"
+	shift
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt" "$@" || true
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt" || true
+	else
+		head -n 1
+	fi
+}
+
+list_images() {
+	find "$wall_dir" -maxdepth 1 -type f \
+		\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+		-printf '%f\n' 2>/dev/null | sort || true
+}
+
+search_flow() {
+	local query page=1 pick id resolution
+	local back_label prev_label next_label
+	back_label="$(tr_msg wallpaper_back)"
+	prev_label="$(tr_msg wallpaper_prev)"
+	next_label="$(tr_msg wallpaper_next)"
+
+	query="$(dmenu "$(tr_msg wallpaper_search_prompt)" --lines 0 --width 50)"
+	while true; do
+		local results="" items=() count=0 menu="" line
+		results="$(arch-wallpaper-search "$query" --page "$page" 2>/dev/null || true)"
+		while IFS=$'\t' read -r id resolution _; do
+			[[ -n "$id" ]] || continue
+			items+=("$id  $resolution")
+		done <<<"$results"
+		count="${#items[@]}"
+
+		menu="$back_label"$'\n'
+		[[ "$page" -gt 1 ]] && menu+="$prev_label"$'\n'
+		[[ "$count" -ge 24 ]] && menu+="$next_label"$'\n'
+		for line in "${items[@]}"; do
+			menu+="$line"$'\n'
+		done
+
+		pick="$(printf '%s' "$menu" | dmenu "$(tr_msg wallpaper_pick_prompt)" --lines 15 --width 50)"
+		[[ -n "$pick" ]] || return 0
+
+		if [[ "$pick" == "$back_label" ]]; then
+			return 0
+		elif [[ "$pick" == "$prev_label" ]]; then
+			page=$((page - 1))
+			[[ "$page" -lt 1 ]] && page=1
+		elif [[ "$pick" == "$next_label" ]]; then
+			page=$((page + 1))
+		else
+			id="${pick%%[[:space:]]*}"
+			arch-wallpaper-set "$id"
+		fi
+	done
+}
+
+local_flow() {
+	local pick img images
+	local back_label
+	back_label="$(tr_msg wallpaper_back)"
+	while true; do
+		images="$(list_images)"
+		if [[ -z "$images" ]]; then
+			notify "$(tr_msg wallpaper_none_found dir="$wall_dir")"
+		fi
+
+		pick="$(printf '%s\n%s' "$back_label" "$images" | dmenu "$(tr_msg wallpaper_pick_prompt)" --lines 15 --width 50)"
+		[[ -n "$pick" ]] || return 0
+
+		if [[ "$pick" == "$back_label" ]]; then
+			return 0
+		fi
+		img="$wall_dir/$pick"
+		[[ -f "$img" ]] || continue
+		arch-wallpaper-set "$img"
+	done
+}
+
+random_online() {
+	local first id
+	notify "$(tr_msg wallpaper_fetching)"
+	first="$(arch-wallpaper-search --sorting random --page 1 2>/dev/null | head -n 1 || true)"
+	id="$(printf '%s' "$first" | awk -F '\t' '{print $1}')"
+	if [[ -n "$id" ]]; then
+		arch-wallpaper-set "$id"
+	else
+		notify "$(tr_msg wallpaper_failed)"
+	fi
+}
+
+random_local() {
+	local img
+	img="$(list_images | shuf -n 1 || true)"
+	if [[ -n "$img" && -f "$wall_dir/$img" ]]; then
+		arch-wallpaper-set "$wall_dir/$img"
+	else
+		notify "$(tr_msg wallpaper_none_found dir="$wall_dir")"
+	fi
+}
+
+main() {
+	if ! command -v fuzzel >/dev/null 2>&1 && ! command -v bemenu >/dev/null 2>&1; then
+		printf 'Error: fuzzel or bemenu required\n' >&2
+		exit 1
+	fi
+
+	local search_label local_label rand_online_label rand_local_label
+	search_label="$(tr_msg wallpaper_mode_search)"
+	local_label="$(tr_msg wallpaper_mode_local)"
+	rand_online_label="$(tr_msg wallpaper_mode_random_online)"
+	rand_local_label="$(tr_msg wallpaper_mode_random_local)"
+
+	local choice
+	choice="$(
+		printf '%s\n' "$search_label" "$local_label" "$rand_online_label" "$rand_local_label" |
+			dmenu "$(tr_msg wallpaper_mode_prompt)" --lines 4 --width 50
+	)"
+	[[ -n "$choice" ]] || return 0
+
+	case "$choice" in
+	"$search_label")
+		search_flow
+		;;
+	"$local_label")
+		local_flow
+		;;
+	"$rand_online_label")
+		random_online
+		;;
+	"$rand_local_label")
+		random_local
+		;;
+	esac
+}
+
+main "$@"

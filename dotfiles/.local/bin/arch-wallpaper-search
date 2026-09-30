@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# arch:summary=Search Wallhaven wallpapers
+# arch:args=[query] [--categories 111] [--purity 110] [--sorting date_added] [--order desc] [--atleast 1920x1080] [--page 1] [--json]
+# arch:examples=arch wallpaper search nature --sorting toplist | arch wallpaper search --json
+set -euo pipefail
+
+wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
+
+cfgval() {
+	local key="$1" default="$2" val=""
+	if [[ -f "$wallhaven_cfg" ]] && command -v jq >/dev/null 2>&1; then
+		val="$(jq -r --arg k "$key" '.[$k] // empty' "$wallhaven_cfg" 2>/dev/null || true)"
+	fi
+	if [[ -n "$val" ]]; then
+		printf '%s' "$val"
+	else
+		printf '%s' "$default"
+	fi
+}
+
+main() {
+	local query="" categories="" purity="" sorting="" order="" atleast="" page="1" json_out=0
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+		--categories)
+			categories="$2"
+			shift 2
+			;;
+		--purity)
+			purity="$2"
+			shift 2
+			;;
+		--sorting)
+			sorting="$2"
+			shift 2
+			;;
+		--order)
+			order="$2"
+			shift 2
+			;;
+		--atleast)
+			atleast="$2"
+			shift 2
+			;;
+		--page)
+			page="$2"
+			shift 2
+			;;
+		--json)
+			json_out=1
+			shift
+			;;
+		-h | --help)
+			printf 'Usage: arch-wallpaper-search [query] [--categories 111] [--purity 110] [--sorting date_added] [--order desc] [--atleast 1920x1080] [--page 1] [--json]\n'
+			return 0
+			;;
+		-*)
+			printf 'Unknown option: %s\n' "$1" >&2
+			return 1
+			;;
+		*)
+			query="$1"
+			shift
+			;;
+		esac
+	done
+
+	categories="${categories:-$(cfgval categories 111)}"
+	purity="${purity:-$(cfgval purity 110)}"
+	sorting="${sorting:-$(cfgval sorting date_added)}"
+	order="${order:-$(cfgval order desc)}"
+	atleast="${atleast:-$(cfgval atleast 1920x1080)}"
+
+	local key=""
+	key="$(cfgval apiKey "")"
+
+	local curl_args=(-fsSL --max-time 30 -G)
+	[[ -n "$query" ]] && curl_args+=(--data-urlencode "q=$query")
+	curl_args+=(--data-urlencode "categories=$categories")
+	curl_args+=(--data-urlencode "purity=$purity")
+	curl_args+=(--data-urlencode "sorting=$sorting")
+	curl_args+=(--data-urlencode "order=$order")
+	curl_args+=(--data-urlencode "page=$page")
+	[[ -n "$atleast" ]] && curl_args+=(--data-urlencode "atleast=$atleast")
+	[[ -n "$key" ]] && curl_args+=(--data-urlencode "apikey=$key")
+
+	local resp
+	if ! resp="$(curl "${curl_args[@]}" "https://wallhaven.cc/api/v1/search" 2>/dev/null)"; then
+		printf 'Wallhaven search failed\n' >&2
+		return 1
+	fi
+
+	if [[ "$json_out" -eq 1 ]]; then
+		printf '%s\n' "$resp"
+		return 0
+	fi
+
+	printf '%s\n' "$resp" | jq -r '(.data // [])[] | [.id, .resolution, .url] | @tsv'
+}
+
+main "$@"
