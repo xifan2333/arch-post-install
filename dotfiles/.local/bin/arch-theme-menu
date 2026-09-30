@@ -4,10 +4,17 @@
 # Interactive theme selector for River desktop using fuzzel or bemenu
 set -euo pipefail
 
-themes=$(arch-theme-set --list | sed 's/^[ *]*//')
-if [[ -z "$themes" ]]; then
+curr=$(arch-theme-set --current 2>/dev/null || echo "")
+all_themes=$(arch-theme-set --list | sed 's/^[ *]*//' | sort -u)
+if [[ -z "$all_themes" ]]; then
 	printf 'No themes found\n' >&2
 	exit 1
+fi
+
+if [[ -n "$curr" ]] && echo "$all_themes" | grep -Fxq "$curr"; then
+	themes=$(printf '%s\n%s\n' "$curr" "$(echo "$all_themes" | grep -vFx "$curr")")
+else
+	themes="$all_themes"
 fi
 
 if command -v fuzzel &>/dev/null; then
