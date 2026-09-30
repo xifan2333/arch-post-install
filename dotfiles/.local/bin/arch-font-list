@@ -17,7 +17,7 @@ get_mono_fonts() {
 		sort -u || true)
 
 	if [[ -n "$curr_mono" ]] && echo "$raw" | grep -Fxq "$curr_mono"; then
-		printf '* %s\n' "$curr_mono"
+		printf '%s\n' "$curr_mono"
 		echo "$raw" | grep -vFx "$curr_mono" || true
 	else
 		echo "$raw"
@@ -34,7 +34,7 @@ get_cjk_fonts() {
 		sort -u || true)
 
 	if [[ -n "$curr_cjk" ]] && echo "$raw" | grep -Fxq "$curr_cjk"; then
-		printf '* %s\n' "$curr_cjk"
+		printf '%s\n' "$curr_cjk"
 		echo "$raw" | grep -vFx "$curr_cjk" || true
 	else
 		echo "$raw"
