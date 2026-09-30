@@ -32,36 +32,6 @@ seed_example dotfiles/.config/dmnotifier/config.yaml.example "$config_home/dmnot
 seed_example dotfiles/.config/vinput/config.json.example "$config_home/vinput/config.json" 0600
 seed_example dotfiles/.config/qutebrowser/translate.json.example "$config_home/qutebrowser/translate.json" 0600
 
-# Seed Plymouth binary image assets if Plymouth theme directory exists
-plymouth_target="/usr/share/plymouth/themes/arch"
-if [[ -d "$plymouth_target" && -d "mise/plymouth/themes/arch" ]]; then
-    for img in mise/plymouth/themes/arch/*.png; do
-        [[ -f "$img" ]] || continue
-        base=$(basename "$img")
-        $SUDO install -D -m 0644 "$img" "$plymouth_target/$base"
-    done
-    if command -v plymouth-set-default-theme &>/dev/null; then
-        $SUDO plymouth-set-default-theme arch 2>/dev/null || true
-    fi
-    if command -v mkinitcpio &>/dev/null; then
-        printf 'post-dotfiles: regenerating initramfs with early Plymouth splash...\n'
-        $SUDO mkinitcpio -P 2>/dev/null || true
-    fi
-fi
-
-# Compile and install seamless-login helper if src exists
-REPO_ROOT="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
-if [[ -f "$REPO_ROOT/src/seamless-login.c" ]] && command -v gcc &>/dev/null; then
-    if [[ ! -x "/usr/local/bin/seamless-login" || "$REPO_ROOT/src/seamless-login.c" -nt "/usr/local/bin/seamless-login" ]]; then
-        printf 'post-dotfiles: building seamless-login VT switcher...\n'
-        tmp_bin=$(mktemp)
-        if gcc -O2 "$REPO_ROOT/src/seamless-login.c" -o "$tmp_bin"; then
-            $SUDO install -D -m 0755 "$tmp_bin" "/usr/local/bin/seamless-login"
-        fi
-        rm -f "$tmp_bin"
-    fi
-fi
-
 # Ensure systemd boots into graphical.target directly for seamless desktop autologin
 if command -v systemctl &>/dev/null; then
     if [[ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]]; then

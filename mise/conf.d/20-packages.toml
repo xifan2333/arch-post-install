@@ -12,7 +12,6 @@
 "pacman:uwsm" = "latest"
 "pacman:swaybg" = "latest"
 "pacman:hyprlock" = "latest"
-"pacman:plymouth" = "latest"
 "pacman:swayidle" = "latest"
 "pacman:polkit-gnome" = "latest"
 "pacman:xdg-desktop-portal" = "latest"
