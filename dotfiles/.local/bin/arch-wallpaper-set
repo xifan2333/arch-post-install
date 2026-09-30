@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# arch:summary=Set wallpaper from a local file, Wallhaven URL, or Wallhaven ID
+# arch:args=<path|wallhaven-url|wallhaven-id|image-url>
+# arch:examples=arch wallpaper set e8v2mk | arch wallpaper set ~/Pictures/wallpapers/a.jpg
+set -euo pipefail
+
+wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
+wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
+max_bytes=52428800
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+notify() {
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$(tr_msg wallpaper_notify_title)" "$1"
+	fi
+}
+
+fail() {
+	notify "$(tr_msg wallpaper_failed)"
+	printf '%s\n' "$1" >&2
+	exit 1
+}
+
+cfgval() {
+	local key="$1" default="$2" val=""
+	if [[ -f "$wallhaven_cfg" ]] && command -v jq >/dev/null 2>&1; then
+		val="$(jq -r --arg k "$key" '.[$k] // empty' "$wallhaven_cfg" 2>/dev/null || true)"
+	fi
+	if [[ -n "$val" ]]; then
+		printf '%s' "$val"
+	else
+		printf '%s' "$default"
+	fi
+}
+
+wallhaven_image_url() {
+	local id="$1" key url
+	key="$(cfgval apiKey "")"
+	url="https://wallhaven.cc/api/v1/w/${id}"
+	[[ -n "$key" ]] && url="${url}?apikey=${key}"
+	curl -fsSL --max-time 30 "$url" 2>/dev/null | jq -r '.data.path // empty' 2>/dev/null || true
+}
+
+download_image() {
+	local url="$1" name dest tmp
+	mkdir -p "$wall_dir"
+	name="$(basename "$url")"
+	name="$(printf '%s' "$name" | tr -cs 'A-Za-z0-9._-' '_')"
+	if [[ -z "$name" || "$name" == "." || "$name" == "/" ]]; then
+		name="wallpaper.jpg"
+	fi
+	dest="$wall_dir/$name"
+	if [[ ! -f "$dest" ]]; then
+		tmp="$dest.part.$$"
+		if ! curl -fsSL --max-time 300 --max-filesize "$max_bytes" -o "$tmp" "$url"; then
+			rm -f "$tmp"
+			return 1
+		fi
+		mv -f "$tmp" "$dest"
+	fi
+	printf '%s' "$dest"
+}
+
+set_wallpaper() {
+	local img="$1" tmp
+	pkill -x swaybg 2>/dev/null || true
+	swaybg -i "$img" -m fill &
+	mkdir -p "$(dirname "$state_file")"
+	tmp="$state_file.tmp.$$"
+	printf '%s\n' "$img" >"$tmp"
+	mv -f "$tmp" "$state_file"
+}
+
+main() {
+	if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
+		printf 'Usage: arch-wallpaper-set <path|wallhaven-url|wallhaven-id|image-url>\n'
+		return 0
+	fi
+
+	local arg="$1" img="" id=""
+	arg="${arg/#\~\//$HOME/}"
+
+	if [[ -f "$arg" ]]; then
+		img="$arg"
+	elif [[ "$arg" =~ ^https?://(www\.)?wallhaven\.cc/w/([A-Za-z0-9]+)/?$ ]]; then
+		id="${BASH_REMATCH[2]}"
+		img="$(wallhaven_image_url "$id")"
+		[[ -n "$img" ]] || fail "Failed to resolve Wallhaven wallpaper $id"
+		if ! img="$(download_image "$img")"; then
+			fail "Failed to download wallpaper"
+		fi
+	elif [[ "$arg" =~ ^[A-Za-z0-9]+$ ]]; then
+		img="$(wallhaven_image_url "$arg")"
+		[[ -n "$img" ]] || fail "Failed to resolve Wallhaven wallpaper $arg"
+		if ! img="$(download_image "$img")"; then
+			fail "Failed to download wallpaper"
+		fi
+	elif [[ "$arg" =~ ^https?:// ]]; then
+		if ! img="$(download_image "$arg")"; then
+			fail "Failed to download wallpaper"
+		fi
+	else
+		fail "$(tr_msg wallpaper_invalid_target)"
+	fi
+
+	[[ -f "$img" ]] || fail "Wallpaper file not found: $img"
+	set_wallpaper "$img"
+	notify "$(tr_msg wallpaper_set_success name="$(basename "$img")")"
+}
+
+main "$@"
