@@ -29,6 +29,10 @@
 # neovim, lazygit, delta, btop, fastfetch, zoxide, herdr) are managed via mise.
 "aur:ftty-bin" = "latest"
 "pacman:zsh" = "latest"
+"pacman:zsh-autosuggestions" = "latest"
+"pacman:zsh-completions" = "latest"
+"pacman:zsh-history-substring-search" = "latest"
+"pacman:zsh-syntax-highlighting" = "latest"
 
 # Interactive UI & Notifications
 "pacman:fuzzel" = "latest"
