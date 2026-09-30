@@ -42,8 +42,8 @@ fi
 
 # Ensure global user tools declared in ~/.config/mise/config.toml are installed
 if command -v mise &>/dev/null; then
-    printf 'post-dotfiles: installing declared user tools...\n'
-    mise install -y 2>/dev/null || true
+    printf 'post-dotfiles: converging global user CLI tools via mise...\n'
+    mise install -g -y 2>/dev/null || true
 fi
 
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
