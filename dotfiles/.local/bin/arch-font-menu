@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# arch:summary=Open interactive dual-font configuration menu via fuzzel
+# arch:summary=Interactive font configuration via fuzzel
 # arch:examples=arch font menu
 set -euo pipefail
 
-curr_mono="$(arch-font-current --mono 2>/dev/null || echo "JetBrainsMono Nerd Font")"
 curr_cjk="$(arch-font-current --cjk 2>/dev/null || echo "Sarasa Mono SC")"
 
 dmenu_exec() {
@@ -17,38 +16,21 @@ dmenu_exec() {
 	fi
 }
 
-main_menu() {
-	local opt1="1. 代码/图标字体 (Nerd Font) [当前: $curr_mono]"
-	local opt2="2. 中文字体 (CJK Fallback)   [当前: $curr_cjk]"
-	local opt3="3. 推荐预设: JetBrainsMono + 更纱黑体"
+# Step 1: Select Monospace / Nerd Font
+mono_list="$(arch-font-list --mono)"
+selected_mono=$(echo "$mono_list" | dmenu_exec "代码与图标字体 (Nerd Font): ")
+[[ -n "${selected_mono:-}" ]] || exit 0
+selected_mono="${selected_mono#\* }"
 
-	local choice
-	choice=$(printf '%s\n%s\n%s\n' "$opt1" "$opt2" "$opt3" | dmenu_exec "字体配置: ")
-	[[ -n "${choice:-}" ]] || exit 0
+# Step 2: Select CJK Fallback Font
+cjk_list="$(arch-font-list --cjk)"
+selected_cjk=$(echo "$cjk_list" | dmenu_exec "中文字体 (CJK Fallback): ")
+if [[ -z "${selected_cjk:-}" ]]; then
+	# User cancelled step 2: retain active CJK font and apply chosen mono font
+	selected_cjk="$curr_cjk"
+else
+	selected_cjk="${selected_cjk#\* }"
+fi
 
-	case "$choice" in
-	1.*)
-		local mono_list
-		mono_list="$(arch-font-list --mono)"
-		local selected_mono
-		selected_mono=$(echo "$mono_list" | dmenu_exec "选择 Nerd Font: ")
-		if [[ -n "${selected_mono:-}" ]]; then
-			arch-font-set --mono "$selected_mono"
-		fi
-		;;
-	2.*)
-		local cjk_list
-		cjk_list="$(arch-font-list --cjk)"
-		local selected_cjk
-		selected_cjk=$(echo "$cjk_list" | dmenu_exec "选择中文字体: ")
-		if [[ -n "${selected_cjk:-}" ]]; then
-			arch-font-set --cjk "$selected_cjk"
-		fi
-		;;
-	3.*)
-		arch-font-set "JetBrainsMono Nerd Font" "Sarasa Mono SC"
-		;;
-	esac
-}
-
-main_menu
+# Step 3: Apply dual fonts atomically
+arch-font-set "$selected_mono" "$selected_cjk"
