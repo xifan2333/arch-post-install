@@ -7,22 +7,38 @@ curr_mono="$(arch-font-current --mono 2>/dev/null || echo "")"
 curr_cjk="$(arch-font-current --cjk 2>/dev/null || echo "")"
 
 get_mono_fonts() {
-	fc-list : family 2>/dev/null |
+	local raw
+	raw=$(fc-list : family 2>/dev/null |
 		tr ',' '\n' |
-		grep -iE "(Nerd Font|Maple Mono|Fira Code|Hack|Iosevka|JetBrains|Source Code|Cascadia)" |
 		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+		grep -iE "(Nerd Font|Maple Mono|Fira Code|Hack|Iosevka|JetBrains|Source Code|Cascadia)" |
 		grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic|NL)" |
 		grep -vE "(CJK|Chinese|SC|TC|HK|JP|KR)" |
-		sort -u || true
+		sort -u || true)
+
+	if [[ -n "$curr_mono" ]] && echo "$raw" | grep -Fxq "$curr_mono"; then
+		printf '* %s\n' "$curr_mono"
+		echo "$raw" | grep -vFx "$curr_mono" || true
+	else
+		echo "$raw"
+	fi
 }
 
 get_cjk_fonts() {
-	fc-list : family 2>/dev/null |
+	local raw
+	raw=$(fc-list : family 2>/dev/null |
 		tr ',' '\n' |
-		grep -E "^(Sarasa|Noto Sans Mono CJK|Noto Sans CJK|Source Han|WenKai|PingFang|Microsoft YaHei)" |
 		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
-		grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic)" |
-		sort -u || true
+		grep -E "^(Sarasa Mono SC|Sarasa UI SC|Sarasa Gothic SC|Noto Sans Mono CJK SC|Noto Sans CJK SC|Source Han Sans CN|LXGW WenKai)" |
+		grep -vE "(Black|DemiLight|Light|Medium|Thin|SemiBold|XLight|Extra|Bold|Italic)" |
+		sort -u || true)
+
+	if [[ -n "$curr_cjk" ]] && echo "$raw" | grep -Fxq "$curr_cjk"; then
+		printf '* %s\n' "$curr_cjk"
+		echo "$raw" | grep -vFx "$curr_cjk" || true
+	else
+		echo "$raw"
+	fi
 }
 
 case "${1:-}" in
@@ -36,17 +52,13 @@ case "${1:-}" in
 	printf 'Available Monospace / Nerd Fonts:\n'
 	while IFS= read -r f; do
 		[[ -z "$f" ]] && continue
-		prefix="  "
-		[[ "$f" == "$curr_mono" ]] && prefix="* "
-		printf '%s%s\n' "$prefix" "$f"
+		printf '  %s\n' "$f"
 	done < <(get_mono_fonts)
 
 	printf '\nAvailable CJK Fallback Fonts:\n'
 	while IFS= read -r f; do
 		[[ -z "$f" ]] && continue
-		prefix="  "
-		[[ "$f" == "$curr_cjk" ]] && prefix="* "
-		printf '%s%s\n' "$prefix" "$f"
+		printf '  %s\n' "$f"
 	done < <(get_cjk_fonts)
 	;;
 esac
