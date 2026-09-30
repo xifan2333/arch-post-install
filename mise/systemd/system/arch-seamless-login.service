@@ -2,12 +2,12 @@
 Description=Direct Seamless Auto-Login to River with xrwm
 Documentation=https://github.com/xifan2333/arch-post-install
 Conflicts=getty@tty1.service
-After=systemd-user-sessions.service plymouth-quit.service systemd-logind.service
+After=systemd-user-sessions.service systemd-logind.service
 PartOf=graphical.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/seamless-login uwsm start -- river -c xrwm
+ExecStart=/usr/bin/uwsm start -- river -c xrwm
 Restart=always
 RestartSec=2
 TTYPath=/dev/tty1

@@ -51,25 +51,7 @@ if ! pacman -Q yay &>/dev/null; then
 fi
 hash -r 2>/dev/null || true
 
-# 6. Build and install seamless-login VT switcher before systemd services stage
-REPO_ROOT="$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")"
-CC="${CC:-gcc}"
-if ! command -v "$CC" &>/dev/null && [[ -x /usr/bin/gcc ]]; then
-    CC="/usr/bin/gcc"
-fi
-
-if [[ -f "$REPO_ROOT/src/seamless-login.c" ]] && (command -v "$CC" &>/dev/null || [[ -x "$CC" ]]); then
-    if [[ ! -x "/usr/local/bin/seamless-login" || "$REPO_ROOT/src/seamless-login.c" -nt "/usr/local/bin/seamless-login" ]]; then
-        printf 'pre-packages: building seamless-login VT switcher...\n'
-        tmp_bin=$(mktemp)
-        if "$CC" -O2 "$REPO_ROOT/src/seamless-login.c" -o "$tmp_bin"; then
-            $SUDO install -D -m 0755 "$tmp_bin" "/usr/local/bin/seamless-login"
-        fi
-        rm -f "$tmp_bin"
-    fi
-fi
-
-# 7. Configure dynamic user drop-in for arch-seamless-login.service
+# 6. Configure dynamic user drop-in for arch-seamless-login.service
 target_user="${SUDO_USER:-$USER}"
 if [[ "$target_user" == "root" ]]; then
     target_user=$(awk -F: '$3 >= 1000 && $3 < 60000 {print $1; exit}' /etc/passwd || true)
