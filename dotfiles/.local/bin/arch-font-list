@@ -1,35 +1,52 @@
 #!/usr/bin/env bash
-# arch:summary=List available programming monospace fonts
-# arch:examples=arch font list | arch font set "Sarasa Mono SC"
+# arch:summary=List available monospace and CJK fonts
+# arch:examples=arch font list | arch font list --mono | arch font list --cjk
 set -euo pipefail
 
-get_current_font() {
-	if command -v arch-font-current >/dev/null 2>&1; then
-		arch-font-current
-	else
-		fc-match monospace -f '%{family}\n' 2>/dev/null | head -n1 | cut -d, -f1
-	fi
+curr_mono="$(arch-font-current --mono 2>/dev/null || echo "")"
+curr_cjk="$(arch-font-current --cjk 2>/dev/null || echo "")"
+
+get_mono_fonts() {
+	fc-list : family 2>/dev/null |
+		tr ',' '\n' |
+		grep -iE "(Nerd Font|Maple Mono|Fira Code|Hack|Iosevka|JetBrains|Source Code|Cascadia)" |
+		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+		grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic|NL)" |
+		grep -vE "(CJK|Chinese|SC|TC|HK|JP|KR)" |
+		sort -u || true
 }
 
-curr="$(get_current_font || echo "")"
+get_cjk_fonts() {
+	fc-list : family 2>/dev/null |
+		tr ',' '\n' |
+		grep -E "^(Sarasa|Noto Sans Mono CJK|Noto Sans CJK|Source Han|WenKai|PingFang|Microsoft YaHei)" |
+		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
+		grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic)" |
+		sort -u || true
+}
 
-# Filter monospace families, prioritizing quality programming fonts
-fonts=$(fc-list : family 2>/dev/null |
-	tr ',' '\n' |
-	grep -E "^(Sarasa Mono SC|JetBrainsMono Nerd Font|Maple Mono|Noto Sans Mono CJK SC|Fira Code|Hack|Iosevka)" |
-	sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
-	grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic|NL)" |
-	sort -u || true)
+case "${1:-}" in
+--mono | -m | --nerd)
+	get_mono_fonts
+	;;
+--cjk | -c)
+	get_cjk_fonts
+	;;
+*)
+	printf 'Available Monospace / Nerd Fonts:\n'
+	while IFS= read -r f; do
+		[[ -z "$f" ]] && continue
+		prefix="  "
+		[[ "$f" == "$curr_mono" ]] && prefix="* "
+		printf '%s%s\n' "$prefix" "$f"
+	done < <(get_mono_fonts)
 
-if [[ -z "$fonts" ]]; then
-	fonts="Sarasa Mono SC
-JetBrainsMono Nerd Font
-Noto Sans Mono CJK SC"
-fi
-
-while IFS= read -r f; do
-	[[ -z "$f" ]] && continue
-	prefix="  "
-	[[ "$f" == "$curr" ]] && prefix="* "
-	printf '%s%s\n' "$prefix" "$f"
-done <<<"$fonts"
+	printf '\nAvailable CJK Fallback Fonts:\n'
+	while IFS= read -r f; do
+		[[ -z "$f" ]] && continue
+		prefix="  "
+		[[ "$f" == "$curr_cjk" ]] && prefix="* "
+		printf '%s%s\n' "$prefix" "$f"
+	done < <(get_cjk_fonts)
+	;;
+esac

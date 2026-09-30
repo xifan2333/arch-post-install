@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Font Switcher
+Name[zh_CN]=字体设置
+Comment=Configure monospace Nerd Font and CJK fallback typography
+Comment[zh_CN]=动态设置西文代码字体与中文字体
+Exec=arch-font-menu
+Icon=preferences-desktop-font
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=font;nerd;cjk;ziti;zt;typeface;
+Keywords[zh_CN]=字体;字型;代码字体;中文字体;zt;ziti;

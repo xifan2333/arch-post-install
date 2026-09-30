@@ -85,5 +85,5 @@ fi
 # Seed initial desktop monospace font configuration for Waybar and terminal UI
 if [[ -x "dotfiles/.local/bin/arch-font-set" ]]; then
     printf 'post-dotfiles: initializing desktop monospace font...\n'
-    dotfiles/.local/bin/arch-font-set "Sarasa Mono SC" 2>/dev/null || true
+    dotfiles/.local/bin/arch-font-set "JetBrainsMono Nerd Font" "Sarasa Mono SC" 2>/dev/null || true
 fi
