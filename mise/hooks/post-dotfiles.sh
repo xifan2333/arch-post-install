@@ -12,26 +12,6 @@ else
     SUDO=""
 fi
 
-config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-
-seed_example() {
-    local src="$1" dest="$2" mode="${3:-0644}"
-    if [[ -e $dest ]]; then
-        return 0
-    fi
-    install -D -m "$mode" "$src" "$dest"
-    printf 'post-dotfiles: seeded %s\n' "$dest"
-}
-
-seed_example dotfiles/.config/screenrecord/title.conf.example "$config_home/screenrecord/title.conf"
-seed_example dotfiles/.config/screenrecord/keys.conf.example "$config_home/screenrecord/keys.conf"
-seed_example dotfiles/.config/screenrecord/captions.conf.example "$config_home/screenrecord/captions.conf"
-seed_example dotfiles/.config/screenrecord/camera.conf.example "$config_home/screenrecord/camera.conf"
-seed_example dotfiles/.config/livestream/config.json.example "$config_home/livestream/config.json" 0600
-seed_example dotfiles/.config/dmnotifier/config.yaml.example "$config_home/dmnotifier/config.yaml"
-seed_example dotfiles/.config/vinput/config.json.example "$config_home/vinput/config.json" 0600
-seed_example dotfiles/.config/qutebrowser/translate.json.example "$config_home/qutebrowser/translate.json" 0600
-
 # Ensure systemd boots into graphical.target directly for seamless desktop autologin
 if command -v systemctl &>/dev/null; then
     if [[ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]]; then
