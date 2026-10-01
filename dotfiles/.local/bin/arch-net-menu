@@ -44,7 +44,8 @@ if [[ -z "$dev" ]]; then
 	exit 1
 fi
 
-# 4. Trigger background scan and query current state
+# 4. Start a rescan immediately, then read the current state
+#    The menu opens on cached results and fresh networks stream in as iwd finds them.
 iwctl station "$dev" scan 2>/dev/null || true
 station_info=$(iwctl station "$dev" show 2>/dev/null || true)
 connected_ssid=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$station_info" | xargs || true)
@@ -56,60 +57,78 @@ if [[ -n "$connected_ssid" ]]; then
 fi
 actions+=("󰑐  $(tr_msg net_rescan)")
 
-# 6. Fetch and parse networks (strip ECMA-48 CSI color codes)
-network_lines=()
-raw_list=$(iwctl station "$dev" get-networks 2>/dev/null | sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' || true)
+# 6. Helpers: strip ANSI codes, wait for iwd scan, format network rows (dedup by SSID)
+strip_ansi() { sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g'; }
 
-while IFS= read -r line; do
-	[[ -z "$line" || "$line" =~ ^[-[:space:]]+$ || "$line" =~ Network\ name || "$line" =~ Available\ networks ]] && continue
+wait_for_scan() {
+	local d="$1" s n=0
+	while ((n < 50)); do
+		s="$(iwctl station "$d" show 2>/dev/null | strip_ansi | awk '$1=="Scanning"{print $2; exit}')"
+		[[ "$s" != "yes" ]] && return 0
+		sleep 0.2
+		n=$((n + 1))
+	done
+	return 0
+}
 
-	is_active=false
-	[[ "$line" =~ ^[[:space:]]*\> ]] && is_active=true
-	clean_content=$(sed -E 's/^[[:space:]]*>[[:space:]]*//; s/^[[:space:]]+//' <<<"$line")
+seen_ssids="$(mktemp)"
+trap 'rm -f "$seen_ssids"' EXIT
 
-	parts=()
-	read -r -a parts <<<"$clean_content"
-	[[ ${#parts[@]} -lt 2 ]] && continue
+format_networks() {
+	local line clean_content raw_sig sec ssid star sig_icon lock_icon is_active
+	local -a parts
+	while IFS= read -r line; do
+		[[ -z "$line" || "$line" =~ ^[-[:space:]]+$ || "$line" =~ Network\ name || "$line" =~ Available\ networks ]] && continue
 
-	raw_sig="${parts[-1]}"
-	sec=""
-	ssid=""
-	if [[ ${#parts[@]} -ge 3 && "${parts[-2]}" =~ ^(psk|8021x|open)$ ]]; then
-		sec="${parts[-2]}"
-		ssid="${parts[*]:0:${#parts[@]}-2}"
-	else
-		ssid="${parts[*]:0:${#parts[@]}-1}"
-	fi
+		is_active=false
+		[[ "$line" =~ ^[[:space:]]*\> ]] && is_active=true
+		clean_content=$(sed -E 's/^[[:space:]]*>[[:space:]]*//; s/^[[:space:]]+//' <<<"$line")
 
-	# Active indicator: * for connected, 2 spaces for other networks
-	star="  "
-	$is_active && star="* "
+		parts=()
+		read -r -a parts <<<"$clean_content"
+		[[ ${#parts[@]} -lt 2 ]] && continue
 
-	# Equal-width NerdFont signal icon
-	sig_icon="󰤯"
-	case "$raw_sig" in
-	"****") sig_icon="󰤨" ;;
-	"***") sig_icon="󰤥" ;;
-	"**") sig_icon="󰤢" ;;
-	"*") sig_icon="󰤟" ;;
-	esac
+		raw_sig="${parts[-1]}"
+		sec=""
+		ssid=""
+		if [[ ${#parts[@]} -ge 3 && "${parts[-2]}" =~ ^(psk|8021x|open)$ ]]; then
+			sec="${parts[-2]}"
+			ssid="${parts[*]:0:${#parts[@]}-2}"
+		else
+			ssid="${parts[*]:0:${#parts[@]}-1}"
+		fi
+		[[ -n "$ssid" ]] || continue
+		grep -Fxq "$ssid" "$seen_ssids" 2>/dev/null && continue
+		printf '%s\n' "$ssid" >>"$seen_ssids"
 
-	# Equal-width NerdFont lock icon (closed lock for secure, open lock for open)
-	lock_icon="󰌿"
-	[[ "$sec" =~ (psk|8021x) ]] && lock_icon="󰌾"
+		star="  "
+		$is_active && star="* "
 
-	# Fixed column layout: indicator on the left, then icons and ssid
-	network_lines+=("$star$sig_icon   $lock_icon   $ssid")
-done <<<"$raw_list"
+		sig_icon="󰤯"
+		case "$raw_sig" in
+		"****") sig_icon="󰤨" ;;
+		"***") sig_icon="󰤥" ;;
+		"**") sig_icon="󰤢" ;;
+		"*") sig_icon="󰤟" ;;
+		esac
 
-# 7. Display fuzzel menu
-menu_input=$(
-	for a in "${actions[@]}"; do printf '  %s\n' "$a"; done
-	for n in "${network_lines[@]}"; do printf '%s\n' "$n"; done
-)
+		lock_icon="󰌿"
+		[[ "$sec" =~ (psk|8021x) ]] && lock_icon="󰌾"
 
+		printf '%s\n' "$star$sig_icon   $lock_icon   $ssid"
+	done
+}
+
+# 7. Display fuzzel menu: cached rows now, freshly scanned rows appended when ready
 prompt_text=$(tr_msg net_prompt "dev=$dev")
-chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
+chosen="$(
+	{
+		for a in "${actions[@]}"; do printf '  %s\n' "$a"; done
+		format_networks <<<"$(iwctl station "$dev" get-networks 2>/dev/null | strip_ansi || true)"
+		wait_for_scan "$dev"
+		format_networks <<<"$(iwctl station "$dev" get-networks 2>/dev/null | strip_ansi || true)"
+	} | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true
+)"
 [[ -z "$chosen" ]] && exit 0
 
 # Strip optional leading alignment spaces for action headers
@@ -120,8 +139,6 @@ if [[ "$action_chosen" =~ ^󰖪[[:space:]] ]]; then
 	iwctl station "$dev" disconnect
 	exit 0
 elif [[ "$action_chosen" =~ ^󰑐[[:space:]] ]]; then
-	iwctl station "$dev" scan
-	sleep 1
 	exec "$0"
 fi
 
