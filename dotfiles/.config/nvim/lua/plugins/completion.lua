@@ -24,10 +24,4 @@ return {
     },
     opts_extend = { "sources.default" },
   },
-  {
-    "milanglacier/minuet-ai.nvim",
-    event = "InsertEnter",
-    dependencies = { "nvim-lua/plenary.nvim" },
-    opts = {},
-  },
 }
