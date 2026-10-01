@@ -1,0 +1,7 @@
+# Sourced by UWSM for the Wayland graphical session
+# Bridges systemd environment.d declarations into the live compositor session
+if [ -x /usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator ]; then
+	set -a
+	. <(/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator)
+	set +a
+fi

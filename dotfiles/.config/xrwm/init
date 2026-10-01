@@ -6,7 +6,14 @@
 # ==============================================================================
 set -euo pipefail
 
-export PATH="$HOME/.local/bin:$PATH"
+# 统一吸收 environment.d/ 声明式环境变量 (ArchWiki 标准规范)
+if [[ -x /usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator ]]; then
+	set -a
+	# shellcheck source=/dev/null
+	source <(/usr/lib/systemd/user-environment-generators/30-systemd-environment-d-generator)
+	set +a
+fi
+
 XRWM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/xrwm"
 
 # 1. 基础布局与间隙 (Layout & Gaps)
@@ -35,33 +42,16 @@ if [[ -f "$XRWM_CONFIG/bindings" ]]; then
 	source "$XRWM_CONFIG/bindings"
 fi
 
-# 4. 执行动态主题色彩钩子 (边框色跟随 22 款主题联动)
+# 4. 模块化自启后台服务 (统一由 uwsm 管理生命周期与 cgroup)
+if [[ -f "$XRWM_CONFIG/autostart" ]]; then
+	# shellcheck source=/dev/null
+	source "$XRWM_CONFIG/autostart"
+fi
+
+# 5. 执行动态主题色彩钩子 (边框色跟随 22 款主题联动)
 theme_xrwm="${XDG_STATE_HOME:-$HOME/.local/state}/theme/xrwm.sh"
 if [[ -x "$theme_xrwm" ]]; then
 	"$theme_xrwm" &
-fi
-
-# 5. 自启桌面后台守护程序
-command -v fcitx5 >/dev/null 2>&1 && fcitx5 -d --replace &
-command -v mako >/dev/null 2>&1 && mako &
-command -v waybar >/dev/null 2>&1 && waybar &
-if command -v swaybg >/dev/null 2>&1; then
-	wallpaper_state="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
-	wallpaper_img=""
-	if [[ -s "$wallpaper_state" ]]; then
-		wallpaper_img="$(<"$wallpaper_state")"
-	fi
-	if [[ -n "$wallpaper_img" && -f "$wallpaper_img" ]]; then
-		swaybg -i "$wallpaper_img" -m fill &
-	else
-		swaybg -c "#1a1b26" &
-	fi
-fi
-if [[ -x /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 ]]; then
-	/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &
-fi
-if command -v swayidle >/dev/null 2>&1; then
-	swayidle -w timeout 300 hyprlock before-sleep hyprlock &
 fi
 
 # 6. 移交 UWSM 环境变量 (若在 uwsm 会话下运行)
