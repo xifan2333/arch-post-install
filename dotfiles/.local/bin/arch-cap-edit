@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# arch:summary=Capture and annotate screenshot using Tensaku
+# arch:examples=arch cap edit
+set -euo pipefail
+
+save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
+mkdir -p "$save_dir"
+
+timestamp="$(date +%Y%m%d_%H%M%S)"
+output_path="$save_dir/annotated-$timestamp.png"
+
+if command -v tensaku >/dev/null 2>&1; then
+	tensaku --capture \
+		--app-id dev.tensaku.Tensaku \
+		--output-filename "$output_path" \
+		--save-after-copy \
+		--copy-command wl-copy \
+		--actions-on-enter save-to-clipboard
+else
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+	grim -g "$geometry" - | wl-copy
+fi

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# arch:summary=Capture selected screen area, save to Pictures/screenshots, and copy to clipboard
+# arch:examples=arch cap area
+set -euo pipefail
+
+save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
+mkdir -p "$save_dir"
+
+filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
+filepath="$save_dir/$filename"
+
+geometry="$(slurp 2>/dev/null || true)"
+[[ -n "$geometry" ]] || exit 0
+
+grim -g "$geometry" "$filepath"
+wl-copy <"$filepath"
+
+if command -v notify-send >/dev/null 2>&1; then
+	notify-send "截图成功" "已保存至相册并复制到剪贴板:\n$filename"
+fi

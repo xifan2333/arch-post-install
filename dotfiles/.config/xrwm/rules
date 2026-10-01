@@ -26,6 +26,12 @@ xrwm rule-add -app-id "mpv" dimensions 960 540
 xrwm rule-add -title "Screenshot Preview" float
 xrwm rule-add -title "Screenshot Preview" dimensions 600 400
 
+# Screenshot annotation
+xrwm rule-add -app-id "dev.tensaku.Tensaku" float
+xrwm rule-add -app-id "dev.tensaku.Tensaku" dimensions 960 540
+xrwm rule-add -title "Tensaku" float
+xrwm rule-add -title "Tensaku" dimensions 960 540
+
 # Custom tools
 xrwm rule-add -app-id "satty" float
 xrwm rule-add -app-id "fuzzel" csd
