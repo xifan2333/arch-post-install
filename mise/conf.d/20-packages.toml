@@ -50,6 +50,7 @@
 
 # Network, Hardware & Biometrics
 "pacman:iwd" = "latest"
+"pacman:wireless-regdb" = "latest"
 "pacman:qrencode" = "latest"
 "pacman:fprintd" = "latest"
 "aur:howdy" = "latest"
