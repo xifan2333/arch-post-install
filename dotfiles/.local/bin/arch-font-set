@@ -124,8 +124,4 @@ printf '%s + %s\n' "$mono_font" "$cjk_font" >"$state_dir/current.name"
 # Broadcast reloads
 pkill -SIGUSR2 waybar 2>/dev/null || true
 
-if command -v notify-send >/dev/null 2>&1; then
-	notify-send "字体切换" "已应用双字体配置:\n• Mono: $mono_font\n• CJK : $cjk_font"
-fi
-
 printf '✓ Set active fonts:\n  Mono: %s\n  CJK : %s\n' "$mono_font" "$cjk_font"

@@ -118,11 +118,9 @@ action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
 # 8. Handle action header items
 if [[ "$action_chosen" =~ ^󰖪[[:space:]] ]]; then
 	iwctl station "$dev" disconnect
-	notify "$(tr_msg net_disconnected "ssid=$connected_ssid")"
 	exit 0
 elif [[ "$action_chosen" =~ ^󰑐[[:space:]] ]]; then
 	iwctl station "$dev" scan
-	notify "$(tr_msg net_scanning)"
 	sleep 1
 	exec "$0"
 fi
@@ -138,10 +136,7 @@ if iwctl known-networks list 2>/dev/null | grep -Fq "$target_ssid"; then
 fi
 
 if $is_known; then
-	notify "$(tr_msg net_connecting "ssid=$target_ssid")"
-	if iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-		notify "$(tr_msg net_connected "ssid=$target_ssid")"
-	else
+	if ! iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
 		notify "$(tr_msg net_failed "ssid=$target_ssid")"
 	fi
 	exit 0
@@ -156,17 +151,11 @@ if $is_secure; then
 	password=$(fuzzel --dmenu --password --prompt "$pass_prompt" --lines 0 || true)
 	[[ -z "$password" ]] && exit 0
 
-	notify "$(tr_msg net_connecting "ssid=$target_ssid")"
-	if iwctl --passphrase="$password" station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-		notify "$(tr_msg net_connected "ssid=$target_ssid")"
-	else
+	if ! iwctl --passphrase="$password" station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
 		notify "$(tr_msg net_auth_failed "ssid=$target_ssid")"
 	fi
 else
-	notify "$(tr_msg net_connecting "ssid=$target_ssid")"
-	if iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-		notify "$(tr_msg net_connected "ssid=$target_ssid")"
-	else
+	if ! iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
 		notify "$(tr_msg net_failed "ssid=$target_ssid")"
 	fi
 fi
