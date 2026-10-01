@@ -7,4 +7,5 @@ dotfiles.default_mode = "symlink-each"
 [dotfiles]
 "~" = { source = "../../dotfiles", mode = "symlink-each", exclude = [
   "*.example",
+  ".config/vinput/hotwords.txt",
 ] }

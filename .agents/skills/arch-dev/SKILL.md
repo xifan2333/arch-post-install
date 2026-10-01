@@ -5,9 +5,9 @@ description: >
   River desktop repository. Use whenever editing dev tooling (mise.toml),
   configuring git hooks/linters (hk.pkl), editing pre/post bootstrap hooks
   (mise/hooks/*), running code quality gates (mise run check:plan, check:changed,
-  fix, lint), controlling the testing VM sandbox (mise run vm:*), or following
-  the strict Chronological Issue + Draft PR workflow (SOP). Trigger on: 开PR/提PR,
-  Draft PR 工作流, 单任务循环提交, 代码体检与格式化自检, 测试虚拟机, 调整 linter.
+  fix, lint), or following the strict Chronological Issue + Draft PR workflow
+  (SOP). Trigger on: 开PR/提PR, Draft PR 工作流, 单任务循环提交, 代码体检与格式化自检,
+  调整 linter.
 ---
 
 # Arch Post-Install: Developer & Engineering Kit
@@ -52,7 +52,6 @@ Read the matching reference before editing:
 | --- | --- |
 | Add/change a repo linter or dev tool | `mise.toml` → `[tools]` |
 | Add/update repo check or format tasks | `mise.toml` → `[tasks.*]` |
-| Configure testing VM sandbox tasks | `mise.toml` → `[tasks."vm:*"]` |
 | Configure system services or privileged files | `mise/conf.d/10-system.toml` |
 | Add a system package (pacman or aur) | `mise/conf.d/20-packages.toml` |
 | Map a dotfile into `~/.config` / `~/.local` | `mise/conf.d/30-dotfiles.toml` |
@@ -82,18 +81,6 @@ All coding agents must strictly operate within this closed-loop chronological li
    - Verify CI status: `gh pr checks`
    - Mark ready: `gh pr ready`
    - Squash merge and delete branch: `gh pr merge --squash --delete-branch`
-
-## Testing Sandbox (VM)
-
-Use the built-in isolated Arch Linux testing VM before applying breaking changes to host:
-
-```bash
-mise run vm:start -- --headless # start VM in background
-mise run vm:ssh -- <command>    # run commands inside test VM
-mise run vm:status              # inspect running status and snapshots
-mise run vm:stop                # graceful ACPI shutdown
-mise run vm:reset               # instantly revert to clean-systemd-boot snapshot
-```
 
 ## Quality Gate Commands
 

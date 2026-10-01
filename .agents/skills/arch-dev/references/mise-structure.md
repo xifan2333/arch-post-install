@@ -12,8 +12,7 @@ arch-post-install/
 │   ├── [tools]                        #    Linters & formatters for this repo
 │   ├── [tasks.hooks]                  #    hk installation (git hooks)
 │   ├── [tasks.lint]                   #    Full repo static analysis
-│   ├── [tasks.format]                 #    Full repo auto-formatting
-│   └── [tasks."vm:*"]                 #    VM test sandbox commands
+│   └── [tasks.format]                 #    Full repo auto-formatting
 │
 └── mise/
     ├── hooks/

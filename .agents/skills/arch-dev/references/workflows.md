@@ -85,11 +85,6 @@ Use whole-repo tasks only when doing batch repository audits or cleanups:
 | `fix`           | 1. Repo Dev         | `mise.toml`            | Auto-format modified files with hk                 |
 | `lint`          | 1. Repo Dev         | `mise.toml`            | Full static analysis across all files              |
 | `format`        | 1. Repo Dev         | `mise.toml`            | Full repo auto-formatting                          |
-| `vm:start`      | 2. VM Sandbox       | `mise.toml`            | Start arch-basic testing VM                        |
-| `vm:stop`       | 2. VM Sandbox       | `mise.toml`            | Gracefully stop testing VM                         |
-| `vm:ssh`        | 2. VM Sandbox       | `mise.toml`            | SSH into testing VM                                |
-| `vm:status`     | 2. VM Sandbox       | `mise.toml`            | Show testing VM status and snapshots               |
-| `vm:reset`      | 2. VM Sandbox       | `mise.toml`            | Revert testing VM to clean snapshot                |
 
 Commands may require `sudo`/`pkexec` for system-wide changes (e.g. `/etc` files).
 
