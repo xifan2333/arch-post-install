@@ -56,6 +56,11 @@ list_themes() {
 broadcast_reloads() {
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	pkill -SIGUSR1 fnott 2>/dev/null || true
+	pkill -SIGUSR1 ftty 2>/dev/null || true
+
+	if pgrep -x mako >/dev/null 2>&1; then
+		makoctl reload 2>/dev/null || true
+	fi
 
 	# Gracefully reload Fcitx5 via native DBus Controller interface or fcitx5-remote
 	if pgrep -x fcitx5 >/dev/null 2>&1; then
@@ -107,6 +112,11 @@ ensure_fcitx5_theme() {
 	done
 }
 
+ensure_ftty_theme() {
+	# Theme colors are dynamically included via ~/.local/state/theme/ftty.toml
+	return 0
+}
+
 ensure_neovim_theme() {
 	local state_theme="$1"
 	[[ -f "$state_theme" ]] || return 0
@@ -119,6 +129,48 @@ ensure_neovim_theme() {
 		ln -sf "$state_theme" "$target_conf"
 	fi
 	touch -c "$target_conf" 2>/dev/null || true
+}
+
+ensure_gtk_theme() {
+	local state_gtk="$1"
+	[[ -f "$state_gtk" ]] || return 0
+
+	local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
+	for v in gtk-3.0 gtk-4.0; do
+		local dir="$xdg/$v"
+		mkdir -p "$dir"
+		local target_css="$dir/gtk.css"
+		if [[ "$(readlink -f "$target_css" 2>/dev/null || true)" != "$state_gtk" ]]; then
+			ln -sf "$state_gtk" "$target_css"
+		fi
+
+		cat >"$dir/settings.ini" <<'EOF'
+[Settings]
+gtk-application-prefer-dark-theme=1
+gtk-theme-name=Adwaita-dark
+gtk-icon-theme-name=Papirus-Dark
+gtk-decoration-layout=
+EOF
+	done
+
+	if command -v gsettings >/dev/null 2>&1; then
+		gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" 2>/dev/null || true
+		gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark" 2>/dev/null || true
+		gsettings set org.gnome.desktop.wm.preferences button-layout "" 2>/dev/null || true
+	fi
+}
+
+ensure_mako_theme() {
+	local state_mako="$1"
+	[[ -f "$state_mako" ]] || return 0
+
+	local mako_dir="${XDG_CONFIG_HOME:-$HOME/.config}/mako"
+	mkdir -p "$mako_dir"
+
+	local target_conf="$mako_dir/config"
+	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_mako" ]]; then
+		ln -sf "$state_mako" "$target_conf"
+	fi
 }
 
 blend_color() {
@@ -338,6 +390,9 @@ apply_theme() {
 
 	ensure_fcitx5_theme "$theme_state/fcitx5-theme.conf"
 	ensure_neovim_theme "$theme_state/neovim.lua"
+	ensure_gtk_theme "$theme_state/gtk.css"
+	ensure_ftty_theme "$theme_state/ftty.toml"
+	ensure_mako_theme "$theme_state/mako.conf"
 	assemble_herdr_theme "$colors_file" "$theme_state"
 	broadcast_reloads
 
