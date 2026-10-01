@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# arch:summary=Cycle through xrwm workspace tags (next or prev)
+set -euo pipefail
+
+dir="${1:-next}"
+
+status_json="$(xrwm status 2>/dev/null || true)"
+if [[ -z "$status_json" ]]; then
+	exit 0
+fi
+
+current_tag="$(python3 -c "
+import json, sys
+try:
+    data = json.loads('''$status_json''')
+    tags = data.get('active_tag_numbers') or [1]
+    print(tags[0])
+except Exception:
+    print(1)
+" 2>/dev/null || echo 1)"
+
+num_tags=9
+
+if [[ "$dir" == "prev" || "$dir" == "previous" ]]; then
+	target_tag=$(((current_tag - 2 + num_tags) % num_tags + 1))
+else
+	target_tag=$(((current_tag % num_tags) + 1))
+fi
+
+target_mask=$((1 << (target_tag - 1)))
+xrwm set-focused-tags "$target_mask"

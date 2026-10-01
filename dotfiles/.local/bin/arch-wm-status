@@ -1,0 +1,118 @@
+#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
+# arch:summary=Stream xrwm workspace and window status formatted for Waybar
+import html
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+
+
+def sig_handler(_signum, _frame):
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, sig_handler)
+signal.signal(signal.SIGTERM, sig_handler)
+
+mode = sys.argv[1] if len(sys.argv) > 1 else "tags"
+
+
+def get_theme_colors():
+    colors = {
+        "accent": "#7fbbb3",
+        "bg_dark": "#21272c",
+        "fg": "#d3c6aa",
+        "muted": "#475258",
+        "selection": "#3d484d",
+    }
+    t_path = os.path.expanduser("~/.local/state/theme/waybar.css")
+    if os.path.exists(t_path):
+        try:
+            with open(t_path) as tf:
+                for line in tf:
+                    m = re.match(
+                        r"@define-color\s+(\w+)\s+(#[0-9a-fA-F]+);", line.strip()
+                    )
+                    if m:
+                        colors[m.group(1)] = m.group(2)
+        except Exception:
+            pass
+    return colors
+
+
+proc = subprocess.Popen(
+    ["xrwm", "status", "--stream"],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    text=True,
+    bufsize=1,
+)
+
+if not proc.stdout:
+    sys.exit(1)
+
+for line in proc.stdout:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        data = json.loads(line)
+    except Exception:
+        continue
+
+    if mode in ("tags", "workspaces"):
+        colors = get_theme_colors()
+        active = set(data.get("active_tag_numbers") or [])
+        occupied = set(data.get("occupied_tag_numbers") or [])
+        layout = data.get("layout", "master-stack")
+        wm_mode = data.get("mode", "normal")
+        title = (data.get("focused_window") or {}).get("title") or ""
+
+        # Dynamic visual bound (like river/sway hide-vacant or compact tags)
+        max_idx = max(max(active | occupied | {1}), 1)
+        # Show active/occupied plus at most 1 ahead for easy navigation
+        bound = min(max(max_idx, 1), 9)
+
+        items = []
+        for i in range(1, 10):
+            if i in active:
+                items.append(
+                    f"<span foreground='{colors['accent']}' weight='bold'> {i} </span>"
+                )
+            elif i in occupied:
+                items.append(
+                    f"<span foreground='{colors['fg']}'> {i} </span>"
+                )
+            else:
+                items.append(
+                    f"<span foreground='{colors['muted']}'> {i} </span>"
+                )
+
+        tooltip = f"Mode: [{wm_mode}], Layout: {layout}"
+        if title:
+            tooltip += f"\nFocused: {html.escape(title)}"
+
+        payload = {
+            "text": " ".join(items),
+            "tooltip": tooltip,
+            "class": "monocle" if layout == "monocle" else "tiled",
+        }
+        sys.stdout.write(json.dumps(payload) + "\n")
+        sys.stdout.flush()
+
+    elif mode == "window":
+        focused = data.get("focused_window") or {}
+        title = focused.get("title") or ""
+        app_id = focused.get("app_id") or ""
+        floating = focused.get("floating", False)
+
+        escaped_title = html.escape(title)
+        payload = {
+            "text": escaped_title,
+            "tooltip": f"{app_id}: {escaped_title}" if app_id else escaped_title,
+            "class": "floating" if floating else "tiled",
+        }
+        sys.stdout.write(json.dumps(payload) + "\n")
+        sys.stdout.flush()

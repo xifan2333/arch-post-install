@@ -1,7 +1,9 @@
 # User credentials and local caches
 dotfiles/.config/vinput/config.json
+dotfiles/.config/vinput/hotwords.txt
 dotfiles/.config/qutebrowser/translate.json
 dotfiles/.config/fcitx5/conf/cached_layouts
+dotfiles/.local/bin/arch-wm-tag
 
 # Python bytecode and tool caches
 __pycache__/
@@ -10,16 +12,6 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
-
-# VM disk images, firmware binaries, and runtime files
-vms/*/*.qcow2
-vms/*/*.fd
-vms/*/*.img
-vms/*/*.socket
-vms/*/*.ports
-vms/*/*.log
-vms/*/*.pid
-vms/*/*.spice
 
 
 
