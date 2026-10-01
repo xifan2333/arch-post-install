@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # arch:summary=Search Wallhaven wallpapers
-# arch:args=[query] [--categories 111] [--purity 110] [--sorting date_added] [--order desc] [--atleast 1920x1080] [--page 1] [--json]
-# arch:examples=arch wallpaper search nature --sorting toplist | arch wallpaper search --json
+# arch:args=[query] [--categories 111] [--purity 110] [--sorting date_added] [--order desc] [--atleast 1920x1080] [--page 1] [--tags] [--thumbs DIR] [--json]
+#   --thumbs DIR streams results: a leading `#count N` line, then `id\tres\tpng`
+#   lines in completion order as each thumbnail becomes ready.
+# arch:examples=arch wallpaper search nature --sorting toplist | arch wallpaper search nature --thumbs /tmp/w
 set -euo pipefail
 
 wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
+api_base="https://wallhaven.cc/api/v1"
 
 cfgval() {
 	local key="$1" default="$2" val=""
@@ -18,8 +21,25 @@ cfgval() {
 	fi
 }
 
+fetch_tags() {
+	local id="$1" tags url
+	url="$api_base/w/${id}"
+	[[ -n "${2:-}" ]] && url="${url}?apikey=${2}"
+	tags="$(curl -fsSL --max-time 10 "$url" 2>/dev/null |
+		jq -r '[.data.tags[]?.name] | .[0:4] | join(", ")' 2>/dev/null || true)"
+	printf '%s' "$tags"
+}
+
+fetch_thumb() {
+	local id="$1" url="$2" dir="$3"
+	curl -fsSL --connect-timeout 3 --max-time 8 "$url" 2>/dev/null |
+		timeout 8 magick jpeg:- -thumbnail 96x96 "$dir/$id.png" 2>/dev/null || return 1
+	printf '%s' "$dir/$id.png"
+}
+
 main() {
-	local query="" categories="" purity="" sorting="" order="" atleast="" page="1" json_out=0
+	local query="" categories="" purity="" sorting="" order="" atleast="" page="1"
+	local json_out=0 tags_out=0 thumbs_dir=""
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
 		--categories)
@@ -46,12 +66,20 @@ main() {
 			page="$2"
 			shift 2
 			;;
+		--tags)
+			tags_out=1
+			shift
+			;;
+		--thumbs)
+			thumbs_dir="$2"
+			shift 2
+			;;
 		--json)
 			json_out=1
 			shift
 			;;
 		-h | --help)
-			printf 'Usage: arch-wallpaper-search [query] [--categories 111] [--purity 110] [--sorting date_added] [--order desc] [--atleast 1920x1080] [--page 1] [--json]\n'
+			printf 'Usage: arch-wallpaper-search [query] [--categories 111] [--purity 110] [--sorting date_added] [--order desc] [--atleast 1920x1080] [--page 1] [--tags] [--thumbs DIR] [--json]\n'
 			return 0
 			;;
 		-*)
@@ -85,7 +113,7 @@ main() {
 	[[ -n "$key" ]] && curl_args+=(--data-urlencode "apikey=$key")
 
 	local resp
-	if ! resp="$(curl "${curl_args[@]}" "https://wallhaven.cc/api/v1/search" 2>/dev/null)"; then
+	if ! resp="$(curl --connect-timeout 5 --max-time 20 "${curl_args[@]}" "$api_base/search" 2>/dev/null)"; then
 		printf 'Wallhaven search failed\n' >&2
 		return 1
 	fi
@@ -95,7 +123,59 @@ main() {
 		return 0
 	fi
 
-	printf '%s\n' "$resp" | jq -r '(.data // [])[] | [.id, .resolution, .url] | @tsv'
+	if ! printf '%s' "$resp" | jq -e '.data' >/dev/null 2>&1; then
+		printf 'Wallhaven search failed (rate limited or invalid response)\n' >&2
+		return 1
+	fi
+
+	if [[ -n "$thumbs_dir" ]]; then
+		mkdir -p "$thumbs_dir"
+		local count
+		count="$(printf '%s' "$resp" | jq -r '(.data // []) | length' 2>/dev/null || echo 0)"
+		printf '#count %s\n' "$count"
+
+		local idx=0
+		while IFS=$'\t' read -r id resolution thumburl; do
+			[[ -n "$id" && -n "$thumburl" ]] || continue
+			(
+				if png="$(fetch_thumb "$id" "$thumburl" "$thumbs_dir")"; then
+					printf '%s\t%s\t%s\n' "$id" "$resolution" "$png"
+				fi
+			) &
+			idx=$((idx + 1))
+			# Cap concurrency without a hard barrier: reap finished jobs only.
+			while (($(jobs -rp | wc -l) >= 16)); do wait -n 2>/dev/null || break; done
+		done <<<"$(printf '%s\n' "$resp" | jq -r '(.data // [])[] | [.id, .resolution, .thumbs.large] | @tsv')"
+		wait
+		return 0
+	fi
+
+	local base
+	base="$(printf '%s\n' "$resp" | jq -r '(.data // [])[] | [.id, .resolution] | @tsv')"
+
+	if [[ "$tags_out" -eq 0 ]]; then
+		printf '%s\n' "$base"
+		return 0
+	fi
+
+	local tagdir tidx=0
+	tagdir="$(mktemp -d)"
+	trap 'rm -rf "$tagdir"' EXIT
+
+	while IFS=$'\t' read -r id resolution; do
+		[[ -n "$id" ]] || continue
+		(
+			t="$(fetch_tags "$id" "$key")"
+			printf '%s\t%s\t%s\n' "$id" "$resolution" "$t" >"$tagdir/out.$tidx"
+		) &
+		tidx=$((tidx + 1))
+		if ((tidx % 8 == 0)); then wait; fi
+	done <<<"$base"
+	wait
+
+	for f in "$tagdir"/out.*; do
+		[[ -f "$f" ]] && cat "$f"
+	done
 }
 
 main "$@"

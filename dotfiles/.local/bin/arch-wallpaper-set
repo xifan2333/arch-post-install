@@ -52,22 +52,24 @@ wallhaven_image_url() {
 }
 
 download_image() {
-	local url="$1" name dest tmp
+	local url="$1" ext dest tmp
 	mkdir -p "$wall_dir"
-	name="$(basename "$url")"
-	name="$(printf '%s' "$name" | tr -cs 'A-Za-z0-9._-' '_')"
-	if [[ -z "$name" || "$name" == "." || "$name" == "/" ]]; then
-		name="wallpaper.jpg"
+
+	ext="${url##*.}"
+	case "$ext" in
+	jpg | jpeg | png | webp) ;;
+	*) ext="jpg" ;;
+	esac
+
+	# Keep exactly one downloaded wallpaper; favorites are curated manually.
+	rm -f "$wall_dir"/wallpaper.*
+	dest="$wall_dir/wallpaper.$ext"
+	tmp="$dest.part.$$"
+	if ! curl -fsSL --max-time 300 --max-filesize "$max_bytes" -o "$tmp" "$url"; then
+		rm -f "$tmp"
+		return 1
 	fi
-	dest="$wall_dir/$name"
-	if [[ ! -f "$dest" ]]; then
-		tmp="$dest.part.$$"
-		if ! curl -fsSL --max-time 300 --max-filesize "$max_bytes" -o "$tmp" "$url"; then
-			rm -f "$tmp"
-			return 1
-		fi
-		mv -f "$tmp" "$dest"
-	fi
+	mv -f "$tmp" "$dest"
 	printf '%s' "$dest"
 }
 
@@ -115,7 +117,6 @@ main() {
 
 	[[ -f "$img" ]] || fail "Wallpaper file not found: $img"
 	set_wallpaper "$img"
-	notify "$(tr_msg wallpaper_set_success name="$(basename "$img")")"
 }
 
 main "$@"

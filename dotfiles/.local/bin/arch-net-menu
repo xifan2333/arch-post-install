@@ -109,7 +109,7 @@ menu_input=$(
 )
 
 prompt_text=$(tr_msg net_prompt "dev=$dev")
-chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 --width 45 || true)
+chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
 [[ -z "$chosen" ]] && exit 0
 
 # Strip optional leading alignment spaces for action headers
@@ -153,7 +153,7 @@ is_secure=false
 
 if $is_secure; then
 	pass_prompt=$(tr_msg net_password_prompt "ssid=$target_ssid")
-	password=$(fuzzel --dmenu --password --prompt "$pass_prompt" --lines 0 --width 35 || true)
+	password=$(fuzzel --dmenu --password --prompt "$pass_prompt" --lines 0 || true)
 	[[ -z "$password" ]] && exit 0
 
 	notify "$(tr_msg net_connecting "ssid=$target_ssid")"
