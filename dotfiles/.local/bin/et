@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# arch:summary=Launch WPS Office Spreadsheets with user flags
+set -euo pipefail
+
+flags_file="${XDG_CONFIG_HOME:-$HOME/.config}/wps-flags.conf"
+if [[ -f "$flags_file" ]]; then
+	# shellcheck source=/dev/null
+	source "$flags_file"
+fi
+
+exec "/usr/bin/${0##*/}" "$@"
