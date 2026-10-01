@@ -42,19 +42,19 @@ if [[ -f "$XRWM_CONFIG/bindings" ]]; then
 	source "$XRWM_CONFIG/bindings"
 fi
 
-# 4. 模块化自启后台服务 (统一由 uwsm 管理生命周期与 cgroup)
+# 4. 移交 UWSM 环境变量并通知 systemd 会话就绪 (若在 uwsm 会话下运行)
+if command -v uwsm >/dev/null 2>&1; then
+	uwsm finalize 2>/dev/null || true
+fi
+
+# 5. 模块化自启后台服务 (统一由 uwsm 管理生命周期与 cgroup)
 if [[ -f "$XRWM_CONFIG/autostart" ]]; then
 	# shellcheck source=/dev/null
 	source "$XRWM_CONFIG/autostart"
 fi
 
-# 5. 执行动态主题色彩钩子 (边框色跟随 22 款主题联动)
+# 6. 执行动态主题色彩钩子 (边框色跟随 22 款主题联动)
 theme_xrwm="${XDG_STATE_HOME:-$HOME/.local/state}/theme/xrwm.sh"
 if [[ -x "$theme_xrwm" ]]; then
 	"$theme_xrwm" &
-fi
-
-# 6. 移交 UWSM 环境变量 (若在 uwsm 会话下运行)
-if command -v uwsm >/dev/null 2>&1; then
-	uwsm finalize 2>/dev/null || true
 fi

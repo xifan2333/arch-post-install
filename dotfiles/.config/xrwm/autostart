@@ -14,18 +14,20 @@ start_daemon() {
 	fi
 
 	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -- "$bin" "$@" &
+		uwsm app -s b -S both -- "$bin" "$@" >/dev/null 2>&1 &
 	else
-		"$bin" "$@" &
+		"$bin" "$@" >/dev/null 2>&1 &
 	fi
 }
 
 # 1. Input method framework (Fcitx5)
 if command -v fcitx5 >/dev/null 2>&1; then
-	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -- fcitx5 -d --replace &
-	else
-		fcitx5 -d --replace &
+	if ! pgrep -x fcitx5 >/dev/null 2>&1; then
+		if command -v uwsm >/dev/null 2>&1; then
+			uwsm app -s b -S both -- fcitx5 --replace >/dev/null 2>&1 &
+		else
+			fcitx5 --replace >/dev/null 2>&1 &
+		fi
 	fi
 fi
 
@@ -39,18 +41,18 @@ start_daemon waybar
 polkit_agent="/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
 if [[ -x "$polkit_agent" ]] && ! pgrep -f "polkit-gnome" >/dev/null 2>&1; then
 	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -- "$polkit_agent" &
+		uwsm app -s b -S both -- "$polkit_agent" >/dev/null 2>&1 &
 	else
-		"$polkit_agent" &
+		"$polkit_agent" >/dev/null 2>&1 &
 	fi
 fi
 
 # 5. Idle locker daemon (Swayidle)
 if command -v swayidle >/dev/null 2>&1 && ! pgrep -x swayidle >/dev/null 2>&1; then
 	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -- swayidle -w timeout 300 hyprlock before-sleep hyprlock &
+		uwsm app -s b -S both -- swayidle -w timeout 300 hyprlock before-sleep hyprlock >/dev/null 2>&1 &
 	else
-		swayidle -w timeout 300 hyprlock before-sleep hyprlock &
+		swayidle -w timeout 300 hyprlock before-sleep hyprlock >/dev/null 2>&1 &
 	fi
 fi
 
@@ -66,28 +68,33 @@ if command -v swaybg >/dev/null 2>&1; then
 	sleep 0.1
 	if [[ -n "$wallpaper_img" && -f "$wallpaper_img" ]]; then
 		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -- swaybg -i "$wallpaper_img" -m fill &
+			uwsm app -s b -S both -- swaybg -i "$wallpaper_img" -m fill >/dev/null 2>&1 &
 		else
-			swaybg -i "$wallpaper_img" -m fill &
+			swaybg -i "$wallpaper_img" -m fill >/dev/null 2>&1 &
 		fi
 	else
 		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -- swaybg -c "#1a1b26" &
+			uwsm app -s b -S both -- swaybg -c "#1a1b26" >/dev/null 2>&1 &
 		else
-			swaybg -c "#1a1b26" &
+			swaybg -c "#1a1b26" >/dev/null 2>&1 &
 		fi
 	fi
 fi
 
 # 7. Clipboard manager (Cliphist)
 if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; then
-	if ! pgrep -f "wl-paste --watch cliphist" >/dev/null 2>&1; then
+	if ! pgrep -f "wl-paste --watch cliphist store" >/dev/null 2>&1; then
 		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -- wl-paste --watch cliphist store &
-			uwsm app -- wl-paste --type image --watch cliphist store &
+			uwsm app -s b -S both -- wl-paste --watch cliphist store >/dev/null 2>&1 &
 		else
-			wl-paste --watch cliphist store &
-			wl-paste --type image --watch cliphist store &
+			wl-paste --watch cliphist store >/dev/null 2>&1 &
+		fi
+	fi
+	if ! pgrep -f "wl-paste --type image --watch cliphist store" >/dev/null 2>&1; then
+		if command -v uwsm >/dev/null 2>&1; then
+			uwsm app -s b -S both -- wl-paste --type image --watch cliphist store >/dev/null 2>&1 &
+		else
+			wl-paste --type image --watch cliphist store >/dev/null 2>&1 &
 		fi
 	fi
 fi
