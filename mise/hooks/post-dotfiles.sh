@@ -27,10 +27,6 @@ if command -v mise &>/dev/null; then
 fi
 
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
-if [[ -f "dotfiles/.local/bin/arch-wm-tag.c" && ! -x "dotfiles/.local/bin/arch-wm-tag" ]]; then
-    gcc -O2 dotfiles/.local/bin/arch-wm-tag.c -o dotfiles/.local/bin/arch-wm-tag || true
-fi
-
 if [[ -x "dotfiles/.local/bin/arch-theme-set" ]]; then
     printf 'post-dotfiles: refreshing desktop theme...\n'
     dotfiles/.local/bin/arch-theme-set --refresh 2>/dev/null || dotfiles/.local/bin/arch-theme-set tokyo-night

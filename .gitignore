@@ -3,7 +3,6 @@ dotfiles/.config/vinput/config.json
 dotfiles/.config/vinput/hotwords.txt
 dotfiles/.config/qutebrowser/translate.json
 dotfiles/.config/fcitx5/conf/cached_layouts
-dotfiles/.local/bin/arch-wm-tag
 
 # Python bytecode and tool caches
 __pycache__/

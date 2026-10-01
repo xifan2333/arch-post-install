@@ -14,7 +14,9 @@
     "custom/tag-9",
     "custom/xrwm-window"
   ],
-  "modules-center": ["clock"],
+  "modules-center": [
+    "clock"
+  ],
   "modules-right": [
     "tray",
     "network",
@@ -23,117 +25,122 @@
     "battery",
     "custom/power"
   ],
-
   "custom/tag-1": {
     "format": "1",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 1",
+    "exec": "xrwm status --tag 1 --stream",
     "on-click": "xrwm set-focused-tags 1"
   },
   "custom/tag-2": {
     "format": "2",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 2",
+    "exec": "xrwm status --tag 2 --stream",
     "on-click": "xrwm set-focused-tags 2"
   },
   "custom/tag-3": {
     "format": "3",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 3",
+    "exec": "xrwm status --tag 3 --stream",
     "on-click": "xrwm set-focused-tags 4"
   },
   "custom/tag-4": {
     "format": "4",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 4",
+    "exec": "xrwm status --tag 4 --stream",
     "on-click": "xrwm set-focused-tags 8"
   },
   "custom/tag-5": {
     "format": "5",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 5",
+    "exec": "xrwm status --tag 5 --stream",
     "on-click": "xrwm set-focused-tags 16"
   },
   "custom/tag-6": {
     "format": "6",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 6",
+    "exec": "xrwm status --tag 6 --stream",
     "on-click": "xrwm set-focused-tags 32"
   },
   "custom/tag-7": {
     "format": "7",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 7",
+    "exec": "xrwm status --tag 7 --stream",
     "on-click": "xrwm set-focused-tags 64"
   },
   "custom/tag-8": {
     "format": "8",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 8",
+    "exec": "xrwm status --tag 8 --stream",
     "on-click": "xrwm set-focused-tags 128"
   },
   "custom/tag-9": {
     "format": "9",
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-wm-tag 9",
+    "exec": "xrwm status --tag 9 --stream",
     "on-click": "xrwm set-focused-tags 256"
   },
-
   "custom/xrwm-window": {
     "format": "{}",
     "max-length": 45,
     "tooltip": true,
     "return-type": "json",
-    "exec": "arch-wm-status window"
+    "exec": "xrwm status --window --stream"
   },
-
   "tray": {
     "icon-size": 16,
     "spacing": 10
   },
-
   "clock": {
     "format": "{:%H:%M}",
     "tooltip-format": "<big>{:%Y-%m-%d %A}</big>\n<tt><small>{calendar}</small></tt>"
   },
-
   "network": {
     "format-wifi": "{icon}",
     "format-ethernet": "󰈀",
     "format-disconnected": "󰖪",
-    "format-icons": ["󰤟", "󰤢", "󰤥", "󰤨"],
+    "format-icons": [
+      "󰤟",
+      "󰤢",
+      "󰤥",
+      "󰤨"
+    ],
     "tooltip-format": "{ifname} via {gwaddr}\nSSID: {essid}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
     "tooltip-format-disconnected": "网络已断开",
     "on-click": "arch-net-menu"
   },
-
   "pulseaudio": {
     "format": "{icon}  {volume}%",
     "format-muted": "󰖁  静音",
     "format-icons": {
-      "default": ["󰕿", "󰖀", "󰕾"]
+      "default": [
+        "󰕿",
+        "󰖀",
+        "󰕾"
+      ]
     },
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
-
   "backlight": {
     "format": "{icon}  {percent}%",
-    "format-icons": ["󰃞", "󰃟", "󰃠"],
+    "format-icons": [
+      "󰃞",
+      "󰃟",
+      "󰃠"
+    ],
     "on-scroll-up": "brightnessctl set +5%",
     "on-scroll-down": "brightnessctl set 5%-"
   },
-
   "battery": {
     "format": "{icon}  {capacity}%",
     "format-charging": "󰂄  {capacity}%",
@@ -156,7 +163,6 @@
       "critical": 15
     }
   },
-
   "custom/power": {
     "format": "⏻",
     "tooltip": false,
