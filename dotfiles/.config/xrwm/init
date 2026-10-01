@@ -22,7 +22,7 @@ xrwm main-ratio 0.55
 xrwm stack-ratio 0.50
 xrwm main-count 1
 xrwm main-location left
-xrwm default-attach-mode top
+xrwm default-attach-mode bottom
 
 # 2. 边框、焦点策略与动画引擎 (Policies & Animations)
 xrwm border-width 2
