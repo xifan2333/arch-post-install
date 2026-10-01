@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# arch:summary=Autostart desktop daemons and background services via uwsm
+# Modular autostart for River / xrwm session
+set -euo pipefail
+
+# Helper to launch daemons via uwsm app with single-instance check
+start_daemon() {
+	local bin="$1"
+	shift
+	command -v "$bin" >/dev/null 2>&1 || return 0
+
+	if pgrep -x "$bin" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	if command -v uwsm >/dev/null 2>&1; then
+		uwsm app -- "$bin" "$@" &
+	else
+		"$bin" "$@" &
+	fi
+}
+
+# 1. Input method framework (Fcitx5)
+if command -v fcitx5 >/dev/null 2>&1; then
+	if command -v uwsm >/dev/null 2>&1; then
+		uwsm app -- fcitx5 -d --replace &
+	else
+		fcitx5 -d --replace &
+	fi
+fi
+
+# 2. Notification daemon (Mako)
+start_daemon mako
+
+# 3. Status bar (Waybar)
+start_daemon waybar
+
+# 4. Polkit authentication agent
+polkit_agent="/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+if [[ -x "$polkit_agent" ]] && ! pgrep -f "polkit-gnome" >/dev/null 2>&1; then
+	if command -v uwsm >/dev/null 2>&1; then
+		uwsm app -- "$polkit_agent" &
+	else
+		"$polkit_agent" &
+	fi
+fi
+
+# 5. Idle locker daemon (Swayidle)
+if command -v swayidle >/dev/null 2>&1 && ! pgrep -x swayidle >/dev/null 2>&1; then
+	if command -v uwsm >/dev/null 2>&1; then
+		uwsm app -- swayidle -w timeout 300 hyprlock before-sleep hyprlock &
+	else
+		swayidle -w timeout 300 hyprlock before-sleep hyprlock &
+	fi
+fi
+
+# 6. Wallpaper daemon (Swaybg)
+if command -v swaybg >/dev/null 2>&1; then
+	wallpaper_state="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
+	wallpaper_img=""
+	if [[ -s "$wallpaper_state" ]]; then
+		wallpaper_img="$(<"$wallpaper_state")"
+	fi
+
+	pkill -x swaybg 2>/dev/null || true
+	sleep 0.1
+	if [[ -n "$wallpaper_img" && -f "$wallpaper_img" ]]; then
+		if command -v uwsm >/dev/null 2>&1; then
+			uwsm app -- swaybg -i "$wallpaper_img" -m fill &
+		else
+			swaybg -i "$wallpaper_img" -m fill &
+		fi
+	else
+		if command -v uwsm >/dev/null 2>&1; then
+			uwsm app -- swaybg -c "#1a1b26" &
+		else
+			swaybg -c "#1a1b26" &
+		fi
+	fi
+fi

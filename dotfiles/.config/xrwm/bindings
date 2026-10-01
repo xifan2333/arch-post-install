@@ -132,10 +132,13 @@ xrwm map-pointer normal Super BTN_MIDDLE toggle-float
 # Screen locker: hyprlock
 xrwm map normal Super Escape spawn hyprlock
 
-# Screenshots: grim + slurp
-# shellcheck disable=SC2016
-xrwm map normal "Super+Shift" S spawn sh -c 'grim -g "$(slurp)" - | wl-copy'
-xrwm map normal None Print spawn sh -c 'grim - | wl-copy'
+# Screenshots & Annotation (River-era matrix with Tensaku integration)
+xrwm map normal None Print spawn arch-cap-area
+xrwm map normal "Super+Shift" S spawn arch-cap-edit
+xrwm map normal Super Print spawn arch-cap-edit
+xrwm map normal Shift Print spawn arch-cap-full
+xrwm map normal "Super+Shift" Print spawn arch-cap-color
+xrwm map normal Control Print spawn tensaku --scroll-capture
 
 # Volume control via PipeWire wpctl
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+
