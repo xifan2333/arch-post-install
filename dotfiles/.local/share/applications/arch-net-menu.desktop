@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Network Manager
+Name[zh_CN]=网络设置
+GenericName=Network
+GenericName[zh_CN]=网络
+Comment=Interactive Wi-Fi connection and network manager
+Comment[zh_CN]=交互式无线网络与连接管理
+Exec=arch-net-menu
+Icon=network-wireless
+Terminal=false
+Categories=Settings;
+Keywords=network;wifi;wlan;internet;wangluo;wl;
+Keywords[zh_CN]=网络;无线;无线局域网;wifi;wangluo;wl;

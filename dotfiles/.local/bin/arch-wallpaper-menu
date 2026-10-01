@@ -82,7 +82,7 @@ search_flow() {
 }
 
 local_flow() {
-	local pick img images
+	local pick img images curr_wall curr_file
 	local back_label
 	back_label="$(tr_msg wallpaper_back)"
 	while true; do
@@ -91,13 +91,29 @@ local_flow() {
 			notify "$(tr_msg wallpaper_none_found dir="$wall_dir")"
 		fi
 
-		pick="$(printf '%s\n%s' "$back_label" "$images" | dmenu "$(tr_msg wallpaper_pick_prompt)" --lines 15 --width 50)"
+		curr_wall="$(arch-wallpaper-current 2>/dev/null || true)"
+		curr_file="${curr_wall##*/}"
+
+		local menu_items=()
+		menu_items+=("$back_label")
+		if [[ -n "$curr_file" && -f "$wall_dir/$curr_file" ]]; then
+			menu_items+=("* $curr_file")
+		fi
+		while IFS= read -r f; do
+			[[ -n "$f" ]] || continue
+			[[ "$f" == "$curr_file" ]] && continue
+			menu_items+=("  $f")
+		done <<<"$images"
+
+		pick="$(printf '%s\n' "${menu_items[@]}" | dmenu "$(tr_msg wallpaper_pick_prompt)" --lines 15 --width 50)"
 		[[ -n "$pick" ]] || return 0
 
 		if [[ "$pick" == "$back_label" ]]; then
 			return 0
 		fi
-		img="$wall_dir/$pick"
+		local clean_file="${pick#\* }"
+		clean_file="${clean_file#  }"
+		img="$wall_dir/$clean_file"
 		[[ -f "$img" ]] || continue
 		arch-wallpaper-set "$img"
 	done

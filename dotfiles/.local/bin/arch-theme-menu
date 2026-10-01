@@ -11,20 +11,26 @@ if [[ -z "$all_themes" ]]; then
 	exit 1
 fi
 
-if [[ -n "$curr" ]] && echo "$all_themes" | grep -Fxq "$curr"; then
-	themes=$(printf '%s\n%s\n' "$curr" "$(echo "$all_themes" | grep -vFx "$curr")")
-else
-	themes="$all_themes"
+menu_lines=()
+if [[ -n "$curr" ]]; then
+	menu_lines+=("* $curr")
 fi
+while IFS= read -r t; do
+	[[ -n "$t" ]] || continue
+	[[ "$t" == "$curr" ]] && continue
+	menu_lines+=("  $t")
+done <<<"$all_themes"
 
 if command -v fuzzel &>/dev/null; then
-	selected=$(echo "$themes" | fuzzel --dmenu --prompt "Theme: ")
+	selected=$(printf '%s\n' "${menu_lines[@]}" | fuzzel --dmenu --prompt "Theme: ")
 elif command -v bemenu &>/dev/null; then
-	selected=$(echo "$themes" | bemenu -p "Theme: ")
+	selected=$(printf '%s\n' "${menu_lines[@]}" | bemenu -p "Theme: ")
 else
-	selected=$(echo "$themes" | head -1)
+	selected=$(printf '%s\n' "${menu_lines[@]}" | head -1)
 fi
 
 if [[ -n "${selected:-}" ]]; then
-	arch-theme-set "$selected"
+	cleaned_theme="${selected#\* }"
+	cleaned_theme="${cleaned_theme#  }"
+	arch-theme-set "$cleaned_theme"
 fi

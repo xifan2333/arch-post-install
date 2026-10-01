@@ -81,9 +81,9 @@ while IFS= read -r line; do
 		ssid="${parts[*]:0:${#parts[@]}-1}"
 	fi
 
-	# Active indicator
-	star=" "
-	$is_active && star="●"
+	# Active indicator: * for connected, 2 spaces for other networks
+	star="  "
+	$is_active && star="* "
 
 	# Equal-width NerdFont signal icon
 	sig_icon="󰤯"
@@ -98,13 +98,13 @@ while IFS= read -r line; do
 	lock_icon="󰌿"
 	[[ "$sec" =~ (psk|8021x) ]] && lock_icon="󰌾"
 
-	# Fixed column layout: all icons on the left, separated by comfortable spacing
-	network_lines+=("$star $sig_icon   $lock_icon   $ssid")
+	# Fixed column layout: indicator on the left, then icons and ssid
+	network_lines+=("$star$sig_icon   $lock_icon   $ssid")
 done <<<"$raw_list"
 
 # 7. Display fuzzel menu
 menu_input=$(
-	for a in "${actions[@]}"; do printf '%s\n' "$a"; done
+	for a in "${actions[@]}"; do printf '  %s\n' "$a"; done
 	for n in "${network_lines[@]}"; do printf '%s\n' "$n"; done
 )
 
@@ -112,20 +112,23 @@ prompt_text=$(tr_msg net_prompt "dev=$dev")
 chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 --width 45 || true)
 [[ -z "$chosen" ]] && exit 0
 
+# Strip optional leading alignment spaces for action headers
+action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
+
 # 8. Handle action header items
-if [[ "$chosen" =~ ^󰖪[[:space:]] ]]; then
+if [[ "$action_chosen" =~ ^󰖪[[:space:]] ]]; then
 	iwctl station "$dev" disconnect
 	notify "$(tr_msg net_disconnected "ssid=$connected_ssid")"
 	exit 0
-elif [[ "$chosen" =~ ^󰑐[[:space:]] ]]; then
+elif [[ "$action_chosen" =~ ^󰑐[[:space:]] ]]; then
 	iwctl station "$dev" scan
 	notify "$(tr_msg net_scanning)"
 	sleep 1
 	exec "$0"
 fi
 
-# 9. Extract target SSID (strip the fixed "$star $sig_icon   $lock_icon   " prefix)
-target_ssid=$(sed -E 's/^[● ] [^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+//' <<<"$chosen" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+# 9. Extract target SSID
+target_ssid=$(sed -E 's/^(\*|  )[[:space:]]*[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+//' <<<"$chosen" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
 [[ -z "$target_ssid" ]] && exit 0
 
 # 10. Check if network is known (already saved)
