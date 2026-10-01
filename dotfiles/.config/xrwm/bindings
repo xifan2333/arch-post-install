@@ -10,12 +10,14 @@ set -euo pipefail
 # Terminal: ftty (ultra-lightweight Wayland terminal)
 xrwm map normal Super Return spawn ftty
 
-# Application launcher: fuzzel
-xrwm map normal Super Space spawn fuzzel
-xrwm map normal Super D spawn fuzzel
+# Application launcher: fuzzel (toggle)
+xrwm map normal Super Space spawn sh -c "pkill -x fuzzel || fuzzel"
 
 # Wallpaper picker
 xrwm map normal "Super+Shift" W spawn arch-wallpaper-menu
+
+# Clipboard history manager
+xrwm map normal Super V spawn arch-clip-menu
 
 # Browser & File Manager
 xrwm map normal Super B spawn "${BROWSER:-chromium}"
@@ -135,10 +137,10 @@ xrwm map normal Super Escape spawn hyprlock
 # Screenshots & Annotation (River-era matrix with Tensaku integration)
 xrwm map normal None Print spawn arch-cap-area
 xrwm map normal "Super+Shift" S spawn arch-cap-edit
-xrwm map normal Super Print spawn arch-cap-edit
+xrwm map normal Super Print spawn arch-cap-menu
 xrwm map normal Shift Print spawn arch-cap-full
 xrwm map normal "Super+Shift" Print spawn arch-cap-color
-xrwm map normal Control Print spawn tensaku --scroll-capture
+xrwm map normal Control Print spawn arch-cap-preview
 
 # Volume control via PipeWire wpctl
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+

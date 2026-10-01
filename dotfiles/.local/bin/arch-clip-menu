@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# arch:summary=Interactive clipboard history manager driven by cliphist and fuzzel
+# arch:examples=arch clip menu
+set -euo pipefail
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+notify_err() {
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -u critical "$(tr_msg clip_title)" "$1"
+	fi
+}
+
+if ! command -v cliphist >/dev/null 2>&1; then
+	notify_err "$(tr_msg clip_not_installed)"
+	exit 1
+fi
+
+dmenu_exec() {
+	local prompt="$1"
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt"
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt"
+	else
+		head -n 1
+	fi
+}
+
+clear_option="$(tr_msg clip_clear_option)"
+
+selected=$(
+	{
+		printf '  %s\n' "$clear_option"
+		cliphist list 2>/dev/null || true
+	} | dmenu_exec "$(tr_msg clip_prompt)"
+)
+
+[[ -n "${selected:-}" ]] || exit 0
+
+if [[ "$selected" == *" $clear_option" ]]; then
+	cliphist wipe
+	exit 0
+fi
+
+printf '%s' "$selected" | cliphist decode | wl-copy

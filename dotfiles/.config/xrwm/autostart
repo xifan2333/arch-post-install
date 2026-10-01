@@ -78,3 +78,16 @@ if command -v swaybg >/dev/null 2>&1; then
 		fi
 	fi
 fi
+
+# 7. Clipboard manager (Cliphist)
+if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; then
+	if ! pgrep -f "wl-paste --watch cliphist" >/dev/null 2>&1; then
+		if command -v uwsm >/dev/null 2>&1; then
+			uwsm app -- wl-paste --watch cliphist store &
+			uwsm app -- wl-paste --type image --watch cliphist store &
+		else
+			wl-paste --watch cliphist store &
+			wl-paste --type image --watch cliphist store &
+		fi
+	fi
+fi

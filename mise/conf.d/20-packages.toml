@@ -20,6 +20,8 @@
 "pacman:grim" = "latest"
 "pacman:slurp" = "latest"
 "pacman:wl-clipboard" = "latest"
+"pacman:cliphist" = "latest"
+"pacman:hyprpicker" = "latest"
 "pacman:imagemagick" = "latest"
 "pacman:wlr-randr" = "latest"
 "pacman:brightnessctl" = "latest"

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Clipboard History
+Name[zh_CN]=剪贴板历史
+GenericName=Clipboard
+GenericName[zh_CN]=剪贴板
+Comment=Manage and search clipboard history
+Comment[zh_CN]=管理与检索剪贴板历史记录
+Exec=arch-clip-menu
+Icon=edit-paste
+Terminal=false
+Categories=Utility;
+Keywords=clipboard;paste;history;cliphist;jtb;jiantieban;
+Keywords[zh_CN]=剪贴板;粘贴板;剪切板;历史记录;jtb;jiantieban;
