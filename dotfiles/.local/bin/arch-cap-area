@@ -14,7 +14,3 @@ geometry="$(slurp 2>/dev/null || true)"
 
 grim -g "$geometry" "$filepath"
 wl-copy <"$filepath"
-
-if command -v notify-send >/dev/null 2>&1; then
-	notify-send "截图成功" "已保存至相册并复制到剪贴板:\n$filename"
-fi

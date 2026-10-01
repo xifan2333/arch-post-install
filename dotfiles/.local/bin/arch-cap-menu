@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# arch:summary=Interactive screenshot and annotation menu driven by fuzzel
+# arch:examples=arch cap menu
+set -euo pipefail
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+dmenu_exec() {
+	local prompt="$1"
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt"
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt"
+	else
+		head -n 1
+	fi
+}
+
+opt_area="$(tr_msg cap_menu_area)"
+opt_full="$(tr_msg cap_menu_full)"
+opt_edit="$(tr_msg cap_menu_edit)"
+opt_preview="$(tr_msg cap_menu_preview)"
+opt_ocr="$(tr_msg cap_menu_ocr)"
+opt_color="$(tr_msg cap_menu_color)"
+opt_scroll="$(tr_msg cap_menu_scroll)"
+
+menu_items=(
+	"$opt_area"
+	"$opt_full"
+	"$opt_edit"
+	"$opt_preview"
+	"$opt_ocr"
+	"$opt_color"
+	"$opt_scroll"
+)
+
+choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(tr_msg cap_menu_prompt)")
+[[ -n "${choice:-}" ]] || exit 0
+
+case "$choice" in
+"$opt_area")
+	arch-cap-area
+	;;
+"$opt_full")
+	arch-cap-full
+	;;
+"$opt_edit")
+	arch-cap-edit
+	;;
+"$opt_preview")
+	arch-cap-preview
+	;;
+"$opt_ocr")
+	arch-cap-ocr
+	;;
+"$opt_color")
+	arch-cap-color
+	;;
+"$opt_scroll")
+	if command -v tensaku >/dev/null 2>&1; then
+		tensaku --scroll-capture
+	fi
+	;;
+esac

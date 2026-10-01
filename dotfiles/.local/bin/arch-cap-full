@@ -11,7 +11,3 @@ filepath="$save_dir/$filename"
 
 grim "$filepath"
 wl-copy <"$filepath"
-
-if command -v notify-send >/dev/null 2>&1; then
-	notify-send "全屏截图" "已保存至相册并复制到剪贴板:\n$filename"
-fi

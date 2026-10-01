@@ -70,5 +70,17 @@
   "wallpaper_prev": "Prev",
   "wallpaper_next": "Next",
   "wallpaper_search_prompt": "Search: ",
-  "wallpaper_pick_prompt": "Pick: "
+  "wallpaper_pick_prompt": "Pick: ",
+  "clip_title": "Clipboard",
+  "clip_prompt": "Clipboard: ",
+  "clip_clear_option": "Clear history",
+  "clip_not_installed": "cliphist is not installed",
+  "cap_menu_prompt": "Screenshot: ",
+  "cap_menu_area": "Area",
+  "cap_menu_full": "Fullscreen",
+  "cap_menu_edit": "Annotate",
+  "cap_menu_preview": "Pin Preview",
+  "cap_menu_ocr": "Extract Text",
+  "cap_menu_color": "Color Picker",
+  "cap_menu_scroll": "Scroll Capture"
 }

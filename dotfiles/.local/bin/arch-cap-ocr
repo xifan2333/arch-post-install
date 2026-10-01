@@ -93,4 +93,3 @@ TEXT=$(jq -r --argjson minimum 0.60 '
 }
 
 printf '%s' "$TEXT" | wl-copy
-ocr_notify "$(msg ocr_notify_copied)"

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Screenshot Menu
+Name[zh_CN]=截图工具
+GenericName=Screenshot
+GenericName[zh_CN]=截图
+Comment=Screen capture, area annotation, and color picker
+Comment[zh_CN]=屏幕截取、区域标注、识字与取色
+Exec=arch-cap-menu
+Icon=applets-screenshooter
+Terminal=false
+Categories=Utility;
+Keywords=screenshot;capture;snip;color;ocr;jt;jietu;
+Keywords[zh_CN]=截图;截屏;取色;识字;长截图;jt;jietu;

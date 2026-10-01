@@ -70,5 +70,17 @@
   "wallpaper_prev": "上一页",
   "wallpaper_next": "下一页",
   "wallpaper_search_prompt": "搜索: ",
-  "wallpaper_pick_prompt": "选择: "
+  "wallpaper_pick_prompt": "选择: ",
+  "clip_title": "剪贴板",
+  "clip_prompt": "剪贴板: ",
+  "clip_clear_option": "清空历史",
+  "clip_not_installed": "cliphist 未安装",
+  "cap_menu_prompt": "截图: ",
+  "cap_menu_area": "区域截图",
+  "cap_menu_full": "全屏截图",
+  "cap_menu_edit": "截图标注",
+  "cap_menu_preview": "截图贴图",
+  "cap_menu_ocr": "屏幕识字",
+  "cap_menu_color": "屏幕取色",
+  "cap_menu_scroll": "滚动截图"
 }
