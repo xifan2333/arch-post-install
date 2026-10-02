@@ -21,7 +21,7 @@ xrwm map normal Super V spawn arch-clip-menu
 
 # Browser & File Manager
 xrwm map normal Super B spawn "${BROWSER:-chromium}"
-xrwm map normal Super E spawn "${FILE_MANAGER:-nautilus}"
+xrwm map normal Super E spawn pcmanfm
 xrwm map normal "Super+Shift" E spawn ftty -e yazi
 
 # Network Control Center
