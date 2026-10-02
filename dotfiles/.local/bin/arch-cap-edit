@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# arch:summary=Capture and annotate screen region using swappy
+# arch:summary=Capture and annotate screen region using satty
 # arch:examples=arch cap edit
 set -euo pipefail
 
@@ -12,8 +12,8 @@ output_path="$save_dir/annotated-$timestamp.png"
 geometry="$(slurp 2>/dev/null || true)"
 [[ -n "$geometry" ]] || exit 0
 
-if command -v swappy >/dev/null 2>&1; then
-	grim -g "$geometry" - | swappy -f - -o "$output_path"
+if command -v satty >/dev/null 2>&1; then
+	grim -g "$geometry" - | satty --filename - --output-filename "$output_path" --early-exit
 else
 	grim -g "$geometry" - | wl-copy
 fi
