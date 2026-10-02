@@ -64,6 +64,13 @@ if [[ -n "$target_user" ]]; then
 [Service]
 User=$target_user
 EOF
+
+    # 7. Ensure target user belongs to input, video, and audio groups
+    for grp in input video audio; do
+        if getent group "$grp" &>/dev/null; then
+            $SUDO usermod -aG "$grp" "$target_user" 2>/dev/null || true
+        fi
+    done
 fi
 
 # 8. Disable conflicting legacy display managers and network daemons if present
