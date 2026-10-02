@@ -130,7 +130,7 @@
   },
   "custom/stream-title": {
     "format": "{}",
-    "tooltip": true,
+    "tooltip": false,
     "return-type": "json",
     "exec": "arch-overlay-title status --waybar",
     "signal": 9,
