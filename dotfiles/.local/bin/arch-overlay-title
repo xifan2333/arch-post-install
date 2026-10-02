@@ -2,7 +2,7 @@
 # arch:summary=Interactive title HUD overlay with wheel font scaling and theme sync
 # arch:args=[toggle | edit | show | hide | status]
 # arch:examples=arch overlay title toggle | arch overlay title edit
-"""Title overlay with Layer-Shell broadcast mode and in-place edit mode."""
+"""Title overlay with transparent floating window and click-through."""
 
 from __future__ import annotations
 
@@ -19,8 +19,7 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-gi.require_version("GtkLayerShell", "0.1")
-from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 CONFIG_DIR = (
     Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord"
@@ -37,10 +36,6 @@ DEFAULTS = {
     "font_weight": "700",
     "text_color": "auto",
     "background": "auto",
-    "anchor_x": "left",
-    "anchor_y": "top",
-    "margin_x": "24",
-    "margin_y": "24",
     "padding_x": "16",
     "padding_y": "10",
     "border_radius": "8",
@@ -111,16 +106,13 @@ class TitleWindow(Gtk.Window):
         self.conf = load_config()
         self.theme = get_theme_colors()
         self.mtime: float | None = None
-        self.drag_start_x = 0
-        self.drag_start_y = 0
-        self.initial_margin_x = 0
-        self.initial_margin_y = 0
-        self.is_dragging = False
 
-        self.set_title("Screenrecord Overlay Title")
+        self.set_title("arch-overlay-title")
         self.set_decorated(False)
-        self.set_resizable(False)
+        self.set_resizable(True)
         self.set_skip_taskbar_hint(True)
+        self.set_skip_pager_hint(True)
+        self.set_keep_above(True)
         self.set_app_paintable(True)
 
         screen = self.get_screen()
@@ -128,11 +120,7 @@ class TitleWindow(Gtk.Window):
         if visual:
             self.set_visual(visual)
 
-        # Layer-Shell Setup
-        GtkLayerShell.init_for_window(self)
-        GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
-        GtkLayerShell.set_exclusive_zone(self, -1)
-        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+        self.connect("draw", self.on_draw)
 
         # UI Structure
         self.event_box = Gtk.EventBox()
@@ -166,8 +154,6 @@ class TitleWindow(Gtk.Window):
 
         # Connect event handlers
         self.event_box.connect("button-press-event", self.on_button_press)
-        self.event_box.connect("button-release-event", self.on_button_release)
-        self.event_box.connect("motion-notify-event", self.on_motion_notify)
         self.event_box.connect("scroll-event", self.on_scroll)
         self.connect("key-press-event", self.on_key_press)
 
@@ -183,21 +169,25 @@ class TitleWindow(Gtk.Window):
 
         GLib.timeout_add(600, self.poll_config)
 
+    def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.paint()
+        return False
+
     def update_click_through(self) -> None:
         if not self.get_window():
             self.connect("realize", lambda _w: self.update_click_through())
             return
 
         if self.editing:
-            # Interactive mode: mouse and keyboard events are captured on the card
-            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
             self.input_shape_combine_region(None)
+            self.set_accept_focus(True)
             self.card_box.get_style_context().add_class("editing")
             self.grab_focus()
         else:
-            # Broadcast mode: 100% click-through
-            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
             self.input_shape_combine_region(cairo.Region())
+            self.set_accept_focus(False)
             self.card_box.get_style_context().remove_class("editing")
 
     def toggle_edit_mode(self) -> None:
@@ -229,7 +219,7 @@ class TitleWindow(Gtk.Window):
         if not self.editing:
             return False
 
-        if event.type == Gdk.EventType._2BUTTON_PRESS:
+        if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
             # Double click: switch to inline text edit
             self.inline_editing = True
             self.entry.set_text(self.conf.get("text", ""))
@@ -238,46 +228,13 @@ class TitleWindow(Gtk.Window):
             self.entry.grab_focus()
             return True
 
-        if event.button == 1:
-            self.is_dragging = True
-            self.drag_start_x = int(event.x_root)
-            self.drag_start_y = int(event.y_root)
-            self.initial_margin_x = int(float(self.conf.get("margin_x", "24")))
-            self.initial_margin_y = int(float(self.conf.get("margin_y", "24")))
+        if event.button == 1 and not self.inline_editing:
+            # Native Wayland move drag
+            self.begin_move_drag(
+                event.button, int(event.x_root), int(event.y_root), event.time
+            )
             return True
         return False
-
-    def on_button_release(self, _widget: Gtk.Widget, event: Gdk.EventButton) -> bool:
-        if event.button == 1 and self.is_dragging:
-            self.is_dragging = False
-            save_config(self.conf)
-            return True
-        return False
-
-    def on_motion_notify(self, _widget: Gtk.Widget, event: Gdk.EventMotion) -> bool:
-        if not self.editing or not self.is_dragging:
-            return False
-
-        dx = int(event.x_root) - self.drag_start_x
-        dy = int(event.y_root) - self.drag_start_y
-
-        anchor_x = self.conf.get("anchor_x", "left")
-        anchor_y = self.conf.get("anchor_y", "top")
-
-        if anchor_x == "right":
-            new_mx = max(0, self.initial_margin_x - dx)
-        else:
-            new_mx = max(0, self.initial_margin_x + dx)
-
-        if anchor_y == "bottom":
-            new_my = max(0, self.initial_margin_y - dy)
-        else:
-            new_my = max(0, self.initial_margin_y + dy)
-
-        self.conf["margin_x"] = str(new_mx)
-        self.conf["margin_y"] = str(new_my)
-        self.apply_anchor()
-        return True
 
     def on_scroll(self, _widget: Gtk.Widget, event: Gdk.EventScroll) -> bool:
         if not self.editing:
@@ -306,34 +263,6 @@ class TitleWindow(Gtk.Window):
     def on_entry_activate(self, entry: Gtk.Entry) -> None:
         self.conf["text"] = entry.get_text()
         self.lock_edit()
-
-    def apply_anchor(self) -> None:
-        for edge in (
-            GtkLayerShell.Edge.LEFT,
-            GtkLayerShell.Edge.RIGHT,
-            GtkLayerShell.Edge.TOP,
-            GtkLayerShell.Edge.BOTTOM,
-        ):
-            GtkLayerShell.set_anchor(self, edge, False)
-            GtkLayerShell.set_margin(self, edge, 0)
-
-        anchor_x = self.conf.get("anchor_x", "left")
-        anchor_y = self.conf.get("anchor_y", "top")
-        margin_x = int(float(self.conf.get("margin_x", "24")))
-        margin_y = int(float(self.conf.get("margin_y", "24")))
-
-        edge_x = (
-            GtkLayerShell.Edge.RIGHT if anchor_x == "right" else GtkLayerShell.Edge.LEFT
-        )
-        edge_y = (
-            GtkLayerShell.Edge.BOTTOM
-            if anchor_y == "bottom"
-            else GtkLayerShell.Edge.TOP
-        )
-        GtkLayerShell.set_anchor(self, edge_x, True)
-        GtkLayerShell.set_anchor(self, edge_y, True)
-        GtkLayerShell.set_margin(self, edge_x, margin_x)
-        GtkLayerShell.set_margin(self, edge_y, margin_y)
 
     def apply_style(self, force: bool = False) -> None:
         conf = load_config()
@@ -380,6 +309,10 @@ class TitleWindow(Gtk.Window):
             "-1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)"
         )
         css = f"""
+        window {{
+            background-color: transparent;
+            background: transparent;
+        }}
         .title-card {{
             background: {background};
             border-radius: {radius}px;
@@ -387,8 +320,8 @@ class TitleWindow(Gtk.Window):
             border: 2px solid transparent;
         }}
         .title-card.editing {{
-            border: 2px solid {accent};
-            background: rgba(0, 0, 0, 0.75);
+            border: 2px dashed {accent};
+            background: rgba(0, 0, 0, 0.85);
         }}
         .title-label {{
             color: {text_color};
@@ -406,7 +339,6 @@ class TitleWindow(Gtk.Window):
         }}
         """.encode()
         self.css_provider.load_from_data(css)
-        self.apply_anchor()
         self.queue_resize()
 
     def poll_config(self) -> bool:
@@ -461,6 +393,8 @@ def cmd_edit() -> None:
 
 
 def main() -> None:
+    GLib.set_prgname("arch-overlay-title")
+
     if len(sys.argv) > 1 and sys.argv[1] == "--run":
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
         PID_FILE.write_text(str(os.getpid()))
