@@ -18,6 +18,7 @@
     "clock"
   ],
   "modules-right": [
+    "custom/screenshot",
     "custom/screenrecord",
     "tray",
     "network",
@@ -96,6 +97,12 @@
     "tooltip": true,
     "return-type": "json",
     "exec": "xrwm status --window --stream"
+  },
+  "custom/screenshot": {
+    "format": "󰻿",
+    "tooltip": false,
+    "on-click": "arch-cap-menu",
+    "on-click-right": "arch-cap-area"
   },
   "custom/screenrecord": {
     "format": "{}",
