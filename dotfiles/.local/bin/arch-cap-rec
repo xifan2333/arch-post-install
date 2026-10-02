@@ -72,21 +72,17 @@ status_output() {
 
 	if [[ "$mode" == "--waybar" ]]; then
 		if is_recording; then
-			local pid duration_str tip
+			local pid duration_str
 			pid="$(cat "$PID_FILE" 2>/dev/null || pgrep -x gpu-screen-recorder | head -n1 || true)"
 			duration_str="$(get_pid_duration "$pid")"
-			tip="$(tr_msg rec_tooltip_recording)"
-			printf '{"text":"%s","alt":"recording","tooltip":"%s","class":"recording"}\n' "$duration_str" "$tip"
+			printf '{"text":"%s","alt":"recording","class":"recording"}\n' "$duration_str"
 		elif [[ $is_live -eq 1 ]]; then
-			local lpid duration_str tip
+			local lpid duration_str
 			lpid="$(cat "$live_pid_file" 2>/dev/null || pgrep -f "gpu-screen-recorder.*rtmp" | head -n1 || true)"
 			duration_str="$(get_pid_duration "$lpid")"
-			tip="$(tr_msg rec_tooltip_live)"
-			printf '{"text":"%s","alt":"live","tooltip":"%s","class":"live"}\n' "$duration_str" "$tip"
+			printf '{"text":"%s","alt":"live","class":"live"}\n' "$duration_str"
 		else
-			local tip
-			tip="$(tr_msg rec_tooltip_idle)"
-			printf '{"text":"","alt":"idle","tooltip":"%s","class":"idle"}\n' "$tip"
+			printf '{"text":"","alt":"idle","class":"idle"}\n'
 		fi
 	else
 		if is_recording; then
@@ -154,7 +150,7 @@ start_full() {
 
 	gpu-screen-recorder \
 		-w screen \
-		-f 30 \
+		-f 60 \
 		-c mp4 \
 		-k h264 \
 		-fallback-cpu-encoding yes \
@@ -213,7 +209,7 @@ start_area() {
 	gpu-screen-recorder \
 		-w region \
 		-region "$region" \
-		-f 30 \
+		-f 60 \
 		-c mp4 \
 		-k h264 \
 		-fallback-cpu-encoding yes \

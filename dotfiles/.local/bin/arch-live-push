@@ -123,7 +123,7 @@ cmd_start() {
 
 	gpu-screen-recorder \
 		-w screen \
-		-f 30 \
+		-f 60 \
 		-c flv \
 		-k h264 \
 		-fallback-cpu-encoding yes \
