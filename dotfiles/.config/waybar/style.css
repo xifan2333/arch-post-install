@@ -128,6 +128,31 @@ window#waybar {
     font-weight: bold;
 }
 
+/* Stream / Recording Title */
+#custom-stream-title {
+    padding: 0 10px;
+    margin: 1px 4px;
+    background: @bg_dark;
+    color: @accent;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+#custom-stream-title.active {
+    color: @accent;
+    background: @bg_dark;
+}
+
+#custom-stream-title.idle {
+    color: @muted;
+    font-style: italic;
+}
+
+#custom-stream-title:hover {
+    background: @selection;
+    color: @fg_bright;
+}
+
 /* System Tray */
 #tray {
     padding: 0 10px;

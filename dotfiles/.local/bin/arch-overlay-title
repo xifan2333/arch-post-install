@@ -1,391 +1,102 @@
-#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Floating transparent title HUD with dynamic font scaling
-# arch:args=[toggle | show | hide]
-# arch:examples=arch overlay title | arch overlay title toggle
-"""Floating transparent title HUD application."""
+#!/usr/bin/env bash
+# arch:summary=Manage live stream / recording title with Waybar integration and Fuzzel input
+# arch:args=[get | set <text> | edit | clear | toggle | status [--waybar]]
+# arch:examples=arch overlay title edit | arch overlay title set "Linux Kernel"
+set -euo pipefail
 
-from __future__ import annotations
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screenrecord"
+TITLE_FILE="$STATE_DIR/title.txt"
 
-import configparser
-import contextlib
-import os
-import signal
-import subprocess
-import sys
-from pathlib import Path
+mkdir -p "$STATE_DIR"
+[[ -f "$TITLE_FILE" ]] || touch "$TITLE_FILE"
 
-import cairo
-import gi
-
-gi.require_version("Gtk", "3.0")
-gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, GLib, Gtk  # noqa: E402
-
-CONFIG_DIR = (
-    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord"
-)
-CONFIG_FILE = CONFIG_DIR / "title.conf"
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
-
-DEFAULTS = {
-    "text": "直播标题",
-    "font_family": "auto",
-    "font_size": "36",
-    "font_weight": "700",
-    "text_color": "auto",
-    "background": "auto",
-    "width": "420",
-    "height": "80",
-    "border_radius": "10",
-    "padding_x": "16",
-    "padding_y": "10",
+signal_waybar() {
+	pkill -RTMIN+9 waybar 2>/dev/null || true
 }
 
+get_title() {
+	if [[ -f "$TITLE_FILE" ]]; then
+		head -n 1 "$TITLE_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+	fi
+}
 
-def get_theme_colors() -> dict[str, str]:
-    colors = {
-        "background": "#1a1b26",
-        "foreground": "#cfc9c2",
-        "accent": "#7aa2f7",
-    }
-    colors_file = STATE_DIR / "theme/colors.toml"
-    if colors_file.is_file():
-        try:
-            for line in colors_file.read_text(encoding="utf-8").splitlines():
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if k in colors:
-                        colors[k] = v
-        except OSError:
-            pass
-    return colors
+set_title() {
+	local new_title="$1"
+	printf '%s\n' "$new_title" >"$TITLE_FILE"
+	signal_waybar
+	if command -v notify-send >/dev/null 2>&1; then
+		if [[ -n "$new_title" ]]; then
+			notify-send -u low "直播/录屏主题" "已更新: $new_title"
+		else
+			notify-send -u low "直播/录屏主题" "已清空主题"
+		fi
+	fi
+}
 
+clear_title() {
+	set_title ""
+}
 
-def get_system_font() -> str:
-    for name_file in [STATE_DIR / "font/cjk.name", STATE_DIR / "font/mono.name"]:
-        if name_file.is_file():
-            try:
-                val = name_file.read_text(encoding="utf-8").strip()
-                if val:
-                    return val
-            except OSError:
-                pass
-    return "Sarasa Mono SC"
+edit_title() {
+	local current
+	current="$(get_title)"
 
+	local chosen
+	if [[ -n "$current" ]]; then
+		chosen=$(printf '%s\n' "$current" | fuzzel --dmenu --prompt "󰑋 直播主题: " || true)
+	else
+		chosen=$(fuzzel --dmenu --prompt "󰑋 直播主题: " </dev/null || true)
+	fi
 
-def load_config() -> dict[str, str]:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    cfg = configparser.ConfigParser()
-    data = dict(DEFAULTS)
-    if CONFIG_FILE.is_file():
-        with contextlib.suppress(Exception):
-            cfg.read(CONFIG_FILE, encoding="utf-8")
-            if cfg.has_section("title"):
-                for k, v in cfg.items("title"):
-                    data[k] = v
-    else:
-        save_config(data)
-    return data
+	if [[ -n "$chosen" ]]; then
+		set_title "$chosen"
+	fi
+}
 
+status_waybar() {
+	local title
+	title="$(get_title)"
 
-def save_config(data: dict[str, str]) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    cfg = configparser.ConfigParser()
-    cfg["title"] = {k: str(v) for k, v in data.items()}
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        cfg.write(f)
+	if [[ -n "$title" ]]; then
+		jq -n -c \
+			--arg t "󰑋 $title" \
+			--arg tip "$(printf '当前主题: %s\n左键点击: 修改\n右键点击: 清空' "$title")" \
+			--arg c "active" \
+			'{text: $t, tooltip: $tip, class: $c}'
+	else
+		jq -n -c \
+			--arg t "󰑋 设置主题" \
+			--arg tip "点击设置直播/录屏主题" \
+			--arg c "idle" \
+			'{text: $t, tooltip: $tip, class: $c}'
+	fi
+}
 
+action="${1:-edit}"
 
-class TitleApp(Gtk.Window):
-    def __init__(self) -> None:
-        super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self.conf = load_config()
-        self.theme = get_theme_colors()
-        self.inline_editing = False
-
-        init_w = int(float(self.conf.get("width", "420")))
-        init_h = int(float(self.conf.get("height", "80")))
-        self.font_size = int(float(self.conf.get("font_size", "36")))
-        self.save_timer: int | None = None
-
-        self.set_title("arch-overlay-title")
-        self.set_decorated(False)
-        self.set_resizable(True)
-        self.set_default_size(init_w, init_h)
-        self.set_app_paintable(True)
-
-        screen = self.get_screen()
-        visual = screen.get_rgba_visual()
-        if visual:
-            self.set_visual(visual)
-
-        self.connect("draw", self.on_draw)
-        self.connect("size-allocate", self.on_size_allocate)
-        self.connect("destroy", self.on_destroy)
-
-        # UI Components
-        self.event_box = Gtk.EventBox()
-        self.event_box.set_visible_window(False)
-        self.event_box.add_events(
-            Gdk.EventMask.BUTTON_PRESS_MASK
-            | Gdk.EventMask.BUTTON_RELEASE_MASK
-            | Gdk.EventMask.POINTER_MOTION_MASK
-            | Gdk.EventMask.KEY_PRESS_MASK
-        )
-
-        self.card_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.card_box.get_style_context().add_class("title-card")
-
-        self.label = Gtk.Label(label=self.conf.get("text", "直播标题"))
-        self.label.set_line_wrap(True)
-        self.label.set_xalign(0.5)
-        self.label.set_yalign(0.5)
-        self.label.get_style_context().add_class("title-label")
-
-        self.entry = Gtk.Entry()
-        self.entry.get_style_context().add_class("title-entry")
-        self.entry.set_no_show_all(True)
-        self.entry.connect("activate", self.on_entry_activate)
-        self.entry.connect("focus-out-event", self.on_entry_focus_out)
-        self.entry.connect("key-press-event", self.on_entry_key_press)
-
-        self.card_box.pack_start(self.label, True, True, 0)
-        self.card_box.pack_start(self.entry, True, True, 0)
-        self.event_box.add(self.card_box)
-        self.add(self.event_box)
-
-        # Events
-        self.event_box.connect("button-press-event", self.on_button_press)
-
-        # CSS provider
-        self.css_provider = Gtk.CssProvider()
-        Gtk.StyleContext.add_provider_for_screen(
-            screen, self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
-
-        self.update_style()
-        self.show_all()
-
-    def on_destroy(self, _widget: Gtk.Widget) -> None:
-        if Gtk.main_level() > 0:
-            Gtk.main_quit()
-
-    def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
-        cr.set_source_rgba(0, 0, 0, 0)
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.paint()
-        return False
-
-    def on_size_allocate(self, _widget: Gtk.Widget, allocation: Gdk.Rectangle) -> None:
-        if allocation.height > 20:
-            target_size = max(14, min(140, int(allocation.height * 0.45)))
-            if target_size != self.font_size:
-                self.font_size = target_size
-                self.conf["font_size"] = str(target_size)
-                self.update_style()
-
-        self.conf["width"] = str(allocation.width)
-        self.conf["height"] = str(allocation.height)
-
-        if self.save_timer is not None:
-            GLib.source_remove(self.save_timer)
-        self.save_timer = GLib.timeout_add(1000, self._debounced_save)
-
-        self.update_input_shape()
-
-    def _debounced_save(self) -> bool:
-        save_config(self.conf)
-        self.save_timer = None
-        return False
-
-    def update_input_shape(self) -> None:
-        alloc = self.card_box.get_allocation()
-        if alloc.width > 0 and alloc.height > 0:
-            rect = cairo.RectangleInt(alloc.x, alloc.y, alloc.width, alloc.height)
-            self.input_shape_combine_region(cairo.Region(rect))
-
-    def on_button_press(self, _widget: Gtk.Widget, event: Gdk.EventButton) -> bool:
-        if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
-            self.start_inline_editing()
-            return True
-
-        if event.button == 3:
-            self.open_font_dialog()
-            return True
-
-        if event.button == 1 and not self.inline_editing:
-            self.begin_move_drag(
-                event.button, int(event.x_root), int(event.y_root), event.time
-            )
-            return True
-        return False
-
-    def start_inline_editing(self) -> None:
-        self.inline_editing = True
-        self.entry.set_text(self.conf.get("text", ""))
-        self.label.hide()
-        self.entry.show()
-        self.entry.grab_focus()
-
-    def finish_inline_editing(self, save: bool = True) -> None:
-        if not self.inline_editing:
-            return
-        if save:
-            self.conf["text"] = self.entry.get_text()
-            self.label.set_text(self.conf["text"])
-            save_config(self.conf)
-        self.entry.hide()
-        self.label.show()
-        self.inline_editing = False
-
-    def on_entry_activate(self, _entry: Gtk.Entry) -> None:
-        self.finish_inline_editing(save=True)
-
-    def on_entry_focus_out(self, _entry: Gtk.Entry, _event: Gdk.EventFocus) -> bool:
-        self.finish_inline_editing(save=True)
-        return False
-
-    def on_entry_key_press(self, _entry: Gtk.Entry, event: Gdk.EventKey) -> bool:
-        if event.keyval == Gdk.KEY_Escape:
-            self.finish_inline_editing(save=False)
-            return True
-        return False
-
-    def open_font_dialog(self) -> None:
-        dlg = Gtk.FontChooserDialog(title="选择标题字体", parent=self)
-        curr_font = self.conf.get("font_family", "")
-        if curr_font and curr_font != "auto":
-            dlg.set_font(f"{curr_font} {self.font_size}")
-        res = dlg.run()
-        if res == Gtk.ResponseType.OK:
-            font_desc = dlg.get_font_desc()
-            if font_desc:
-                family = font_desc.get_family()
-                if family:
-                    self.conf["font_family"] = family
-                    save_config(self.conf)
-                    self.update_style()
-        dlg.destroy()
-
-    def update_style(self) -> None:
-        self.theme = get_theme_colors()
-
-        text = self.conf.get("text", "直播标题")
-        self.label.set_text(text)
-
-        font_family = self.conf.get("font_family", "auto")
-        if font_family in ("auto", "", "sans-serif"):
-            font_family = get_system_font()
-
-        text_color = self.conf.get("text_color", "auto")
-        if text_color == "auto" or not text_color:
-            text_color = self.theme["foreground"]
-
-        background = self.conf.get("background", "auto")
-        if background == "auto" or not background:
-            bg_hex = self.theme["background"].lstrip("#")
-            if len(bg_hex) == 6:
-                r, g, b = (
-                    int(bg_hex[0:2], 16),
-                    int(bg_hex[2:4], 16),
-                    int(bg_hex[4:6], 16),
-                )
-                background = f"rgba({r}, {g}, {b}, 0.75)"
-            else:
-                background = "rgba(26, 27, 38, 0.75)"
-
-        accent = self.theme.get("accent", "#7aa2f7")
-        padding_x = int(float(self.conf.get("padding_x", "16")))
-        padding_y = int(float(self.conf.get("padding_y", "10")))
-        radius = int(float(self.conf.get("border_radius", "10")))
-
-        shadow = (
-            "-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), "
-            "-1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)"
-        )
-        css = f"""
-        window {{
-            background-color: transparent;
-            background: transparent;
-        }}
-        .title-card {{
-            background: {background};
-            border-radius: {radius}px;
-            padding: {padding_y}px {padding_x}px;
-            border: 2px solid transparent;
-        }}
-        .title-card:hover {{
-            border: 2px dashed rgba(122, 162, 247, 0.5);
-        }}
-        .title-label {{
-            color: {text_color};
-            font-family: "{font_family}";
-            font-size: {self.font_size}px;
-            font-weight: {self.conf.get("font_weight", "700")};
-            text-shadow: {shadow};
-        }}
-        .title-entry {{
-            font-family: "{font_family}";
-            font-size: {self.font_size}px;
-            color: {text_color};
-            background: transparent;
-            border: 1px dashed {accent};
-        }}
-        """.encode()
-        self.css_provider.load_from_data(css)
-
-
-def find_running_pids() -> list[int]:
-    try:
-        out = subprocess.check_output(["pgrep", "-f", "arch-overlay-title"], text=True)
-        my_pid = os.getpid()
-        return [
-            int(p.strip())
-            for p in out.splitlines()
-            if p.strip() and int(p.strip()) != my_pid
-        ]
-    except (subprocess.CalledProcessError, ValueError):
-        return []
-
-
-def cmd_toggle() -> None:
-    pids = find_running_pids()
-    if pids:
-        for p in pids:
-            with contextlib.suppress(OSError):
-                os.kill(p, signal.SIGTERM)
-    else:
-        subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve())],
-            start_new_session=True,
-        )
-
-
-def main() -> None:
-    GLib.set_prgname("arch-overlay-title")
-
-    action = sys.argv[1] if len(sys.argv) > 1 else ""
-    if action == "toggle":
-        cmd_toggle()
-        return
-    if action in ("stop", "hide", "close"):
-        for p in find_running_pids():
-            with contextlib.suppress(OSError):
-                os.kill(p, signal.SIGTERM)
-        return
-    if action in ("status", "state"):
-        print("open" if find_running_pids() else "closed")
-        return
-
-    # Direct launch as normal GTK floating application
-    signal.signal(signal.SIGINT, lambda _s, _f: Gtk.main_quit())
-    signal.signal(signal.SIGTERM, lambda _s, _f: Gtk.main_quit())
-
-    _win = TitleApp()
-    Gtk.main()
-
-
-if __name__ == "__main__":
-    main()
+case "$action" in
+get)
+	get_title
+	;;
+set)
+	shift
+	set_title "$*"
+	;;
+clear)
+	clear_title
+	;;
+edit | toggle)
+	edit_title
+	;;
+status)
+	if [[ "${2:-}" == "--waybar" ]]; then
+		status_waybar
+	else
+		get_title
+	fi
+	;;
+*)
+	echo "Usage: arch-overlay-title [get | set <text> | edit | clear | toggle | status [--waybar]]" >&2
+	exit 1
+	;;
+esac
