@@ -125,7 +125,7 @@ class CameraOverlay(Gtk.Application):
         GtkLayerShell.init_for_window(self.win)
         GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.OVERLAY)
         GtkLayerShell.set_exclusive_zone(self.win, -1)
-        GtkLayerShell.set_keyboard_interactivity(self.win, False)
+        GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
 
         # Apply Anchors
         anchor_x = self.conf.get("anchor_x", "right")
