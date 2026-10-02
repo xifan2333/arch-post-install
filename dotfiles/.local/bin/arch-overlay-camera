@@ -1,0 +1,294 @@
+#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
+# arch:summary=Webcam PIP overlay with automated best device discovery
+# arch:args=[toggle | start | stop | status]
+# arch:examples=arch overlay camera toggle
+"""Camera picture-in-picture overlay using GStreamer and GTK Layer-Shell."""
+
+from __future__ import annotations
+
+import configparser
+import contextlib
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+import cairo
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+gi.require_version("Gst", "1.0")
+from gi.repository import GLib, Gst, Gtk, GtkLayerShell  # noqa: E402
+
+CONFIG_DIR = (
+    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord"
+)
+CONFIG_FILE = CONFIG_DIR / "camera.conf"
+RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "screenrecord"
+PID_FILE = RUNTIME_DIR / "overlay-camera.pid"
+
+DEFAULTS = {
+    "device": "auto",
+    "width": "240",
+    "height": "180",
+    "capture_width": "1280",
+    "capture_height": "720",
+    "fps": "30",
+    "anchor_x": "right",
+    "anchor_y": "bottom",
+    "margin_x": "20",
+    "margin_y": "20",
+    "border_width": "2",
+    "mirror": "true",
+}
+
+
+def load_config() -> dict[str, str]:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    cfg = configparser.ConfigParser()
+    data = dict(DEFAULTS)
+    if CONFIG_FILE.is_file():
+        with contextlib.suppress(Exception):
+            cfg.read(CONFIG_FILE, encoding="utf-8")
+            if cfg.has_section("camera"):
+                for k, v in cfg.items("camera"):
+                    data[k] = v
+    return data
+
+
+def discover_best_camera(preferred: str = "auto") -> str:
+    if preferred != "auto" and Path(preferred).exists():
+        return preferred
+
+    v4l_dir = Path("/sys/class/video4linux")
+    if not v4l_dir.is_dir():
+        return "/dev/video0"
+
+    candidates: list[tuple[int, str]] = []
+    for entry in v4l_dir.glob("video*"):
+        dev_path = f"/dev/{entry.name}"
+        if not Path(dev_path).exists():
+            continue
+
+        name = ""
+        name_file = entry / "name"
+        if name_file.is_file():
+            with contextlib.suppress(OSError):
+                name = name_file.read_text(encoding="utf-8").strip()
+
+        # Score priority: external USB cameras score higher than integrated ones
+        score = 10
+        if "integrated" in name.lower() or "internal" in name.lower():
+            score = 5
+        elif "usb" in name.lower() or "uvc" in name.lower():
+            score = 20
+
+        # Number suffix (e.g. video0 vs video1)
+        num = int(entry.name.replace("video", "") or 0)
+        candidates.append((score * 100 - num, dev_path))
+
+    if candidates:
+        candidates.sort(key=lambda c: c[0], reverse=True)
+        return candidates[0][1]
+
+    return "/dev/video0"
+
+
+class CameraOverlay(Gtk.Application):
+    def __init__(self) -> None:
+        super().__init__(application_id="works.xifan.screenrecord.overlay.camera")
+        self.conf = load_config()
+        self.device = discover_best_camera(self.conf.get("device", "auto"))
+        self.win: Gtk.ApplicationWindow | None = None
+        self.drawing_area: Gtk.DrawingArea | None = None
+        self.pipeline: Gst.Pipeline | None = None
+        self.current_surface: cairo.ImageSurface | None = None
+
+    def do_activate(self) -> None:
+        Gst.init(None)
+
+        self.win = Gtk.ApplicationWindow(application=self)
+        self.win.set_title("Screenrecord Overlay Camera")
+        self.win.set_decorated(False)
+        self.win.set_resizable(False)
+        self.win.set_accept_focus(False)
+        self.win.set_skip_taskbar_hint(True)
+
+        w = int(float(self.conf.get("width", "240")))
+        h = int(float(self.conf.get("height", "180")))
+        self.win.set_size_request(w, h)
+
+        # Layer-Shell Setup
+        GtkLayerShell.init_for_window(self.win)
+        GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_exclusive_zone(self.win, -1)
+        GtkLayerShell.set_keyboard_interactivity(self.win, False)
+
+        # Apply Anchors
+        anchor_x = self.conf.get("anchor_x", "right")
+        anchor_y = self.conf.get("anchor_y", "bottom")
+        margin_x = int(float(self.conf.get("margin_x", "20")))
+        margin_y = int(float(self.conf.get("margin_y", "20")))
+
+        edge_x = (
+            GtkLayerShell.Edge.RIGHT if anchor_x == "right" else GtkLayerShell.Edge.LEFT
+        )
+        edge_y = (
+            GtkLayerShell.Edge.BOTTOM
+            if anchor_y == "bottom"
+            else GtkLayerShell.Edge.TOP
+        )
+        GtkLayerShell.set_anchor(self.win, edge_x, True)
+        GtkLayerShell.set_anchor(self.win, edge_y, True)
+        GtkLayerShell.set_margin(self.win, edge_x, margin_x)
+        GtkLayerShell.set_margin(self.win, edge_y, margin_y)
+
+        # Video Canvas
+        self.drawing_area = Gtk.DrawingArea()
+        self.drawing_area.connect("draw", self.on_draw)
+        self.win.add(self.drawing_area)
+
+        # Click-through: ignore all pointer events
+        self.win.connect("realize", self.enable_click_through)
+
+        self.start_camera_pipeline(w, h)
+        self.win.show_all()
+
+    def enable_click_through(self, _widget: Gtk.Widget) -> None:
+        if self.win:
+            gdk_win = self.win.get_window()
+            if gdk_win:
+                gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
+
+    def start_camera_pipeline(self, target_w: int, target_h: int) -> None:
+        mirror = self.conf.get("mirror", "true").lower() in ("true", "1", "yes")
+        flip = "videoflip method=horizontal-flip ! " if mirror else ""
+        fps = int(float(self.conf.get("fps", "30")))
+
+        caps_filter = (
+            f"video/x-raw,format=BGRx,"
+            f"width={target_w},height={target_h},"
+            f"framerate={fps}/1"
+        )
+        pipeline_str = (
+            f"v4l2src device={self.device} ! "
+            f"videoconvert ! {flip}"
+            f"videoscale ! {caps_filter} ! "
+            f"appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false"
+        )
+
+        try:
+            self.pipeline = Gst.parse_launch(pipeline_str)  # type: ignore[assignment]
+            sink = self.pipeline.get_by_name("sink")  # type: ignore[union-attr]
+            sink.connect("new-sample", self.on_new_sample)
+            self.pipeline.set_state(Gst.State.PLAYING)  # type: ignore[union-attr]
+        except (GLib.Error, OSError):
+            self.quit()
+
+    def on_new_sample(self, sink: Gst.Element) -> Gst.FlowReturn:
+        sample = sink.emit("pull-sample")
+        if not sample:
+            return Gst.FlowReturn.ERROR
+
+        buf = sample.get_buffer()
+        caps = sample.get_caps()
+        if not buf or not caps:
+            return Gst.FlowReturn.OK
+
+        success, map_info = buf.map(Gst.MapFlags.READ)
+        if not success:
+            return Gst.FlowReturn.OK
+
+        struct = caps.get_structure(0)
+        width = struct.get_int("width")[1]
+        height = struct.get_int("height")[1]
+        stride = cairo.ImageSurface.format_stride_for_width(cairo.FORMAT_RGB24, width)
+
+        try:
+            surface = cairo.ImageSurface.create_for_data(
+                bytearray(map_info.data), cairo.FORMAT_RGB24, width, height, stride
+            )
+            self.current_surface = surface
+            if self.drawing_area:
+                self.drawing_area.queue_draw()
+        finally:
+            buf.unmap(map_info)
+
+        return Gst.FlowReturn.OK
+
+    def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
+        if self.current_surface:
+            cr.set_source_surface(self.current_surface, 0, 0)
+            cr.paint()
+        return False
+
+    def do_shutdown(self) -> None:
+        if self.pipeline:
+            self.pipeline.set_state(Gst.State.NULL)
+        super().do_shutdown()
+
+
+def get_pid() -> int | None:
+    if PID_FILE.is_file():
+        try:
+            pid = int(PID_FILE.read_text().strip())
+            os.kill(pid, 0)
+            return pid
+        except (ValueError, OSError):
+            PID_FILE.unlink(missing_ok=True)
+    return None
+
+
+def cmd_toggle() -> None:
+    pid = get_pid()
+    if pid is not None:
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGTERM)
+        PID_FILE.unlink(missing_ok=True)
+    else:
+        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve()), "--run"],
+            start_new_session=True,
+        )
+
+
+def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "--run":
+        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        PID_FILE.write_text(str(os.getpid()))
+        app = CameraOverlay()
+
+        def _on_sigterm(_sig, _frame):
+            PID_FILE.unlink(missing_ok=True)
+            app.quit()
+
+        signal.signal(signal.SIGTERM, _on_sigterm)
+        signal.signal(signal.SIGINT, _on_sigterm)
+
+        app.run(None)
+        PID_FILE.unlink(missing_ok=True)
+        return
+
+    action = sys.argv[1] if len(sys.argv) > 1 else "toggle"
+    if action == "toggle":
+        cmd_toggle()
+    elif action in ("status", "state"):
+        print("open" if get_pid() else "closed")
+    elif action in ("stop", "hide", "close"):
+        pid = get_pid()
+        if pid:
+            os.kill(pid, signal.SIGTERM)
+            PID_FILE.unlink(missing_ok=True)
+    elif action in ("start", "show", "open"):
+        if not get_pid():
+            cmd_toggle()
+    else:
+        print("Usage: arch-overlay-camera [toggle | start | stop | status]")
+
+
+if __name__ == "__main__":
+    main()

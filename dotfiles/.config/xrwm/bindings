@@ -158,6 +158,12 @@ xrwm map normal "Super+Alt" G spawn arch-cap-rec area
 xrwm map normal "Super+Shift" G spawn arch-live-push toggle
 xrwm map normal "Super+Control" G spawn arch-rec-menu
 
+# On-Screen HUD Overlays (Recording & Streaming)
+xrwm map normal Super T spawn arch-overlay-title toggle
+xrwm map normal "Super+Shift" T spawn arch-overlay-title edit
+xrwm map normal "Super+Alt" K spawn arch-overlay-keys toggle
+xrwm map normal "Super+Alt" V spawn arch-overlay-camera toggle
+
 # Volume control via PipeWire wpctl
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+
 xrwm map normal None XF86AudioLowerVolume spawn wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
