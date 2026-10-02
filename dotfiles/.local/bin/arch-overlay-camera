@@ -179,6 +179,12 @@ def launch_camera(cam: dict[str, object]) -> None:
     fps = int(cam["fps"])
     fmt = str(cam["format"])
 
+    input_conf = (
+        'MBTN_LEFT_DBL cycle-values vf "hflip" "hflip,crop=ih:ih" '
+        '"hflip,crop=ih*4/3:ih"\n'
+        "MBTN_MID quit\n"
+    )
+
     cmd = [
         "mpv",
         f"av://v4l2:{dev}",
@@ -192,9 +198,10 @@ def launch_camera(cam: dict[str, object]) -> None:
         "--border=no",
         "--autofit=384x216",
         "--keepaspect-window=no",
-        "--keepaspect=no",
+        "--keepaspect=yes",
+        "--panscan=1.0",
         "--vf=hflip",
-        "--input-conf=memory://m vf toggle hflip",
+        f"--input-conf=memory://{input_conf}",
     ]
 
     subprocess.Popen(
