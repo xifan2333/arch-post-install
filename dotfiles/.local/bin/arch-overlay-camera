@@ -97,6 +97,23 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
     return cameras
 
 
+def tr_msg(key: str, fallback: str) -> str:
+    try:
+        res = subprocess.run(
+            ["arch-i18n", "get", key],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+        msg = res.stdout.strip()
+        if res.returncode == 0 and msg and msg != f"[{key}]":
+            return msg
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return fallback
+
+
 def prompt_camera_selection(
     cameras: list[dict[str, object]],
 ) -> dict[str, object] | None:
@@ -105,15 +122,17 @@ def prompt_camera_selection(
 
     best = cameras[0]
     res_str = f"{best['width']}x{best['height']}@{best['fps']}fps"
-    lines: list[str] = [f"★ 自动选择最优 [{best['name']} - {res_str}]"]
+    auto_label = tr_msg("overlay_cam_auto_best", "自动选择最优")
+    lines: list[str] = [f"★ {auto_label} [{best['name']} - {res_str}]"]
     for i, cam in enumerate(cameras, start=1):
         spec = f"{cam['width']}x{cam['height']}@{cam['fps']}fps"
         lines.append(f"{i}. {cam['name']} ({cam['device']}) - {spec}")
 
     menu_input = "\n".join(lines)
+    prompt = tr_msg("overlay_cam_prompt", "选择摄像头: ")
     try:
         proc = subprocess.Popen(
-            ["fuzzel", "--dmenu", "--prompt", "󰄀 选择摄像头: "],
+            ["fuzzel", "--dmenu", "--prompt", prompt],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,
@@ -208,11 +227,7 @@ def main() -> None:
 
     cameras = list_v4l2_cameras()
     if not cameras:
-        if command_exists("notify-send"):
-            subprocess.run(
-                ["notify-send", "-u", "critical", "摄像头", "未检测到可用视频设备"],
-                check=False,
-            )
+        sys.stderr.write(tr_msg("overlay_cam_no_device", "未检测到可用视频设备") + "\n")
         sys.exit(1)
 
     if action == "select" or len(cameras) > 1:
@@ -221,19 +236,6 @@ def main() -> None:
             launch_camera(chosen)
     else:
         launch_camera(cameras[0])
-
-
-def command_exists(cmd: str) -> bool:
-    try:
-        subprocess.check_call(
-            ["command", "-v", cmd],
-            shell=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        return True
-    except subprocess.CalledProcessError:
-        return False
 
 
 if __name__ == "__main__":

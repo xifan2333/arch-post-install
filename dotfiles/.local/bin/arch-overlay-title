@@ -14,6 +14,16 @@ signal_waybar() {
 	pkill -RTMIN+9 waybar 2>/dev/null || true
 }
 
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
 get_title() {
 	if [[ -f "$TITLE_FILE" ]]; then
 		head -n 1 "$TITLE_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
@@ -24,13 +34,6 @@ set_title() {
 	local new_title="$1"
 	printf '%s\n' "$new_title" >"$TITLE_FILE"
 	signal_waybar
-	if command -v notify-send >/dev/null 2>&1; then
-		if [[ -n "$new_title" ]]; then
-			notify-send -u low "直播/录屏主题" "已更新: $new_title"
-		else
-			notify-send -u low "直播/录屏主题" "已清空主题"
-		fi
-	fi
 }
 
 clear_title() {
@@ -41,11 +44,15 @@ edit_title() {
 	local current
 	current="$(get_title)"
 
+	local prompt
+	prompt="$(tr_msg overlay_title_prompt)"
+	[[ -n "$prompt" && "$prompt" != "[overlay_title_prompt]" ]] || prompt="直播主题: "
+
 	local chosen
 	if [[ -n "$current" ]]; then
-		chosen=$(printf '%s\n' "$current" | fuzzel --dmenu --prompt "直播主题: " || true)
+		chosen=$(printf '%s\n' "$current" | fuzzel --dmenu --prompt "$prompt" || true)
 	else
-		chosen=$(fuzzel --dmenu --prompt "直播主题: " </dev/null || true)
+		chosen=$(fuzzel --dmenu --prompt "$prompt" </dev/null || true)
 	fi
 
 	if [[ -n "$chosen" ]]; then
