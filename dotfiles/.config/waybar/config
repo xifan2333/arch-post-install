@@ -111,6 +111,7 @@
       "live": "󰐻",
       "idle": "󰑊"
     },
+    "tooltip": false,
     "return-type": "json",
     "exec": "arch-cap-rec status --waybar",
     "signal": 8,
