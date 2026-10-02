@@ -61,3 +61,10 @@
 - **First Priority: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, and CLI dispatchers. 0ms startup, zero cache files.
 - **Second Priority: Pure Perl (`perl`)**: Preferred when complex text manipulation, in-memory regex mappings, or template rendering is required. Native, purely in-memory execution, and never leaves disk bytecode cache.
 - **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to standard library only (zero pip dependencies). Zero bytecode cache is enforced via `PYTHONDONTWRITEBYTECODE=1` in environment and script shebangs (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
+
+### 3.5 Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)
+When investigating tools, CLI flags, configuration formats, or protocols:
+- **Priority 1: Local `man <tool>`**: Always check local manual pages first for exact flags, environment variables, and protocol specifications.
+- **Priority 2: Built-in `<tool> --help` / `-h`**: Inspect CLI flags and usage directly.
+- **Priority 3: Upstream Source Inspection in `~/Code/`**: If local documentation is insufficient or a package is not yet installed, clone the repository into `~/Code/<repo>` (via `git clone --depth 1 <url>`) and directly inspect source code, CLI structs, and configuration examples.
+- **Strict Prohibition**: Never perform speculative or random web searches when authoritative manpages, CLI help, or upstream source code can be directly inspected locally.

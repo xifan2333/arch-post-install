@@ -129,6 +129,12 @@ This system follows the principles documented in `.agents/skills/arch-dev/refere
      * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
 5. **Universal CLI Convention (`arch-<domain>-<action>`)**:
    - All scripts in `dotfiles/.local/bin/` follow `arch-<domain>-<action>` and are accessible via the root dispatcher `arch <domain> <action>`. Every script includes `# arch:summary=...` metadata.
+6. **Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)**:
+   When investigating tools, CLI flags, configuration formats, or protocols:
+   - **Priority 1: Local `man <tool>`**: Always check local manual pages first.
+   - **Priority 2: Built-in `<tool> --help` / `-h`**: Inspect CLI flags and usage directly.
+   - **Priority 3: Upstream Source Inspection in `~/Code/`**: Clone repository to `~/Code/<repo>` (via `git clone --depth 1`) and inspect source code (CLI structs, config parsers, protocol handlers) directly.
+   - **Strict Prohibition**: Never perform speculative or random web searches when authoritative documentation, manpages, or upstream source code can be inspected locally.
 
 ---
 
