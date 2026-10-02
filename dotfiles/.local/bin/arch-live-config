@@ -1,7 +1,7 @@
 #!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Graphical livestream multi-platform configuration dialog
+# arch:summary=Graphical livestream configuration dialog
 # arch:examples=arch live config
-"""Live stream configurator — targets, stream keys, and bitrates."""
+"""Live stream configurator — single-destination RTMP server, key, and bitrates."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 CONFIG_DIR = Path(GLib.get_user_config_dir()) / "livestream"
 CONFIG_FILE = CONFIG_DIR / "config.json"
+DEFAULT_SERVER = "rtmp://live-push.bilivideo.com/live-bvc/"
 DEFAULT_VIDEO_BITRATE = 4500
 DEFAULT_AUDIO_BITRATE = 160
 
@@ -45,269 +46,130 @@ def bounded_int(value: object, default: int, minimum: int, maximum: int) -> int:
     return number if minimum <= number <= maximum else default
 
 
-def load_config() -> tuple[int, int, list[dict]]:
+def load_config() -> tuple[str, str, int, int]:
+    server = DEFAULT_SERVER
+    key = ""
     video = DEFAULT_VIDEO_BITRATE
     audio = DEFAULT_AUDIO_BITRATE
-    platforms: list[dict] = []
 
     if not CONFIG_FILE.is_file():
-        return (
-            video,
-            audio,
-            [
-                {
-                    "enabled": True,
-                    "name": "Bilibili",
-                    "server": "rtmp://live-push.bilivideo.com/live-bvc/",
-                    "key": "",
-                    "aspect_ratio": "16:9",
-                }
-            ],
-        )
+        return server, key, video, audio
 
     try:
         data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return video, audio, platforms
+        return server, key, video, audio
 
     if not isinstance(data, dict):
-        return video, audio, platforms
+        return server, key, video, audio
 
     video = bounded_int(data.get("bitrate"), DEFAULT_VIDEO_BITRATE, 500, 30000)
     audio = bounded_int(data.get("audio_bitrate"), DEFAULT_AUDIO_BITRATE, 32, 320)
 
-    items = data.get("platforms") or []
-    if isinstance(items, list):
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            aspect = str(item.get("aspect_ratio", "16:9")).strip().lower()
-            if aspect not in ("9:16", "16:9"):
-                aspect = "16:9"
-            platforms.append(
-                {
-                    "enabled": bool(item.get("enabled", True)),
-                    "name": str(item.get("name") or "").strip(),
-                    "server": str(item.get("server") or "").strip(),
-                    "key": str(item.get("key") or "").strip(),
-                    "aspect_ratio": aspect,
-                }
-            )
+    server = str(data.get("server") or "").strip()
+    key = str(data.get("key") or "").strip()
 
-    if not platforms:
-        platforms.append(
-            {
-                "enabled": True,
-                "name": "Bilibili",
-                "server": "rtmp://live-push.bilivideo.com/live-bvc/",
-                "key": "",
-                "aspect_ratio": "16:9",
-            }
-        )
+    # Backwards compatibility with legacy multi-platform JSON
+    if not server and isinstance(data.get("platforms"), list):
+        for p in data["platforms"]:
+            if isinstance(p, dict) and p.get("enabled", True):
+                server = str(p.get("server") or "").strip()
+                key = str(p.get("key") or "").strip()
+                break
 
-    return video, audio, platforms
+    if not server:
+        server = DEFAULT_SERVER
+
+    return server, key, video, audio
 
 
-def save_config(video: int, audio: int, platforms: list[dict]) -> None:
+def save_config(server: str, key: str, video: int, audio: int) -> None:
     payload = {
+        "server": server.strip(),
+        "key": key.strip(),
         "bitrate": int(video),
         "audio_bitrate": int(audio),
-        "platforms": [],
     }
-    for p in platforms:
-        name = p.get("name", "").strip()
-        server = p.get("server", "").strip()
-        if not name and not server:
-            continue
-        aspect = str(p.get("aspect_ratio", "16:9")).strip().lower()
-        if aspect not in ("16:9", "9:16"):
-            aspect = "16:9"
-        payload["platforms"].append(  # type: ignore[attr-defined]
-            {
-                "enabled": bool(p.get("enabled", True)),
-                "name": name or "Live",
-                "server": server,
-                "key": str(p.get("key") or "").strip(),
-                "aspect_ratio": aspect,
-            }
-        )
-
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
-class PlatformRow:
-    """One editable platform target row: enabled, name, server, key, aspect_ratio."""
-
-    def __init__(self, data: dict, on_remove: object) -> None:
-        self.enabled_switch = Gtk.Switch()
-        self.enabled_switch.set_active(data.get("enabled", True))
-        self.enabled_switch.set_valign(Gtk.Align.CENTER)
-
-        self.name_entry = Gtk.Entry()
-        self.name_entry.set_placeholder_text(tr_msg("livestream_cfg_name", "平台名称"))
-        self.name_entry.set_text(data.get("name", ""))
-        self.name_entry.set_width_chars(10)
-
-        self.server_entry = Gtk.Entry()
-        self.server_entry.set_placeholder_text(
-            tr_msg("livestream_cfg_server", "服务器 RTMP 地址")
-        )
-        self.server_entry.set_text(data.get("server", ""))
-        self.server_entry.set_width_chars(28)
-        self.server_entry.set_hexpand(True)
-
-        self.key_entry = Gtk.Entry()
-        self.key_entry.set_placeholder_text(
-            tr_msg("livestream_cfg_key", "推流密钥 (Key)")
-        )
-        self.key_entry.set_text(data.get("key", ""))
-        self.key_entry.set_visibility(False)
-        self.key_entry.set_width_chars(20)
-        self.key_entry.set_hexpand(True)
-
-        self.aspect_combo = Gtk.ComboBoxText()
-        self.aspect_combo.append("16:9", "16:9")
-        self.aspect_combo.append("9:16", "9:16")
-        aspect_val = str(data.get("aspect_ratio", "16:9")).lower()
-        self.aspect_combo.set_active_id(
-            aspect_val if aspect_val in ("16:9", "9:16") else "16:9"
-        )
-
-        self.show_button = Gtk.Button.new_from_icon_name(
-            "view-reveal", Gtk.IconSize.BUTTON
-        )
-        self.show_button.set_tooltip_text("显示/隐藏推流码")
-        self.show_button.connect("clicked", self._toggle_key_visibility)
-
-        self.remove_button = Gtk.Button.new_from_icon_name(
-            "user-trash", Gtk.IconSize.BUTTON
-        )
-        self.remove_button.set_tooltip_text("删除该平台")
-        self.remove_button.connect("clicked", lambda _b: on_remove(self))  # type: ignore[operator]
-
-        self.widgets = [
-            self.enabled_switch,
-            self.name_entry,
-            self.server_entry,
-            self.key_entry,
-            self.show_button,
-            self.aspect_combo,
-            self.remove_button,
-        ]
-
-    def attach(self, grid: Gtk.Grid, row_number: int) -> None:
-        for column, widget in enumerate(self.widgets):
-            grid.attach(widget, column, row_number, 1, 1)
-
-    def detach(self, grid: Gtk.Grid) -> None:
-        for widget in self.widgets:
-            if widget.get_parent() is grid:
-                grid.remove(widget)
-
-    def destroy(self) -> None:
-        for widget in self.widgets:
-            widget.destroy()
-
-    def _toggle_key_visibility(self, _button: Gtk.Button) -> None:
-        self.key_entry.set_visibility(not self.key_entry.get_visibility())
-
-    def collect(self) -> dict:
-        return {
-            "enabled": self.enabled_switch.get_active(),
-            "name": self.name_entry.get_text(),
-            "server": self.server_entry.get_text(),
-            "key": self.key_entry.get_text(),
-            "aspect_ratio": self.aspect_combo.get_active_id() or "16:9",
-        }
-
-
 class LivestreamConfigDialog(Gtk.Dialog):
-    """Main modal settings window for livestream targets."""
+    """Focused single-destination modal settings window for livestreaming."""
 
-    def __init__(
-        self, platforms: list[dict], video_bitrate: int, audio_bitrate: int
-    ) -> None:
+    def __init__(self, server: str, key: str, video: int, audio: int) -> None:
         super().__init__(
             title=tr_msg("livestream_cfg_title", "直播推流配置"),
             modal=True,
         )
-        self.set_default_size(880, 420)
-        self.set_border_width(12)
+        self.set_default_size(620, 280)
+        self.set_border_width(14)
+        self.set_resizable(False)
 
         content = self.get_content_area()
-        content.set_spacing(10)
+        content.set_spacing(12)
 
-        # Bitrate adjustments
-        bitrate_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
-        bitrate_box.set_margin_bottom(6)
+        grid = Gtk.Grid(column_spacing=10, row_spacing=12)
+        grid.set_hexpand(True)
 
+        # 1. Server URL Entry
+        server_label = Gtk.Label(
+            label=tr_msg("livestream_cfg_server", "推流服务器:"),
+            xalign=0.0,
+        )
+        self.server_entry = Gtk.Entry()
+        self.server_entry.set_text(server)
+        self.server_entry.set_placeholder_text(DEFAULT_SERVER)
+        self.server_entry.set_hexpand(True)
+        grid.attach(server_label, 0, 0, 1, 1)
+        grid.attach(self.server_entry, 1, 0, 2, 1)
+
+        # 2. Stream Key Entry with reveal button
+        key_label = Gtk.Label(
+            label=tr_msg("livestream_cfg_key", "推流密钥 (Key):"),
+            xalign=0.0,
+        )
+        self.key_entry = Gtk.Entry()
+        self.key_entry.set_text(key)
+        self.key_entry.set_visibility(False)
+        self.key_entry.set_placeholder_text("?streamname=live_... 或密钥串")
+        self.key_entry.set_hexpand(True)
+
+        self.reveal_btn = Gtk.Button.new_from_icon_name(
+            "view-reveal", Gtk.IconSize.BUTTON
+        )
+        self.reveal_btn.set_tooltip_text("显示/隐藏推流码")
+        self.reveal_btn.connect("clicked", self._toggle_key_visibility)
+
+        grid.attach(key_label, 0, 1, 1, 1)
+        grid.attach(self.key_entry, 1, 1, 1, 1)
+        grid.attach(self.reveal_btn, 2, 1, 1, 1)
+
+        # 3. Video Bitrate
         video_label = Gtk.Label(
             label=tr_msg("livestream_cfg_video_kbps", "视频码率 (kbps):"),
             xalign=0.0,
         )
         self.video_bitrate = Gtk.SpinButton.new_with_range(500, 30000, 250)
-        self.video_bitrate.set_value(video_bitrate)
+        self.video_bitrate.set_value(video)
         self.video_bitrate.set_numeric(True)
+        grid.attach(video_label, 0, 2, 1, 1)
+        grid.attach(self.video_bitrate, 1, 2, 2, 1)
 
+        # 4. Audio Bitrate
         audio_label = Gtk.Label(
             label=tr_msg("livestream_cfg_audio_kbps", "音频码率 (kbps):"),
             xalign=0.0,
         )
         self.audio_bitrate = Gtk.SpinButton.new_with_range(32, 320, 16)
-        self.audio_bitrate.set_value(audio_bitrate)
+        self.audio_bitrate.set_value(audio)
         self.audio_bitrate.set_numeric(True)
+        grid.attach(audio_label, 0, 3, 1, 1)
+        grid.attach(self.audio_bitrate, 1, 3, 2, 1)
 
-        bitrate_box.pack_start(video_label, False, False, 0)
-        bitrate_box.pack_start(self.video_bitrate, False, False, 0)
-        bitrate_box.pack_start(audio_label, False, False, 0)
-        bitrate_box.pack_start(self.audio_bitrate, False, False, 0)
-        content.pack_start(bitrate_box, False, False, 0)
+        content.pack_start(grid, True, True, 0)
 
-        content.pack_start(
-            Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-            False,
-            False,
-            0,
-        )
-
-        # Header titles
-        self.rows_grid = Gtk.Grid(column_spacing=8, row_spacing=8)
-        self.rows_grid.set_border_width(4)
-        self.rows_grid.set_hexpand(True)
-
-        headers = [
-            tr_msg("livestream_cfg_enabled", "启用"),
-            tr_msg("livestream_cfg_name", "平台名称"),
-            tr_msg("livestream_cfg_server", "推流服务器"),
-            tr_msg("livestream_cfg_key", "推流码 Key"),
-            "",
-            tr_msg("livestream_cfg_aspect_ratio", "画面比例"),
-            "",
-        ]
-        for col, h in enumerate(headers):
-            lbl = Gtk.Label()
-            lbl.set_markup(f"<b>{GLib.markup_escape_text(h)}</b>")
-            lbl.set_halign(Gtk.Align.START)
-            self.rows_grid.attach(lbl, col, 0, 1, 1)
-
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_min_content_height(180)
-        scrolled.add(self.rows_grid)
-        content.pack_start(scrolled, True, True, 0)
-
-        self.rows: list[PlatformRow] = []
-        for p in platforms:
-            self._add_row(p)
-
-        # Add target button
-        add_btn = Gtk.Button(label="+ 添加推流目标")
-        add_btn.set_halign(Gtk.Align.START)
-        add_btn.connect("clicked", lambda _b: self._add_row({}))
-        content.pack_start(add_btn, False, False, 0)
-
-        # Actions
+        # Action Buttons
         self.add_button(tr_msg("cancel", "取消"), Gtk.ResponseType.CANCEL)
         confirm_btn = self.add_button(
             tr_msg("confirm", "确认保存"), Gtk.ResponseType.OK
@@ -316,29 +178,13 @@ class LivestreamConfigDialog(Gtk.Dialog):
 
         content.show_all()
 
-    def _add_row(self, data: dict) -> None:
-        row = PlatformRow(data, on_remove=self._remove_row)
-        self.rows.append(row)
-        self._layout_rows()
+    def _toggle_key_visibility(self, _button: Gtk.Button) -> None:
+        self.key_entry.set_visibility(not self.key_entry.get_visibility())
 
-    def _remove_row(self, row: PlatformRow) -> None:
-        row.detach(self.rows_grid)
-        self.rows.remove(row)
-        row.destroy()
-        self._layout_rows()
-
-    def _layout_rows(self) -> None:
-        for row in self.rows:
-            row.detach(self.rows_grid)
-        for row_idx, row in enumerate(self.rows, start=1):
-            row.attach(self.rows_grid, row_idx)
-        self.rows_grid.show_all()
-
-    def collect_all(self) -> list[dict]:
-        return [r.collect() for r in self.rows]
-
-    def collect_settings(self) -> tuple[int, int]:
+    def get_values(self) -> tuple[str, str, int, int]:
         return (
+            self.server_entry.get_text(),
+            self.key_entry.get_text(),
             self.video_bitrate.get_value_as_int(),
             self.audio_bitrate.get_value_as_int(),
         )
@@ -346,12 +192,12 @@ class LivestreamConfigDialog(Gtk.Dialog):
 
 def main() -> None:
     GLib.set_prgname("arch-live-config")
-    video, audio, platforms = load_config()
-    dialog = LivestreamConfigDialog(platforms, video, audio)
+    server, key, video, audio = load_config()
+    dialog = LivestreamConfigDialog(server, key, video, audio)
     response = dialog.run()
 
     if response == Gtk.ResponseType.OK:
-        save_config(*dialog.collect_settings(), dialog.collect_all())
+        save_config(*dialog.get_values())
 
     dialog.destroy()
 

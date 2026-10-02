@@ -96,20 +96,19 @@ cmd_start() {
 		return 0
 	fi
 
-	local server key name bitrate full_url
-	server="$(jq -r '.platforms[] | select(.enabled == true) | .server' "$CONFIG_FILE" 2>/dev/null | head -n1 || true)"
-	key="$(jq -r '.platforms[] | select(.enabled == true) | .key' "$CONFIG_FILE" 2>/dev/null | head -n1 || true)"
-	name="$(jq -r '.platforms[] | select(.enabled == true) | .name' "$CONFIG_FILE" 2>/dev/null | head -n1 || echo "Live")"
+	local server key bitrate full_url
+	server="$(jq -r '.server // .platforms[0].server // ""' "$CONFIG_FILE" 2>/dev/null || true)"
+	key="$(jq -r '.key // .platforms[0].key // ""' "$CONFIG_FILE" 2>/dev/null || true)"
 	bitrate="$(jq -r '.bitrate // 4500' "$CONFIG_FILE" 2>/dev/null || echo 4500)"
 
-	if [[ -z "$server" ]]; then
+	if [[ -z "$server" || "$server" == "null" ]]; then
 		if command -v arch-live-config >/dev/null 2>&1; then
 			arch-live-config
 		fi
 		return 0
 	fi
 
-	if [[ -z "$key" ]]; then
+	if [[ -z "$key" || "$key" == "null" ]]; then
 		full_url="$server"
 	elif [[ "$key" == \?* ]]; then
 		full_url="${server}${key}"
@@ -136,7 +135,7 @@ cmd_start() {
 
 	notify_waybar
 	open_danmaku
-	notify "$(tr_msg livestream_notify_started_full): $name"
+	notify "$(tr_msg livestream_notify_started_full)"
 }
 
 cmd_stop() {
