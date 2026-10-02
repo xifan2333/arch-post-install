@@ -18,12 +18,12 @@
     "clock"
   ],
   "modules-right": [
+    "tray",
     "custom/screenshot",
     "custom/screenrecord",
-    "tray",
     "network",
-    "wireplumber",
-    "wireplumber#microphone",
+    "pulseaudio",
+    "pulseaudio#microphone",
     "backlight",
     "battery",
     "custom/power"
@@ -140,23 +140,27 @@
     "tooltip-format-disconnected": "网络已断开",
     "on-click": "arch-net-menu"
   },
-  "wireplumber": {
+  "pulseaudio": {
     "format": "{icon}  {volume}%",
     "format-muted": "󰖁  {volume}%",
-    "format-icons": [
-      "󰕿",
-      "󰖀",
-      "󰕾"
-    ],
+    "format-icons": {
+      "default": [
+        "󰕿",
+        "󰖀",
+        "󰕾"
+      ]
+    },
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "scroll-step": 5
+    "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
-  "wireplumber#microphone": {
-    "node-type": "Audio/Source",
-    "format": "󰍬  {volume}%",
-    "format-muted": "󰍭  {volume}%",
+  "pulseaudio#microphone": {
+    "format": "{format_source}",
+    "format-source": "󰍬  {volume}%",
+    "format-source-muted": "󰍭  {volume}%",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-    "scroll-step": 5
+    "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SOURCE@ 5%+",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
   },
   "backlight": {
     "format": "{icon}  {percent}%",
