@@ -84,9 +84,9 @@
   "cap_menu_color": "屏幕取色",
   "cap_menu_scroll": "滚动截图",
   "power_menu_prompt": "会话: ",
-  "power_lock": "󰌾 锁定屏幕",
-  "power_suspend": "󰒲 挂起休眠",
-  "power_logout": "󰈆 注销会话",
-  "power_reboot": "󰑐 重启系统",
-  "power_shutdown": "󰐥 关闭系统"
+  "power_lock": "锁定屏幕",
+  "power_suspend": "挂起休眠",
+  "power_logout": "注销会话",
+  "power_reboot": "重启系统",
+  "power_shutdown": "关闭系统"
 }

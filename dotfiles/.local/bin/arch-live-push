@@ -134,7 +134,10 @@ cmd_start() {
 	fi
 	start_stream "$target" || rc=$?
 	case "$rc" in
-	0) notify "$(msg livestream_notify_started_full)" ;;
+	0)
+		pkill -RTMIN+8 waybar 2>/dev/null || true
+		notify "$(msg livestream_notify_started_full)"
+		;;
 	2) notify "$(msg livestream_notify_already_active)" ;;
 	3) notify "$(msg livestream_notify_missing_rtmp)" ;;
 	*) notify "$(msg livestream_notify_start_failed)" critical ;;
@@ -150,6 +153,7 @@ cmd_stop() {
 	fi
 	stop_stream || rc=$?
 	if [ "$rc" -eq 0 ]; then
+		pkill -RTMIN+8 waybar 2>/dev/null || true
 		notify "$(msg livestream_notify_stopped)"
 	else
 		notify "$(msg livestream_notify_stop_failed)" critical

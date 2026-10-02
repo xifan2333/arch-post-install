@@ -18,6 +18,7 @@
     "clock"
   ],
   "modules-right": [
+    "custom/screenrecord",
     "tray",
     "network",
     "wireplumber",
@@ -95,6 +96,14 @@
     "tooltip": true,
     "return-type": "json",
     "exec": "xrwm status --window --stream"
+  },
+  "custom/screenrecord": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "arch-cap-rec status --waybar",
+    "signal": 8,
+    "interval": "once",
+    "on-click": "arch-cap-rec toggle"
   },
   "tray": {
     "icon-size": 16,

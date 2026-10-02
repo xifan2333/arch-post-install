@@ -92,6 +92,23 @@ window#waybar {
     font-style: italic;
 }
 
+/* Screen Recording & Live Streaming */
+#custom-screenrecord {
+    padding: 0 8px;
+    margin: 1px 2px;
+    font-weight: bold;
+}
+
+#custom-screenrecord.recording {
+    color: @red;
+    animation: blink 1s linear infinite;
+}
+
+#custom-screenrecord.live {
+    color: @magenta;
+    animation: blink 1.5s linear infinite;
+}
+
 /* Clock */
 #clock {
     padding: 0 10px;

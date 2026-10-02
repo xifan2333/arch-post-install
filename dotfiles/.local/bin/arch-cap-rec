@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+# arch:summary=Record screen area or fullscreen video with hardware acceleration
+# arch:args=[full | area | stop | toggle | status]
+# arch:examples=arch cap rec full | arch cap rec area | arch cap rec stop
+set -euo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screenrecord"
+PID_FILE="$STATE_DIR/pid"
+TARGET_FILE="$STATE_DIR/current_file"
+VIDEOS_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+notify_waybar() {
+	pkill -RTMIN+8 waybar 2>/dev/null || true
+}
+
+is_recording() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	return 1
+}
+
+status_output() {
+	local mode="${1:-text}"
+	if [[ "$mode" == "--waybar" ]]; then
+		if is_recording; then
+			local text tip
+			text="$(tr_msg screenrecord_status_recording)"
+			tip="$(tr_msg screenrecord_tooltip_recording)"
+			printf '{"text":"󰑋 %s","tooltip":"%s","class":"recording"}\n' "$text" "$tip"
+		elif pgrep -f "arch-live-service" >/dev/null 2>&1; then
+			local text tip
+			text="$(tr_msg screenrecord_status_live)"
+			tip="$(tr_msg screenrecord_tooltip_live)"
+			printf '{"text":"󰐻 %s","tooltip":"%s","class":"live"}\n' "$text" "$tip"
+		else
+			printf '{"text":"","tooltip":"","class":"idle"}\n'
+		fi
+	else
+		if is_recording; then
+			printf 'recording\n'
+		elif pgrep -f "arch-live-service" >/dev/null 2>&1; then
+			printf 'live\n'
+		else
+			printf 'idle\n'
+		fi
+	fi
+}
+
+stop_recording() {
+	local target=""
+	if [[ -f "$TARGET_FILE" ]]; then
+		target="$(cat "$TARGET_FILE" 2>/dev/null || true)"
+		rm -f "$TARGET_FILE"
+	fi
+
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			kill -INT "$pid" 2>/dev/null || true
+			local timeout=30
+			while kill -0 "$pid" 2>/dev/null && [[ $timeout -gt 0 ]]; do
+				sleep 0.1
+				timeout=$((timeout - 1))
+			done
+		fi
+		rm -f "$PID_FILE"
+	fi
+
+	pkill -SIGINT -x gpu-screen-recorder 2>/dev/null || true
+	notify_waybar
+
+	local title stopped_msg
+	title="$(tr_msg screenrecord_notify_title)"
+	stopped_msg="$(tr_msg screenrecord_notify_stopped)"
+
+	if command -v notify-send >/dev/null 2>&1; then
+		if [[ -n "$target" && -f "$target" ]]; then
+			notify-send -u normal "$title" "$stopped_msg\n$target"
+		else
+			notify-send -u normal "$title" "$stopped_msg"
+		fi
+	fi
+}
+
+start_full() {
+	if is_recording; then
+		stop_recording
+		return 0
+	fi
+
+	if ! command -v gpu-screen-recorder >/dev/null 2>&1; then
+		printf 'Error: gpu-screen-recorder is required\n' >&2
+		return 1
+	fi
+
+	mkdir -p "$STATE_DIR" "$VIDEOS_DIR"
+	local target
+	target="$VIDEOS_DIR/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4"
+	printf '%s\n' "$target" >"$TARGET_FILE"
+
+	gpu-screen-recorder \
+		-w screen \
+		-f 60 \
+		-c mp4 \
+		-k h264 \
+		-a "default_output|default_input" \
+		-o "$target" >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$PID_FILE"
+
+	notify_waybar
+
+	local title started_msg
+	title="$(tr_msg screenrecord_notify_title)"
+	started_msg="$(tr_msg screenrecord_notify_started_full)"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -u normal "$title" "$started_msg"
+	fi
+}
+
+start_area() {
+	if is_recording; then
+		stop_recording
+		return 0
+	fi
+
+	if ! command -v gpu-screen-recorder >/dev/null 2>&1; then
+		printf 'Error: gpu-screen-recorder is required\n' >&2
+		return 1
+	fi
+
+	if ! command -v slurp >/dev/null 2>&1; then
+		printf 'Error: slurp is required for area selection\n' >&2
+		return 1
+	fi
+
+	local geom
+	geom="$(slurp -f "%wx%h+%x+%y" 2>/dev/null || true)"
+	[[ -n "$geom" ]] || exit 0
+
+	local w h x y
+	w="$(cut -d'x' -f1 <<<"$geom")"
+	h="$(cut -d'x' -f2 <<<"$geom" | cut -d'+' -f1)"
+	x="$(cut -d'+' -f2 <<<"$geom")"
+	y="$(cut -d'+' -f3 <<<"$geom")"
+
+	# Sanitize dimensions to even numbers for hardware encoders
+	w=$(((w / 2) * 2))
+	h=$(((h / 2) * 2))
+	[[ $w -ge 2 && $h -ge 2 ]] || exit 0
+	local region="${w}x${h}+${x}+${y}"
+
+	mkdir -p "$STATE_DIR" "$VIDEOS_DIR"
+	local target
+	target="$VIDEOS_DIR/recording_$(date +%Y-%m-%d_%H-%M-%S).mp4"
+	printf '%s\n' "$target" >"$TARGET_FILE"
+
+	gpu-screen-recorder \
+		-w region \
+		-region "$region" \
+		-f 60 \
+		-c mp4 \
+		-k h264 \
+		-a "default_output|default_input" \
+		-o "$target" >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$PID_FILE"
+
+	notify_waybar
+
+	local title started_msg
+	title="$(tr_msg screenrecord_notify_title)"
+	started_msg="$(tr_msg screenrecord_notify_started_area)"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -u normal "$title" "$started_msg"
+	fi
+}
+
+toggle() {
+	if is_recording; then
+		stop_recording
+	else
+		start_full
+	fi
+}
+
+main() {
+	local action="${1:-toggle}"
+	case "$action" in
+	full)
+		start_full
+		;;
+	area)
+		start_area
+		;;
+	stop)
+		stop_recording
+		;;
+	toggle)
+		toggle
+		;;
+	status)
+		status_output "${2:-}"
+		;;
+	*)
+		printf 'Usage: arch-cap-rec [full | area | stop | toggle | status]\n'
+		;;
+	esac
+}
+
+main "$@"
