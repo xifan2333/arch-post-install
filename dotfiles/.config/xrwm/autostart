@@ -47,14 +47,8 @@ if [[ -x "$polkit_agent" ]] && ! pgrep -f "polkit-gnome" >/dev/null 2>&1; then
 	fi
 fi
 
-# 5. Idle locker daemon (Swayidle)
-if command -v swayidle >/dev/null 2>&1 && ! pgrep -x swayidle >/dev/null 2>&1; then
-	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -s b -S both -- swayidle -w timeout 300 hyprlock before-sleep hyprlock >/dev/null 2>&1 &
-	else
-		swayidle -w timeout 300 hyprlock before-sleep hyprlock >/dev/null 2>&1 &
-	fi
-fi
+# 5. Idle and power management daemon (Swayidle)
+start_daemon swayidle -w
 
 # 6. Wallpaper daemon (Swaybg)
 if command -v swaybg >/dev/null 2>&1; then
