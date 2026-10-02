@@ -57,6 +57,7 @@ broadcast_reloads() {
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	pkill -SIGUSR1 fnott 2>/dev/null || true
 	pkill -SIGUSR1 ftty 2>/dev/null || true
+	pkill -SIGUSR2 btop 2>/dev/null || true
 
 	if pgrep -x mako >/dev/null 2>&1; then
 		makoctl reload 2>/dev/null || true
@@ -189,6 +190,29 @@ ensure_mako_theme() {
 	local target_conf="$mako_dir/config"
 	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_mako" ]]; then
 		ln -sf "$state_mako" "$target_conf"
+	fi
+}
+
+ensure_btop_theme() {
+	local state_btop="$1"
+	[[ -f "$state_btop" ]] || return 0
+
+	local btop_dir="${XDG_CONFIG_HOME:-$HOME/.config}/btop"
+	local themes_dir="$btop_dir/themes"
+	mkdir -p "$themes_dir"
+
+	local target_theme="$themes_dir/current.theme"
+	if [[ "$(readlink -f "$target_theme" 2>/dev/null || true)" != "$state_btop" ]]; then
+		ln -sf "$state_btop" "$target_theme"
+	fi
+
+	local btop_conf="$btop_dir/btop.conf"
+	if [[ -f "$btop_conf" ]]; then
+		if grep -q "^color_theme = " "$btop_conf"; then
+			sed -i 's|^color_theme = .*|color_theme = "current"|' "$btop_conf"
+		else
+			printf '\ncolor_theme = "current"\n' >>"$btop_conf"
+		fi
 	fi
 }
 
@@ -412,6 +436,7 @@ apply_theme() {
 	ensure_gtk_theme "$theme_state/gtk.css" "$colors_file"
 	ensure_ftty_theme "$theme_state/ftty.toml"
 	ensure_mako_theme "$theme_state/mako.conf"
+	ensure_btop_theme "$theme_state/btop.theme"
 	assemble_herdr_theme "$colors_file" "$theme_state"
 	broadcast_reloads
 
