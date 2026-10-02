@@ -43,9 +43,9 @@ edit_title() {
 
 	local chosen
 	if [[ -n "$current" ]]; then
-		chosen=$(printf '%s\n' "$current" | fuzzel --dmenu --prompt "󰑋 直播主题: " || true)
+		chosen=$(printf '%s\n' "$current" | fuzzel --dmenu --prompt "直播主题: " || true)
 	else
-		chosen=$(fuzzel --dmenu --prompt "󰑋 直播主题: " </dev/null || true)
+		chosen=$(fuzzel --dmenu --prompt "直播主题: " </dev/null || true)
 	fi
 
 	if [[ -n "$chosen" ]]; then
@@ -59,12 +59,10 @@ status_waybar() {
 
 	if [[ -n "$title" ]]; then
 		jq -n -c \
-			--arg t "󰑋 $title" \
-			--arg tip "$(printf '当前主题: %s\n左键点击: 修改\n右键点击: 清空' "$title")" \
-			--arg c "active" \
-			'{text: $t, tooltip: $tip, class: $c}'
+			--arg t "$title" \
+			'{text: $t, class: "active"}'
 	else
-		printf '{"text": "", "tooltip": "", "class": "empty"}\n'
+		printf '{"text": "", "class": "empty"}\n'
 	fi
 }
 
