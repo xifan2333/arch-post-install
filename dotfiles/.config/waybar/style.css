@@ -123,14 +123,24 @@ window#waybar {
     color: @red;
 }
 
-/* Pulseaudio */
-#pulseaudio {
+/* WirePlumber Audio & Microphone */
+#wireplumber {
     padding: 0 8px;
     margin: 1px 2px;
     color: @green;
 }
 
-#pulseaudio.muted {
+#wireplumber.muted {
+    color: @muted;
+}
+
+#wireplumber.microphone {
+    padding: 0 8px;
+    margin: 1px 2px;
+    color: @magenta;
+}
+
+#wireplumber.microphone.muted {
     color: @muted;
 }
 
