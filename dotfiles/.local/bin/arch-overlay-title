@@ -132,7 +132,7 @@ class TitleWindow(Gtk.Window):
         GtkLayerShell.init_for_window(self)
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
         GtkLayerShell.set_exclusive_zone(self, -1)
-        GtkLayerShell.set_keyboard_interactivity(self, False)
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
 
         # UI Structure
         self.event_box = Gtk.EventBox()
@@ -191,13 +191,13 @@ class TitleWindow(Gtk.Window):
 
         if self.editing:
             # Interactive mode: mouse and keyboard events are captured on the card
-            GtkLayerShell.set_keyboard_interactivity(self, True)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)
             gdk_win.input_shape_combine_region(None)
             self.card_box.get_style_context().add_class("editing")
             self.grab_focus()
         else:
             # Broadcast mode: 100% click-through
-            GtkLayerShell.set_keyboard_interactivity(self, False)
+            GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
             gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
             self.card_box.get_style_context().remove_class("editing")
 
