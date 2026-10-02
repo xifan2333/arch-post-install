@@ -19,6 +19,9 @@ CONFIG_DIR = (
 )
 CONFIG_FILE = CONFIG_DIR / "camera.conf"
 
+MAX_PIP_W = 1280
+MAX_PIP_H = 720
+
 
 def list_v4l2_cameras() -> list[dict[str, object]]:
     devices: list[tuple[str, str]] = []
@@ -51,6 +54,7 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
             best_w, best_h, best_fps = 0, 0, 0
             best_fmt = "mjpeg"
             best_score = -1.0
+            fallback_w, fallback_h, fallback_fps, fallback_fmt = 0, 0, 0, "mjpeg"
 
             for line in out.splitlines():
                 if "'MJPG'" in line or "'mjpeg'" in line.lower():
@@ -68,12 +72,28 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
                         score = float(cur_w * cur_h * fps)
                         if cur_fmt == "mjpeg":
                             score *= 1.05
-                        if score > best_score:
-                            best_score = score
-                            best_w = cur_w
-                            best_h = cur_h
-                            best_fps = int(fps)
-                            best_fmt = cur_fmt or "mjpeg"
+                        if cur_w <= MAX_PIP_W and cur_h <= MAX_PIP_H:
+                            if score > best_score:
+                                best_score = score
+                                best_w = cur_w
+                                best_h = cur_h
+                                best_fps = int(fps)
+                                best_fmt = cur_fmt or "mjpeg"
+                        elif fallback_w == 0 or score < (
+                            fallback_w * fallback_h * fallback_fps
+                        ):
+                            fallback_w = cur_w
+                            fallback_h = cur_h
+                            fallback_fps = int(fps)
+                            fallback_fmt = cur_fmt or "mjpeg"
+
+            if best_w == 0 and fallback_w > 0:
+                best_w, best_h, best_fps, best_fmt = (
+                    fallback_w,
+                    fallback_h,
+                    fallback_fps,
+                    fallback_fmt,
+                )
 
             if best_w > 0:
                 is_usb = "usb" in name.lower() or "external" in name.lower()
@@ -180,8 +200,8 @@ def launch_camera(cam: dict[str, object]) -> None:
     fmt = str(cam["format"])
 
     input_conf = (
-        'MBTN_LEFT_DBL cycle-values vf "hflip" "hflip,crop=ih:ih" '
-        '"hflip,crop=ih*4/3:ih"\n'
+        'MBTN_LEFT_DBL cycle-values vf "hflip" "hflip,crop=ih*3/2:ih" '
+        '"hflip,crop=ih*4/3:ih" "hflip,crop=ih:ih"\n'
         "MBTN_MID quit\n"
     )
 
