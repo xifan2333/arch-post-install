@@ -39,7 +39,7 @@ boost_hardware() {
 		arch-hw-gpu max >/dev/null 2>&1 || true
 	fi
 	if command -v arch-hw-fan >/dev/null 2>&1; then
-		arch-hw-fan full-speed >/dev/null 2>&1 || true
+		arch-hw-fan max >/dev/null 2>&1 || true
 	fi
 }
 
