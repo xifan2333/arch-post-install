@@ -2,6 +2,15 @@
  * Managed by arch-theme-set template pipeline
  */
 
+/* GTK 3 standard theme color overrides */
+@define-color theme_bg_color {{ background }};
+@define-color theme_fg_color {{ foreground }};
+@define-color theme_base_color {{ background }};
+@define-color theme_text_color {{ foreground }};
+@define-color theme_selected_bg_color {{ selection }};
+@define-color theme_selected_fg_color {{ foreground }};
+
+/* GTK 4 / Libadwaita color overrides */
 @define-color accent_color {{ accent }};
 @define-color accent_bg_color {{ accent }};
 @define-color accent_fg_color {{ dark_background }};
