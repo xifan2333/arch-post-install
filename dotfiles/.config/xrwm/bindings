@@ -65,6 +65,15 @@ xrwm map normal "Super+Shift" Left swap left
 xrwm map normal "Super+Shift" Right swap right
 
 # ---------------------------------------------------------------------------
+# Multi-Monitor Output Management
+# ---------------------------------------------------------------------------
+
+xrwm map normal Super Period focus-output next
+xrwm map normal Super Comma focus-output previous
+xrwm map normal "Super+Shift" Period send-to-output next
+xrwm map normal "Super+Shift" Comma send-to-output previous
+
+# ---------------------------------------------------------------------------
 # Floating Window Control (Translate & Snap)
 # ---------------------------------------------------------------------------
 
