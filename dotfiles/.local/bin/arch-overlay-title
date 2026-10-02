@@ -1,8 +1,8 @@
 #!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Interactive title HUD overlay with wheel font scaling and theme sync
-# arch:args=[toggle | edit | show | hide | status]
-# arch:examples=arch overlay title toggle | arch overlay title edit
-"""Title overlay with transparent floating window and click-through."""
+# arch:summary=Floating transparent title HUD with dynamic font scaling
+# arch:args=[toggle | show | hide]
+# arch:examples=arch overlay title | arch overlay title toggle
+"""Floating transparent title HUD application."""
 
 from __future__ import annotations
 
@@ -25,8 +25,6 @@ CONFIG_DIR = (
     Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord"
 )
 CONFIG_FILE = CONFIG_DIR / "title.conf"
-RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "screenrecord"
-PID_FILE = RUNTIME_DIR / "overlay-title.pid"
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
 
 DEFAULTS = {
@@ -36,9 +34,11 @@ DEFAULTS = {
     "font_weight": "700",
     "text_color": "auto",
     "background": "auto",
+    "width": "420",
+    "height": "80",
+    "border_radius": "10",
     "padding_x": "16",
     "padding_y": "10",
-    "border_radius": "8",
 }
 
 
@@ -98,21 +98,22 @@ def save_config(data: dict[str, str]) -> None:
         cfg.write(f)
 
 
-class TitleWindow(Gtk.Window):
-    def __init__(self, initial_edit: bool = False) -> None:
+class TitleApp(Gtk.Window):
+    def __init__(self) -> None:
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self.editing = initial_edit
-        self.inline_editing = False
         self.conf = load_config()
         self.theme = get_theme_colors()
-        self.mtime: float | None = None
+        self.inline_editing = False
+
+        init_w = int(float(self.conf.get("width", "420")))
+        init_h = int(float(self.conf.get("height", "80")))
+        self.font_size = int(float(self.conf.get("font_size", "36")))
+        self.save_timer: int | None = None
 
         self.set_title("arch-overlay-title")
         self.set_decorated(False)
         self.set_resizable(True)
-        self.set_skip_taskbar_hint(True)
-        self.set_skip_pager_hint(True)
-        self.set_keep_above(True)
+        self.set_default_size(init_w, init_h)
         self.set_app_paintable(True)
 
         screen = self.get_screen()
@@ -121,24 +122,25 @@ class TitleWindow(Gtk.Window):
             self.set_visual(visual)
 
         self.connect("draw", self.on_draw)
+        self.connect("size-allocate", self.on_size_allocate)
+        self.connect("destroy", self.on_destroy)
 
-        # UI Structure
+        # UI Components
         self.event_box = Gtk.EventBox()
         self.event_box.set_visible_window(False)
         self.event_box.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK
             | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.POINTER_MOTION_MASK
-            | Gdk.EventMask.SCROLL_MASK
             | Gdk.EventMask.KEY_PRESS_MASK
         )
 
         self.card_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.card_box.get_style_context().add_class("title-card")
 
-        self.label = Gtk.Label()
+        self.label = Gtk.Label(label=self.conf.get("text", "直播标题"))
         self.label.set_line_wrap(True)
-        self.label.set_xalign(0.0)
+        self.label.set_xalign(0.5)
         self.label.set_yalign(0.5)
         self.label.get_style_context().add_class("title-label")
 
@@ -146,16 +148,16 @@ class TitleWindow(Gtk.Window):
         self.entry.get_style_context().add_class("title-entry")
         self.entry.set_no_show_all(True)
         self.entry.connect("activate", self.on_entry_activate)
+        self.entry.connect("focus-out-event", self.on_entry_focus_out)
+        self.entry.connect("key-press-event", self.on_entry_key_press)
 
         self.card_box.pack_start(self.label, True, True, 0)
         self.card_box.pack_start(self.entry, True, True, 0)
         self.event_box.add(self.card_box)
         self.add(self.event_box)
 
-        # Connect event handlers
+        # Events
         self.event_box.connect("button-press-event", self.on_button_press)
-        self.event_box.connect("scroll-event", self.on_scroll)
-        self.connect("key-press-event", self.on_key_press)
 
         # CSS provider
         self.css_provider = Gtk.CssProvider()
@@ -163,11 +165,12 @@ class TitleWindow(Gtk.Window):
             screen, self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-        self.apply_style(force=True)
+        self.update_style()
         self.show_all()
-        self.update_click_through()
 
-        GLib.timeout_add(600, self.poll_config)
+    def on_destroy(self, _widget: Gtk.Widget) -> None:
+        if Gtk.main_level() > 0:
+            Gtk.main_quit()
 
     def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
         cr.set_source_rgba(0, 0, 0, 0)
@@ -175,109 +178,103 @@ class TitleWindow(Gtk.Window):
         cr.paint()
         return False
 
-    def update_click_through(self) -> None:
-        if not self.get_window():
-            self.connect("realize", lambda _w: self.update_click_through())
-            return
+    def on_size_allocate(self, _widget: Gtk.Widget, allocation: Gdk.Rectangle) -> None:
+        if allocation.height > 20:
+            target_size = max(14, min(140, int(allocation.height * 0.45)))
+            if target_size != self.font_size:
+                self.font_size = target_size
+                self.conf["font_size"] = str(target_size)
+                self.update_style()
 
-        if self.editing:
-            self.input_shape_combine_region(None)
-            self.set_accept_focus(True)
-            self.card_box.get_style_context().add_class("editing")
-            self.grab_focus()
-        else:
-            self.input_shape_combine_region(cairo.Region())
-            self.set_accept_focus(False)
-            self.card_box.get_style_context().remove_class("editing")
+        self.conf["width"] = str(allocation.width)
+        self.conf["height"] = str(allocation.height)
 
-    def toggle_edit_mode(self) -> None:
-        if self.editing:
-            self.lock_edit()
-        else:
-            self.editing = True
-            self.update_click_through()
-            self.apply_style(force=True)
+        if self.save_timer is not None:
+            GLib.source_remove(self.save_timer)
+        self.save_timer = GLib.timeout_add(1000, self._debounced_save)
 
-    def lock_edit(self) -> None:
-        if self.inline_editing:
-            self.conf["text"] = self.entry.get_text()
-            self.entry.hide()
-            self.label.show()
-            self.inline_editing = False
+        self.update_input_shape()
 
-        self.editing = False
+    def _debounced_save(self) -> bool:
         save_config(self.conf)
-        self.update_click_through()
-        self.apply_style(force=True)
-        with contextlib.suppress(OSError):
-            subprocess.run(
-                ["notify-send", "-u", "low", "直播标题", "标题样式已保存"],
-                check=False,
-            )
+        self.save_timer = None
+        return False
+
+    def update_input_shape(self) -> None:
+        alloc = self.card_box.get_allocation()
+        if alloc.width > 0 and alloc.height > 0:
+            rect = cairo.RectangleInt(alloc.x, alloc.y, alloc.width, alloc.height)
+            self.input_shape_combine_region(cairo.Region(rect))
 
     def on_button_press(self, _widget: Gtk.Widget, event: Gdk.EventButton) -> bool:
-        if not self.editing:
-            return False
-
         if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
-            # Double click: switch to inline text edit
-            self.inline_editing = True
-            self.entry.set_text(self.conf.get("text", ""))
-            self.label.hide()
-            self.entry.show()
-            self.entry.grab_focus()
+            self.start_inline_editing()
+            return True
+
+        if event.button == 3:
+            self.open_font_dialog()
             return True
 
         if event.button == 1 and not self.inline_editing:
-            # Native Wayland move drag
             self.begin_move_drag(
                 event.button, int(event.x_root), int(event.y_root), event.time
             )
             return True
         return False
 
-    def on_scroll(self, _widget: Gtk.Widget, event: Gdk.EventScroll) -> bool:
-        if not self.editing:
-            return False
+    def start_inline_editing(self) -> None:
+        self.inline_editing = True
+        self.entry.set_text(self.conf.get("text", ""))
+        self.label.hide()
+        self.entry.show()
+        self.entry.grab_focus()
 
-        curr_size = int(float(self.conf.get("font_size", "36")))
-        if event.direction == Gdk.ScrollDirection.UP:
-            new_size = min(120, curr_size + 2)
-        elif event.direction == Gdk.ScrollDirection.DOWN:
-            new_size = max(12, curr_size - 2)
-        else:
-            return False
+    def finish_inline_editing(self, save: bool = True) -> None:
+        if not self.inline_editing:
+            return
+        if save:
+            self.conf["text"] = self.entry.get_text()
+            self.label.set_text(self.conf["text"])
+            save_config(self.conf)
+        self.entry.hide()
+        self.label.show()
+        self.inline_editing = False
 
-        self.conf["font_size"] = str(new_size)
-        self.apply_style(force=True)
-        return True
+    def on_entry_activate(self, _entry: Gtk.Entry) -> None:
+        self.finish_inline_editing(save=True)
 
-    def on_key_press(self, _widget: Gtk.Widget, event: Gdk.EventKey) -> bool:
-        if not self.editing:
-            return False
-        if event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_Escape):
-            self.lock_edit()
+    def on_entry_focus_out(self, _entry: Gtk.Entry, _event: Gdk.EventFocus) -> bool:
+        self.finish_inline_editing(save=True)
+        return False
+
+    def on_entry_key_press(self, _entry: Gtk.Entry, event: Gdk.EventKey) -> bool:
+        if event.keyval == Gdk.KEY_Escape:
+            self.finish_inline_editing(save=False)
             return True
         return False
 
-    def on_entry_activate(self, entry: Gtk.Entry) -> None:
-        self.conf["text"] = entry.get_text()
-        self.lock_edit()
+    def open_font_dialog(self) -> None:
+        dlg = Gtk.FontChooserDialog(title="选择标题字体", parent=self)
+        curr_font = self.conf.get("font_family", "")
+        if curr_font and curr_font != "auto":
+            dlg.set_font(f"{curr_font} {self.font_size}")
+        res = dlg.run()
+        if res == Gtk.ResponseType.OK:
+            font_desc = dlg.get_font_desc()
+            if font_desc:
+                family = font_desc.get_family()
+                if family:
+                    self.conf["font_family"] = family
+                    save_config(self.conf)
+                    self.update_style()
+        dlg.destroy()
 
-    def apply_style(self, force: bool = False) -> None:
-        conf = load_config()
-        if not force and conf == self.conf:
-            return
-        self.conf = conf
+    def update_style(self) -> None:
         self.theme = get_theme_colors()
 
         text = self.conf.get("text", "直播标题")
         self.label.set_text(text)
 
-        font_size = int(float(self.conf.get("font_size", "36")))
-        font_weight = self.conf.get("font_weight", "700")
-
-        # Dynamic theme & font fallback
         font_family = self.conf.get("font_family", "auto")
         if font_family in ("auto", "", "sans-serif"):
             font_family = get_system_font()
@@ -295,14 +292,14 @@ class TitleWindow(Gtk.Window):
                     int(bg_hex[2:4], 16),
                     int(bg_hex[4:6], 16),
                 )
-                background = f"rgba({r}, {g}, {b}, 0.65)"
+                background = f"rgba({r}, {g}, {b}, 0.75)"
             else:
-                background = "rgba(26, 27, 38, 0.65)"
+                background = "rgba(26, 27, 38, 0.75)"
 
         accent = self.theme.get("accent", "#7aa2f7")
         padding_x = int(float(self.conf.get("padding_x", "16")))
         padding_y = int(float(self.conf.get("padding_y", "10")))
-        radius = int(float(self.conf.get("border_radius", "8")))
+        radius = int(float(self.conf.get("border_radius", "10")))
 
         shadow = (
             "-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), "
@@ -319,75 +316,49 @@ class TitleWindow(Gtk.Window):
             padding: {padding_y}px {padding_x}px;
             border: 2px solid transparent;
         }}
-        .title-card.editing {{
-            border: 2px dashed {accent};
-            background: rgba(0, 0, 0, 0.85);
+        .title-card:hover {{
+            border: 2px dashed rgba(122, 162, 247, 0.5);
         }}
         .title-label {{
             color: {text_color};
             font-family: "{font_family}";
-            font-size: {font_size}px;
-            font-weight: {font_weight};
+            font-size: {self.font_size}px;
+            font-weight: {self.conf.get("font_weight", "700")};
             text-shadow: {shadow};
         }}
         .title-entry {{
             font-family: "{font_family}";
-            font-size: {font_size}px;
+            font-size: {self.font_size}px;
             color: {text_color};
             background: transparent;
             border: 1px dashed {accent};
         }}
         """.encode()
         self.css_provider.load_from_data(css)
-        self.queue_resize()
-
-    def poll_config(self) -> bool:
-        if self.editing:
-            return True
-        try:
-            mtime = CONFIG_FILE.stat().st_mtime
-        except OSError:
-            return True
-        if self.mtime is None or mtime != self.mtime:
-            self.mtime = mtime
-            self.apply_style(force=True)
-        return True
 
 
-def get_pid() -> int | None:
-    if PID_FILE.is_file():
-        try:
-            pid = int(PID_FILE.read_text().strip())
-            os.kill(pid, 0)
-            return pid
-        except (ValueError, OSError):
-            PID_FILE.unlink(missing_ok=True)
-    return None
+def find_running_pids() -> list[int]:
+    try:
+        out = subprocess.check_output(["pgrep", "-f", "arch-overlay-title"], text=True)
+        my_pid = os.getpid()
+        return [
+            int(p.strip())
+            for p in out.splitlines()
+            if p.strip() and int(p.strip()) != my_pid
+        ]
+    except (subprocess.CalledProcessError, ValueError):
+        return []
 
 
 def cmd_toggle() -> None:
-    pid = get_pid()
-    if pid is not None:
-        with contextlib.suppress(OSError):
-            os.kill(pid, signal.SIGTERM)
-        PID_FILE.unlink(missing_ok=True)
+    pids = find_running_pids()
+    if pids:
+        for p in pids:
+            with contextlib.suppress(OSError):
+                os.kill(p, signal.SIGTERM)
     else:
-        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), "--run"],
-            start_new_session=True,
-        )
-
-
-def cmd_edit() -> None:
-    pid = get_pid()
-    if pid is not None:
-        with contextlib.suppress(OSError):
-            os.kill(pid, signal.SIGUSR1)
-    else:
-        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-        subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), "--run", "--edit"],
+            [sys.executable, str(Path(__file__).resolve())],
             start_new_session=True,
         )
 
@@ -395,45 +366,25 @@ def cmd_edit() -> None:
 def main() -> None:
     GLib.set_prgname("arch-overlay-title")
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--run":
-        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-        PID_FILE.write_text(str(os.getpid()))
-        initial_edit = "--edit" in sys.argv
-
-        win = TitleWindow(initial_edit=initial_edit)
-
-        def _on_sigterm(_sig, _frame):
-            PID_FILE.unlink(missing_ok=True)
-            Gtk.main_quit()
-
-        def _on_sigusr1(_sig, _frame):
-            win.toggle_edit_mode()
-
-        signal.signal(signal.SIGTERM, _on_sigterm)
-        signal.signal(signal.SIGINT, _on_sigterm)
-        signal.signal(signal.SIGUSR1, _on_sigusr1)
-
-        Gtk.main()
-        PID_FILE.unlink(missing_ok=True)
-        return
-
-    action = sys.argv[1] if len(sys.argv) > 1 else "toggle"
+    action = sys.argv[1] if len(sys.argv) > 1 else ""
     if action == "toggle":
         cmd_toggle()
-    elif action == "edit":
-        cmd_edit()
-    elif action in ("status", "state"):
-        print("open" if get_pid() else "closed")
-    elif action in ("stop", "hide", "close"):
-        pid = get_pid()
-        if pid:
-            os.kill(pid, signal.SIGTERM)
-            PID_FILE.unlink(missing_ok=True)
-    elif action in ("start", "show", "open"):
-        if not get_pid():
-            cmd_toggle()
-    else:
-        print("Usage: arch-overlay-title [toggle | edit | show | hide | status]")
+        return
+    if action in ("stop", "hide", "close"):
+        for p in find_running_pids():
+            with contextlib.suppress(OSError):
+                os.kill(p, signal.SIGTERM)
+        return
+    if action in ("status", "state"):
+        print("open" if find_running_pids() else "closed")
+        return
+
+    # Direct launch as normal GTK floating application
+    signal.signal(signal.SIGINT, lambda _s, _f: Gtk.main_quit())
+    signal.signal(signal.SIGTERM, lambda _s, _f: Gtk.main_quit())
+
+    _win = TitleApp()
+    Gtk.main()
 
 
 if __name__ == "__main__":
