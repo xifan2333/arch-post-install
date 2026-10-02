@@ -65,8 +65,8 @@ case "$choice" in
 	arch-cap-color
 	;;
 "$opt_scroll")
-	if command -v tensaku >/dev/null 2>&1; then
-		tensaku --scroll-capture
+	if command -v wayscrollshot >/dev/null 2>&1; then
+		slurp | wayscrollshot - -c
 	fi
 	;;
 esac

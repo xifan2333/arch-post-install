@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# arch:summary=Capture and annotate screenshot using Tensaku
+# arch:summary=Capture and annotate screen region using swappy
 # arch:examples=arch cap edit
 set -euo pipefail
 
@@ -9,15 +9,11 @@ mkdir -p "$save_dir"
 timestamp="$(date +%Y%m%d_%H%M%S)"
 output_path="$save_dir/annotated-$timestamp.png"
 
-if command -v tensaku >/dev/null 2>&1; then
-	tensaku --capture \
-		--app-id dev.tensaku.Tensaku \
-		--output-filename "$output_path" \
-		--save-after-copy \
-		--copy-command wl-copy \
-		--actions-on-enter save-to-clipboard
+geometry="$(slurp 2>/dev/null || true)"
+[[ -n "$geometry" ]] || exit 0
+
+if command -v swappy >/dev/null 2>&1; then
+	grim -g "$geometry" - | swappy -f - -o "$output_path"
 else
-	geometry="$(slurp 2>/dev/null || true)"
-	[[ -n "$geometry" ]] || exit 0
 	grim -g "$geometry" - | wl-copy
 fi

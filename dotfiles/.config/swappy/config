@@ -1,0 +1,9 @@
+[Default]
+save_dir=$HOME/Pictures/screenshots
+save_filename_format=annotated-%Y%m%d_%H%M%S.png
+show_panel=true
+line_size=4
+text_size=16
+text_font=sans-serif
+early_exit=true
+fill_shape=false
