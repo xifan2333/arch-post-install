@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Livestream Configuration
+Name[zh_CN]=直播推流配置
+Comment=Configure multi-platform RTMP destinations and stream keys
+Comment[zh_CN]=配置多平台直播推流目标、推流码与码率参数
+Exec=arch-live-config
+Icon=camera-video
+Terminal=false
+Categories=AudioVideo;Recorder;Settings;
