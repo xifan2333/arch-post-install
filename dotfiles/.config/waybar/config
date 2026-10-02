@@ -15,7 +15,6 @@
     "custom/xrwm-window"
   ],
   "modules-center": [
-    "clock",
     "custom/stream-title"
   ],
   "modules-right": [
@@ -27,6 +26,7 @@
     "pulseaudio#microphone",
     "backlight",
     "battery",
+    "clock",
     "custom/power"
   ],
   "custom/tag-1": {
