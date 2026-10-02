@@ -216,7 +216,7 @@ def launch_camera(cam: dict[str, object]) -> None:
         "--no-osc",
         "--no-osd-bar",
         "--border=no",
-        "--autofit=176x176",
+        "--autofit=185x185",
         "--keepaspect-window=no",
         "--keepaspect=yes",
         "--panscan=1.0",

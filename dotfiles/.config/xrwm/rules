@@ -32,8 +32,8 @@ xrwm rule-add -app-id "arch-live-config" dimensions 640 300
 
 # Webcam picture-in-picture overlay (mpv)
 xrwm rule-add -app-id "pip-camera" float
-xrwm rule-add -app-id "pip-camera" dimensions 176 176
-xrwm rule-add -app-id "pip-camera" position 4 588
+xrwm rule-add -app-id "pip-camera" dimensions 185 185
+xrwm rule-add -app-id "pip-camera" position 4 579
 xrwm rule-add -app-id "pip-camera" tags 4294967295
 xrwm rule-add -app-id "pip-camera" csd
 
