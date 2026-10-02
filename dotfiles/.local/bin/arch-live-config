@@ -66,19 +66,8 @@ def load_config() -> tuple[str, str, int, int]:
     video = bounded_int(data.get("bitrate"), DEFAULT_VIDEO_BITRATE, 500, 30000)
     audio = bounded_int(data.get("audio_bitrate"), DEFAULT_AUDIO_BITRATE, 32, 320)
 
-    server = str(data.get("server") or "").strip()
+    server = str(data.get("server") or DEFAULT_SERVER).strip()
     key = str(data.get("key") or "").strip()
-
-    # Backwards compatibility with legacy multi-platform JSON
-    if not server and isinstance(data.get("platforms"), list):
-        for p in data["platforms"]:
-            if isinstance(p, dict) and p.get("enabled", True):
-                server = str(p.get("server") or "").strip()
-                key = str(p.get("key") or "").strip()
-                break
-
-    if not server:
-        server = DEFAULT_SERVER
 
     return server, key, video, audio
 

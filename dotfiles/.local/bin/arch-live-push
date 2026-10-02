@@ -97,8 +97,8 @@ cmd_start() {
 	fi
 
 	local server key bitrate full_url
-	server="$(jq -r '.server // .platforms[0].server // ""' "$CONFIG_FILE" 2>/dev/null || true)"
-	key="$(jq -r '.key // .platforms[0].key // ""' "$CONFIG_FILE" 2>/dev/null || true)"
+	server="$(jq -r '.server // ""' "$CONFIG_FILE" 2>/dev/null || true)"
+	key="$(jq -r '.key // ""' "$CONFIG_FILE" 2>/dev/null || true)"
 	bitrate="$(jq -r '.bitrate // 4500' "$CONFIG_FILE" 2>/dev/null || echo 4500)"
 
 	if [[ -z "$server" || "$server" == "null" ]]; then

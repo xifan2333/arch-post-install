@@ -1,35 +1,6 @@
 {
-  "bitrate": 6000,
-  "audio_bitrate": 160,
-  "lan_bitrate": 12000,
-  "platforms": [
-    {
-      "enabled": true,
-      "name": "bilibili",
-      "server": "rtmp://live-push.bilivideo.com/live-bvc",
-      "key": "YOUR_STREAM_KEY",
-      "aspect_ratio": "16:9"
-    },
-    {
-      "enabled": false,
-      "name": "xiaohongshu",
-      "server": "rtmp://live-push.xhscdn.com/live",
-      "key": "YOUR_STREAM_KEY",
-      "aspect_ratio": "16:9"
-    },
-    {
-      "enabled": false,
-      "name": "vcam-douyin",
-      "server": "srt://192.168.1.100:9999?mode=caller&latency=200&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
-      "key": "",
-      "aspect_ratio": "9:16"
-    },
-    {
-      "enabled": false,
-      "name": "vcam-wechat",
-      "server": "srt://192.168.1.100:9999?mode=caller&latency=200&connect_timeout=3000&pkt_size=1316&maxbw=25000000",
-      "key": "",
-      "aspect_ratio": "16:9"
-    }
-  ]
+  "server": "rtmp://live-push.bilivideo.com/live-bvc/",
+  "key": "",
+  "bitrate": 4500,
+  "audio_bitrate": 160
 }
