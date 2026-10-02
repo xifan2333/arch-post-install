@@ -191,7 +191,10 @@ def launch_camera(cam: dict[str, object]) -> None:
         "--no-osd-bar",
         "--border=no",
         "--autofit=384x216",
+        "--keepaspect-window=no",
+        "--keepaspect=no",
         "--vf=hflip",
+        "--input-conf=memory://m vf toggle hflip",
     ]
 
     subprocess.Popen(
