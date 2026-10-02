@@ -123,7 +123,7 @@ class TitleApp(Gtk.Window):
 
         self.connect("draw", self.on_draw)
         self.connect("size-allocate", self.on_size_allocate)
-        self.connect("destroy", Gtk.main_quit)
+        self.connect("destroy", self.on_destroy)
 
         # UI Components
         self.event_box = Gtk.EventBox()
@@ -167,6 +167,10 @@ class TitleApp(Gtk.Window):
 
         self.update_style()
         self.show_all()
+
+    def on_destroy(self, _widget: Gtk.Widget) -> None:
+        if Gtk.main_level() > 0:
+            Gtk.main_quit()
 
     def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
         cr.set_source_rgba(0, 0, 0, 0)

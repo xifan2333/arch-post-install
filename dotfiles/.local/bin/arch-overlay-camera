@@ -1,13 +1,14 @@
 #!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Webcam PIP overlay with automated best device discovery
+# arch:summary=Webcam PIP floating HUD with automated best device discovery
 # arch:args=[toggle | start | stop | status]
-# arch:examples=arch overlay camera toggle
-"""Camera picture-in-picture overlay using GStreamer and GTK Layer-Shell."""
+# arch:examples=arch overlay camera | arch overlay camera toggle
+"""Camera picture-in-picture floating GTK application using GStreamer."""
 
 from __future__ import annotations
 
 import configparser
 import contextlib
+import math
 import os
 import signal
 import subprocess
@@ -19,29 +20,22 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-gi.require_version("GtkLayerShell", "0.1")
 gi.require_version("Gst", "1.0")
-from gi.repository import GLib, Gst, Gtk, GtkLayerShell  # noqa: E402
+from gi.repository import Gdk, GLib, Gst, Gtk  # noqa: E402
 
 CONFIG_DIR = (
     Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord"
 )
 CONFIG_FILE = CONFIG_DIR / "camera.conf"
-RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "screenrecord"
-PID_FILE = RUNTIME_DIR / "overlay-camera.pid"
 
 DEFAULTS = {
     "device": "auto",
-    "width": "240",
-    "height": "180",
-    "capture_width": "1280",
-    "capture_height": "720",
+    "width": "280",
+    "height": "210",
     "fps": "30",
-    "anchor_x": "right",
-    "anchor_y": "bottom",
-    "margin_x": "20",
-    "margin_y": "20",
+    "border_radius": "16",
     "border_width": "2",
+    "border_color": "#7aa2f7",
     "mirror": "true",
 }
 
@@ -57,6 +51,14 @@ def load_config() -> dict[str, str]:
                 for k, v in cfg.items("camera"):
                     data[k] = v
     return data
+
+
+def save_config(data: dict[str, str]) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    cfg = configparser.ConfigParser()
+    cfg["camera"] = {k: str(v) for k, v in data.items()}
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        cfg.write(f)
 
 
 def discover_best_camera(preferred: str = "auto") -> str:
@@ -79,14 +81,12 @@ def discover_best_camera(preferred: str = "auto") -> str:
             with contextlib.suppress(OSError):
                 name = name_file.read_text(encoding="utf-8").strip()
 
-        # Score priority: external USB cameras score higher than integrated ones
         score = 10
         if "integrated" in name.lower() or "internal" in name.lower():
             score = 5
         elif "usb" in name.lower() or "uvc" in name.lower():
             score = 20
 
-        # Number suffix (e.g. video0 vs video1)
         num = int(entry.name.replace("video", "") or 0)
         candidates.append((score * 100 - num, dev_path))
 
@@ -97,73 +97,48 @@ def discover_best_camera(preferred: str = "auto") -> str:
     return "/dev/video0"
 
 
-class CameraOverlay(Gtk.Application):
+class CameraApp(Gtk.Window):
     def __init__(self) -> None:
-        super().__init__(application_id="works.xifan.screenrecord.overlay.camera")
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.conf = load_config()
         self.device = discover_best_camera(self.conf.get("device", "auto"))
-        self.win: Gtk.ApplicationWindow | None = None
-        self.drawing_area: Gtk.DrawingArea | None = None
         self.pipeline: Gst.Pipeline | None = None
         self.current_surface: cairo.ImageSurface | None = None
+        self.save_timer: int | None = None
 
-    def do_activate(self) -> None:
-        Gst.init(None)
+        init_w = int(float(self.conf.get("width", "280")))
+        init_h = int(float(self.conf.get("height", "210")))
 
-        self.win = Gtk.ApplicationWindow(application=self)
-        self.win.set_title("Screenrecord Overlay Camera")
-        self.win.set_decorated(False)
-        self.win.set_resizable(False)
-        self.win.set_accept_focus(False)
-        self.win.set_skip_taskbar_hint(True)
+        self.set_title("arch-overlay-camera")
+        self.set_decorated(False)
+        self.set_resizable(True)
+        self.set_default_size(init_w, init_h)
+        self.set_app_paintable(True)
 
-        w = int(float(self.conf.get("width", "240")))
-        h = int(float(self.conf.get("height", "180")))
-        self.win.set_size_request(w, h)
+        screen = self.get_screen()
+        visual = screen.get_rgba_visual()
+        if visual:
+            self.set_visual(visual)
 
-        # Layer-Shell Setup
-        GtkLayerShell.init_for_window(self.win)
-        GtkLayerShell.set_layer(self.win, GtkLayerShell.Layer.OVERLAY)
-        GtkLayerShell.set_exclusive_zone(self.win, -1)
-        GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
-
-        # Apply Anchors
-        anchor_x = self.conf.get("anchor_x", "right")
-        anchor_y = self.conf.get("anchor_y", "bottom")
-        margin_x = int(float(self.conf.get("margin_x", "20")))
-        margin_y = int(float(self.conf.get("margin_y", "20")))
-
-        edge_x = (
-            GtkLayerShell.Edge.RIGHT if anchor_x == "right" else GtkLayerShell.Edge.LEFT
+        self.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
         )
-        edge_y = (
-            GtkLayerShell.Edge.BOTTOM
-            if anchor_y == "bottom"
-            else GtkLayerShell.Edge.TOP
-        )
-        GtkLayerShell.set_anchor(self.win, edge_x, True)
-        GtkLayerShell.set_anchor(self.win, edge_y, True)
-        GtkLayerShell.set_margin(self.win, edge_x, margin_x)
-        GtkLayerShell.set_margin(self.win, edge_y, margin_y)
 
-        # Video Canvas
-        self.drawing_area = Gtk.DrawingArea()
-        self.drawing_area.connect("draw", self.on_draw)
-        self.win.add(self.drawing_area)
+        self.connect("draw", self.on_draw)
+        self.connect("size-allocate", self.on_size_allocate)
+        self.connect("button-press-event", self.on_button_press)
+        self.connect("destroy", self.on_destroy)
 
-        # Click-through: ignore all pointer events
-        self.win.connect("realize", self.enable_click_through)
-
-        self.start_camera_pipeline(w, h)
-        self.win.show_all()
-
-    def enable_click_through(self, _widget: Gtk.Widget) -> None:
-        if self.win:
-            gdk_win = self.win.get_window()
-            if gdk_win:
-                gdk_win.input_shape_combine_region(cairo.Region(), 0, 0)
+        self.start_camera_pipeline(init_w, init_h)
+        self.show_all()
 
     def start_camera_pipeline(self, target_w: int, target_h: int) -> None:
+        if self.pipeline:
+            self.pipeline.set_state(Gst.State.NULL)
+            self.pipeline = None
+
         mirror = self.conf.get("mirror", "true").lower() in ("true", "1", "yes")
         flip = "videoflip method=horizontal-flip ! " if mirror else ""
         fps = int(float(self.conf.get("fps", "30")))
@@ -186,7 +161,7 @@ class CameraOverlay(Gtk.Application):
             sink.connect("new-sample", self.on_new_sample)
             self.pipeline.set_state(Gst.State.PLAYING)  # type: ignore[union-attr]
         except (GLib.Error, OSError):
-            self.quit()
+            self.pipeline = None
 
     def on_new_sample(self, sink: Gst.Element) -> Gst.FlowReturn:
         sample = sink.emit("pull-sample")
@@ -209,85 +184,162 @@ class CameraOverlay(Gtk.Application):
 
         try:
             surface = cairo.ImageSurface.create_for_data(
-                bytearray(map_info.data), cairo.FORMAT_RGB24, width, height, stride
+                bytearray(map_info.data),
+                cairo.FORMAT_RGB24,
+                width,
+                height,
+                stride,
             )
             self.current_surface = surface
-            if self.drawing_area:
-                self.drawing_area.queue_draw()
+            self.queue_draw()
         finally:
             buf.unmap(map_info)
 
         return Gst.FlowReturn.OK
 
-    def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
+    def on_size_allocate(self, _widget: Gtk.Widget, allocation: Gdk.Rectangle) -> None:
+        self.conf["width"] = str(allocation.width)
+        self.conf["height"] = str(allocation.height)
+
+        if self.save_timer is not None:
+            GLib.source_remove(self.save_timer)
+        self.save_timer = GLib.timeout_add(1000, self._debounced_save)
+
+        # Update input shape for natural pass-through
+        rect = cairo.RectangleInt(0, 0, allocation.width, allocation.height)
+        self.input_shape_combine_region(cairo.Region(rect))
+
+    def _debounced_save(self) -> bool:
+        save_config(self.conf)
+        self.save_timer = None
+        return False
+
+    def on_draw(self, widget: Gtk.Widget, cr: cairo.Context) -> bool:
+        w = widget.get_allocated_width()
+        h = widget.get_allocated_height()
+        radius = float(self.conf.get("border_radius", "16"))
+        b_width = float(self.conf.get("border_width", "2"))
+
+        # Clear canvas to 100% transparent
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.paint()
+
+        # Rounded rectangle path
+        cr.set_operator(cairo.OPERATOR_OVER)
+        cr.new_sub_path()
+        cr.arc(w - radius, radius, radius, -math.pi / 2, 0)
+        cr.arc(w - radius, h - radius, radius, 0, math.pi / 2)
+        cr.arc(radius, h - radius, radius, math.pi / 2, math.pi)
+        cr.arc(radius, radius, radius, math.pi, 3 * math.pi / 2)
+        cr.close_path()
+
+        cr.save()
+        cr.clip()
+
         if self.current_surface:
             cr.set_source_surface(self.current_surface, 0, 0)
             cr.paint()
+        else:
+            # Standby placeholder
+            cr.set_source_rgba(0.1, 0.1, 0.15, 0.85)
+            cr.paint()
+
+        cr.restore()
+
+        # Draw decorative border
+        if b_width > 0:
+            cr.set_source_rgba(0.48, 0.64, 0.97, 0.8)
+            cr.set_line_width(b_width)
+            cr.new_sub_path()
+            cr.arc(w - radius, radius, radius, -math.pi / 2, 0)
+            cr.arc(w - radius, h - radius, radius, 0, math.pi / 2)
+            cr.arc(radius, h - radius, radius, math.pi / 2, math.pi)
+            cr.arc(radius, radius, radius, math.pi, 3 * math.pi / 2)
+            cr.close_path()
+            cr.stroke()
+
         return False
 
-    def do_shutdown(self) -> None:
+    def on_button_press(self, _widget: Gtk.Widget, event: Gdk.EventButton) -> bool:
+        if event.type == Gdk.EventType._2BUTTON_PRESS and event.button == 1:
+            # Double click: toggle mirror mode
+            curr_mirror = self.conf.get("mirror", "true").lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            self.conf["mirror"] = "false" if curr_mirror else "true"
+            save_config(self.conf)
+            w = self.get_allocated_width()
+            h = self.get_allocated_height()
+            self.start_camera_pipeline(w, h)
+            return True
+
+        if event.button == 1:
+            # Native Wayland move drag
+            self.begin_move_drag(
+                event.button, int(event.x_root), int(event.y_root), event.time
+            )
+            return True
+        return False
+
+    def on_destroy(self, _widget: Gtk.Widget) -> None:
         if self.pipeline:
             self.pipeline.set_state(Gst.State.NULL)
-        super().do_shutdown()
+            self.pipeline = None
+        if Gtk.main_level() > 0:
+            Gtk.main_quit()
 
 
-def get_pid() -> int | None:
-    if PID_FILE.is_file():
-        try:
-            pid = int(PID_FILE.read_text().strip())
-            os.kill(pid, 0)
-            return pid
-        except (ValueError, OSError):
-            PID_FILE.unlink(missing_ok=True)
-    return None
+def find_running_pids() -> list[int]:
+    try:
+        out = subprocess.check_output(["pgrep", "-f", "arch-overlay-camera"], text=True)
+        my_pid = os.getpid()
+        return [
+            int(p.strip())
+            for p in out.splitlines()
+            if p.strip() and int(p.strip()) != my_pid
+        ]
+    except (subprocess.CalledProcessError, ValueError):
+        return []
 
 
 def cmd_toggle() -> None:
-    pid = get_pid()
-    if pid is not None:
-        with contextlib.suppress(OSError):
-            os.kill(pid, signal.SIGTERM)
-        PID_FILE.unlink(missing_ok=True)
+    pids = find_running_pids()
+    if pids:
+        for p in pids:
+            with contextlib.suppress(OSError):
+                os.kill(p, signal.SIGTERM)
     else:
-        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
         subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), "--run"],
+            [sys.executable, str(Path(__file__).resolve())],
             start_new_session=True,
         )
 
 
 def main() -> None:
-    if len(sys.argv) > 1 and sys.argv[1] == "--run":
-        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-        PID_FILE.write_text(str(os.getpid()))
-        app = CameraOverlay()
+    GLib.set_prgname("arch-overlay-camera")
+    Gst.init(None)
 
-        def _on_sigterm(_sig, _frame):
-            PID_FILE.unlink(missing_ok=True)
-            app.quit()
-
-        signal.signal(signal.SIGTERM, _on_sigterm)
-        signal.signal(signal.SIGINT, _on_sigterm)
-
-        app.run(None)
-        PID_FILE.unlink(missing_ok=True)
-        return
-
-    action = sys.argv[1] if len(sys.argv) > 1 else "toggle"
+    action = sys.argv[1] if len(sys.argv) > 1 else ""
     if action == "toggle":
         cmd_toggle()
-    elif action in ("status", "state"):
-        print("open" if get_pid() else "closed")
-    elif action in ("stop", "hide", "close"):
-        pid = get_pid()
-        if pid:
-            os.kill(pid, signal.SIGTERM)
-            PID_FILE.unlink(missing_ok=True)
-    elif action in ("start", "show", "open"):
-        if not get_pid():
-            cmd_toggle()
-    else:
-        print("Usage: arch-overlay-camera [toggle | start | stop | status]")
+        return
+    if action in ("stop", "hide", "close"):
+        for p in find_running_pids():
+            with contextlib.suppress(OSError):
+                os.kill(p, signal.SIGTERM)
+        return
+    if action in ("status", "state"):
+        print("open" if find_running_pids() else "closed")
+        return
+
+    signal.signal(signal.SIGINT, lambda _s, _f: Gtk.main_quit())
+    signal.signal(signal.SIGTERM, lambda _s, _f: Gtk.main_quit())
+
+    _app = CameraApp()
+    Gtk.main()
 
 
 if __name__ == "__main__":
