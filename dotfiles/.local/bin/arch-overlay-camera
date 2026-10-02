@@ -120,13 +120,10 @@ def prompt_camera_selection(
     if not cameras:
         return None
 
-    best = cameras[0]
-    res_str = f"{best['width']}x{best['height']}@{best['fps']}fps"
-    auto_label = tr_msg("overlay_cam_auto_best", "自动选择最优")
-    lines: list[str] = [f"★ {auto_label} [{best['name']} - {res_str}]"]
-    for i, cam in enumerate(cameras, start=1):
-        spec = f"{cam['width']}x{cam['height']}@{cam['fps']}fps"
-        lines.append(f"{i}. {cam['name']} ({cam['device']}) - {spec}")
+    lines: list[str] = []
+    for cam in cameras:
+        spec = f"{cam['width']}x{cam['height']} @ {cam['fps']}fps"
+        lines.append(f"{cam['name']} ({cam['device']}) - {spec}")
 
     menu_input = "\n".join(lines)
     prompt = tr_msg("overlay_cam_prompt", "选择摄像头: ")
@@ -142,22 +139,19 @@ def prompt_camera_selection(
         if not chosen:
             return None
 
-        if chosen.startswith("★"):
-            return best
-
         for cam in cameras:
-            if str(cam["device"]) in chosen or str(cam["name"]) in chosen:
+            if str(cam["device"]) in chosen:
                 return cam
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
-    return best
+    return None
 
 
 def find_camera_pids() -> list[int]:
     try:
         out = subprocess.check_output(
-            ["pgrep", "-f", "app-id=pip-camera"],
+            ["pgrep", "-f", "wayland-app-id=pip-camera"],
             text=True,
             stderr=subprocess.DEVNULL,
         )
@@ -192,7 +186,7 @@ def launch_camera(cam: dict[str, object]) -> None:
         "--profile=low-latency",
         "--untimed",
         "--title=pip-camera",
-        "--app-id=pip-camera",
+        "--wayland-app-id=pip-camera",
         "--no-osc",
         "--no-osd-bar",
         "--border=no",

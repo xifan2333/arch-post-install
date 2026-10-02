@@ -19,7 +19,6 @@
   "screenrecord_overlay_title_edit_size_item": "Font size",
   "overlay_title_prompt": "Stream Title: ",
   "overlay_cam_prompt": "Select Camera: ",
-  "overlay_cam_auto_best": "Auto Best Quality",
   "overlay_cam_no_device": "No video devices found",
   "livestream_notify_title": "Live Stream",
   "livestream_notify_started_full": "Streaming data is being sent",
