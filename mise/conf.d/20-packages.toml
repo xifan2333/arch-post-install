@@ -42,6 +42,8 @@
 "pacman:fuzzel" = "latest"
 "pacman:waybar" = "latest"
 "pacman:mako" = "latest"
+"pacman:adw-gtk-theme" = "latest"
+"pacman:papirus-icon-theme" = "latest"
 
 # IME (Fcitx5 + Rime Xiaohe Double Pinyin)
 "pacman:fcitx5" = "latest"
