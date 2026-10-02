@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# arch:summary=Capture scrolling long screenshot using wayscrollshot
+# arch:args=[--clipboard | --save | <options>]
+# arch:examples=arch cap scroll | arch cap scroll --save
+set -euo pipefail
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+notify() {
+	local title body
+	title="$(tr_msg cap_menu_scroll)"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -u "${2:-normal}" "$title" "$body"
+	fi
+}
+
+if ! command -v wayscrollshot >/dev/null 2>&1; then
+	notify "wayscrollshot 未安装" critical
+	exit 1
+fi
+
+case "${1:-default}" in
+--save | -s)
+	save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
+	mkdir -p "$save_dir"
+	out_file="$save_dir/scroll_$(date +%Y%m%d_%H%M%S).png"
+	wayscrollshot -o "$out_file"
+	;;
+--clipboard | -c | default)
+	wayscrollshot -c
+	;;
+*)
+	wayscrollshot "$@"
+	;;
+esac

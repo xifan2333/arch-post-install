@@ -65,8 +65,6 @@ case "$choice" in
 	arch-cap-color
 	;;
 "$opt_scroll")
-	if command -v wayscrollshot >/dev/null 2>&1; then
-		wayscrollshot -c
-	fi
+	arch-cap-scroll
 	;;
 esac
