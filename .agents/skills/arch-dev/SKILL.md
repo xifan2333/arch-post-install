@@ -36,6 +36,7 @@ All engineering, architecture, and code decisions MUST strictly adhere to the Su
        * Standard library only (zero `pip` dependencies).
        * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
    - **Universal CLI Convention (`arch-<domain>-<action>`)**: All user-facing tools follow `arch-<domain>-<action>` and are routable via the unified `arch` dispatcher (`arch <domain> <action>`). Every script carries `# arch:summary=...` metadata.
+   - **Authoritative Research Protocol**: Check `man <tool>` -> `<tool> --help` -> Clone to `~/Code/<repo>` to inspect source code. Speculative web search is strictly prohibited when authoritative docs/code can be inspected locally.
 
 ## Start Here
 

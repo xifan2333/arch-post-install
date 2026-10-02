@@ -1,0 +1,31 @@
+[general]
+# Smart window resizing based on screenshot dimensions
+resize = { mode = "smart" }
+floating-hack = true
+
+# Exit directly after copying or saving
+early-exit = ["copy", "save"]
+
+# Use standard Wayland clipboard
+copy-command = "wl-copy"
+
+# Default screenshot save path
+output-filename = "~/Pictures/screenshots/annotated-%Y%m%d_%H%M%S.png"
+
+# Keyboard action triggers
+actions-on-enter = ["save-to-clipboard"]
+actions-on-escape = ["exit"]
+
+# Request borderless window from compositor
+no-window-decoration = true
+
+# Default active annotation tool on launch
+initial-tool = "brush"
+
+[font]
+family = "Sarasa Mono SC"
+style = "Regular"
+fallback = ["Noto Sans CJK SC", "Source Han Sans"]
+
+[color-palette]
+palette = ["#f0932bff", "#eb4d4bff", "#6ab04cff", "#22a6b3ff", "#130f40ff"]
