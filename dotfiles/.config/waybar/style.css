@@ -92,6 +92,23 @@ window#waybar {
     font-style: italic;
 }
 
+/* Screen Recording & Live Streaming */
+#custom-screenrecord {
+    padding: 0 8px;
+    margin: 1px 2px;
+    font-weight: bold;
+}
+
+#custom-screenrecord.recording {
+    color: @red;
+    animation: blink 1s linear infinite;
+}
+
+#custom-screenrecord.live {
+    color: @magenta;
+    animation: blink 1.5s linear infinite;
+}
+
 /* Clock */
 #clock {
     padding: 0 10px;
@@ -123,14 +140,24 @@ window#waybar {
     color: @red;
 }
 
-/* Pulseaudio */
-#pulseaudio {
+/* WirePlumber Audio & Microphone */
+#wireplumber {
     padding: 0 8px;
     margin: 1px 2px;
     color: @green;
 }
 
-#pulseaudio.muted {
+#wireplumber.muted {
+    color: @muted;
+}
+
+#wireplumber.microphone {
+    padding: 0 8px;
+    margin: 1px 2px;
+    color: @magenta;
+}
+
+#wireplumber.microphone.muted {
     color: @muted;
 }
 
@@ -176,35 +203,4 @@ window#waybar {
 #custom-power:hover {
     background: @selection;
     color: @fg_bright;
-}
-
-/* Power Menu Popup */
-menu {
-    background: @bg_dark;
-    color: @fg;
-    border: 1px solid @accent;
-    border-radius: 8px;
-    padding: 6px;
-}
-
-menu * {
-    border: none;
-    outline: none;
-}
-
-menuitem {
-    color: @fg;
-    padding: 6px 14px;
-    border-radius: 4px;
-    min-width: 110px;
-}
-
-menuitem:hover {
-    background: @selection;
-    color: @accent;
-}
-
-separator {
-    background: @muted;
-    margin: 4px 6px;
 }

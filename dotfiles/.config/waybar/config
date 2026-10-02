@@ -18,9 +18,11 @@
     "clock"
   ],
   "modules-right": [
+    "custom/screenrecord",
     "tray",
     "network",
-    "pulseaudio",
+    "wireplumber",
+    "wireplumber#microphone",
     "backlight",
     "battery",
     "custom/power"
@@ -95,6 +97,14 @@
     "return-type": "json",
     "exec": "xrwm status --window --stream"
   },
+  "custom/screenrecord": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "arch-cap-rec status --waybar",
+    "signal": 8,
+    "interval": "once",
+    "on-click": "arch-cap-rec toggle"
+  },
   "tray": {
     "icon-size": 16,
     "spacing": 10
@@ -117,19 +127,23 @@
     "tooltip-format-disconnected": "网络已断开",
     "on-click": "arch-net-menu"
   },
-  "pulseaudio": {
+  "wireplumber": {
     "format": "{icon}  {volume}%",
-    "format-muted": "󰖁  静音",
-    "format-icons": {
-      "default": [
-        "󰕿",
-        "󰖀",
-        "󰕾"
-      ]
-    },
+    "format-muted": "󰖁  {volume}%",
+    "format-icons": [
+      "󰕿",
+      "󰖀",
+      "󰕾"
+    ],
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
-    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+    "scroll-step": 5
+  },
+  "wireplumber#microphone": {
+    "node-type": "Audio/Source",
+    "format": "󰍬  {volume}%",
+    "format-muted": "󰍭  {volume}%",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "scroll-step": 5
   },
   "backlight": {
     "format": "{icon}  {percent}%",
@@ -166,14 +180,6 @@
   "custom/power": {
     "format": "⏻",
     "tooltip": false,
-    "menu": "on-click",
-    "menu-file": "~/.config/waybar/power_menu_zh.xml",
-    "menu-actions": {
-      "shutdown": "systemctl poweroff",
-      "reboot": "systemctl reboot",
-      "logout": "riverctl exit",
-      "suspend": "systemctl suspend",
-      "lock": "hyprlock"
-    }
+    "on-click": "arch-power-menu"
   }
 }

@@ -19,6 +19,7 @@
 "pacman:xdg-desktop-portal-wlr" = "latest"
 "pacman:grim" = "latest"
 "pacman:slurp" = "latest"
+"pacman:gpu-screen-recorder" = "latest"
 "pacman:wl-clipboard" = "latest"
 "pacman:cliphist" = "latest"
 "pacman:hyprpicker" = "latest"
