@@ -154,9 +154,10 @@ start_full() {
 
 	gpu-screen-recorder \
 		-w screen \
-		-f 60 \
+		-f 30 \
 		-c mp4 \
 		-k h264 \
+		-fallback-cpu-encoding yes \
 		-a "default_output|default_input" \
 		-o "$target" >/dev/null 2>&1 &
 	local pid=$!
@@ -212,9 +213,10 @@ start_area() {
 	gpu-screen-recorder \
 		-w region \
 		-region "$region" \
-		-f 60 \
+		-f 30 \
 		-c mp4 \
 		-k h264 \
+		-fallback-cpu-encoding yes \
 		-a "default_output|default_input" \
 		-o "$target" >/dev/null 2>&1 &
 	local pid=$!

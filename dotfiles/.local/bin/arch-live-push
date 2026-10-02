@@ -126,6 +126,7 @@ cmd_start() {
 		-f 30 \
 		-c flv \
 		-k h264 \
+		-fallback-cpu-encoding yes \
 		-bm cbr \
 		-q "$bitrate" \
 		-a "default_output|default_input" \

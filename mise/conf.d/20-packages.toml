@@ -64,6 +64,8 @@
 "pacman:bluez-utils" = "latest"
 "pacman:thermald" = "latest"
 "pacman:power-profiles-daemon" = "latest"
+"pacman:libva-intel-driver" = "latest"
+"pacman:libva-utils" = "latest"
 
 # Audio & Voice
 "pacman:pipewire" = "latest"
