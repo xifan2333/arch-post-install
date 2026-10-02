@@ -122,7 +122,7 @@ cmd_start() {
 	boost_hardware
 
 	gpu-screen-recorder \
-		-w screen \
+		-w portal \
 		-f 60 \
 		-c flv \
 		-k h264 \

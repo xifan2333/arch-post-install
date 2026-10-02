@@ -24,6 +24,8 @@
 "pacman:cliphist" = "latest"
 "pacman:hyprpicker" = "latest"
 "pacman:imagemagick" = "latest"
+"pacman:swappy" = "latest"
+"aur:wayscrollshot-bin" = "latest"
 "pacman:wlr-randr" = "latest"
 "pacman:wlopm" = "latest"
 "pacman:brightnessctl" = "latest"
@@ -80,6 +82,7 @@
 
 # Daily Applications (GUI & AUR)
 "pacman:chromium" = "latest"
+"pacman:pcmanfm" = "latest"
 "pacman:localsend" = "latest"
 "pacman:obsidian" = "latest"
 "aur:herdr-corral-bin" = "latest"
