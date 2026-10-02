@@ -140,8 +140,9 @@ xrwm map-pointer normal Super BTN_MIDDLE toggle-float
 # Hardware & Multimedia Controls
 # ---------------------------------------------------------------------------
 
-# Screen locker: hyprlock
+# Screen locker and power management
 xrwm map normal Super Escape spawn hyprlock
+xrwm map normal "Super+Shift" Escape spawn arch-power-menu
 
 # Screenshots & Annotation (River-era matrix with Tensaku integration)
 xrwm map normal None Print spawn arch-cap-area

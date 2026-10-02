@@ -82,5 +82,11 @@
   "cap_menu_preview": "Pin Preview",
   "cap_menu_ocr": "Extract Text",
   "cap_menu_color": "Color Picker",
-  "cap_menu_scroll": "Scroll Capture"
+  "cap_menu_scroll": "Scroll Capture",
+  "power_menu_prompt": "Session: ",
+  "power_lock": "󰌾 Lock Screen",
+  "power_suspend": "󰒲 Suspend",
+  "power_logout": "󰈆 Logout",
+  "power_reboot": "󰑐 Reboot",
+  "power_shutdown": "󰐥 Power Off"
 }

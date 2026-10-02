@@ -187,34 +187,3 @@ window#waybar {
     background: @selection;
     color: @fg_bright;
 }
-
-/* Power Menu Popup */
-menu {
-    background: @bg_dark;
-    color: @fg;
-    border: 1px solid @accent;
-    border-radius: 8px;
-    padding: 6px;
-}
-
-menu * {
-    border: none;
-    outline: none;
-}
-
-menuitem {
-    color: @fg;
-    padding: 6px 14px;
-    border-radius: 4px;
-    min-width: 110px;
-}
-
-menuitem:hover {
-    background: @selection;
-    color: @accent;
-}
-
-separator {
-    background: @muted;
-    margin: 4px 6px;
-}
