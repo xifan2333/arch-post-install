@@ -105,12 +105,18 @@
     "on-click-right": "arch-cap-area"
   },
   "custom/screenrecord": {
-    "format": "{}",
+    "format": "{icon} {text}",
+    "format-icons": {
+      "recording": "󰑋",
+      "live": "󰐻",
+      "idle": "󰑊"
+    },
     "return-type": "json",
     "exec": "arch-cap-rec status --waybar",
     "signal": 8,
-    "interval": "once",
-    "on-click": "arch-cap-rec toggle"
+    "interval": 1,
+    "on-click": "arch-cap-rec toggle",
+    "on-click-right": "arch-rec-menu"
   },
   "tray": {
     "icon-size": 16,

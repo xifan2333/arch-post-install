@@ -34,26 +34,64 @@ is_recording() {
 	return 1
 }
 
+get_pid_duration() {
+	local pid="$1"
+	local duration
+	duration=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]' || true)
+	if [[ -z "$duration" || ! "$duration" =~ ^[0-9]+$ ]]; then
+		printf '00:00\n'
+		return 0
+	fi
+	local hours minutes seconds
+	hours=$((duration / 3600))
+	minutes=$(((duration % 3600) / 60))
+	seconds=$((duration % 60))
+	if [[ $hours -gt 0 ]]; then
+		printf "%d:%02d:%02d\n" "$hours" "$minutes" "$seconds"
+	else
+		printf "%02d:%02d\n" "$minutes" "$seconds"
+	fi
+}
+
 status_output() {
 	local mode="${1:-text}"
+	local runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+	local live_pid_file="$runtime_dir/livestream/pid"
+	local is_live=0
+
+	if [[ -f "$live_pid_file" ]]; then
+		local lpid
+		lpid="$(cat "$live_pid_file" 2>/dev/null || true)"
+		if [[ -n "$lpid" ]] && kill -0 "$lpid" 2>/dev/null; then
+			is_live=1
+		fi
+	fi
+	if [[ $is_live -eq 0 ]] && pgrep -f "gpu-screen-recorder.*rtmp" >/dev/null 2>&1; then
+		is_live=1
+	fi
+
 	if [[ "$mode" == "--waybar" ]]; then
 		if is_recording; then
-			local text tip
-			text="$(tr_msg screenrecord_status_recording)"
-			tip="$(tr_msg screenrecord_tooltip_recording)"
-			printf '{"text":"󰑋 %s","tooltip":"%s","class":"recording"}\n' "$text" "$tip"
-		elif pgrep -f "arch-live-service" >/dev/null 2>&1; then
-			local text tip
-			text="$(tr_msg screenrecord_status_live)"
-			tip="$(tr_msg screenrecord_tooltip_live)"
-			printf '{"text":"󰐻 %s","tooltip":"%s","class":"live"}\n' "$text" "$tip"
+			local pid duration_str tip
+			pid="$(cat "$PID_FILE" 2>/dev/null || pgrep -x gpu-screen-recorder | head -n1 || true)"
+			duration_str="$(get_pid_duration "$pid")"
+			tip="$(tr_msg rec_tooltip_recording)"
+			printf '{"text":"%s","alt":"recording","tooltip":"%s","class":"recording"}\n' "$duration_str" "$tip"
+		elif [[ $is_live -eq 1 ]]; then
+			local lpid duration_str tip
+			lpid="$(cat "$live_pid_file" 2>/dev/null || pgrep -f "gpu-screen-recorder.*rtmp" | head -n1 || true)"
+			duration_str="$(get_pid_duration "$lpid")"
+			tip="$(tr_msg rec_tooltip_live)"
+			printf '{"text":"%s","alt":"live","tooltip":"%s","class":"live"}\n' "$duration_str" "$tip"
 		else
-			printf '{"text":"","tooltip":"","class":"idle"}\n'
+			local tip
+			tip="$(tr_msg rec_tooltip_idle)"
+			printf '{"text":"","alt":"idle","tooltip":"%s","class":"idle"}\n' "$tip"
 		fi
 	else
 		if is_recording; then
 			printf 'recording\n'
-		elif pgrep -f "arch-live-service" >/dev/null 2>&1; then
+		elif [[ $is_live -eq 1 ]]; then
 			printf 'live\n'
 		else
 			printf 'idle\n'
