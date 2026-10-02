@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# arch:summary=Interactive screen recording and livestream menu driven by fuzzel
+# arch:examples=arch rec menu
+set -euo pipefail
+
+tr_msg() {
+	local key="$1"
+	shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		arch-i18n get "$key" "$@"
+	else
+		printf '%s' "$key"
+	fi
+}
+
+dmenu_exec() {
+	local prompt="$1"
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt"
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt"
+	else
+		head -n 1
+	fi
+}
+
+opt_full="$(tr_msg rec_menu_full)"
+opt_area="$(tr_msg rec_menu_area)"
+opt_stop="$(tr_msg rec_menu_stop)"
+opt_live_toggle="$(tr_msg rec_menu_live_toggle)"
+opt_live_stop="$(tr_msg rec_menu_live_stop)"
+opt_live_config="$(tr_msg rec_menu_live_config)"
+
+is_rec_active() {
+	if command -v arch-cap-rec >/dev/null 2>&1; then
+		[[ "$(arch-cap-rec status 2>/dev/null || true)" == "recording" ]]
+	else
+		return 1
+	fi
+}
+
+is_live_active() {
+	if command -v arch-live-push >/dev/null 2>&1; then
+		arch-live-push is-active >/dev/null 2>&1
+	elif pgrep -f "gpu-screen-recorder.*rtmp" >/dev/null 2>&1; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+menu_items=()
+
+if is_rec_active; then
+	menu_items+=("$opt_stop")
+fi
+
+if is_live_active; then
+	menu_items+=("$opt_live_stop")
+fi
+
+menu_items+=(
+	"$opt_full"
+	"$opt_area"
+	"$opt_live_toggle"
+	"$opt_live_config"
+)
+
+choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(tr_msg rec_menu_prompt)")
+[[ -n "${choice:-}" ]] || exit 0
+
+case "$choice" in
+"$opt_stop")
+	if command -v arch-cap-rec >/dev/null 2>&1; then
+		arch-cap-rec stop
+	fi
+	;;
+"$opt_live_stop")
+	if command -v arch-live-push >/dev/null 2>&1; then
+		arch-live-push stop
+	fi
+	;;
+"$opt_full")
+	if command -v arch-cap-rec >/dev/null 2>&1; then
+		arch-cap-rec full
+	fi
+	;;
+"$opt_area")
+	if command -v arch-cap-rec >/dev/null 2>&1; then
+		arch-cap-rec area
+	fi
+	;;
+"$opt_live_toggle")
+	if command -v arch-live-push >/dev/null 2>&1; then
+		arch-live-push toggle
+	fi
+	;;
+"$opt_live_config")
+	if command -v arch-live-config >/dev/null 2>&1; then
+		arch-live-config
+	fi
+	;;
+esac

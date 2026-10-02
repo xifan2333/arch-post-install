@@ -156,6 +156,7 @@ xrwm map normal Control Print spawn arch-cap-preview
 xrwm map normal Super G spawn arch-cap-rec toggle
 xrwm map normal "Super+Alt" G spawn arch-cap-rec area
 xrwm map normal "Super+Shift" G spawn arch-live-push toggle
+xrwm map normal "Super+Control" G spawn arch-rec-menu
 
 # Volume control via PipeWire wpctl
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+

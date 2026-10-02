@@ -26,5 +26,9 @@ xrwm rule-add -app-id "dev.tensaku.Tensaku" dimensions 960 540
 xrwm rule-add -title "Tensaku" float
 xrwm rule-add -title "Tensaku" dimensions 960 540
 
+# Livestream configurator
+xrwm rule-add -app-id "arch-live-config" float
+xrwm rule-add -app-id "arch-live-config" dimensions 880 500
+
 # Custom tools
 xrwm rule-add -app-id "fuzzel" csd

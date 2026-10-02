@@ -31,20 +31,10 @@ opt_preview="$(tr_msg cap_menu_preview)"
 opt_ocr="$(tr_msg cap_menu_ocr)"
 opt_color="$(tr_msg cap_menu_color)"
 opt_scroll="$(tr_msg cap_menu_scroll)"
-opt_rec_area="$(tr_msg cap_menu_rec_area)"
-opt_rec_full="$(tr_msg cap_menu_rec_full)"
-opt_rec_stop="$(tr_msg cap_menu_rec_stop)"
 
-menu_items=()
-if command -v arch-cap-rec >/dev/null 2>&1 && [[ "$(arch-cap-rec status 2>/dev/null || true)" == "recording" ]]; then
-	menu_items+=("$opt_rec_stop")
-fi
-
-menu_items+=(
+menu_items=(
 	"$opt_area"
 	"$opt_full"
-	"$opt_rec_area"
-	"$opt_rec_full"
 	"$opt_edit"
 	"$opt_preview"
 	"$opt_ocr"
@@ -61,21 +51,6 @@ case "$choice" in
 	;;
 "$opt_full")
 	arch-cap-full
-	;;
-"$opt_rec_stop")
-	if command -v arch-cap-rec >/dev/null 2>&1; then
-		arch-cap-rec stop
-	fi
-	;;
-"$opt_rec_area")
-	if command -v arch-cap-rec >/dev/null 2>&1; then
-		arch-cap-rec area
-	fi
-	;;
-"$opt_rec_full")
-	if command -v arch-cap-rec >/dev/null 2>&1; then
-		arch-cap-rec full
-	fi
 	;;
 "$opt_edit")
 	arch-cap-edit
