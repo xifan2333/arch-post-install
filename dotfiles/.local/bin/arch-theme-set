@@ -133,7 +133,25 @@ ensure_neovim_theme() {
 
 ensure_gtk_theme() {
 	local state_gtk="$1"
+	local colors_file="${2:-}"
 	[[ -f "$state_gtk" ]] || return 0
+
+	local mode="dark"
+	if [[ -n "$colors_file" && -f "$colors_file" ]]; then
+		mode="$(get_color_token "$colors_file" "mode" "dark")"
+	fi
+
+	local gtk_prefer_dark=1
+	local gtk_theme="Adwaita-dark"
+	local gtk_icon_theme="Papirus-Dark"
+	local color_scheme="prefer-dark"
+
+	if [[ "$mode" == "light" ]]; then
+		gtk_prefer_dark=0
+		gtk_theme="Adwaita"
+		gtk_icon_theme="Papirus"
+		color_scheme="prefer-light"
+	fi
 
 	local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
 	for v in gtk-3.0 gtk-4.0; do
@@ -144,18 +162,18 @@ ensure_gtk_theme() {
 			ln -sf "$state_gtk" "$target_css"
 		fi
 
-		cat >"$dir/settings.ini" <<'EOF'
+		cat >"$dir/settings.ini" <<EOF
 [Settings]
-gtk-application-prefer-dark-theme=1
-gtk-theme-name=Adwaita-dark
-gtk-icon-theme-name=Papirus-Dark
+gtk-application-prefer-dark-theme=$gtk_prefer_dark
+gtk-theme-name=$gtk_theme
+gtk-icon-theme-name=$gtk_icon_theme
 gtk-decoration-layout=
 EOF
 	done
 
 	if command -v gsettings >/dev/null 2>&1; then
-		gsettings set org.gnome.desktop.interface color-scheme "prefer-dark" 2>/dev/null || true
-		gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark" 2>/dev/null || true
+		gsettings set org.gnome.desktop.interface color-scheme "$color_scheme" 2>/dev/null || true
+		gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme" 2>/dev/null || true
 		gsettings set org.gnome.desktop.wm.preferences button-layout "" 2>/dev/null || true
 	fi
 }
@@ -390,7 +408,7 @@ apply_theme() {
 
 	ensure_fcitx5_theme "$theme_state/fcitx5-theme.conf"
 	ensure_neovim_theme "$theme_state/neovim.lua"
-	ensure_gtk_theme "$theme_state/gtk.css"
+	ensure_gtk_theme "$theme_state/gtk.css" "$colors_file"
 	ensure_ftty_theme "$theme_state/ftty.toml"
 	ensure_mako_theme "$theme_state/mako.conf"
 	assemble_herdr_theme "$colors_file" "$theme_state"
