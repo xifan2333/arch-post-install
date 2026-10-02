@@ -64,11 +64,7 @@ status_waybar() {
 			--arg c "active" \
 			'{text: $t, tooltip: $tip, class: $c}'
 	else
-		jq -n -c \
-			--arg t "󰑋 设置主题" \
-			--arg tip "点击设置直播/录屏主题" \
-			--arg c "idle" \
-			'{text: $t, tooltip: $tip, class: $c}'
+		printf '{"text": "", "tooltip": "", "class": "empty"}\n'
 	fi
 }
 
