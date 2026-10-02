@@ -22,7 +22,9 @@ xrwm rule-add -app-id "mpv" dimensions 960 540
 
 # Screenshot annotation
 xrwm rule-add -app-id "com.gabm.satty" float
+xrwm rule-add -app-id "com.gabm.satty" dimensions 960 540
 xrwm rule-add -app-id "satty" float
+xrwm rule-add -app-id "satty" dimensions 960 540
 
 # Livestream configurator
 xrwm rule-add -app-id "arch-live-config" float
