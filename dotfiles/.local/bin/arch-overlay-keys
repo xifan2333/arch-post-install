@@ -39,7 +39,7 @@ start_keys() {
 	stop_keys
 	mkdir -p "$RUNTIME_DIR"
 
-	nohup wayhud -n keys >/dev/null 2>&1 &
+	wayhud -n keys >/dev/null 2>&1 &
 	local pid=$!
 	printf '%s\n' "$pid" >"$PID_FILE"
 }
