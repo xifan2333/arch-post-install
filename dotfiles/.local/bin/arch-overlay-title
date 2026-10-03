@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # arch:summary=Manage live stream / recording title with history and wayhud display
-# arch:args=[get | set <text> | edit | clear | clear-history | toggle | start | stop | status [--waybar | --hud]]
+# arch:args=[get | set <text> | edit | clear | clear-history | toggle | start | stop | status [--hud]]
 # arch:examples=arch overlay title edit | arch overlay title set "Linux Kernel" | arch overlay title toggle
 set -euo pipefail
 
@@ -35,10 +35,6 @@ notify() {
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send "$title" "$body"
 	fi
-}
-
-signal_waybar() {
-	pkill -RTMIN+9 waybar 2>/dev/null || true
 }
 
 is_hud_running() {
@@ -116,8 +112,6 @@ set_title() {
 	else
 		stop_title_hud
 	fi
-
-	signal_waybar
 }
 
 clear_title() {
@@ -175,19 +169,6 @@ toggle_title() {
 	fi
 }
 
-status_waybar() {
-	local title
-	title="$(get_title)"
-
-	if [[ -n "$title" ]]; then
-		jq -n -c \
-			--arg t "$title" \
-			'{text: $t, class: "active"}'
-	else
-		printf '{"text": "", "class": "empty"}\n'
-	fi
-}
-
 action="${1:-edit}"
 
 case "$action" in
@@ -224,9 +205,7 @@ stop | close | hide | kill)
 status)
 	shift
 	mode="${1:-}"
-	if [[ "$mode" == "--waybar" ]]; then
-		status_waybar
-	elif [[ "$mode" == "--hud" ]]; then
+	if [[ "$mode" == "--hud" ]]; then
 		if is_hud_running; then
 			echo "open"
 		else

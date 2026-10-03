@@ -14,9 +14,7 @@
     "custom/tag-9",
     "custom/xrwm-window"
   ],
-  "modules-center": [
-    "custom/stream-title"
-  ],
+  "modules-center": [],
   "modules-right": [
     "tray",
     "custom/screenshot",
@@ -127,16 +125,6 @@
   "clock": {
     "format": "{:%H:%M}",
     "tooltip-format": "<big>{:%Y-%m-%d %A}</big>\n<tt><small>{calendar}</small></tt>"
-  },
-  "custom/stream-title": {
-    "format": "{}",
-    "tooltip": false,
-    "return-type": "json",
-    "exec": "arch-overlay-title status --waybar",
-    "signal": 9,
-    "interval": 10,
-    "on-click": "arch-overlay-title edit",
-    "on-click-right": "arch-overlay-title clear"
   },
   "network": {
     "format-wifi": "{icon}",
