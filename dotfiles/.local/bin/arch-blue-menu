@@ -93,6 +93,8 @@ if [[ -n "$all_raw" ]]; then
 	while read -r _ mac dev_name; do
 		[[ -n "$mac" ]] || continue
 		[[ "$seen_macs" == *" $mac "* ]] && continue
+		# Skip nameless BLE beacons where name is missing or dummy MAC alias
+		[[ -z "$dev_name" || "$dev_name" =~ ^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$ ]] && continue
 		devices_input+=$'  '"$tag_available $dev_name ($mac)"$'\n'
 		seen_macs+="$mac "
 	done <<<"$all_raw"
