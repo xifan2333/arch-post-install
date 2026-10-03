@@ -27,6 +27,7 @@ lefthook = "latest"
 neovim = "latest"
 node = "latest"
 "npm:skills" = "latest"
+pandoc = "latest"
 pi = "latest"
 "pipx:pioarduino" = "latest"
 "pipx:yt-dlp" = { version = "latest", uvx_args = "--with secretstorage" }

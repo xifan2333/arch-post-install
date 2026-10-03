@@ -87,7 +87,7 @@ gh pr create --draft \
 
 ### Implementation Tasks
 - [ ] 1. Core script / collector / configuration setup
-- [ ] 2. UI / Widget implementation (e.g. QML Panel or Hyprland rules)
+- [ ] 2. UI / Widget implementation (e.g. Waybar module or River rules)
 - [ ] 3. Quality checks, formatting & shell/bootstrap integration"
 ```
 
