@@ -83,11 +83,11 @@ xrwm map normal "Super+Control" J move down 50
 xrwm map normal "Super+Control" K move up 50
 xrwm map normal "Super+Control" L move right 50
 
-# Half-Screen Snap (Super + Alt + HJKL)
-xrwm map normal "Super+Alt" H snap left
-xrwm map normal "Super+Alt" L snap right
-xrwm map normal "Super+Alt" K snap up
-xrwm map normal "Super+Alt" J snap down
+# Half-Screen Snap (Super + Alt + Arrow keys)
+xrwm map normal "Super+Alt" Left snap left
+xrwm map normal "Super+Alt" Right snap right
+xrwm map normal "Super+Alt" Up snap up
+xrwm map normal "Super+Alt" Down snap down
 
 # ---------------------------------------------------------------------------
 # Layout Direction & Ratios (Instant response)
