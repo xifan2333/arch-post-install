@@ -216,6 +216,20 @@ ensure_btop_theme() {
 	fi
 }
 
+ensure_wayhud_theme() {
+	local state_wayhud="$1"
+	[[ -f "$state_wayhud" ]] || return 0
+
+	local wayhud_dir="${XDG_CONFIG_HOME:-$HOME/.config}/wayhud"
+	mkdir -p "$wayhud_dir"
+
+	local target_css="$wayhud_dir/style.css"
+	if [[ "$(readlink -f "$target_css" 2>/dev/null || true)" != "$state_wayhud" ]]; then
+		rm -f "$target_css"
+		ln -sf "$state_wayhud" "$target_css"
+	fi
+}
+
 blend_color() {
 	local base="${1#\#}" over="${2#\#}" ratio="$3"
 	local br=$((16#${base:0:2})) bg=$((16#${base:2:2})) bb=$((16#${base:4:2}))
@@ -437,6 +451,7 @@ apply_theme() {
 	ensure_ftty_theme "$theme_state/ftty.toml"
 	ensure_mako_theme "$theme_state/mako.conf"
 	ensure_btop_theme "$theme_state/btop.theme"
+	ensure_wayhud_theme "$theme_state/wayhud.css"
 	assemble_herdr_theme "$colors_file" "$theme_state"
 	broadcast_reloads
 
