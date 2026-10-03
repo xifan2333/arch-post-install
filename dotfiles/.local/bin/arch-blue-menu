@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# arch:summary=Interactive text-only Bluetooth connection menu driven by Fuzzel and bluetoothctl
+# arch:examples=arch blue menu
+set -euo pipefail
+
+# 1. Dependency checks
+if ! command -v bluetoothctl >/dev/null 2>&1; then
+	printf 'Error: bluetoothctl not found. Please install bluez-utils\n' >&2
+	exit 1
+fi
+
+if ! command -v fuzzel >/dev/null 2>&1; then
+	printf 'Error: fuzzel not found\n' >&2
+	exit 1
+fi
+
+# 2. Notification helper
+notify() {
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$(arch-i18n get blue_notify_title)" "$1"
+	fi
+}
+
+# 3. Detect controller and power status
+controller_info=$(bluetoothctl show 2>/dev/null || true)
+if [[ -z "$controller_info" ]]; then
+	notify "$(arch-i18n get blue_no_device)"
+	exit 1
+fi
+
+is_powered=$(awk -F': ' '/Powered:/ {print $2; exit}' <<<"$controller_info")
+prompt_text="$(arch-i18n get blue_prompt)"
+power_on_text="$(arch-i18n get blue_power_on)"
+power_off_text="$(arch-i18n get blue_power_off)"
+rescan_text="$(arch-i18n get blue_rescan)"
+
+# 4. Handle powered-off state
+if [[ "$is_powered" != "yes" ]]; then
+	chosen=$(printf '  %s\n' "$power_on_text" | fuzzel --dmenu --prompt "$prompt_text" --lines 3 || true)
+	action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
+	if [[ "$action_chosen" == "$power_on_text" ]]; then
+		bluetoothctl power on >/dev/null 2>&1
+		exec "$0"
+	fi
+	exit 0
+fi
+
+# 5. Query device categories
+connected_raw=$(bluetoothctl devices Connected 2>/dev/null || true)
+paired_raw=$(bluetoothctl devices Paired 2>/dev/null || true)
+all_raw=$(bluetoothctl devices 2>/dev/null || true)
+
+# 6. Build action header
+actions=()
+if [[ -n "$connected_raw" ]]; then
+	while read -r _ mac dev_name; do
+		[[ -n "$mac" ]] || continue
+		actions+=("$(arch-i18n get blue_disconnect "dev=$dev_name")")
+	done <<<"$connected_raw"
+fi
+actions+=("$rescan_text")
+actions+=("$power_off_text")
+
+# 7. Build device list items
+tag_connected="$(arch-i18n get blue_tag_connected)"
+tag_paired="$(arch-i18n get blue_tag_paired)"
+tag_available="$(arch-i18n get blue_tag_available)"
+
+devices_input=""
+seen_macs=" "
+
+# Add connected devices
+if [[ -n "$connected_raw" ]]; then
+	while read -r _ mac dev_name; do
+		[[ -n "$mac" ]] || continue
+		devices_input+=$'* '"$tag_connected $dev_name ($mac)"$'\n'
+		seen_macs+="$mac "
+	done <<<"$connected_raw"
+fi
+
+# Add paired but disconnected devices
+if [[ -n "$paired_raw" ]]; then
+	while read -r _ mac dev_name; do
+		[[ -n "$mac" ]] || continue
+		[[ "$seen_macs" == *" $mac "* ]] && continue
+		devices_input+=$'  '"$tag_paired $dev_name ($mac)"$'\n'
+		seen_macs+="$mac "
+	done <<<"$paired_raw"
+fi
+
+# Add discovered new devices
+if [[ -n "$all_raw" ]]; then
+	while read -r _ mac dev_name; do
+		[[ -n "$mac" ]] || continue
+		[[ "$seen_macs" == *" $mac "* ]] && continue
+		devices_input+=$'  '"$tag_available $dev_name ($mac)"$'\n'
+		seen_macs+="$mac "
+	done <<<"$all_raw"
+fi
+
+# 8. Display menu in fuzzel
+menu_input=""
+for a in "${actions[@]}"; do
+	menu_input+="  $a"$'\n'
+done
+menu_input+="$devices_input"
+
+chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
+[[ -z "$chosen" ]] && exit 0
+
+action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
+
+# 9. Handle action header items
+if [[ "$action_chosen" == "$power_off_text" ]]; then
+	bluetoothctl power off >/dev/null 2>&1
+	exit 0
+elif [[ "$action_chosen" == "$rescan_text" ]]; then
+	bluetoothctl --timeout 4 scan on >/dev/null 2>&1 || true
+	exec "$0"
+fi
+
+# Check if user clicked disconnect action
+if [[ -n "$connected_raw" ]]; then
+	while read -r _ mac dev_name; do
+		[[ -n "$mac" ]] || continue
+		dis_text="$(arch-i18n get blue_disconnect "dev=$dev_name")"
+		if [[ "$action_chosen" == "$dis_text" ]]; then
+			bluetoothctl disconnect "$mac" >/dev/null 2>&1 || true
+			notify "$(arch-i18n get blue_disconnected "dev=$dev_name")"
+			exit 0
+		fi
+	done <<<"$connected_raw"
+fi
+
+# 10. Handle device click (connect / disconnect)
+mac=$(grep -o -E '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' <<<"$chosen" || true)
+[[ -z "$mac" ]] && exit 0
+
+# Extract human-readable device name from chosen line
+dev_name=$(sed -E 's/^[ *]*\[[^]]+\][[:space:]]+//; s/[[:space:]]+\([0-9A-Fa-f:]+\)$//' <<<"$chosen")
+[[ -n "$dev_name" ]] || dev_name="$mac"
+
+# If device is already connected, disconnect it
+if [[ -n "$connected_raw" ]] && grep -q -F "$mac" <<<"$connected_raw"; then
+	bluetoothctl disconnect "$mac" >/dev/null 2>&1 || true
+	notify "$(arch-i18n get blue_disconnected "dev=$dev_name")"
+	exit 0
+fi
+
+# If device is already paired, connect directly
+if [[ -n "$paired_raw" ]] && grep -q -F "$mac" <<<"$paired_raw"; then
+	if bluetoothctl connect "$mac" >/dev/null 2>&1; then
+		notify "$(arch-i18n get blue_connected "dev=$dev_name")"
+	else
+		notify "$(arch-i18n get blue_failed "dev=$dev_name")"
+	fi
+	exit 0
+fi
+
+# Otherwise, pair + trust + connect new device
+bluetoothctl pair "$mac" >/dev/null 2>&1 || true
+bluetoothctl trust "$mac" >/dev/null 2>&1 || true
+if bluetoothctl connect "$mac" >/dev/null 2>&1; then
+	notify "$(arch-i18n get blue_connected "dev=$dev_name")"
+else
+	notify "$(arch-i18n get blue_failed "dev=$dev_name")"
+fi

@@ -90,6 +90,9 @@ xrwm map normal "Super+Shift" Comma send-to-output previous
 # 4. Pop-up Menus & Selectors (Super + Control + Key)
 # ===========================================================================
 
+# Bluetooth Menu
+xrwm map normal "Super+Control" B spawn arch-blue-menu
+
 # Recording & Streaming Options Menu
 xrwm map normal "Super+Control" G spawn arch-rec-menu
 
