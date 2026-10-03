@@ -49,7 +49,7 @@ is_hud_running() {
 			return 0
 		fi
 	fi
-	pgrep -f "wayhud.*(-n title|$)" >/dev/null 2>&1
+	pgrep -f "wayhud[[:space:]]+-n[[:space:]]+title\b" >/dev/null 2>&1
 }
 
 stop_title_hud() {
@@ -61,7 +61,7 @@ stop_title_hud() {
 		fi
 		rm -f "$PID_FILE"
 	fi
-	pkill -f "wayhud.*(-n title|$)" 2>/dev/null || true
+	pkill -f "wayhud[[:space:]]+-n[[:space:]]+title\b" 2>/dev/null || true
 }
 
 start_title_hud() {

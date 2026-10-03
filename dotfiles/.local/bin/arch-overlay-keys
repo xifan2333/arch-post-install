@@ -15,7 +15,7 @@ is_running() {
 			return 0
 		fi
 	fi
-	pgrep -f "wayhud.*(-n keys|$)" >/dev/null 2>&1
+	pgrep -f "wayhud[[:space:]]+-n[[:space:]]+keys\b" >/dev/null 2>&1
 }
 
 stop_keys() {
@@ -27,7 +27,7 @@ stop_keys() {
 		fi
 		rm -f "$PID_FILE"
 	fi
-	pkill -f "wayhud.*(-n keys|$)" 2>/dev/null || true
+	pkill -f "wayhud[[:space:]]+-n[[:space:]]+keys\b" 2>/dev/null || true
 }
 
 start_keys() {
