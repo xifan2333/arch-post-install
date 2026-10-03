@@ -19,6 +19,7 @@
     "tray",
     "custom/screenshot",
     "custom/screenrecord",
+    "bluetooth",
     "network",
     "pulseaudio",
     "pulseaudio#microphone",
@@ -125,6 +126,16 @@
   "clock": {
     "format": "{:%H:%M}",
     "tooltip-format": "<big>{:%Y-%m-%d %A}</big>\n<tt><small>{calendar}</small></tt>"
+  },
+  "bluetooth": {
+    "format": "󰂯",
+    "format-disabled": "󰂲",
+    "format-connected": "󰂱 {device_alias}",
+    "format-connected-battery": "󰂱 {device_alias} {device_battery_percentage}%",
+    "tooltip-format": "{controller_alias}\t{controller_address}\n{num_connections} connected",
+    "tooltip-format-connected": "{device_enumerate}",
+    "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+    "on-click": "arch-blue-menu"
   },
   "network": {
     "format-wifi": "{icon}",
