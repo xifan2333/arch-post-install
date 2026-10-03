@@ -42,5 +42,10 @@ xrwm rule-add -app-id "arch-overlay-*" float
 xrwm rule-add -app-id "arch-overlay-*" csd
 xrwm rule-add -app-id "arch-overlay-*" tags 4294967295
 
+# Key HUD overlay (showmethekey)
+xrwm rule-add -app-id "one.alynx.showmethekey" float
+xrwm rule-add -app-id "one.alynx.showmethekey" tags 4294967295
+xrwm rule-add -app-id "one.alynx.showmethekey" csd
+
 # Custom tools
 xrwm rule-add -app-id "fuzzel" csd
