@@ -18,6 +18,8 @@
   "screenrecord_overlay_title_edit_text_item": "Edit text",
   "screenrecord_overlay_title_edit_size_item": "Font size",
   "overlay_title_prompt": "Stream Title: ",
+  "overlay_title_clear_history": "Clear History",
+  "overlay_title_history_cleared": "Title history cleared",
   "overlay_cam_prompt": "Select Camera: ",
   "overlay_cam_no_device": "No video devices found",
   "livestream_notify_title": "Live Stream",
