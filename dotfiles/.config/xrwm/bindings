@@ -42,7 +42,6 @@ xrwm map normal "Super+Shift" Q exit
 xrwm map normal Super F toggle-fullscreen
 xrwm map normal None F11 toggle-fullscreen
 xrwm map normal Super P toggle-float
-xrwm map normal "Super+Shift" P toggle-floating-views
 
 # Window Manager Reload (R = Reload)
 xrwm map normal "Super+Shift" R reload
@@ -71,7 +70,7 @@ xrwm map normal "Super+Alt" Right main-ratio +0.05
 xrwm map normal "Super+Alt" Up stack-ratio +0.05
 xrwm map normal "Super+Alt" Down stack-ratio -0.05
 
-# Window Swapping (Super + Control / Super + Shift + Arrow Keys / Vim HJKL)
+# Window Swapping (Super + Control + Arrow Keys / Vim HJKL)
 xrwm map normal "Super+Control" Left swap left
 xrwm map normal "Super+Control" Right swap right
 xrwm map normal "Super+Control" Up swap up
@@ -80,14 +79,6 @@ xrwm map normal "Super+Control" H swap left
 xrwm map normal "Super+Control" J swap down
 xrwm map normal "Super+Control" K swap up
 xrwm map normal "Super+Control" L swap right
-xrwm map normal "Super+Shift" Left swap left
-xrwm map normal "Super+Shift" Right swap right
-xrwm map normal "Super+Shift" Up swap up
-xrwm map normal "Super+Shift" Down swap down
-xrwm map normal "Super+Shift" H swap left
-xrwm map normal "Super+Shift" J swap down
-xrwm map normal "Super+Shift" K swap up
-xrwm map normal "Super+Shift" L swap right
 
 # Multi-Monitor Output Management
 xrwm map normal Super Period focus-output next
@@ -99,17 +90,8 @@ xrwm map normal "Super+Shift" Comma send-to-output previous
 # 4. Pop-up Menus & Selectors (Super + Control + Key)
 # ===========================================================================
 
-# Network Menu
-xrwm map normal "Super+Control" N spawn arch-net-menu
-
-# Clipboard History Menu
-xrwm map normal "Super+Control" V spawn arch-clip-menu
-
 # Recording & Streaming Options Menu
 xrwm map normal "Super+Control" G spawn arch-rec-menu
-
-# Title History & Input Menu
-xrwm map normal "Super+Control" T spawn arch-overlay-title edit
 
 # ===========================================================================
 # 5. On-Screen Overlay HUD Suite (Super + Alt + Key)
