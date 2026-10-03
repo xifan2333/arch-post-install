@@ -47,13 +47,9 @@ xrwm map normal "Super+Shift" P toggle-floating-views
 # Window Manager Reload (R = Reload)
 xrwm map normal "Super+Shift" R reload
 
-# Layout Direction & Ratios (Instant response)
+# Layout Placement Orientation (Instant response)
 xrwm map normal Super Y main-location left
 xrwm map normal Super U main-location top
-xrwm map normal Super I main-ratio -0.05
-xrwm map normal Super O main-ratio +0.05
-xrwm map normal Super bracketleft stack-ratio -0.05
-xrwm map normal Super bracketright stack-ratio +0.05
 
 # ===========================================================================
 # 3. Window Navigation & Geometry (Directional Arrow Keys)
@@ -69,7 +65,21 @@ xrwm map normal Super J focus-view next
 xrwm map normal Super K focus-view previous
 xrwm map normal Super L focus-view right
 
-# Window Swapping (Super + Shift + Arrow Keys / Vim HJKL)
+# Layout Proportions (Super + Alt + Arrow Keys)
+xrwm map normal "Super+Alt" Left main-ratio -0.05
+xrwm map normal "Super+Alt" Right main-ratio +0.05
+xrwm map normal "Super+Alt" Up stack-ratio +0.05
+xrwm map normal "Super+Alt" Down stack-ratio -0.05
+
+# Window Swapping (Super + Control / Super + Shift + Arrow Keys / Vim HJKL)
+xrwm map normal "Super+Control" Left swap left
+xrwm map normal "Super+Control" Right swap right
+xrwm map normal "Super+Control" Up swap up
+xrwm map normal "Super+Control" Down swap down
+xrwm map normal "Super+Control" H swap left
+xrwm map normal "Super+Control" J swap down
+xrwm map normal "Super+Control" K swap up
+xrwm map normal "Super+Control" L swap right
 xrwm map normal "Super+Shift" Left swap left
 xrwm map normal "Super+Shift" Right swap right
 xrwm map normal "Super+Shift" Up swap up
@@ -78,18 +88,6 @@ xrwm map normal "Super+Shift" H swap left
 xrwm map normal "Super+Shift" J swap down
 xrwm map normal "Super+Shift" K swap up
 xrwm map normal "Super+Shift" L swap right
-
-# Half-Screen Snap (Super + Alt + Arrow Keys)
-xrwm map normal "Super+Alt" Left snap left
-xrwm map normal "Super+Alt" Right snap right
-xrwm map normal "Super+Alt" Up snap up
-xrwm map normal "Super+Alt" Down snap down
-
-# Floating Window Translate 50px (Super + Control + Arrow Keys)
-xrwm map normal "Super+Control" Left move left 50
-xrwm map normal "Super+Control" Right move right 50
-xrwm map normal "Super+Control" Up move up 50
-xrwm map normal "Super+Control" Down move down 50
 
 # Multi-Monitor Output Management
 xrwm map normal Super Period focus-output next
