@@ -45,8 +45,9 @@ push_caption() {
 	printf '%s\n' "$pid" >"$PID_FILE"
 }
 
-# If stdin is a pipe (not a tty), act as direct stream pipeline receiver
-if [[ ! -t 0 ]]; then
+# If stdin is a pipe (not a tty) and no positional subcommand is given,
+# act as direct stream pipeline receiver
+if [[ $# -eq 0 && ! -t 0 ]]; then
 	if ! command -v wayhud >/dev/null 2>&1; then
 		echo "Error: wayhud is not installed" >&2
 		exit 1
