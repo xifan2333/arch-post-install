@@ -47,8 +47,32 @@ except ImportError:
     GLib = None
 
 
+def extract_clean_text(raw: object) -> str:
+    if not raw:
+        return ""
+    text = str(raw).strip()
+    if text.startswith("{") and text.endswith("}"):
+        with contextlib.suppress(json.JSONDecodeError):
+            data = json.loads(text)
+            if isinstance(data, dict):
+                val = (
+                    data.get("commit_text") or data.get("text") or data.get("sentence")
+                )
+                if (
+                    not val
+                    and isinstance(data.get("candidates"), list)
+                    and data["candidates"]
+                ):
+                    candidate = data["candidates"][0]
+                    if isinstance(candidate, dict):
+                        val = candidate.get("text")
+                if val:
+                    text = str(val)
+    return text.replace("\r", "").replace("\n", "").strip()
+
+
 def sanitize_caption(text: str) -> str:
-    return str(text or "").replace("\r", "").replace("\n", "").strip()
+    return extract_clean_text(text)
 
 
 def truncate_caption(text: str, max_chars: int) -> str:
@@ -201,7 +225,13 @@ class ProviderSession:
             except json.JSONDecodeError:
                 continue
             typ = event.get("type")
-            text = str(event.get("text") or "").strip()
+            raw_text = (
+                event.get("commit_text")
+                or event.get("text")
+                or event.get("sentence")
+                or ""
+            )
+            text = extract_clean_text(raw_text)
             if typ in ("partial", "final", "final_timestamps") and text:
                 self.events.put((typ, text))
 
@@ -334,7 +364,8 @@ class CaptionsDaemon:
                 parameters: GLib.Variant,
             ) -> None:
                 if signal_name in ("RecognitionPartial", "RecognitionResult"):
-                    text = parameters.unpack()[0] if parameters else ""
+                    raw = parameters.unpack()[0] if parameters else ""
+                    text = extract_clean_text(raw)
                     if text:
                         typ = (
                             "partial"
