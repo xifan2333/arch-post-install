@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# arch:summary=Display real-time subtitles and captions using wayhud
+# arch:args=[push <text> | stop | status | test]
+# arch:examples=arch overlay captions push "Hello world" | whisper-stream | arch overlay captions
+set -euo pipefail
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wayhud"
+PID_FILE="$RUNTIME_DIR/captions.pid"
+
+is_running() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	pgrep -f "wayhud.*(-n captions|$)" >/dev/null 2>&1
+}
+
+stop_captions() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			kill -TERM "$pid" 2>/dev/null || true
+		fi
+		rm -f "$PID_FILE"
+	fi
+	pkill -f "wayhud.*(-n captions|$)" 2>/dev/null || true
+}
+
+push_caption() {
+	local text="$*"
+	[[ -n "$text" ]] || return 0
+
+	if ! command -v wayhud >/dev/null 2>&1; then
+		echo "Error: wayhud is not installed" >&2
+		exit 1
+	fi
+
+	mkdir -p "$RUNTIME_DIR"
+	printf '%s\n' "$text" | nohup wayhud -n captions >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$PID_FILE"
+}
+
+# If stdin is a pipe (not a tty), act as direct stream pipeline receiver
+if [[ ! -t 0 ]]; then
+	if ! command -v wayhud >/dev/null 2>&1; then
+		echo "Error: wayhud is not installed" >&2
+		exit 1
+	fi
+	exec wayhud -n captions
+fi
+
+action="${1:-status}"
+
+case "$action" in
+push)
+	shift
+	push_caption "$*"
+	;;
+stop | close | hide | kill)
+	stop_captions
+	;;
+status | state)
+	if is_running; then
+		echo "open"
+	else
+		echo "closed"
+	fi
+	;;
+test)
+	push_caption "实时语音字幕测试：wayhud 高性能图层渲染已就绪"
+	;;
+*)
+	echo "Usage: arch-overlay-captions [push <text> | stop | status | test]" >&2
+	echo "       <command> | arch-overlay-captions" >&2
+	exit 1
+	;;
+esac
