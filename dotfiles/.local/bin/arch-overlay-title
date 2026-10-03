@@ -1,27 +1,82 @@
 #!/usr/bin/env bash
-# arch:summary=Manage live stream / recording title with Waybar integration and Fuzzel input
-# arch:args=[get | set <text> | edit | clear | toggle | status [--waybar]]
-# arch:examples=arch overlay title edit | arch overlay title set "Linux Kernel"
+# arch:summary=Manage live stream / recording title with history and wayhud display
+# arch:args=[get | set <text> | edit | clear | clear-history | toggle | start | stop | status [--waybar | --hud]]
+# arch:examples=arch overlay title edit | arch overlay title set "Linux Kernel" | arch overlay title toggle
 set -euo pipefail
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screenrecord"
 TITLE_FILE="$STATE_DIR/title.txt"
+HISTORY_FILE="$STATE_DIR/title_history.txt"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wayhud"
+PID_FILE="$RUNTIME_DIR/title.pid"
 
 mkdir -p "$STATE_DIR"
 [[ -f "$TITLE_FILE" ]] || touch "$TITLE_FILE"
+
+tr_msg() {
+	local key="$1"
+	local fallback="${2:-$key}"
+	shift 2 2>/dev/null || shift
+	if command -v arch-i18n >/dev/null 2>&1; then
+		local val
+		val="$(arch-i18n get "$key" "$@" 2>/dev/null || true)"
+		if [[ -n "$val" && "$val" != "[$key]" ]]; then
+			printf '%s' "$val"
+			return 0
+		fi
+	fi
+	printf '%s' "$fallback"
+}
+
+notify() {
+	local title body
+	title="$(tr_msg overlay_title_edit_title "浮动标题")"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$title" "$body"
+	fi
+}
 
 signal_waybar() {
 	pkill -RTMIN+9 waybar 2>/dev/null || true
 }
 
-tr_msg() {
-	local key="$1"
-	shift
-	if command -v arch-i18n >/dev/null 2>&1; then
-		arch-i18n get "$key" "$@"
-	else
-		printf '%s' "$key"
+is_hud_running() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
 	fi
+	pgrep -f "wayhud.*(-n title|$)" >/dev/null 2>&1
+}
+
+stop_title_hud() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			kill -TERM "$pid" 2>/dev/null || true
+		fi
+		rm -f "$PID_FILE"
+	fi
+	pkill -f "wayhud.*(-n title|$)" 2>/dev/null || true
+}
+
+start_title_hud() {
+	local text="$1"
+	[[ -n "$text" ]] || return 0
+	if ! command -v wayhud >/dev/null 2>&1; then
+		return 0
+	fi
+
+	stop_title_hud
+	mkdir -p "$RUNTIME_DIR"
+
+	printf '%s\n' "$text" | nohup wayhud -n title >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$PID_FILE"
 }
 
 get_title() {
@@ -30,9 +85,38 @@ get_title() {
 	fi
 }
 
+save_to_history() {
+	local text="$1"
+	[[ -n "$text" ]] || return 0
+
+	mkdir -p "$STATE_DIR"
+	local tmp_file="$STATE_DIR/history.tmp.$$"
+	{
+		printf '%s\n' "$text"
+		if [[ -f "$HISTORY_FILE" ]]; then
+			grep -v -F -x "$text" "$HISTORY_FILE" 2>/dev/null || true
+		fi
+	} | head -n 30 >"$tmp_file"
+	mv -f "$tmp_file" "$HISTORY_FILE"
+}
+
+clear_history() {
+	rm -f "$HISTORY_FILE"
+	notify "$(tr_msg overlay_title_history_cleared "标题历史已清空")"
+}
+
 set_title() {
 	local new_title="$1"
+	mkdir -p "$STATE_DIR"
 	printf '%s\n' "$new_title" >"$TITLE_FILE"
+
+	if [[ -n "$new_title" ]]; then
+		save_to_history "$new_title"
+		start_title_hud "$new_title"
+	else
+		stop_title_hud
+	fi
+
 	signal_waybar
 }
 
@@ -44,19 +128,50 @@ edit_title() {
 	local current
 	current="$(get_title)"
 
-	local prompt
-	prompt="$(tr_msg overlay_title_prompt)"
-	[[ -n "$prompt" && "$prompt" != "[overlay_title_prompt]" ]] || prompt="直播主题: "
+	local prompt clear_opt
+	prompt="$(tr_msg overlay_title_prompt "直播主题: ")"
+	clear_opt="$(tr_msg overlay_title_clear_history "清空历史记录")"
 
-	local chosen
-	if [[ -n "$current" ]]; then
-		chosen=$(printf '%s\n' "$current" | fuzzel --dmenu --prompt "$prompt" || true)
-	else
-		chosen=$(fuzzel --dmenu --prompt "$prompt" </dev/null || true)
+	local candidates=""
+	if [[ -f "$HISTORY_FILE" ]]; then
+		candidates="$(grep -v '^[[:space:]]*$' "$HISTORY_FILE" 2>/dev/null || true)"
 	fi
 
-	if [[ -n "$chosen" ]]; then
-		set_title "$chosen"
+	local fuzzel_input=""
+	if [[ -n "$candidates" ]]; then
+		fuzzel_input="${candidates}"$'\n'"${clear_opt}"
+	elif [[ -n "$current" ]]; then
+		fuzzel_input="$current"
+	fi
+
+	local chosen
+	if [[ -n "$fuzzel_input" ]]; then
+		chosen="$(printf '%s\n' "$fuzzel_input" | fuzzel --dmenu --prompt "$prompt" || true)"
+	else
+		chosen="$(fuzzel --dmenu --prompt "$prompt" </dev/null || true)"
+	fi
+
+	[[ -n "$chosen" ]] || exit 0
+
+	if [[ "$chosen" == "$clear_opt" ]]; then
+		clear_history
+		return 0
+	fi
+
+	set_title "$chosen"
+}
+
+toggle_title() {
+	if is_hud_running; then
+		stop_title_hud
+	else
+		local current
+		current="$(get_title)"
+		if [[ -n "$current" ]]; then
+			start_title_hud "$current"
+		else
+			edit_title
+		fi
 	fi
 }
 
@@ -86,18 +201,43 @@ set)
 clear)
 	clear_title
 	;;
-edit | toggle)
+clear-history)
+	clear_history
+	;;
+edit)
 	edit_title
 	;;
+toggle)
+	toggle_title
+	;;
+start)
+	current="$(get_title)"
+	if [[ -n "$current" ]]; then
+		start_title_hud "$current"
+	else
+		edit_title
+	fi
+	;;
+stop | close | hide | kill)
+	stop_title_hud
+	;;
 status)
-	if [[ "${2:-}" == "--waybar" ]]; then
+	shift
+	mode="${1:-}"
+	if [[ "$mode" == "--waybar" ]]; then
 		status_waybar
+	elif [[ "$mode" == "--hud" ]]; then
+		if is_hud_running; then
+			echo "open"
+		else
+			echo "closed"
+		fi
 	else
 		get_title
 	fi
 	;;
 *)
-	echo "Usage: arch-overlay-title [get | set <text> | edit | clear | toggle | status [--waybar]]" >&2
+	echo "Usage: arch-overlay-title [get | set <text> | edit | clear | clear-history | toggle | start | stop | status [--waybar | --hud]]" >&2
 	exit 1
 	;;
 esac

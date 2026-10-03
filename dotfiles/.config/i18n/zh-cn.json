@@ -18,6 +18,8 @@
   "screenrecord_overlay_title_edit_text_item": "编辑文本",
   "screenrecord_overlay_title_edit_size_item": "字号",
   "overlay_title_prompt": "直播主题: ",
+  "overlay_title_clear_history": "清空历史记录",
+  "overlay_title_history_cleared": "标题历史已清空",
   "overlay_cam_prompt": "选择摄像头: ",
   "overlay_cam_no_device": "未检测到可用视频设备",
   "livestream_notify_title": "直播推流",
