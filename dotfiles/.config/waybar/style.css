@@ -129,13 +129,6 @@ window#waybar {
     font-weight: bold;
 }
 
-/* Stream / Recording Title */
-#custom-stream-title {
-    padding: 0 10px;
-    color: @fg_bright;
-    font-weight: bold;
-}
-
 /* System Tray */
 #tray {
     padding: 0 10px;
