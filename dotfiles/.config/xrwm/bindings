@@ -29,15 +29,13 @@ xrwm map normal Super V spawn arch-clip-menu
 # Network (N)
 xrwm map normal Super N spawn arch-net-menu
 
-# Wallpaper (W)
-xrwm map normal Super W spawn arch-wallpaper-menu
-
 # ===========================================================================
 # 2. Window Lifecycle & Layout Management
 # ===========================================================================
 
-# Window Close & Session Exit (Q = Quit)
+# Window Close (Q / W) & Session Exit
 xrwm map normal Super Q close
+xrwm map normal Super W close
 xrwm map normal "Super+Shift" Q exit
 
 # Fullscreen & Floating (F = Fullscreen, P = Pin / Float)
@@ -105,9 +103,6 @@ xrwm map normal "Super+Shift" Comma send-to-output previous
 
 # Network Menu
 xrwm map normal "Super+Control" N spawn arch-net-menu
-
-# Wallpaper Menu
-xrwm map normal "Super+Control" W spawn arch-wallpaper-menu
 
 # Clipboard History Menu
 xrwm map normal "Super+Control" V spawn arch-clip-menu
