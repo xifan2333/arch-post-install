@@ -4,33 +4,14 @@
 # arch:examples=arch overlay title edit | arch overlay title set "Linux Kernel" | arch overlay title toggle
 set -euo pipefail
 
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screenrecord"
-TITLE_FILE="$STATE_DIR/title.txt"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/wayhud"
 HISTORY_FILE="$STATE_DIR/title_history.txt"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wayhud"
 PID_FILE="$RUNTIME_DIR/title.pid"
 
-mkdir -p "$STATE_DIR"
-[[ -f "$TITLE_FILE" ]] || touch "$TITLE_FILE"
-
-tr_msg() {
-	local key="$1"
-	local fallback="${2:-$key}"
-	shift 2 2>/dev/null || shift
-	if command -v arch-i18n >/dev/null 2>&1; then
-		local val
-		val="$(arch-i18n get "$key" "$@" 2>/dev/null || true)"
-		if [[ -n "$val" && "$val" != "[$key]" ]]; then
-			printf '%s' "$val"
-			return 0
-		fi
-	fi
-	printf '%s' "$fallback"
-}
-
 notify() {
 	local title body
-	title="$(tr_msg overlay_title_edit_title "浮动标题")"
+	title="$(arch-i18n get overlay_title_edit_title)"
 	body="$1"
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send "$title" "$body"
@@ -76,42 +57,35 @@ start_title_hud() {
 }
 
 get_title() {
-	if [[ -f "$TITLE_FILE" ]]; then
-		head -n 1 "$TITLE_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+	if [[ -f "$HISTORY_FILE" ]]; then
+		head -n 1 "$HISTORY_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 	fi
-}
-
-save_to_history() {
-	local text="$1"
-	[[ -n "$text" ]] || return 0
-
-	mkdir -p "$STATE_DIR"
-	local tmp_file="$STATE_DIR/history.tmp.$$"
-	{
-		printf '%s\n' "$text"
-		if [[ -f "$HISTORY_FILE" ]]; then
-			grep -v -F -x "$text" "$HISTORY_FILE" 2>/dev/null || true
-		fi
-	} | head -n 30 >"$tmp_file"
-	mv -f "$tmp_file" "$HISTORY_FILE"
-}
-
-clear_history() {
-	rm -f "$HISTORY_FILE"
-	notify "$(tr_msg overlay_title_history_cleared "标题历史已清空")"
 }
 
 set_title() {
 	local new_title="$1"
-	mkdir -p "$STATE_DIR"
-	printf '%s\n' "$new_title" >"$TITLE_FILE"
-
-	if [[ -n "$new_title" ]]; then
-		save_to_history "$new_title"
-		start_title_hud "$new_title"
-	else
+	if [[ -z "$new_title" ]]; then
 		stop_title_hud
+		return 0
 	fi
+
+	mkdir -p "$STATE_DIR"
+	local tmp_file="$STATE_DIR/title_history.tmp.$$"
+	{
+		printf '%s\n' "$new_title"
+		if [[ -f "$HISTORY_FILE" ]]; then
+			grep -v -F -x "$new_title" "$HISTORY_FILE" 2>/dev/null || true
+		fi
+	} | head -n 30 >"$tmp_file"
+	mv -f "$tmp_file" "$HISTORY_FILE"
+
+	start_title_hud "$new_title"
+}
+
+clear_history() {
+	rm -f "$HISTORY_FILE"
+	stop_title_hud
+	notify "$(arch-i18n get overlay_title_history_cleared)"
 }
 
 clear_title() {
@@ -119,35 +93,26 @@ clear_title() {
 }
 
 edit_title() {
-	local current
-	current="$(get_title)"
-
 	local prompt clear_opt
-	prompt="$(tr_msg overlay_title_prompt "直播主题: ")"
-	clear_opt="$(tr_msg overlay_title_clear_history "清空历史记录")"
+	prompt="$(arch-i18n get overlay_title_prompt)"
+	clear_opt="$(arch-i18n get overlay_title_clear_history)"
 
 	local candidates=""
 	if [[ -f "$HISTORY_FILE" ]]; then
 		candidates="$(grep -v '^[[:space:]]*$' "$HISTORY_FILE" 2>/dev/null || true)"
 	fi
 
-	local fuzzel_input=""
-	if [[ -n "$candidates" ]]; then
-		fuzzel_input="${candidates}"$'\n'"${clear_opt}"
-	elif [[ -n "$current" ]]; then
-		fuzzel_input="$current"
-	fi
-
 	local chosen
-	if [[ -n "$fuzzel_input" ]]; then
-		chosen="$(printf '%s\n' "$fuzzel_input" | fuzzel --dmenu --prompt "$prompt" || true)"
-	else
-		chosen="$(fuzzel --dmenu --prompt "$prompt" </dev/null || true)"
-	fi
+	chosen=$({
+		if [[ -n "$candidates" ]]; then
+			printf '  %s\n' "$clear_opt"
+			printf '%s\n' "$candidates"
+		fi
+	} | fuzzel --dmenu --prompt "$prompt" || true)
 
 	[[ -n "$chosen" ]] || exit 0
 
-	if [[ "$chosen" == "$clear_opt" ]]; then
+	if [[ "$chosen" == *" $clear_opt" || "$chosen" == "$clear_opt" ]]; then
 		clear_history
 		return 0
 	fi
@@ -216,7 +181,7 @@ status)
 	fi
 	;;
 *)
-	echo "Usage: arch-overlay-title [get | set <text> | edit | clear | clear-history | toggle | start | stop | status [--waybar | --hud]]" >&2
+	echo "Usage: arch-overlay-title [get | set <text> | edit | clear | clear-history | toggle | start | stop | status [--hud]]" >&2
 	exit 1
 	;;
 esac
