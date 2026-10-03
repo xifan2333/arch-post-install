@@ -47,6 +47,18 @@ except ImportError:
     GLib = None
 
 
+def parse_dbus_result(payload: str) -> str:
+    """Parse vinput RecognitionResult payload: extract commit_text."""
+    if not payload:
+        return ""
+    if payload.startswith("{") and payload.endswith("}"):
+        with contextlib.suppress(json.JSONDecodeError, KeyError):
+            data = json.loads(payload)
+            if isinstance(data, dict) and "commit_text" in data:
+                return str(data["commit_text"]).strip()
+    return payload.strip()
+
+
 def sanitize_caption(text: str) -> str:
     return str(text or "").replace("\r", "").replace("\n", "").strip()
 
@@ -333,15 +345,15 @@ class CaptionsDaemon:
                 signal_name: str,
                 parameters: GLib.Variant,
             ) -> None:
-                if signal_name in ("RecognitionPartial", "RecognitionResult"):
+                if signal_name == "RecognitionPartial":
                     text = parameters.unpack()[0] if parameters else ""
                     if text:
-                        typ = (
-                            "partial"
-                            if signal_name == "RecognitionPartial"
-                            else "final"
-                        )
-                        self.events.put((typ, text))
+                        self.events.put(("partial", text.strip()))
+                elif signal_name == "RecognitionResult":
+                    raw = parameters.unpack()[0] if parameters else ""
+                    commit = parse_dbus_result(raw)
+                    if commit:
+                        self.events.put(("final", commit))
 
             conn.signal_subscribe(
                 VINPUT_BUS_NAME,

@@ -12,7 +12,7 @@ window {
 
 label {
     font-family: "JetBrainsMono Nerd Font";
-    text-shadow: 0 0 2px rgba(0, 0, 0, 0.85);
+    text-shadow: none;
 }
 
 /* 2. 场景：按键回显 (#keys) - 左下角紧凑，按内容自适应，1.2s 消隐 */
@@ -45,7 +45,6 @@ label#title {
     font-size: 15px;
     color: {{ accent }};
     text-align: center;
-    text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
 }
 
 /* 4. 场景：实时字幕 (#captions) - 底部大宽度，水平居中折行 */
