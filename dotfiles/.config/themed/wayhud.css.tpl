@@ -49,7 +49,7 @@ label#title {
 
 /* 4. 场景：实时字幕 (#captions) - 底部大宽度，水平居中折行 */
 window#captions {
-    margin-bottom: 80px;
+    margin-bottom: 36px;
     min-width: 500px;
     max-width: 800px;
     padding: 8px 20px;
