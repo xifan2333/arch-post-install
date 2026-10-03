@@ -3,109 +3,157 @@
 # xrwm keybindings and pointer configuration
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# Core Applications
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# 1. Core Applications (Super + Key)
+# ===========================================================================
 
-# Terminal: ftty (ultra-lightweight Wayland terminal)
+# Terminal (Return)
 xrwm map normal Super Return spawn ftty
+xrwm map normal "Super+Shift" Return zoom
 
-# Application launcher: fuzzel (toggle)
+# Application Launcher (Space) & Floating / Scratchpad Controls
 xrwm map normal Super Space spawn sh -c "pkill -x fuzzel || fuzzel"
+xrwm map normal "Super+Alt" Space toggle-focused-tags 2147483648
+xrwm map normal Alt Space toggle-floating-views
 
-# Wallpaper picker
-xrwm map normal "Super+Shift" W spawn arch-wallpaper-menu
-
-# Clipboard history manager
-xrwm map normal Super V spawn arch-clip-menu
-
-# Browser & File Manager
+# Browser (B)
 xrwm map normal Super B spawn "${BROWSER:-chromium}"
+
+# File Manager (E)
 xrwm map normal Super E spawn pcmanfm
 xrwm map normal "Super+Shift" E spawn ftty -e yazi
 
-# Network Control Center
-xrwm map normal "Super+Control" W spawn arch-net-menu
+# Clipboard (V)
+xrwm map normal Super V spawn arch-clip-menu
+
+# Network (N)
 xrwm map normal Super N spawn arch-net-menu
 
-# ---------------------------------------------------------------------------
-# Window Management Actions
-# ---------------------------------------------------------------------------
+# Wallpaper (W)
+xrwm map normal Super W spawn arch-wallpaper-menu
 
+# ===========================================================================
+# 2. Window Lifecycle & Layout Management
+# ===========================================================================
+
+# Window Close & Session Exit (Q = Quit)
 xrwm map normal Super Q close
-xrwm map normal Super W close
+xrwm map normal "Super+Shift" Q exit
+
+# Fullscreen & Floating (F = Fullscreen, P = Pin / Float)
 xrwm map normal Super F toggle-fullscreen
 xrwm map normal None F11 toggle-fullscreen
 xrwm map normal Super P toggle-float
 xrwm map normal "Super+Shift" P toggle-floating-views
-xrwm map normal "Super+Shift" Return zoom
+
+# Window Manager Reload (R = Reload)
 xrwm map normal "Super+Shift" R reload
-xrwm map normal "Super+Shift" Q exit
 
-# ---------------------------------------------------------------------------
-# Focus Navigation & Swapping (Vim HJKL + Arrow keys)
-# ---------------------------------------------------------------------------
+# Layout Direction & Ratios (Instant response)
+xrwm map normal Super Y main-location left
+xrwm map normal Super U main-location top
+xrwm map normal Super I main-ratio -0.05
+xrwm map normal Super O main-ratio +0.05
+xrwm map normal Super bracketleft stack-ratio -0.05
+xrwm map normal Super bracketright stack-ratio +0.05
 
+# ===========================================================================
+# 3. Window Navigation & Geometry (Directional Arrow Keys)
+# ===========================================================================
+
+# Focus Navigation (Super + Arrow Keys / Vim HJKL)
+xrwm map normal Super Left focus-view left
+xrwm map normal Super Right focus-view right
+xrwm map normal Super Up focus-view previous
+xrwm map normal Super Down focus-view next
 xrwm map normal Super H focus-view left
 xrwm map normal Super J focus-view next
 xrwm map normal Super K focus-view previous
 xrwm map normal Super L focus-view right
 
-xrwm map normal Super Up focus-view previous
-xrwm map normal Super Down focus-view next
-
+# Window Swapping (Super + Shift + Arrow Keys / Vim HJKL)
+xrwm map normal "Super+Shift" Left swap left
+xrwm map normal "Super+Shift" Right swap right
+xrwm map normal "Super+Shift" Up swap up
+xrwm map normal "Super+Shift" Down swap down
 xrwm map normal "Super+Shift" H swap left
 xrwm map normal "Super+Shift" J swap down
 xrwm map normal "Super+Shift" K swap up
 xrwm map normal "Super+Shift" L swap right
 
-xrwm map normal "Super+Shift" Up swap up
-xrwm map normal "Super+Shift" Down swap down
-xrwm map normal "Super+Shift" Left swap left
-xrwm map normal "Super+Shift" Right swap right
-
-# ---------------------------------------------------------------------------
-# Multi-Monitor Output Management
-# ---------------------------------------------------------------------------
-
-xrwm map normal Super Period focus-output next
-xrwm map normal Super Comma focus-output previous
-xrwm map normal "Super+Shift" Period send-to-output next
-xrwm map normal "Super+Shift" Comma send-to-output previous
-
-# ---------------------------------------------------------------------------
-# Floating Window Control (Translate & Snap)
-# ---------------------------------------------------------------------------
-
-# Keyboard Translation (Super + Control + HJKL)
-xrwm map normal "Super+Control" H move left 50
-xrwm map normal "Super+Control" J move down 50
-xrwm map normal "Super+Control" K move up 50
-xrwm map normal "Super+Control" L move right 50
-
-# Half-Screen Snap (Super + Alt + Arrow keys)
+# Half-Screen Snap (Super + Alt + Arrow Keys)
 xrwm map normal "Super+Alt" Left snap left
 xrwm map normal "Super+Alt" Right snap right
 xrwm map normal "Super+Alt" Up snap up
 xrwm map normal "Super+Alt" Down snap down
 
-# ---------------------------------------------------------------------------
-# Layout Direction & Ratios (Instant response)
-# ---------------------------------------------------------------------------
+# Floating Window Translate 50px (Super + Control + Arrow Keys)
+xrwm map normal "Super+Control" Left move left 50
+xrwm map normal "Super+Control" Right move right 50
+xrwm map normal "Super+Control" Up move up 50
+xrwm map normal "Super+Control" Down move down 50
 
-xrwm map normal Super Y main-location left
-xrwm map normal Super U main-location top
+# Multi-Monitor Output Management
+xrwm map normal Super Period focus-output next
+xrwm map normal Super Comma focus-output previous
+xrwm map normal "Super+Shift" Period send-to-output next
+xrwm map normal "Super+Shift" Comma send-to-output previous
 
-xrwm map normal Super I main-ratio -0.05
-xrwm map normal Super O main-ratio +0.05
-xrwm map normal Super Left main-ratio -0.05
-xrwm map normal Super Right main-ratio +0.05
-xrwm map normal Super bracketleft stack-ratio -0.05
-xrwm map normal Super bracketright stack-ratio +0.05
+# ===========================================================================
+# 4. Pop-up Menus & Selectors (Super + Control + Key)
+# ===========================================================================
 
-# ---------------------------------------------------------------------------
-# Workspace Tags (1 - 9)
-# ---------------------------------------------------------------------------
+# Network Menu
+xrwm map normal "Super+Control" N spawn arch-net-menu
+
+# Wallpaper Menu
+xrwm map normal "Super+Control" W spawn arch-wallpaper-menu
+
+# Clipboard History Menu
+xrwm map normal "Super+Control" V spawn arch-clip-menu
+
+# Recording & Streaming Options Menu
+xrwm map normal "Super+Control" G spawn arch-rec-menu
+
+# Title History & Input Menu
+xrwm map normal "Super+Control" T spawn arch-overlay-title edit
+
+# ===========================================================================
+# 5. On-Screen Overlay HUD Suite (Super + Alt + Key)
+# ===========================================================================
+
+# Keys Overlay (K = Keystrokes)
+xrwm map normal "Super+Alt" K spawn arch-overlay-keys toggle
+
+# Camera PIP Overlay (V = Video / Camera)
+xrwm map normal "Super+Alt" V spawn arch-overlay-camera toggle
+
+# Captions Overlay (C = Captions)
+xrwm map normal "Super+Alt" C spawn arch-overlay-captions toggle
+
+# Title Overlay (T = Title)
+xrwm map normal "Super+Alt" T spawn arch-overlay-title toggle
+
+# ===========================================================================
+# 6. Screen Recording & Live Streaming (G = Grab / Record / Stream)
+# ===========================================================================
+
+# Screen Recording via Portal
+xrwm map normal Super G spawn arch-cap-rec toggle
+
+# Live Stream Push via Portal
+xrwm map normal "Super+Shift" G spawn arch-live-push toggle
+
+# ===========================================================================
+# 7. Title HUD Direct Actions (T)
+# ===========================================================================
+
+xrwm map normal Super T spawn arch-overlay-title edit
+xrwm map normal "Super+Shift" T spawn arch-overlay-title clear
+
+# ===========================================================================
+# 8. Workspace Tags (1 - 9, 0, Tab)
+# ===========================================================================
 
 for i in $(seq 1 9); do
 	tags=$((1 << (i - 1)))
@@ -113,69 +161,55 @@ for i in $(seq 1 9); do
 	xrwm map normal "Super+Shift" "$i" set-view-tags "$tags"
 done
 
-# Quick tag toggle (Super + Tab)
+# Quick Tag Toggle (Super + Tab)
 xrwm map normal Super Tab focus-previous-tags
 xrwm map normal "Super+Shift" Tab send-to-previous-tags
 
-# View all tags (Super + =)
+# View All Tags (Super + =)
 xrwm map normal Super equal set-focused-tags 511
 
-# Pin window to all tags (Super + -)
+# Pin Window to All Tags (Super + -)
 xrwm map normal Super minus set-view-tags 511
 
-# Scratchpad drawer (Tag 32, mask 2147483648)
+# Scratchpad Tag 32 (Super + 0)
 xrwm map normal Super 0 toggle-focused-tags 2147483648
-xrwm map normal "Alt" Space toggle-focused-tags 2147483648
 xrwm map normal "Super+Shift" 0 set-view-tags 2147483648
 
-# ---------------------------------------------------------------------------
-# Pointer Bindings (Mouse)
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# 9. Pointer Bindings (Mouse)
+# ===========================================================================
 
 xrwm map-pointer normal Super BTN_LEFT move-view
 xrwm map-pointer normal Super BTN_RIGHT resize-view
 xrwm map-pointer normal Super BTN_MIDDLE toggle-float
 
-# ---------------------------------------------------------------------------
-# Hardware & Multimedia Controls
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# 10. Hardware, Multimedia & Screenshots
+# ===========================================================================
 
-# Screen locker and power management
+# Screen Locker & Power Menu
 xrwm map normal Super Escape spawn hyprlock
 xrwm map normal "Super+Shift" Escape spawn arch-power-menu
 
-# Screenshots & Annotation (River-era matrix with Tensaku integration)
+# Screenshots (Print family)
 xrwm map normal None Print spawn arch-cap-area
-xrwm map normal "Super+Shift" S spawn arch-cap-edit
-xrwm map normal Super Print spawn arch-cap-menu
 xrwm map normal Shift Print spawn arch-cap-full
+xrwm map normal Super Print spawn arch-cap-menu
+xrwm map normal "Super+Shift" S spawn arch-cap-edit
 xrwm map normal "Super+Shift" Print spawn arch-cap-color
 xrwm map normal Control Print spawn arch-cap-preview
 
-# Screen Recording & Live Streaming
-xrwm map normal Super G spawn arch-cap-rec toggle
-xrwm map normal "Super+Alt" G spawn arch-cap-rec area
-xrwm map normal "Super+Shift" G spawn arch-live-push toggle
-xrwm map normal "Super+Control" G spawn arch-rec-menu
-
-# On-Screen HUD Overlays (Recording & Streaming)
-xrwm map normal Super T spawn arch-overlay-title edit
-xrwm map normal "Super+Shift" T spawn arch-overlay-title clear
-xrwm map normal "Super+Alt" K spawn arch-overlay-keys toggle
-xrwm map normal "Super+Alt" V spawn arch-overlay-camera toggle
-xrwm map normal "Super+Control" V spawn arch-overlay-camera select
-
-# Volume control via PipeWire wpctl
+# Volume Controls via PipeWire
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+
 xrwm map normal None XF86AudioLowerVolume spawn wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
 xrwm map normal None XF86AudioMute spawn wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 xrwm map normal None XF86AudioMicMute spawn wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 
-# Backlight control via brightnessctl
+# Backlight Controls via brightnessctl
 xrwm map normal None XF86MonBrightnessUp spawn brightnessctl set +5%
 xrwm map normal None XF86MonBrightnessDown spawn brightnessctl set 5%-
 
-# Media playback controls
+# Media Playback Controls
 xrwm map normal None XF86AudioPlay spawn playerctl play-pause
 xrwm map normal None XF86AudioNext spawn playerctl next
 xrwm map normal None XF86AudioPrev spawn playerctl previous
