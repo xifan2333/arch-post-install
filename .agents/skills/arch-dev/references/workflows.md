@@ -7,7 +7,7 @@ This repo uses **hk** for fast staged-file checks. Config is in
 
 `pre-commit` runs in parallel on **staged files only** and auto-fixes + re-stages
 files that fail a read-only check (`check_first`), so commits stay fast and
-validate Python, Shell, Lua, TOML, JSON, YAML, and QML files automatically at
+validate Python, Shell, Lua, TOML, JSON, and YAML files automatically at
 commit time. Unstaged changes are stashed (`stash = "git"`) while fixes apply
 and restored afterwards, so partially staged edits are never swept into the
 commit. `fail_fast = false` keeps every step independent. Bypass hooks for one
@@ -24,7 +24,6 @@ Coverage:
 | `*.{json,jsonc,yaml,yml}`  | Builtins.prettier |
 | `*.zsh`                    | zsh -n + shfmt (CommandSpec)        |
 | `*.js`                     | oxlint (CommandSpec) |
-| `*.qml`                    | qmllint (CommandSpec) |
 
 Shellcheck and shfmt match shell scripts via shebang detection (`types: sh, bash`).
 Indentation is governed by `.editorconfig` (indent_size = 4 for `*.sh`); no `-i`

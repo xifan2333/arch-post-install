@@ -26,7 +26,7 @@
 "pacman:imagemagick" = "latest"
 "pacman:satty" = "latest"
 "aur:wayscrollshot-bin" = "latest"
-"pacman:python-evdev" = "latest"
+"aur:wayhud-bin" = "latest"
 "pacman:wlr-randr" = "latest"
 "pacman:wlopm" = "latest"
 "pacman:brightnessctl" = "latest"
