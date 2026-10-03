@@ -1,367 +1,74 @@
-#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Key HUD floating application showing recent keystrokes via evdev
+#!/usr/bin/env bash
+# arch:summary=Toggle on-screen key HUD using native wayhud
 # arch:args=[toggle | start | stop | status]
 # arch:examples=arch overlay keys | arch overlay keys toggle
-"""Key HUD floating GTK application for screencasting and live streams."""
+set -euo pipefail
 
-from __future__ import annotations
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wayhud"
+PID_FILE="$RUNTIME_DIR/keys.pid"
 
-import contextlib
-import os
-import queue
-import select
-import signal
-import subprocess
-import sys
-import threading
-import time
-from pathlib import Path
-
-import cairo
-import gi
-
-gi.require_version("Gtk", "3.0")
-gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, GLib, Gtk  # noqa: E402
-
-try:
-    from evdev import InputDevice, ecodes, list_devices
-except ImportError:
-    InputDevice = None  # type: ignore[assignment,misc]
-
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
-
-KEY_NAMES = {
-    "KEY_LEFTCTRL": "Ctrl",
-    "KEY_RIGHTCTRL": "Ctrl",
-    "KEY_LEFTALT": "Alt",
-    "KEY_RIGHTALT": "Alt",
-    "KEY_LEFTSHIFT": "Shift",
-    "KEY_RIGHTSHIFT": "Shift",
-    "KEY_LEFTMETA": "Super",
-    "KEY_RIGHTMETA": "Super",
-    "KEY_SPACE": "Space",
-    "KEY_ENTER": "Enter",
-    "KEY_BACKSPACE": "Backspace",
-    "KEY_ESC": "Esc",
-    "KEY_TAB": "Tab",
-    "KEY_UP": "↑",
-    "KEY_DOWN": "↓",
-    "KEY_LEFT": "←",
-    "KEY_RIGHT": "→",
-    "KEY_MINUS": "-",
-    "KEY_EQUAL": "=",
-    "KEY_SLASH": "/",
-    "KEY_BACKSLASH": "\\",
-    "KEY_DOT": ".",
-    "KEY_COMMA": ",",
-    "KEY_SEMICOLON": ";",
-    "KEY_APOSTROPHE": "'",
-    "KEY_GRAVE": "`",
-    "KEY_LEFTBRACE": "[",
-    "KEY_RIGHTBRACE": "]",
+is_running() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	pgrep -f "wayhud.*(-n keys|$)" >/dev/null 2>&1
 }
 
-MOD_KEYS = {
-    "KEY_LEFTCTRL",
-    "KEY_RIGHTCTRL",
-    "KEY_LEFTALT",
-    "KEY_RIGHTALT",
-    "KEY_LEFTSHIFT",
-    "KEY_RIGHTSHIFT",
-    "KEY_LEFTMETA",
-    "KEY_RIGHTMETA",
+stop_keys() {
+	if [[ -f "$PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			kill -TERM "$pid" 2>/dev/null || true
+		fi
+		rm -f "$PID_FILE"
+	fi
+	pkill -f "wayhud.*(-n keys|$)" 2>/dev/null || true
 }
 
+start_keys() {
+	if ! command -v wayhud >/dev/null 2>&1; then
+		echo "Error: wayhud is not installed" >&2
+		exit 1
+	fi
 
-def get_theme_colors() -> dict[str, str]:
-    colors = {
-        "background": "#1a1b26",
-        "foreground": "#cfc9c2",
-        "accent": "#7aa2f7",
-    }
-    colors_file = STATE_DIR / "theme/colors.toml"
-    if colors_file.is_file():
-        with contextlib.suppress(OSError):
-            for line in colors_file.read_text(encoding="utf-8").splitlines():
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip('"').strip("'")
-                    if k in colors:
-                        colors[k] = v
-    return colors
+	stop_keys
+	mkdir -p "$RUNTIME_DIR"
 
+	nohup wayhud -n keys >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$PID_FILE"
+}
 
-def pretty_key(code: str) -> str:
-    if code in KEY_NAMES:
-        return KEY_NAMES[code]
-    if code.startswith("KEY_"):
-        name = code[4:]
-        if len(name) == 1:
-            return name
-        return name.capitalize()
-    return code
+action="${1:-toggle}"
 
-
-class KeyReader(threading.Thread):
-    def __init__(self, key_queue: queue.Queue[str]) -> None:
-        super().__init__(daemon=True)
-        self.key_queue = key_queue
-        self.running = True
-
-    def run(self) -> None:
-        if not InputDevice:
-            return
-
-        devices: list[InputDevice] = []  # type: ignore[valid-type]
-        for path in list_devices():
-            try:
-                dev = InputDevice(path)
-                caps = dev.capabilities()
-                if ecodes.EV_KEY in caps:
-                    keys = caps[ecodes.EV_KEY]
-                    if ecodes.KEY_A in keys or ecodes.KEY_SPACE in keys:
-                        devices.append(dev)
-            except (PermissionError, OSError):
-                continue
-
-        if not devices:
-            return
-
-        active_mods: set[str] = set()
-        dev_map = {dev.fd: dev for dev in devices}
-
-        while self.running:
-            try:
-                r, _, _ = select.select(list(dev_map.keys()), [], [], 0.5)
-            except (ValueError, OSError):
-                break
-
-            for fd in r:
-                dev = dev_map.get(fd)
-                if not dev:
-                    continue
-                try:
-                    for event in dev.read():
-                        if event.type != ecodes.EV_KEY:
-                            continue
-                        code = ecodes.KEY.get(event.code, "")
-                        if not code:
-                            continue
-
-                        if code in MOD_KEYS:
-                            if event.value == 1:
-                                active_mods.add(code)
-                            elif event.value == 0:
-                                active_mods.discard(code)
-                            continue
-
-                        if event.value in (1, 2):
-                            parts: list[str] = []
-                            for m in [
-                                "KEY_LEFTCTRL",
-                                "KEY_RIGHTCTRL",
-                                "KEY_LEFTALT",
-                                "KEY_RIGHTALT",
-                                "KEY_LEFTMETA",
-                                "KEY_RIGHTMETA",
-                                "KEY_LEFTSHIFT",
-                                "KEY_RIGHTSHIFT",
-                            ]:
-                                if m in active_mods and pretty_key(m) not in parts:
-                                    parts.append(pretty_key(m))
-
-                            main_part = pretty_key(code)
-                            parts.append(main_part)
-                            combo = " + ".join(parts)
-                            self.key_queue.put(combo)
-                except OSError:
-                    continue
-
-
-class KeysApp(Gtk.Window):
-    def __init__(self) -> None:
-        super().__init__(type=Gtk.WindowType.TOPLEVEL)
-        self.key_queue: queue.Queue[str] = queue.Queue()
-        self.last_press = 0.0
-        self.reader: KeyReader | None = None
-        self.font_size = 20
-
-        self.set_title("arch-overlay-keys")
-        self.set_decorated(False)
-        self.set_resizable(True)
-        self.set_default_size(240, 60)
-        self.set_app_paintable(True)
-
-        screen = self.get_screen()
-        visual = screen.get_rgba_visual()
-        if visual:
-            self.set_visual(visual)
-
-        self.add_events(
-            Gdk.EventMask.BUTTON_PRESS_MASK
-            | Gdk.EventMask.BUTTON_RELEASE_MASK
-            | Gdk.EventMask.POINTER_MOTION_MASK
-        )
-
-        self.connect("draw", self.on_draw)
-        self.connect("size-allocate", self.on_size_allocate)
-        self.connect("button-press-event", self.on_button_press)
-        self.connect("destroy", self.on_destroy)
-
-        self.pill_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        self.pill_box.get_style_context().add_class("key-pill")
-
-        self.label = Gtk.Label(label="按键监听已就绪")
-        self.label.get_style_context().add_class("key-label")
-        self.pill_box.pack_start(self.label, True, True, 0)
-        self.add(self.pill_box)
-
-        theme = get_theme_colors()
-        accent = theme.get("accent", "#7aa2f7")
-        fg = theme.get("foreground", "#cfc9c2")
-        self.css_provider = Gtk.CssProvider()
-        self.update_css(accent, fg)
-
-        Gtk.StyleContext.add_provider_for_screen(
-            screen, self.css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
-
-        self.show_all()
-
-        self.reader = KeyReader(self.key_queue)
-        self.reader.start()
-
-        GLib.timeout_add(40, self.poll_keys)
-
-    def on_draw(self, _widget: Gtk.Widget, cr: cairo.Context) -> bool:
-        cr.set_source_rgba(0, 0, 0, 0)
-        cr.set_operator(cairo.OPERATOR_SOURCE)
-        cr.paint()
-        return False
-
-    def on_size_allocate(self, _widget: Gtk.Widget, allocation: Gdk.Rectangle) -> None:
-        if allocation.height > 20:
-            target_size = max(12, min(64, int(allocation.height * 0.38)))
-            if target_size != self.font_size:
-                self.font_size = target_size
-                theme = get_theme_colors()
-                self.update_css(
-                    theme.get("accent", "#7aa2f7"),
-                    theme.get("foreground", "#cfc9c2"),
-                )
-
-        alloc = self.pill_box.get_allocation()
-        if alloc.width > 0 and alloc.height > 0:
-            rect = cairo.RectangleInt(alloc.x, alloc.y, alloc.width, alloc.height)
-            self.input_shape_combine_region(cairo.Region(rect))
-
-    def update_css(self, accent: str, fg: str) -> None:
-        css = f"""
-        window {{
-            background-color: transparent;
-            background: transparent;
-        }}
-        .key-pill {{
-            background: rgba(0, 0, 0, 0.78);
-            border-radius: 8px;
-            padding: 8px 16px;
-            border: 1.5px solid {accent};
-        }}
-        .key-label {{
-            color: {fg};
-            font-family: monospace;
-            font-size: {self.font_size}px;
-            font-weight: bold;
-        }}
-        """.encode()
-        self.css_provider.load_from_data(css)
-
-    def on_button_press(self, _widget: Gtk.Widget, event: Gdk.EventButton) -> bool:
-        if event.button == 1:
-            self.begin_move_drag(
-                event.button, int(event.x_root), int(event.y_root), event.time
-            )
-            return True
-        return False
-
-    def poll_keys(self) -> bool:
-        updated = False
-        while not self.key_queue.empty():
-            combo = self.key_queue.get_nowait()
-            self.label.set_text(combo)
-            self.last_press = time.time()
-            updated = True
-
-        if updated:
-            self.set_opacity(1.0)
-        else:
-            elapsed = time.time() - self.last_press
-            if self.last_press > 0:
-                if elapsed > 2.5:
-                    self.set_opacity(0.15)
-                elif elapsed > 1.8:
-                    alpha = max(0.15, (2.5 - elapsed) / 0.7)
-                    self.set_opacity(alpha)
-
-        return True
-
-    def on_destroy(self, _widget: Gtk.Widget) -> None:
-        if self.reader:
-            self.reader.running = False
-        if Gtk.main_level() > 0:
-            Gtk.main_quit()
-
-
-def find_running_pids() -> list[int]:
-    try:
-        out = subprocess.check_output(["pgrep", "-f", "arch-overlay-keys"], text=True)
-        my_pid = os.getpid()
-        return [
-            int(p.strip())
-            for p in out.splitlines()
-            if p.strip() and int(p.strip()) != my_pid
-        ]
-    except (subprocess.CalledProcessError, ValueError):
-        return []
-
-
-def cmd_toggle() -> None:
-    pids = find_running_pids()
-    if pids:
-        for p in pids:
-            with contextlib.suppress(OSError):
-                os.kill(p, signal.SIGTERM)
-    else:
-        subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve())],
-            start_new_session=True,
-        )
-
-
-def main() -> None:
-    GLib.set_prgname("arch-overlay-keys")
-
-    action = sys.argv[1] if len(sys.argv) > 1 else ""
-    if action == "toggle":
-        cmd_toggle()
-        return
-    if action in ("stop", "hide", "close"):
-        for p in find_running_pids():
-            with contextlib.suppress(OSError):
-                os.kill(p, signal.SIGTERM)
-        return
-    if action in ("status", "state"):
-        print("open" if find_running_pids() else "closed")
-        return
-
-    signal.signal(signal.SIGINT, lambda _s, _f: Gtk.main_quit())
-    signal.signal(signal.SIGTERM, lambda _s, _f: Gtk.main_quit())
-
-    _app = KeysApp()
-    Gtk.main()
-
-
-if __name__ == "__main__":
-    main()
+case "$action" in
+start)
+	start_keys
+	;;
+stop | close | hide | kill)
+	stop_keys
+	;;
+status | state)
+	if is_running; then
+		echo "open"
+	else
+		echo "closed"
+	fi
+	;;
+toggle)
+	if is_running; then
+		stop_keys
+	else
+		start_keys
+	fi
+	;;
+*)
+	echo "Usage: arch-overlay-keys [toggle | start | stop | status]" >&2
+	exit 1
+	;;
+esac
