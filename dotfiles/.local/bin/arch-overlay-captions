@@ -47,32 +47,20 @@ except ImportError:
     GLib = None
 
 
-def extract_clean_text(raw: object) -> str:
-    if not raw:
+def parse_dbus_result(payload: str) -> str:
+    """Parse vinput RecognitionResult payload: extract commit_text."""
+    if not payload:
         return ""
-    text = str(raw).strip()
-    if text.startswith("{") and text.endswith("}"):
-        with contextlib.suppress(json.JSONDecodeError):
-            data = json.loads(text)
-            if isinstance(data, dict):
-                val = (
-                    data.get("commit_text") or data.get("text") or data.get("sentence")
-                )
-                if (
-                    not val
-                    and isinstance(data.get("candidates"), list)
-                    and data["candidates"]
-                ):
-                    candidate = data["candidates"][0]
-                    if isinstance(candidate, dict):
-                        val = candidate.get("text")
-                if val:
-                    text = str(val)
-    return text.replace("\r", "").replace("\n", "").strip()
+    if payload.startswith("{") and payload.endswith("}"):
+        with contextlib.suppress(json.JSONDecodeError, KeyError):
+            data = json.loads(payload)
+            if isinstance(data, dict) and "commit_text" in data:
+                return str(data["commit_text"]).strip()
+    return payload.strip()
 
 
 def sanitize_caption(text: str) -> str:
-    return extract_clean_text(text)
+    return str(text or "").replace("\r", "").replace("\n", "").strip()
 
 
 def truncate_caption(text: str, max_chars: int) -> str:
@@ -225,13 +213,7 @@ class ProviderSession:
             except json.JSONDecodeError:
                 continue
             typ = event.get("type")
-            raw_text = (
-                event.get("commit_text")
-                or event.get("text")
-                or event.get("sentence")
-                or ""
-            )
-            text = extract_clean_text(raw_text)
+            text = str(event.get("text") or "").strip()
             if typ in ("partial", "final", "final_timestamps") and text:
                 self.events.put((typ, text))
 
@@ -363,16 +345,15 @@ class CaptionsDaemon:
                 signal_name: str,
                 parameters: GLib.Variant,
             ) -> None:
-                if signal_name in ("RecognitionPartial", "RecognitionResult"):
-                    raw = parameters.unpack()[0] if parameters else ""
-                    text = extract_clean_text(raw)
+                if signal_name == "RecognitionPartial":
+                    text = parameters.unpack()[0] if parameters else ""
                     if text:
-                        typ = (
-                            "partial"
-                            if signal_name == "RecognitionPartial"
-                            else "final"
-                        )
-                        self.events.put((typ, text))
+                        self.events.put(("partial", text.strip()))
+                elif signal_name == "RecognitionResult":
+                    raw = parameters.unpack()[0] if parameters else ""
+                    commit = parse_dbus_result(raw)
+                    if commit:
+                        self.events.put(("final", commit))
 
             conn.signal_subscribe(
                 VINPUT_BUS_NAME,
