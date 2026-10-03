@@ -504,7 +504,7 @@ def cmd_stop() -> int:
 
     # Clean up wayhud captions if left orphaned
     subprocess.run(
-        ["pkill", "-f", "wayhud.*(-n captions|$)"],
+        ["pkill", "-f", "wayhud[[:space:]]+-n[[:space:]]+captions\\b"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         check=False,
