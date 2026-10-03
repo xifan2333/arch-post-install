@@ -32,7 +32,6 @@ is_powered=$(awk -F': ' '/Powered:/ {print $2; exit}' <<<"$controller_info")
 prompt_text="$(arch-i18n get blue_prompt)"
 power_on_text="$(arch-i18n get blue_power_on)"
 power_off_text="$(arch-i18n get blue_power_off)"
-rescan_text="$(arch-i18n get blue_rescan)"
 
 # 4. Handle powered-off state
 if [[ "$is_powered" != "yes" ]]; then
@@ -45,83 +44,113 @@ if [[ "$is_powered" != "yes" ]]; then
 	exit 0
 fi
 
-# 5. Query device categories
-connected_raw=$(bluetoothctl devices Connected 2>/dev/null || true)
-paired_raw=$(bluetoothctl devices Paired 2>/dev/null || true)
-all_raw=$(bluetoothctl devices 2>/dev/null || true)
-
-# 6. Build action header
-actions=()
-if [[ -n "$connected_raw" ]]; then
-	while read -r _ mac dev_name; do
-		[[ -n "$mac" ]] || continue
-		actions+=("$(arch-i18n get blue_disconnect "dev=$dev_name")")
-	done <<<"$connected_raw"
-fi
-actions+=("$rescan_text")
-actions+=("$power_off_text")
-
-# 7. Build device list items
 tag_connected="$(arch-i18n get blue_tag_connected)"
 tag_paired="$(arch-i18n get blue_tag_paired)"
 tag_available="$(arch-i18n get blue_tag_available)"
 
-devices_input=""
-seen_macs=" "
+# 5. Continuous streaming generator: instant header + live discovery feed
+stream_menu_entries() {
+	local connected_raw paired_raw all_raw
+	connected_raw=$(bluetoothctl devices Connected 2>/dev/null || true)
+	paired_raw=$(bluetoothctl devices Paired 2>/dev/null || true)
+	all_raw=$(bluetoothctl devices 2>/dev/null || true)
 
-# Add connected devices
-if [[ -n "$connected_raw" ]]; then
-	while read -r _ mac dev_name; do
-		[[ -n "$mac" ]] || continue
-		devices_input+=$'* '"$tag_connected $dev_name ($mac)"$'\n'
-		seen_macs+="$mac "
-	done <<<"$connected_raw"
-fi
+	local seen_macs=" "
 
-# Add paired but disconnected devices
-if [[ -n "$paired_raw" ]]; then
-	while read -r _ mac dev_name; do
+	# Action: Disconnect currently active devices
+	if [[ -n "$connected_raw" ]]; then
+		while read -r _ mac dev_name; do
+			[[ -n "$mac" ]] || continue
+			printf '  %s\n' "$(arch-i18n get blue_disconnect "dev=$dev_name")"
+		done <<<"$connected_raw"
+	fi
+
+	# Action: Power off
+	printf '  %s\n' "$power_off_text"
+
+	# Instant List: Connected devices
+	if [[ -n "$connected_raw" ]]; then
+		while read -r _ mac dev_name; do
+			[[ -n "$mac" ]] || continue
+			printf '* %s %s (%s)\n' "$tag_connected" "$dev_name" "$mac"
+			seen_macs+="$mac "
+		done <<<"$connected_raw"
+	fi
+
+	# Instant List: Paired but disconnected devices
+	if [[ -n "$paired_raw" ]]; then
+		while read -r _ mac dev_name; do
+			[[ -n "$mac" ]] || continue
+			[[ "$seen_macs" == *" $mac "* ]] && continue
+			printf '  %s %s (%s)\n' "$tag_paired" "$dev_name" "$mac"
+			seen_macs+="$mac "
+		done <<<"$paired_raw"
+	fi
+
+	# Instant List: Previously discovered devices with real names
+	if [[ -n "$all_raw" ]]; then
+		while read -r _ mac dev_name; do
+			[[ -n "$mac" ]] || continue
+			[[ "$seen_macs" == *" $mac "* ]] && continue
+			[[ -z "$dev_name" || "$dev_name" =~ ^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$ ]] && continue
+			printf '  %s %s (%s)\n' "$tag_available" "$dev_name" "$mac"
+			seen_macs+="$mac "
+		done <<<"$all_raw"
+	fi
+
+	# Asynchronous Live Discovery: continuously stream into Fuzzel
+	coproc BT { bluetoothctl 2>/dev/null; }
+	# shellcheck disable=SC2153
+	local bt_pid="$BT_PID"
+
+	# shellcheck disable=SC2329
+	cleanup_scan() {
+		if [[ -n "$bt_pid" ]] && kill -0 "$bt_pid" 2>/dev/null; then
+			printf 'scan off\nexit\n' >&"${BT[1]}" || true
+			kill "$bt_pid" 2>/dev/null || true
+		fi
+	}
+	trap cleanup_scan EXIT
+
+	printf 'scan on\n' >&"${BT[1]}" || true
+
+	while IFS= read -r -u "${BT[0]}" raw_line; do
+		local line
+		line=$(sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' <<<"$raw_line")
+
+		local mac="" name=""
+		if [[ "$line" =~ \[NEW\][[:space:]]+Device[[:space:]]+([0-9A-Fa-f:]{17})[[:space:]]+(.*) ]]; then
+			mac="${BASH_REMATCH[1]}"
+			name="${BASH_REMATCH[2]}"
+		elif [[ "$line" =~ \[CHG\][[:space:]]+Device[[:space:]]+([0-9A-Fa-f:]{17})[[:space:]]+Name:[[:space:]]+(.*) ]]; then
+			mac="${BASH_REMATCH[1]}"
+			name="${BASH_REMATCH[2]}"
+		fi
+
 		[[ -n "$mac" ]] || continue
 		[[ "$seen_macs" == *" $mac "* ]] && continue
-		devices_input+=$'  '"$tag_paired $dev_name ($mac)"$'\n'
+		# Filter out nameless BLE beacon aliases
+		[[ -z "$name" || "$name" =~ ^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$ ]] && continue
+
+		printf '  %s %s (%s)\n' "$tag_available" "$name" "$mac"
 		seen_macs+="$mac "
-	done <<<"$paired_raw"
-fi
+	done
+}
 
-# Add discovered new devices
-if [[ -n "$all_raw" ]]; then
-	while read -r _ mac dev_name; do
-		[[ -n "$mac" ]] || continue
-		[[ "$seen_macs" == *" $mac "* ]] && continue
-		# Skip nameless BLE beacons where name is missing or dummy MAC alias
-		[[ -z "$dev_name" || "$dev_name" =~ ^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$ ]] && continue
-		devices_input+=$'  '"$tag_available $dev_name ($mac)"$'\n'
-		seen_macs+="$mac "
-	done <<<"$all_raw"
-fi
-
-# 8. Display menu in fuzzel
-menu_input=""
-for a in "${actions[@]}"; do
-	menu_input+="  $a"$'\n'
-done
-menu_input+="$devices_input"
-
-chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
+# 6. Stream entries into Fuzzel dmenu
+chosen=$(stream_menu_entries | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
 [[ -z "$chosen" ]] && exit 0
 
 action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
 
-# 9. Handle action header items
+# 7. Handle action header items
 if [[ "$action_chosen" == "$power_off_text" ]]; then
 	bluetoothctl power off >/dev/null 2>&1
 	exit 0
-elif [[ "$action_chosen" == "$rescan_text" ]]; then
-	bluetoothctl --timeout 4 scan on >/dev/null 2>&1 || true
-	exec "$0"
 fi
 
-# Check if user clicked disconnect action
+# Check if user clicked a disconnect action
+connected_raw=$(bluetoothctl devices Connected 2>/dev/null || true)
 if [[ -n "$connected_raw" ]]; then
 	while read -r _ mac dev_name; do
 		[[ -n "$mac" ]] || continue
@@ -134,22 +163,22 @@ if [[ -n "$connected_raw" ]]; then
 	done <<<"$connected_raw"
 fi
 
-# 10. Handle device click (connect / disconnect)
+# 8. Handle device click (connect / disconnect)
 mac=$(grep -o -E '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' <<<"$chosen" || true)
 [[ -z "$mac" ]] && exit 0
 
-# Extract human-readable device name from chosen line
 dev_name=$(sed -E 's/^[ *]*\[[^]]+\][[:space:]]+//; s/[[:space:]]+\([0-9A-Fa-f:]+\)$//' <<<"$chosen")
 [[ -n "$dev_name" ]] || dev_name="$mac"
 
-# If device is already connected, disconnect it
+# If already connected, disconnect
 if [[ -n "$connected_raw" ]] && grep -q -F "$mac" <<<"$connected_raw"; then
 	bluetoothctl disconnect "$mac" >/dev/null 2>&1 || true
 	notify "$(arch-i18n get blue_disconnected "dev=$dev_name")"
 	exit 0
 fi
 
-# If device is already paired, connect directly
+# If already paired, connect directly
+paired_raw=$(bluetoothctl devices Paired 2>/dev/null || true)
 if [[ -n "$paired_raw" ]] && grep -q -F "$mac" <<<"$paired_raw"; then
 	if bluetoothctl connect "$mac" >/dev/null 2>&1; then
 		notify "$(arch-i18n get blue_connected "dev=$dev_name")"
@@ -159,7 +188,7 @@ if [[ -n "$paired_raw" ]] && grep -q -F "$mac" <<<"$paired_raw"; then
 	exit 0
 fi
 
-# Otherwise, pair + trust + connect new device
+# Otherwise, pair + trust + connect newly discovered device
 bluetoothctl pair "$mac" >/dev/null 2>&1 || true
 bluetoothctl trust "$mac" >/dev/null 2>&1 || true
 if bluetoothctl connect "$mac" >/dev/null 2>&1; then
