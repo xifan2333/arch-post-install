@@ -1,0 +1,396 @@
+#!/usr/bin/env bash
+# arch:summary=Manage, capture screenshots, record video, OCR, or pick colors on screen
+# arch:args=[menu | area | full | edit | ocr | color | preview | scroll | rec [full|area|stop|toggle|status]]
+# arch:examples=arch cap | arch cap area | arch cap rec toggle | arch cap ocr
+set -euo pipefail
+
+save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
+mkdir -p "$save_dir"
+
+# ==================== Helpers ====================
+dmenu_exec() {
+	local prompt="$1"
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt"
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt"
+	else
+		head -n 1
+	fi
+}
+
+# ==================== Screenshot Actions ====================
+cap_area() {
+	local filename filepath geometry
+	filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
+	filepath="$save_dir/$filename"
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+	grim -g "$geometry" "$filepath"
+	wl-copy <"$filepath"
+}
+
+cap_full() {
+	local filename filepath
+	filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
+	filepath="$save_dir/$filename"
+	grim "$filepath"
+	wl-copy <"$filepath"
+}
+
+cap_edit() {
+	local output_path geometry
+	output_path="$save_dir/screenshot-$(date +%Y%m%d_%H%M%S).png"
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+	grim -g "$geometry" - | satty --filename - --output-filename "$output_path" --early-exit
+}
+
+cap_color() {
+	if command -v hyprpicker >/dev/null 2>&1; then
+		hyprpicker -a
+	fi
+}
+
+cap_preview() {
+	local geometry
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+	local preview_path="/tmp/screenshot-preview-$$.png"
+	grim -g "$geometry" "$preview_path"
+	wl-copy <"$preview_path"
+	imv "$preview_path" 2>/dev/null &
+	(
+		sleep 60
+		rm -f "$preview_path"
+	) &
+}
+
+cap_scroll() {
+	if ! command -v wayscrollshot >/dev/null 2>&1; then
+		echo "Error: wayscrollshot is not installed" >&2
+		exit 1
+	fi
+	wayscrollshot -c "$@"
+}
+
+cap_ocr() {
+	local tmp_dir img result
+	tmp_dir=$(mktemp -d)
+	img="$tmp_dir/selection.png"
+	result="$tmp_dir/result.json"
+
+	cleanup_ocr() { rm -rf "$tmp_dir"; }
+	trap cleanup_ocr EXIT
+
+	local nbocr
+	nbocr=$(command -v nbocr 2>/dev/null || true)
+	if [[ -z "$nbocr" ]] && command -v mise >/dev/null 2>&1; then
+		local nbocr_root
+		nbocr_root=$(mise where github:zibo-chen/newbee-ocr-cli 2>/dev/null || true)
+		[[ -x "$nbocr_root/nbocr" ]] && nbocr="$nbocr_root/nbocr"
+	fi
+
+	if [[ -z "$nbocr" ]]; then
+		if command -v notify-send >/dev/null 2>&1; then
+			notify-send -u critical "$(arch-i18n get ocr_notify_title)" "$(arch-i18n get ocr_notify_backend_missing)"
+		fi
+		exit 1
+	fi
+
+	local selection
+	selection=$(slurp 2>/dev/null || true)
+	[[ -n "$selection" ]] || exit 0
+
+	grim -g "$selection" "$img" || exit 1
+
+	"$nbocr" recognize "$img" --language zh --format json --output "$result" >/dev/null 2>&1 || exit 1
+
+	local text
+	text=$(jq -r --argjson minimum 0.60 '
+		def median: sort as $sorted
+			| $sorted[(($sorted | length) / 2 | floor)];
+		[.results[] | select(.confidence >= $minimum)] as $items
+		| if ($items | length) == 0 then ""
+		  else ($items | map(.bbox.height) | median) as $height
+		  | (($height * 0.65) | if . < 8 then 8 else . end) as $row_height
+		  | ($items | sort_by(.bbox.y, .bbox.x)) as $sorted
+		  | reduce $sorted[] as $it (
+			  [];
+			  if length == 0 then [[$it]]
+			  elif ($it.bbox.y - (.[-1][0].bbox.y)) <= $row_height then .[-1] += [$it]
+			  else . + [[$it]]
+			  end
+			)
+		  | map(sort_by(.bbox.x) | map(.text) | join(" "))
+		  | join("\n")
+		  end
+	' "$result" 2>/dev/null || true)
+
+	if [[ -n "$text" ]]; then
+		printf '%s' "$text" | wl-copy
+		if command -v notify-send >/dev/null 2>&1; then
+			notify-send "$(arch-i18n get ocr_notify_title)" "$text"
+		fi
+	fi
+}
+
+# ==================== Recording Module ====================
+REC_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screenrecord"
+REC_PID_FILE="$REC_STATE_DIR/pid"
+REC_TARGET_FILE="$REC_STATE_DIR/current_file"
+REC_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
+mkdir -p "$REC_STATE_DIR" "$REC_VIDEOS_DIR"
+
+notify_rec() {
+	local title body
+	title="$(arch-i18n get screenrecord_notify_title)"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -u "${2:-normal}" "$title" "$body"
+	fi
+}
+
+notify_waybar() {
+	pkill -RTMIN+8 waybar 2>/dev/null || true
+}
+
+is_recording() {
+	if [[ -f "$REC_PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$REC_PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	return 1
+}
+
+rec_stop() {
+	if is_recording; then
+		local pid
+		pid="$(cat "$REC_PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]]; then
+			kill -SIGINT "$pid" 2>/dev/null || true
+			local timeout=50
+			while kill -0 "$pid" 2>/dev/null && ((timeout > 0)); do
+				sleep 0.1
+				timeout=$((timeout - 1))
+			done
+		fi
+		rm -f "$REC_PID_FILE"
+		rm -f "$REC_TARGET_FILE"
+		notify_rec "$(arch-i18n get screenrecord_notify_stopped)"
+		notify_waybar
+	fi
+}
+
+rec_start_full() {
+	rec_stop
+	local filename filepath
+	filename="screenrecord-$(date +%Y%m%d_%H%M%S).mp4"
+	filepath="$REC_VIDEOS_DIR/$filename"
+	printf '%s\n' "$filepath" >"$REC_TARGET_FILE"
+
+	gpu-screen-recorder -w screen -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$REC_PID_FILE"
+	notify_rec "$(arch-i18n get screenrecord_notify_started_full)"
+	notify_waybar
+}
+
+rec_start_area() {
+	rec_stop
+	local geometry filename filepath
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+
+	filename="screenrecord-$(date +%Y%m%d_%H%M%S).mp4"
+	filepath="$REC_VIDEOS_DIR/$filename"
+	printf '%s\n' "$filepath" >"$REC_TARGET_FILE"
+
+	gpu-screen-recorder -w "$geometry" -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$REC_PID_FILE"
+	notify_rec "$(arch-i18n get screenrecord_notify_started_area)"
+	notify_waybar
+}
+
+rec_toggle() {
+	if is_recording; then
+		rec_stop
+	else
+		rec_start_full
+	fi
+}
+
+rec_status() {
+	local mode="${1:-text}"
+	local live_active=0
+	if command -v arch-live >/dev/null 2>&1; then
+		[[ "$(arch-live status 2>/dev/null || true)" == "active" ]] && live_active=1
+	fi
+
+	if is_recording; then
+		local pid dur
+		pid="$(cat "$REC_PID_FILE" 2>/dev/null || echo 0)"
+		dur=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]' || echo "0")
+		local mins=$((dur / 60)) secs=$((dur % 60))
+		local dur_fmt
+		dur_fmt=$(printf "%02d:%02d" "$mins" "$secs")
+		if [[ "$mode" == "waybar" || "$mode" == "--waybar" ]]; then
+			printf '{"text":"%s","alt":"recording","class":"recording","tooltip":"Screen Recording: %s"}\n' "$dur_fmt" "$dur_fmt"
+		else
+			printf 'recording (%s)\n' "$dur_fmt"
+		fi
+	elif [[ "$live_active" -eq 1 ]]; then
+		if [[ "$mode" == "waybar" || "$mode" == "--waybar" ]]; then
+			printf '{"text":"LIVE","alt":"live","class":"live","tooltip":"Live Streaming Active"}\n'
+		else
+			printf 'live\n'
+		fi
+	else
+		if [[ "$mode" == "waybar" || "$mode" == "--waybar" ]]; then
+			printf '{"text":"","alt":"idle","class":"idle","tooltip":"Recording Idle"}\n'
+		else
+			printf 'idle\n'
+		fi
+	fi
+}
+
+rec_menu() {
+	local opt_full opt_area opt_stop opt_live_toggle opt_live_stop opt_live_config
+	opt_full="$(arch-i18n get rec_menu_full)"
+	opt_area="$(arch-i18n get rec_menu_area)"
+	opt_stop="$(arch-i18n get rec_menu_stop)"
+	opt_live_toggle="$(arch-i18n get rec_menu_live_toggle)"
+	opt_live_stop="$(arch-i18n get rec_menu_live_stop)"
+	opt_live_config="$(arch-i18n get rec_menu_live_config)"
+
+	local menu_items=()
+	if is_recording; then
+		menu_items+=("$opt_stop")
+	else
+		menu_items+=("$opt_full" "$opt_area")
+	fi
+
+	local live_active=0
+	if command -v arch-live >/dev/null 2>&1; then
+		[[ "$(arch-live status 2>/dev/null || true)" == "active" ]] && live_active=1
+	fi
+
+	if [[ "$live_active" -eq 1 ]]; then
+		menu_items+=("$opt_live_stop")
+	else
+		menu_items+=("$opt_live_toggle")
+	fi
+	menu_items+=("$opt_live_config")
+
+	local choice
+	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(arch-i18n get rec_menu_prompt)")
+	[[ -n "${choice:-}" ]] || exit 0
+
+	case "$choice" in
+	"$opt_full") rec_start_full ;;
+	"$opt_area") rec_start_area ;;
+	"$opt_stop") rec_stop ;;
+	"$opt_live_toggle")
+		if command -v arch-live >/dev/null 2>&1; then
+			arch-live toggle
+		fi
+		;;
+	"$opt_live_stop")
+		if command -v arch-live >/dev/null 2>&1; then
+			arch-live stop
+		fi
+		;;
+	"$opt_live_config")
+		if command -v arch-live >/dev/null 2>&1; then
+			arch-live config
+		fi
+		;;
+	esac
+}
+
+handle_rec() {
+	local act="${1:-menu}"
+	case "$act" in
+	full) rec_start_full ;;
+	area) rec_start_area ;;
+	stop) rec_stop ;;
+	toggle) rec_toggle ;;
+	status)
+		shift
+		rec_status "${1:-text}"
+		;;
+	menu | *) rec_menu ;;
+	esac
+}
+
+# ==================== Master Menu ====================
+interactive_menu() {
+	local opt_area opt_full opt_edit opt_preview opt_ocr opt_color opt_scroll
+	opt_area="$(arch-i18n get cap_menu_area)"
+	opt_full="$(arch-i18n get cap_menu_full)"
+	opt_edit="$(arch-i18n get cap_menu_edit)"
+	opt_preview="$(arch-i18n get cap_menu_preview)"
+	opt_ocr="$(arch-i18n get cap_menu_ocr)"
+	opt_color="$(arch-i18n get cap_menu_color)"
+	opt_scroll="$(arch-i18n get cap_menu_scroll)"
+
+	local menu_items=(
+		"󰹑  $opt_area"
+		"󰍹  $opt_full"
+		"󰻿  $opt_edit"
+		"󰋩  $opt_preview"
+		"󰚥  $opt_ocr"
+		"󰈊  $opt_color"
+		"󰝹  $opt_scroll"
+		"󰑋  录屏与推流..."
+	)
+
+	local choice
+	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(arch-i18n get cap_menu_prompt)")
+	[[ -n "${choice:-}" ]] || return 0
+
+	case "$choice" in
+	*"$opt_area") cap_area ;;
+	*"$opt_full") cap_full ;;
+	*"$opt_edit") cap_edit ;;
+	*"$opt_preview") cap_preview ;;
+	*"$opt_ocr") cap_ocr ;;
+	*"$opt_color") cap_color ;;
+	*"$opt_scroll") cap_scroll ;;
+	*"录屏"*) rec_menu ;;
+	esac
+}
+
+# ==================== CLI Dispatch ====================
+main() {
+	local cmd="${1:-menu}"
+	case "$cmd" in
+	menu) interactive_menu ;;
+	area) cap_area ;;
+	full) cap_full ;;
+	edit) cap_edit ;;
+	ocr) cap_ocr ;;
+	color) cap_color ;;
+	preview) cap_preview ;;
+	scroll)
+		shift
+		cap_scroll "$@"
+		;;
+	rec)
+		shift
+		handle_rec "$@"
+		;;
+	-h | --help | help)
+		echo "Usage: arch cap [menu | area | full | edit | ocr | color | preview | scroll | rec [full|area|stop|toggle|status]]"
+		;;
+	*)
+		interactive_menu
+		;;
+	esac
+}
+
+main "$@"
