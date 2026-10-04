@@ -95,34 +95,94 @@ random_local() {
 }
 
 select_local_menu() {
-	local current pick
+	local current files
 	current="$(get_current)"
-	local files
 	files="$(list_local)"
 	[[ -n "$files" ]] || fail "No wallpapers found in $wall_dir"
 
+	local use_icons=0
+	if command -v fuzzel >/dev/null 2>&1; then
+		use_icons=1
+	fi
+
+	local thumb_dir="${XDG_CACHE_HOME:-$HOME/.cache}/wallpaper/thumbs"
+	if [[ "$use_icons" -eq 1 ]] && command -v magick >/dev/null 2>&1; then
+		mkdir -p "$thumb_dir"
+		local gen_jobs=0
+		while IFS= read -r f; do
+			[[ -n "$f" ]] || continue
+			local th_name th_file
+			th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
+			th_file="$thumb_dir/$th_name"
+			if [[ ! -f "$th_file" || "$f" -nt "$th_file" ]]; then
+				(magick "$f" -thumbnail 96x96 "$th_file" 2>/dev/null || rm -f "$th_file") &
+				gen_jobs=$((gen_jobs + 1))
+				if ((gen_jobs >= 8)); then
+					wait -n 2>/dev/null || true
+					gen_jobs=$((gen_jobs - 1))
+				fi
+			fi
+		done <<<"$files"
+		wait
+	fi
+
 	local menu_items=()
+	declare -A label_to_file
 	while IFS= read -r f; do
 		[[ -n "$f" ]] || continue
-		local name
+		local name prefix label th_name th_file
 		name="$(basename "$f")"
 		if [[ "$f" == "$current" ]]; then
-			menu_items+=("* $name")
+			prefix="* "
 		else
-			menu_items+=("  $name")
+			prefix="  "
+		fi
+
+		label="${prefix}${name}"
+		if [[ -n "${label_to_file["$label"]:-}" ]]; then
+			label="${prefix}${f#"$wall_dir"/}"
+		fi
+		label_to_file["$label"]="$f"
+
+		th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
+		th_file="$thumb_dir/$th_name"
+
+		if [[ "$use_icons" -eq 1 && -f "$th_file" ]]; then
+			menu_items+=("${label}\0icon\x1f${th_file}")
+		else
+			local fallback_label="${prefix}󰋩  ${name}"
+			menu_items+=("$fallback_label")
+			label_to_file["$fallback_label"]="$f"
 		fi
 	done <<<"$files"
 
-	pick="$(printf '%s\n' "${menu_items[@]}" | dmenu "$(x-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15)"
+	local pick
+	pick="$(
+		for item in "${menu_items[@]}"; do
+			printf '%b\n' "$item"
+		done | dmenu "$(x-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15
+	)"
 	[[ -n "$pick" ]] || return 0
 
-	pick="${pick#* }"
-	while IFS= read -r f; do
-		if [[ "$(basename "$f")" == "$pick" ]]; then
-			set_wallpaper "$f"
-			return 0
-		fi
-	done <<<"$files"
+	local target="${label_to_file["$pick"]:-}"
+	if [[ -z "$target" ]]; then
+		local clean="$pick"
+		clean="${clean%%\0*}"
+		clean="${clean#\*}"
+		clean="${clean# }"
+		clean="${clean#󰋩}"
+		clean="${clean#"${clean%%[![:space:]]*}"}"
+		while IFS= read -r f; do
+			if [[ "$(basename "$f")" == "$clean" || "${f#"$wall_dir"/}" == "$clean" ]]; then
+				target="$f"
+				break
+			fi
+		done <<<"$files"
+	fi
+
+	if [[ -n "$target" && -f "$target" ]]; then
+		set_wallpaper "$target"
+	fi
 }
 
 interactive_menu() {
@@ -145,11 +205,13 @@ interactive_menu() {
 	*"$local_label") select_local_menu ;;
 	*"$rand_label") random_local ;;
 	*"$search_label")
+		local dl=""
 		if command -v x-wallhaven >/dev/null 2>&1; then
-			local dl
 			dl="$(x-wallhaven menu || true)"
-			[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
+		elif [[ -x "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-wallhaven" ]]; then
+			dl="$("$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-wallhaven" menu || true)"
 		fi
+		[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
 		;;
 	esac
 }
@@ -163,11 +225,13 @@ main() {
 	random) random_local ;;
 	search)
 		shift
+		local dl=""
 		if command -v x-wallhaven >/dev/null 2>&1; then
-			local dl
 			dl="$(x-wallhaven menu "${1:-}" || true)"
-			[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
+		elif [[ -x "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-wallhaven" ]]; then
+			dl="$("$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-wallhaven" menu "${1:-}" || true)"
 		fi
+		[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
 		;;
 	set)
 		shift
