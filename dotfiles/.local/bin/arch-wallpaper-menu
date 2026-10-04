@@ -1,28 +1,18 @@
 #!/usr/bin/env bash
-# arch:summary=Interactive wallpaper picker (local / online random / Wallhaven search)
+# arch:summary=Interactive wallpaper picker with local files, online random, and search
 # arch:examples=arch wallpaper menu
 set -euo pipefail
 
 wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
 mkdir -p "$wall_dir"
-
-tr_msg() {
-	local key="$1"
-	shift
-	if command -v arch-i18n >/dev/null 2>&1; then
-		arch-i18n get "$key" "$@"
-	else
-		printf '%s' "$key"
-	fi
-}
 
 notify() {
 	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$(tr_msg wallpaper_notify_title)" "$1"
+		notify-send "$(arch-i18n get wallpaper_notify_title)" "$1"
 	fi
 }
 
-# fuzzel-first dmenu wrapper; cancels (Esc) yield an empty selection.
 dmenu() {
 	local prompt="$1"
 	shift
@@ -41,10 +31,8 @@ list_images() {
 		-printf '%f\n' 2>/dev/null | sort || true
 }
 
-# Generate (once per temp dir) a 96px PNG thumbnail for a local file.
 make_thumb() {
-	local file="$1"
-	local dir="$2"
+	local file="$1" dir="$2"
 	local out="$dir/$file.png"
 	if [[ ! -f "$out" ]]; then
 		timeout 10 magick "$wall_dir/$file" -thumbnail 96x96 "$out" 2>/dev/null || return 1
@@ -53,123 +41,59 @@ make_thumb() {
 }
 
 search_flow() {
-	(
-		local query page=1 pick id back_label prev_label next_label thumb_dir use_icons=0
-		back_label="$(tr_msg wallpaper_back)"
-		prev_label="$(tr_msg wallpaper_prev)"
-		next_label="$(tr_msg wallpaper_next)"
+	local query page=1 pick id back_label prev_label next_label thumb_dir use_icons=0
+	back_label="$(arch-i18n get wallpaper_back)"
+	prev_label="$(arch-i18n get wallpaper_prev)"
+	next_label="$(arch-i18n get wallpaper_next)"
 
-		if command -v fuzzel >/dev/null 2>&1; then use_icons=1; fi
-		query="$(dmenu "$(tr_msg wallpaper_search_prompt)" --lines 0)"
-		[[ -n "$query" ]] || return 0
+	if command -v fuzzel >/dev/null 2>&1; then use_icons=1; fi
+	query="$(dmenu "$(arch-i18n get wallpaper_search_prompt)" --lines 0)"
+	[[ -n "$query" ]] || return 0
 
-		thumb_dir="$(mktemp -d)"
-		trap 'rm -rf "$thumb_dir"' EXIT
+	thumb_dir="$(mktemp -d)"
+	trap 'rm -rf "$thumb_dir"' EXIT
 
-		while true; do
-			local count=0
+	while true; do
+		local count=0
 
-			pick="$(
-				exec 3< <(arch-wallpaper-search "$query" --page "$page" --thumbs "$thumb_dir" 2>/dev/null)
-				{
-					local meta
-					read -r meta <&3 || true
-					count="${meta#* }"
-					[[ "$count" =~ ^[0-9]+$ ]] || count=0
+		pick="$(
+			exec 3< <(arch-wallpaper-search "$query" --page "$page" --thumbs "$thumb_dir" 2>/dev/null)
+			{
+				local meta
+				read -r meta <&3 || true
+				count="${meta#* }"
+				[[ "$count" =~ ^[0-9]+$ ]] || count=0
 
-					printf '%s\n' "$back_label"
-					[[ "$page" -gt 1 ]] && printf '%s\n' "$prev_label"
-					[[ "$count" -ge 24 ]] && printf '%s\n' "$next_label"
+				printf '%s\n' "$back_label"
+				[[ "$page" -gt 1 ]] && printf '%s\n' "$prev_label"
+				[[ "$count" -ge 24 ]] && printf '%s\n' "$next_label"
 
-					local rid rres rpng
-					while IFS=$'\t' read -r rid rres rpng; do
-						[[ -n "$rid" ]] || continue
-						if [[ "$use_icons" -eq 1 && -n "$rpng" && -f "$rpng" ]]; then
-							printf '%s\0icon\x1f%s\n' "$rid  $rres" "$rpng"
-						else
-							printf '%s\n' "$rid  $rres"
-						fi
-					done <&3
-				} | dmenu "$(tr_msg wallpaper_pick_prompt)" --lines 15
-			)"
-			[[ -n "$pick" ]] || return 0
-
-			if [[ "$pick" == "$back_label" ]]; then
-				return 0
-			elif [[ "$pick" == "$prev_label" ]]; then
-				page=$((page - 1))
-				[[ "$page" -lt 1 ]] && page=1
-			elif [[ "$pick" == "$next_label" ]]; then
-				page=$((page + 1))
-			else
-				id="${pick%%[[:space:]]*}"
-				arch-wallpaper-set "$id"
-			fi
-		done
-	)
-}
-
-local_flow() {
-	(
-		local back_label use_icons=0
-		back_label="$(tr_msg wallpaper_back)"
-		if command -v fuzzel >/dev/null 2>&1 && command -v magick >/dev/null 2>&1; then use_icons=1; fi
-
-		local thumb_dir
-		thumb_dir="$(mktemp -d)"
-		trap 'rm -rf "$thumb_dir"' EXIT
-
-		while true; do
-			local images curr_wall curr_file pick f img thumb t
-			images="$(list_images)"
-			if [[ -z "$images" ]]; then
-				notify "$(tr_msg wallpaper_none_found dir="$wall_dir")"
-				return 0
-			fi
-
-			curr_wall="$(arch-wallpaper-current 2>/dev/null || true)"
-			curr_file="${curr_wall##*/}"
-
-			pick="$(
-				{
-					printf '%s\n' "$back_label"
-
-					if [[ -n "$curr_file" && -f "$wall_dir/$curr_file" ]]; then
-						if [[ "$use_icons" -eq 1 ]] && thumb="$(make_thumb "$curr_file" "$thumb_dir")"; then
-							printf '%s\0icon\x1f%s\n' "* $curr_file" "$thumb"
-						else
-							printf '%s\n' "* $curr_file"
-						fi
+				local rid rres rpng
+				while IFS=$'\t' read -r rid rres rpng; do
+					[[ -n "$rid" ]] || continue
+					if [[ "$use_icons" -eq 1 && -n "$rpng" && -f "$rpng" ]]; then
+						printf '%s\0icon\x1f%s\n' "$rid  $rres" "$rpng"
+					else
+						printf '%s\n' "$rid  $rres"
 					fi
+				done <&3
+			} | dmenu "$(arch-i18n get wallpaper_pick_prompt)" --lines 15
+		)"
+		[[ -n "$pick" ]] || return 0
 
-					while IFS= read -r f; do
-						[[ -n "$f" ]] || continue
-						[[ "$f" == "$curr_file" ]] && continue
-						(
-							if [[ "$use_icons" -eq 1 ]] && t="$(make_thumb "$f" "$thumb_dir")"; then
-								printf '%s\0icon\x1f%s\n' "  $f" "$t"
-							else
-								printf '%s\n' "  $f"
-							fi
-						) &
-						while (($(jobs -rp | wc -l) >= 8)); do wait -n 2>/dev/null || break; done
-					done <<<"$images"
-					wait
-				} | dmenu "$(tr_msg wallpaper_pick_prompt)" --lines 15
-			)"
-			[[ -n "$pick" ]] || return 0
-
-			if [[ "$pick" == "$back_label" ]]; then
-				return 0
-			fi
-
-			local clean_file="${pick#\* }"
-			clean_file="${clean_file#  }"
-			img="$wall_dir/$clean_file"
-			[[ -f "$img" ]] || continue
-			arch-wallpaper-set "$img"
-		done
-	)
+		if [[ "$pick" == "$back_label" ]]; then
+			return 0
+		elif [[ "$pick" == "$prev_label" ]]; then
+			page=$((page - 1))
+			[[ "$page" -lt 1 ]] && page=1
+		elif [[ "$pick" == "$next_label" ]]; then
+			page=$((page + 1))
+		else
+			id="${pick%%[[:space:]]*}"
+			arch-wallpaper-set "$id"
+			return 0
+		fi
+	done
 }
 
 random_online() {
@@ -185,7 +109,7 @@ random_online() {
 	if [[ -n "$id" ]]; then
 		arch-wallpaper-set "$id"
 	else
-		notify "$(tr_msg wallpaper_failed)"
+		notify "$(arch-i18n get wallpaper_failed)"
 	fi
 }
 
@@ -195,23 +119,82 @@ main() {
 		exit 1
 	fi
 
-	local local_label rand_online_label search_label
-	local_label="$(tr_msg wallpaper_mode_local)"
-	rand_online_label="$(tr_msg wallpaper_mode_random_online)"
-	search_label="$(tr_msg wallpaper_mode_search)"
+	local rand_online_label search_label
+	rand_online_label="$(arch-i18n get wallpaper_mode_random_online)"
+	search_label="$(arch-i18n get wallpaper_mode_search)"
+
+	local use_icons=0 thumb_dir=""
+	if command -v fuzzel >/dev/null 2>&1 && command -v magick >/dev/null 2>&1; then
+		use_icons=1
+		thumb_dir="$(mktemp -d)"
+		trap 'rm -rf "$thumb_dir"' EXIT
+	fi
+
+	local curr_wall curr_file images
+	curr_wall=""
+	if [[ -s "$state_file" ]]; then
+		curr_wall="$(<"$state_file")"
+	fi
+	curr_file="${curr_wall##*/}"
+	images="$(list_images)"
 
 	local choice
 	choice="$(
-		printf '%s\n%s\n%s\n' "$local_label" "$rand_online_label" "$search_label" |
-			dmenu "$(tr_msg wallpaper_mode_prompt)" --lines 3
+		{
+			printf '  󰑐  %s\n' "$rand_online_label"
+			printf '  󰍉  %s\n' "$search_label"
+
+			if [[ -n "$curr_file" && -f "$wall_dir/$curr_file" ]]; then
+				local thumb=""
+				if [[ "$use_icons" -eq 1 ]] && thumb="$(make_thumb "$curr_file" "$thumb_dir")"; then
+					printf '* %s\0icon\x1f%s\n' "$curr_file" "$thumb"
+				else
+					printf '* %s\n' "$curr_file"
+				fi
+			fi
+
+			while IFS= read -r f; do
+				[[ -n "$f" ]] || continue
+				[[ "$f" == "$curr_file" ]] && continue
+				(
+					local t=""
+					if [[ "$use_icons" -eq 1 ]] && t="$(make_thumb "$f" "$thumb_dir")"; then
+						printf '  %s\0icon\x1f%s\n' "$f" "$t"
+					else
+						printf '  %s\n' "$f"
+					fi
+				) &
+				while (($(jobs -rp | wc -l) >= 8)); do wait -n 2>/dev/null || break; done
+			done <<<"$images"
+			wait
+		} | dmenu "$(arch-i18n get wallpaper_mode_prompt)" --lines 15
 	)"
+
 	[[ -n "$choice" ]] || return 0
 
-	case "$choice" in
-	"$local_label") local_flow ;;
-	"$rand_online_label") random_online ;;
-	"$search_label") search_flow ;;
-	esac
+	local action_chosen
+	action_chosen="${choice#"${choice%%[![:space:]]*}"}"
+
+	if [[ "$action_chosen" =~ ^󰑐 ]]; then
+		random_online
+		return 0
+	fi
+
+	if [[ "$action_chosen" =~ ^󰍉 ]]; then
+		search_flow
+		return 0
+	fi
+
+	# User clicked a local file
+	local clean_file="${choice#\* }"
+	clean_file="${clean_file#  }"
+	clean_file="${clean_file%%$'\0'*}"
+	clean_file="${clean_file%%[[:space:]]*}"
+
+	local img="$wall_dir/$clean_file"
+	if [[ -f "$img" ]]; then
+		arch-wallpaper-set "$img"
+	fi
 }
 
 main "$@"
