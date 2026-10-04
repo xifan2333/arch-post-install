@@ -1,6 +1,6 @@
-# Agent Instructions & Project Guidelines
+# Agent Instructions & Project Index
 
-This repository is the single source of truth for a personal Arch Linux desktop environment adhering to Suckless and Unix philosophies (see `.agents/skills/arch-dev/references/principles.md`).
+This repository is the single source of truth for a personal Arch Linux desktop environment adhering strictly to Suckless and Unix philosophies.
 
 ---
 
@@ -22,127 +22,23 @@ Always edit source files within this repository. The `~/.config` and `~/.local` 
 
 ---
 
-## 2. Dual-Planning Model for AI Agents
+## 2. Progressive Disclosure: Reference Index
 
-To avoid ambiguity between functional task planning and toolchain validation, agents must distinguish between two distinct planning phases:
+Detailed architectural principles, development workflows, and specifications are maintained in dedicated reference documents. **Always read the matching reference file before performing relevant tasks**:
 
-| Phase | Concept & Terminology | Timing | Tool & Output | Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| **Phase A** | **Task Planning**<br>*(Feature / Bugfix Breakdown)* | **Pre-development**<br>*(Before coding)* | GitHub Issue & Draft PR body (`- [ ]` checklist) | Defines *what* code/config to write, module boundaries, and task sequencing. |
-| **Phase B** | **Quality Gate Pre-check**<br>*(hk --plan)* | **Post-edit**<br>*(Before committing)* | `mise run check:plan`<br>*(or `hk run check --safe --plan`)* | Previews *which* linters/formatters will run and their effects on edited files. |
-
----
-
-## 3. Strict Chronological Development Workflow (Issue + Draft PR)
-
-All coding agents must strictly operate within this closed-loop chronological lifecycle:
-
-```
-+------------------------------------------------------------------------+
-| 1. Pre-Code Initialization (MANDATORY BEFORE ANY CODE IS WRITTEN)       |
-|    gh issue view <id>                                                  |
-|    git checkout -b <type>/issue-<id>-<name>                            |
-|    git commit --allow-empty -m "chore: initialize draft pr for #<id>"   |
-|    git push -u origin <type>/issue-<id>-<name>                         |
-|    gh pr create --draft (ALL tasks unchecked: - [ ])                   |
-+-----------------------------------+------------------------------------+
-                                    |
-                +-------------------v-------------------+
-                | 2. Single-Item Focused Development    |
-                |    Only implement the first - [ ]     |
-                +-------------------+-------------------+
-                                    |
-                +-------------------v-------------------+
-                | 3. Local Quality Gate & Pre-check     |
-                |    mise run check:plan (preview steps)|
-                |    mise run check:changed             |
-                |    mise run fix (if needed)           |
-                |    Domain validations (Mise/River)    |
-                +-------------------+-------------------+
-                                    |
-                +-------------------v-------------------+
-                | 4. Local Atomic Commit                |
-                |    git add <files>                    |
-                |    git commit -m "<type>(<scope>): ..."|
-                |    (Keep commit local)                |
-                +-------------------+-------------------+
-                                    | (Remaining tasks?)
-                                    +-------- Yes -------+
-                                    | No                 |
-+-----------------------------------v-------------------+|
-| 5. Unified Push, Checks & Merge                       ||
-|    git push origin <branch>                           ||
-|    gh pr edit --body (check all - [x])                ||
-|    gh pr checks (verify PR CI status)                 ||
-|    gh pr ready (mark as ready for review)             ||
-|    gh pr merge --squash --delete-branch               ||
-+-------------------------------------------------------+|
-                                    ^                    |
-                                    +--------------------+
-```
-
-For the complete SOP, refer to `.agents/skills/arch-dev/references/issue-pr-workflow.md`.
+| Topic & Task Trigger | Reference Document | Purpose & Scope |
+| --- | --- | --- |
+| **Architecture & CLI Standards**<br>*(Writing scripts, UI strategy, i18n, design principles)* | [`.agents/skills/arch-dev/references/principles.md`](.agents/skills/arch-dev/references/principles.md) | Supreme architectural principles, Unix/Suckless standards, Language priority (`bash > lua > python`), Desktop Bin (`x-<domain>`) & zero-hardcoded i18n, UI selection hierarchy (`fuzzel > zenity > GTK`), and menu layout/alignment specs. |
+| **Development Lifecycle (SOP)**<br>*(Opening PRs, branch lifecycle, task planning, merging)* | [`.agents/skills/arch-dev/references/issue-pr-workflow.md`](.agents/skills/arch-dev/references/issue-pr-workflow.md) | Mandatory closed-loop development SOP: Dual-Planning model (Phase A task plan vs Phase B quality check), strict chronological flow (Issue -> Draft PR -> Single-task loop -> Quality gate -> Atomic commit -> Unified merge). |
+| **Quality Gates & Linters**<br>*(Pre-commit, hk hooks, formatters, tasks, commit-msg)* | [`.agents/skills/arch-dev/references/workflows.md`](.agents/skills/arch-dev/references/workflows.md) | Git hooks (`hk.pkl`), scoped checks (`mise run check:plan`, `mise run check:changed`), auto-fixing (`mise run fix`), linters/formatters catalogue, and Conventional Commits enforcement. |
+| **Mise Declarative Spec**<br>*(Adding packages, services, bootstrap hooks, dotfile maps)* | [`.agents/skills/arch-dev/references/mise-structure.md`](.agents/skills/arch-dev/references/mise-structure.md) | The two-layer mise configuration model, declarative package definitions (`pacman:` / `aur:`), declarative services, and lifecycle hooks (`pre-packages.sh`, `post-dotfiles.sh`). |
+| **Desktop Environment & Operations**<br>*(River WM, keybindings, hardware, audio, IME)* | [`.agents/skills/arch-guide/SKILL.md`](.agents/skills/arch-guide/SKILL.md) | Machine setup guide, River WM operations, layer-shell integration, Fcitx5 + Rime IME, audio routing, and hardware controls. |
 
 ---
 
-## 4. Code Quality & `hk` Workflow
+## 3. Core Working Rules for Agents
 
-This repository uses **hk** (`hk.pkl`) for git hooks and code quality checks.
-
-- **Scoped Checks**: Inspect and scope checks to modified files. Use `mise run check:plan` to preview, and `mise run check:changed` to run checks on changed/untracked files.
-- **Auto-Fixing**: Use `mise run fix` (or `hk fix`) to automatically format and fix style violations.
-- **Pre-commit Automation**: `pre-commit` runs in parallel on staged files only and auto-formats / fixes failing files before re-staging them.
-- **Commit Message Automation**: `commit-msg` validates Conventional Commits via `hk util check-conventional-commit` (allowed types: `build`, `chore`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`) and caps the header at 100 characters. `fixup!` / `squash!` / `amend!` temporary commits are exempt.
-- **Avoid Micro Full-Sweeps**: Do not run full-repo lint (`mise run lint`) on every small file change; rely on scoped `mise run check:changed`. Full sweeps are for batch audits.
-- **Review Diff**: Always review the git diff produced by any auto-fix step before committing.
-
-Supported formatters and linters:
-- **Python**: `ruff`, `ruff format`
-- **Shell**: `shellcheck`, `shfmt` (4-space indent via `.editorconfig`)
-- **Lua**: `stylua`, `luac`
-- **TOML**: `taplo` (with `--no-schema`)
-- **JSON / YAML**: `prettier`
-- **JavaScript**: `oxlint`
-- **Zsh**: `zsh -n` (syntax check), `shfmt` (format)
-- **Commit Messages**: `hk util check-conventional-commit` plus a 100-character header cap
-
----
-
-## 5. System Architecture & Suckless Standards
-
-This system follows the principles documented in `.agents/skills/arch-dev/references/principles.md`:
-
-1. **Self-Containment & Standard XDG Compliance**:
-   - All desktop logic, keybindings, and theme pipelines must reside self-contained within this repository and standard XDG locations.
-2. **Collector / Display Separation**:
-   - **Display UI**: Pure presentation (e.g. Waybar, minimal river client). Read state reactively from `$XDG_RUNTIME_DIR/state/` JSON files. Never perform heavy compute, blocking I/O, or network polling in UI components.
-   - **Collectors / Daemons**: Polling, sensor queries, hardware state, and API sync belong in standalone scripts under `dotfiles/.local/bin/` managed by user timers or background services.
-   - **Atomic Writes**: Collectors must write state files to a temporary file on the same filesystem first, then atomically replace (`os.replace` / `mv`) to guarantee that consumers never read incomplete or corrupted state.
-3. **Suckless Frugality**:
-   - Favor minimal C / Zig / POSIX Shell components over bloated GUI wrappers or multi-megabyte daemon frameworks.
-   - Mechanism over policy: The window manager and shell should remain strictly within the user's cognitive control.
-4. **Pure Script First-Class Citizens (Language Priority: `bash` > `lua` > `python`)**:
-   - **Priority 1: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: All system glue, hardware controls, state collectors, and CLI dispatchers must be written in pure Bash. 100% native, instant startup (< 2ms), and zero disk bytecode cache.
-   - **Priority 2: Pure Lua (`luajit` / `lua`)**: Preferred for complex system IPC (e.g. D-Bus asynchronous communication in `x-blue` / `x-wifi`), real-time data structures, or multi-dimensional palette rendering (`x-theme`). Runs purely in memory with native execution speed, minimal RAM footprint (< 2 MB), and zero disk bytecode cache.
-   - **Priority 3: Pure Python 3 (`python3`)**: Reserved for complex GUI windows (e.g. `x-live-config`), audio/video inferencing (`x-captions`), or long-running daemons. **Strict constraints**:
-     * Standard library only (zero `pip` dependencies).
-     * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
-5. **Universal CLI Convention (`x-<domain>`) & Desktop Bin Standards**:
-   - **Namespace & Metadata**: All scripts in `dotfiles/.local/bin/` follow the unified single-character namespace `x-<domain>` (e.g. `x-audio`, `x-wifi`, `x-blue`, `x-cap`, `x-ocr`, `x-rec`, `x-wall`, `x-theme`, `x-camera`, `x-captions`, `x-keys`, `x-title`) directly accessible via `$PATH`. Every script includes `# arch:summary=...` metadata.
-   - **Zero Hardcoded User-Facing Text**: Notifications (`notify-send`), dmenu prompts (`--prompt`), menu option labels, and fail messages must route through `x-i18n get <key> [var=val] 2>/dev/null || echo "Fallback"` with pair-wise translations in `zh-cn.json` and `en-us.json`.
-   - **UI Selection Strategy**: `fuzzel` (primary keyboard-driven dmenu) > `zenity` (secondary standard forms/dialogs) > custom GTK (`PyGObject`, complex stateful panels only).
-   - **Menu Specifications**: Single-level for $\le 8$ options; two-level for mode dispatch vs entity browsing. Use equal-width state alignment (`* ` / `  `), standard NerdFont glyphs, instant-apply interactions, and user-private tmpfs (`$XDG_RUNTIME_DIR`) for thumbnails/previews.
-6. **Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)**:
-   When investigating tools, CLI flags, configuration formats, or protocols:
-   - **Priority 1: Local `man <tool>`**: Always check local manual pages first.
-   - **Priority 2: Built-in `<tool> --help` / `-h`**: Inspect CLI flags and usage directly.
-   - **Priority 3: Upstream Source Inspection in `~/Code/`**: Clone repository to `~/Code/<repo>` (via `git clone --depth 1`) and inspect source code (CLI structs, config parsers, protocol handlers) directly.
-   - **Strict Prohibition**: Never perform speculative or random web searches when authoritative documentation, manpages, or upstream source code can be inspected locally.
-
----
-
-## 6. General Desktop & Coding Conventions
-
-1. **Typography & Glyphs**: Prefer NerdFont glyphs, ASCII, or SVG over emoji for terminal and panel consistency.
-2. **Timezone**: Compute rolling metrics (e.g. 7-day usage, daily buckets) using the system local calendar day to prevent midnight rollover drift.
-3. **Commit Messages**: Follow Conventional Commits format (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`).
+1. **Closed-Loop Chronological Workflow**: Never write code directly on `main`. Every change must trace: `gh issue create/view` → `git checkout -b <branch>` → empty commit → `gh pr create --draft` → single-task atomic commits → `gh pr checks` → `gh pr ready` → `gh pr merge --squash --delete-branch`.
+2. **Quality Gate Pre-check**: Run `mise run check:plan` to preview linters and `mise run check:changed` before committing. Use `mise run fix` for auto-formatting.
+3. **Commit Messages**: Strictly follow Conventional Commits (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `style:`) with header $\le 100$ characters.
+4. **Local Research First**: Speculative web searches are strictly prohibited. Always check `man <tool>` → `<tool> --help` → clone and inspect source in `~/Code/<repo>`.
