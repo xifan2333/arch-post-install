@@ -2,6 +2,10 @@
 [bootstrap.hooks.pre-packages]
 run = "mise/hooks/pre-packages.sh"
 
+# Post-packages hook: install supplementary pixel fonts from GitHub releases
+[bootstrap.hooks.post-packages]
+run = "mise/hooks/post-packages.sh"
+
 # Post-dotfiles hook: seed runtime configuration templates and sync themes
 [bootstrap.hooks.post-dotfiles]
 run = "mise/hooks/post-dotfiles.sh"
