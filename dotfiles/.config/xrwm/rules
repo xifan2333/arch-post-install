@@ -27,8 +27,8 @@ xrwm rule-add -app-id "satty" float
 xrwm rule-add -app-id "satty" dimensions 960 540
 
 # Livestream configurator
-xrwm rule-add -app-id "arch-live-config" float
-xrwm rule-add -app-id "arch-live-config" dimensions 640 300
+xrwm rule-add -app-id "x-live-config" float
+xrwm rule-add -app-id "x-live-config" dimensions 640 300
 
 # Webcam picture-in-picture overlay (mpv)
 xrwm rule-add -app-id "pip-camera" float
@@ -38,9 +38,9 @@ xrwm rule-add -app-id "pip-camera" tags 4294967295
 xrwm rule-add -app-id "pip-camera" csd
 
 # Transparent desktop overlay HUDs (streaming & recording)
-xrwm rule-add -app-id "arch-overlay-*" float
-xrwm rule-add -app-id "arch-overlay-*" csd
-xrwm rule-add -app-id "arch-overlay-*" tags 4294967295
+xrwm rule-add -app-id "wayhud" float
+xrwm rule-add -app-id "wayhud" csd
+xrwm rule-add -app-id "wayhud" tags 4294967295
 
 # Custom tools
 xrwm rule-add -app-id "fuzzel" csd
