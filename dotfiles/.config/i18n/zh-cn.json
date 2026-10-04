@@ -75,6 +75,8 @@
   "blue_tag_connected": "[已连接]",
   "blue_tag_paired": "[已配对]",
   "blue_tag_available": "[新设备]",
+  "blue_passkey_notify": "配对验证码: {passkey} (请在蓝牙键盘上输入并按回车)",
+  "blue_pin_prompt": "PIN 码: ",
   "font_title": "字体设置",
   "font_switched": "等宽主字体已切换为：{font}",
   "wallpaper_notify_title": "壁纸",
