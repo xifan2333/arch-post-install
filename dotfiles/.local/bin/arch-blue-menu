@@ -147,6 +147,42 @@ for line in exec_cmd(query_cmd):gmatch("[^\r\n]+") do
   end
 end
 
+-- 5. Format device type and pairing status icons (Scheme B)
+local function get_device_type_icon(icon)
+  if not icon or icon == "" then
+    return "󰂯"
+  end
+  if icon:find("headphones") or icon:find("headset") then
+    return "󰋋"
+  elseif icon:find("speakers") or icon:find("audio%-card") then
+    return "󰓃"
+  elseif icon:find("keyboard") then
+    return "󰌌"
+  elseif icon:find("mouse") then
+    return "󰍽"
+  elseif icon:find("gaming") then
+    return "󰊴"
+  elseif icon == "phone" then
+    return "󰏲"
+  elseif icon:find("computer") then
+    return "󰌢"
+  elseif icon:find("watch") or icon:find("wearable") then
+    return "󰟸"
+  elseif icon:find("printer") then
+    return "󰐪"
+  else
+    return "󰂯"
+  end
+end
+
+local function get_pairing_icon(paired)
+  if paired then
+    return "󰌷" -- Link / Bonded (已绑定/已配对)
+  else
+    return "󰐕" -- Plus / Add (未绑定/可添加)
+  end
+end
+
 -- 6. Sort devices: Connected first, then Paired, then Available
 table.sort(devices, function(a, b)
   if a.connected ~= b.connected then
@@ -160,27 +196,24 @@ end)
 
 -- 7. Build menu entries
 local menu_lines = {}
-local tag_connected = i18n("blue_tag_connected")
-local tag_paired = i18n("blue_tag_paired")
-local tag_available = i18n("blue_tag_available")
 
--- Disconnect actions for connected devices
+-- Disconnect action for connected devices with Bluetooth disconnect icon (󰂲)
 for _, dev in ipairs(devices) do
   if dev.connected then
-    table.insert(menu_lines, "  " .. i18n("blue_disconnect", { dev = dev.name }))
+    table.insert(
+      menu_lines,
+      string.format("  󰂲  %s", i18n("blue_disconnect", { dev = dev.name }))
+    )
   end
 end
 
-table.insert(menu_lines, "  " .. rescan_text)
+table.insert(menu_lines, string.format("  󰑐  %s", rescan_text))
 
 for _, dev in ipairs(devices) do
-  if dev.connected then
-    table.insert(menu_lines, string.format("* %s %s (%s)", tag_connected, dev.name, dev.mac))
-  elseif dev.paired then
-    table.insert(menu_lines, string.format("  %s %s (%s)", tag_paired, dev.name, dev.mac))
-  else
-    table.insert(menu_lines, string.format("  %s %s (%s)", tag_available, dev.name, dev.mac))
-  end
+  local star = dev.connected and "* " or "  "
+  local type_icon = get_device_type_icon(dev.icon)
+  local pair_icon = get_pairing_icon(dev.paired)
+  table.insert(menu_lines, string.format("%s%s   %s   %s", star, type_icon, pair_icon, dev.name))
 end
 
 -- 8. Display Fuzzel dmenu
@@ -208,7 +241,7 @@ end
 local action_chosen = chosen:gsub("^%s+", ""):gsub("%s+$", "")
 
 -- 9. Handle action header items
-if action_chosen == rescan_text then
+if action_chosen:find("^󰑐") then
   -- Perform a clean 6-second discovery cycle via D-Bus
   os.execute(
     string.format(
@@ -227,11 +260,9 @@ if action_chosen == rescan_text then
   os.exit(0)
 end
 
--- Handle disconnect action
-for _, dev in ipairs(devices) do
-  if dev.connected then
-    local dis_action = i18n("blue_disconnect", { dev = dev.name })
-    if action_chosen == dis_action then
+if action_chosen:find("^󰂲") then
+  for _, dev in ipairs(devices) do
+    if dev.connected then
       os.execute(
         string.format(
           "busctl call org.bluez %s org.bluez.Device1 Disconnect >/dev/null 2>&1",
@@ -239,20 +270,21 @@ for _, dev in ipairs(devices) do
         )
       )
       notify(i18n("blue_disconnected", { dev = dev.name }))
-      os.exit(0)
     end
   end
-end
-
--- 10. Handle device click
-local chosen_mac = chosen:match("(%x%x:%x%x:%x%x:%x%x:%x%x:%x%x)")
-if not chosen_mac then
   os.exit(0)
 end
 
+-- 10. Handle device click
+local target_name = chosen:match("^[ *]+%S+%s+%S+%s+(.*)$")
+if not target_name or target_name == "" then
+  os.exit(0)
+end
+target_name = target_name:gsub("^%s+", ""):gsub("%s+$", "")
+
 local target_dev = nil
 for _, dev in ipairs(devices) do
-  if dev.mac == chosen_mac then
+  if dev.name == target_name then
     target_dev = dev
     break
   end
