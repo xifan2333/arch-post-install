@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 -- arch:summary=Interactive text-only Bluetooth connection menu driven by Fuzzel and D-Bus
--- arch:args=[menu | off]
--- arch:examples=arch blue menu | arch blue off
+-- arch:args=[menu | off | toggle]
+-- arch:examples=arch blue menu | arch blue toggle | arch blue off
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -58,7 +58,7 @@ if adapter_path == "" then
   os.exit(1)
 end
 
--- 3. Check CLI arguments (off / power-off)
+-- 3. Check CLI arguments (off / power-off / toggle)
 local action = arg[1]
 if action == "off" or action == "power-off" then
   os.execute(
@@ -78,6 +78,18 @@ local powered_prop = exec_cmd(
   )
 )
 local is_powered = powered_prop:find("b true") ~= nil
+
+if action == "toggle" then
+  local new_state = not is_powered
+  os.execute(
+    string.format(
+      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b %s >/dev/null 2>&1",
+      adapter_path,
+      tostring(new_state)
+    )
+  )
+  os.exit(0)
+end
 
 if not is_powered then
   os.execute(

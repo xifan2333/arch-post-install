@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# arch:summary=Interactive audio output (sink) and microphone (source) selector driven by Fuzzel and PipeWire
+# arch:args=[sink | source]
+# arch:examples=arch audio menu sink | arch audio menu source
+set -euo pipefail
+
+mode="${1:-sink}"
+
+notify() {
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$(arch-i18n get audio_notify_title)" "$1"
+	fi
+}
+
+if ! command -v pw-dump >/dev/null 2>&1 || ! command -v wpctl >/dev/null 2>&1; then
+	printf 'Error: pw-dump or wpctl not found. Please install pipewire\n' >&2
+	exit 1
+fi
+
+if ! command -v fuzzel >/dev/null 2>&1; then
+	printf 'Error: fuzzel not found\n' >&2
+	exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+	printf 'Error: jq not found\n' >&2
+	exit 1
+fi
+
+target_class="Audio/Sink"
+default_target="@DEFAULT_AUDIO_SINK@"
+prompt_text="$(arch-i18n get audio_sink_prompt)"
+
+if [[ "$mode" == "source" || "$mode" == "mic" || "$mode" == "input" ]]; then
+	target_class="Audio/Source"
+	default_target="@DEFAULT_AUDIO_SOURCE@"
+	prompt_text="$(arch-i18n get audio_source_prompt)"
+fi
+
+default_id=$(wpctl inspect "$default_target" 2>/dev/null | awk '$1=="id"{sub(/,/, "", $2); print $2; exit}' || true)
+
+items=$(pw-dump Node 2>/dev/null | jq -r \
+	--arg class "$target_class" \
+	--arg def "$default_id" '
+.[] |
+select(.info.props["media.class"] == $class) |
+select((.info.props["node.name"] // "") | test("\\.monitor$") | not) |
+[
+  (if (.id | tostring) == $def then "* " else "  " end),
+  (.info.props["node.description"] // .info.props["node.nick"] // .info.props["node.name"]),
+  " (\(.id))"
+] | join("")
+')
+
+if [[ -z "$items" ]]; then
+	notify "$(arch-i18n get audio_no_devices)"
+	exit 0
+fi
+
+chosen=$(printf '%s\n' "$items" | fuzzel --dmenu --prompt "$prompt_text" --lines 10 || true)
+[[ -z "$chosen" ]] && exit 0
+
+dev_id=$(grep -o -E '\([0-9]+\)' <<<"$chosen" | tr -d '()')
+dev_name=$(sed -E 's/^[ *]+//; s/[[:space:]]*\([0-9]+\)$//' <<<"$chosen")
+
+[[ -n "$dev_id" ]] || exit 0
+
+wpctl set-default "$dev_id"
+
+if [[ "$mode" == "source" || "$mode" == "mic" || "$mode" == "input" ]]; then
+	notify "$(arch-i18n get audio_source_switched "dev=$dev_name")"
+else
+	notify "$(arch-i18n get audio_sink_switched "dev=$dev_name")"
+fi

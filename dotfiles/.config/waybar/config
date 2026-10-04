@@ -101,8 +101,8 @@
   "custom/screenshot": {
     "format": "󰻿",
     "tooltip": false,
-    "on-click": "arch-cap-menu",
-    "on-click-right": "arch-cap-area"
+    "on-click": "arch-cap-area",
+    "on-click-right": "arch-cap-menu"
   },
   "custom/screenrecord": {
     "format": "{icon} {text}",
@@ -138,8 +138,8 @@
     "tooltip-format-connected": "{controller_alias}\t{controller_address}\n{num_connections} connected\n\n{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
     "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_battery_percentage}%",
-    "on-click": "arch-blue-menu",
-    "on-click-right": "arch-blue-menu off"
+    "on-click": "arch-blue-menu toggle",
+    "on-click-right": "arch-blue-menu"
   },
   "network": {
     "format-wifi": "{icon}",
@@ -166,6 +166,7 @@
       ]
     },
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-click-right": "arch-audio-menu sink",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
@@ -174,6 +175,7 @@
     "format-source": "󰍬  {volume}%",
     "format-source-muted": "󰍭  {volume}%",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "on-click-right": "arch-audio-menu source",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SOURCE@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
   },
