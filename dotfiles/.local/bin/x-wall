@@ -127,12 +127,12 @@ select_local_menu() {
 
 interactive_menu() {
 	local rand_label local_label search_label
-	rand_label="$(x-i18n get wallpaper_mode_random 2>/dev/null || echo "Random Local")"
-	local_label="$(x-i18n get wallpaper_mode_local 2>/dev/null || echo "Select Local")"
-	search_label="$(x-i18n get wallpaper_mode_search 2>/dev/null || echo "Search Online (Wallhaven)")"
+	rand_label="$(x-i18n get wallpaper_mode_random 2>/dev/null || echo "Random")"
+	local_label="$(x-i18n get wallpaper_mode_local 2>/dev/null || echo "Local")"
+	search_label="$(x-i18n get wallpaper_mode_search 2>/dev/null || echo "Search")"
 
 	local choices=(
-		"󰄬  $local_label"
+		"󰋩  $local_label"
 		"󰒝  $rand_label"
 		"󰍉  $search_label"
 	)
