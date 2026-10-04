@@ -1,257 +1,233 @@
-#!/usr/bin/env bash
-# arch:summary=Interactive text-only Bluetooth connection menu driven by Fuzzel and bluetoothctl
-# arch:examples=arch blue menu
-set -euo pipefail
+#!/usr/bin/env luajit
+-- arch:summary=Interactive text-only Bluetooth connection menu driven by Fuzzel and bluetoothctl
+-- arch:examples=arch blue menu
 
-# 1. Dependency checks
-if ! command -v bluetoothctl >/dev/null 2>&1; then
-	printf 'Error: bluetoothctl not found. Please install bluez-utils\n' >&2
-	exit 1
-fi
+local function exec_cmd(cmd)
+  local p = io.popen(cmd, "r")
+  if not p then
+    return ""
+  end
+  local output = p:read("*a") or ""
+  p:close()
+  return output
+end
 
-if ! command -v fuzzel >/dev/null 2>&1; then
-	printf 'Error: fuzzel not found\n' >&2
-	exit 1
-fi
+local function i18n(key, vars)
+  local args = { "arch-i18n", "get", key }
+  if vars then
+    for k, v in pairs(vars) do
+      table.insert(args, string.format("%s=%s", k, tostring(v)))
+    end
+  end
+  local quoted = {}
+  for _, arg_val in ipairs(args) do
+    table.insert(quoted, string.format("%q", arg_val))
+  end
+  local text = exec_cmd(table.concat(quoted, " "))
+  return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+end
 
-# 2. Notification helper
-notify() {
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$(arch-i18n get blue_notify_title)" "$1"
-	fi
-}
+local function notify(msg)
+  local title = i18n("blue_notify_title")
+  os.execute(string.format("notify-send %q %q 2>/dev/null", title, msg))
+end
 
-# 3. Detect controller and power status
-controller_info=$(bluetoothctl show 2>/dev/null || true)
-if [[ -z "$controller_info" ]]; then
-	notify "$(arch-i18n get blue_no_device)"
-	exit 1
-fi
+-- 1. Dependency checks
+if os.execute("command -v bluetoothctl >/dev/null 2>&1") ~= 0 then
+  io.stderr:write("Error: bluetoothctl not found. Please install bluez-utils\n")
+  os.exit(1)
+end
 
-is_powered=$(awk -F': ' '/Powered:/ {print $2; exit}' <<<"$controller_info")
-prompt_text="$(arch-i18n get blue_prompt)"
-power_on_text="$(arch-i18n get blue_power_on)"
-power_off_text="$(arch-i18n get blue_power_off)"
+if os.execute("command -v fuzzel >/dev/null 2>&1") ~= 0 then
+  io.stderr:write("Error: fuzzel not found\n")
+  os.exit(1)
+end
 
-# 4. Handle powered-off state
-if [[ "$is_powered" != "yes" ]]; then
-	chosen=$(printf '  %s\n' "$power_on_text" | fuzzel --dmenu --prompt "$prompt_text" --lines 3 || true)
-	action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
-	if [[ "$action_chosen" == "$power_on_text" ]]; then
-		bluetoothctl power on >/dev/null 2>&1
-		exec "$0"
-	fi
-	exit 0
-fi
+-- 2. Detect controller & power state
+local controller_info = exec_cmd("bluetoothctl show 2>/dev/null")
+if controller_info == "" then
+  notify(i18n("blue_no_device"))
+  os.exit(1)
+end
 
-tag_connected="$(arch-i18n get blue_tag_connected)"
-tag_paired="$(arch-i18n get blue_tag_paired)"
-tag_available="$(arch-i18n get blue_tag_available)"
+local is_powered = controller_info:match("Powered:%s*([%a]+)")
+local prompt_text = i18n("blue_prompt")
+local power_on_text = i18n("blue_power_on")
+local power_off_text = i18n("blue_power_off")
+local rescan_text = i18n("blue_rescan")
 
-# 5. Continuous streaming generator: instant header + live discovery feed
-stream_menu_entries() {
-	local connected_raw paired_raw all_raw
-	connected_raw=$(bluetoothctl devices Connected 2>/dev/null || true)
-	paired_raw=$(bluetoothctl devices Paired 2>/dev/null || true)
-	all_raw=$(bluetoothctl devices 2>/dev/null || true)
+-- 3. Handle powered-off state
+if is_powered ~= "yes" then
+  local tmp = os.tmpname()
+  local f = io.open(tmp, "w")
+  if f then
+    f:write("  " .. power_on_text .. "\n")
+    f:close()
+  end
+  local p = io.popen(
+    string.format("fuzzel --dmenu --prompt %q --lines 3 < %q 2>/dev/null", prompt_text, tmp),
+    "r"
+  )
+  local chosen = p and p:read("*l") or ""
+  if p then
+    p:close()
+  end
+  os.remove(tmp)
 
-	local seen_macs=" "
+  if chosen:find(power_on_text, 1, true) then
+    os.execute("bluetoothctl power on >/dev/null 2>&1")
+    os.execute(arg[0] .. " &")
+  end
+  os.exit(0)
+end
 
-	# Action: Disconnect currently active devices
-	if [[ -n "$connected_raw" ]]; then
-		while read -r _ mac dev_name; do
-			[[ -n "$mac" ]] || continue
-			printf '  %s\n' "$(arch-i18n get blue_disconnect "dev=$dev_name")"
-		done <<<"$connected_raw"
-	fi
+-- 4. Collect devices into structured tables
+local connected_devs = {}
+local paired_devs = {}
+local all_devs = {}
 
-	# Action: Power off
-	printf '  %s\n' "$power_off_text"
+for line in exec_cmd("bluetoothctl devices Connected 2>/dev/null"):gmatch("[^\r\n]+") do
+  local mac, name = line:match("^Device%s+([%x:]+)%s+(.*)$")
+  if mac and name then
+    connected_devs[mac] = name
+  end
+end
 
-	# Instant List: Connected devices
-	if [[ -n "$connected_raw" ]]; then
-		while read -r _ mac dev_name; do
-			[[ -n "$mac" ]] || continue
-			printf '* %s %s (%s)\n' "$tag_connected" "$dev_name" "$mac"
-			seen_macs+="$mac "
-		done <<<"$connected_raw"
-	fi
+for line in exec_cmd("bluetoothctl devices Paired 2>/dev/null"):gmatch("[^\r\n]+") do
+  local mac, name = line:match("^Device%s+([%x:]+)%s+(.*)$")
+  if mac and name then
+    paired_devs[mac] = name
+  end
+end
 
-	# Instant List: Paired but disconnected devices
-	if [[ -n "$paired_raw" ]]; then
-		while read -r _ mac dev_name; do
-			[[ -n "$mac" ]] || continue
-			[[ "$seen_macs" == *" $mac "* ]] && continue
-			printf '  %s %s (%s)\n' "$tag_paired" "$dev_name" "$mac"
-			seen_macs+="$mac "
-		done <<<"$paired_raw"
-	fi
+for line in exec_cmd("bluetoothctl devices 2>/dev/null"):gmatch("[^\r\n]+") do
+  local mac, name = line:match("^Device%s+([%x:]+)%s+(.*)$")
+  if mac and name then
+    -- Filter out nameless BLE beacon aliases (e.g. 6A-41-9A-4E-65-19)
+    local is_dummy = name:match("^%x%x%-%x%x%-%x%x%-%x%x%-%x%x%-%x%x$")
+      or name:match("^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x$")
+    if not is_dummy then
+      all_devs[mac] = name
+    end
+  end
+end
 
-	# Instant List: Previously discovered devices with real names
-	if [[ -n "$all_raw" ]]; then
-		while read -r _ mac dev_name; do
-			[[ -n "$mac" ]] || continue
-			[[ "$seen_macs" == *" $mac "* ]] && continue
-			[[ -z "$dev_name" || "$dev_name" =~ ^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$ ]] && continue
-			printf '  %s %s (%s)\n' "$tag_available" "$dev_name" "$mac"
-			seen_macs+="$mac "
-		done <<<"$all_raw"
-	fi
+-- 5. Build menu items
+local menu_lines = {}
+local seen_macs = {}
 
-	# Asynchronous Live Discovery: continuously stream into Fuzzel
-	coproc BT { bluetoothctl 2>/dev/null; }
-	# shellcheck disable=SC2153
-	local bt_pid="$BT_PID"
+-- Top actions: disconnect currently active devices
+for _, name in pairs(connected_devs) do
+  local dis_action = i18n("blue_disconnect", { dev = name })
+  table.insert(menu_lines, "  " .. dis_action)
+end
 
-	# shellcheck disable=SC2329
-	cleanup_scan() {
-		if [[ -n "$bt_pid" ]] && kill -0 "$bt_pid" 2>/dev/null; then
-			printf 'scan off\nexit\n' >&"${BT[1]}" || true
-			kill "$bt_pid" 2>/dev/null || true
-		fi
-	}
-	trap cleanup_scan EXIT
+table.insert(menu_lines, "  " .. rescan_text)
+table.insert(menu_lines, "  " .. power_off_text)
 
-	printf 'scan on\n' >&"${BT[1]}" || true
+local tag_connected = i18n("blue_tag_connected")
+local tag_paired = i18n("blue_tag_paired")
+local tag_available = i18n("blue_tag_available")
 
-	while IFS= read -r -u "${BT[0]}" raw_line; do
-		local line
-		line=$(sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' <<<"$raw_line")
+-- Add connected devices
+for mac, name in pairs(connected_devs) do
+  table.insert(menu_lines, string.format("* %s %s (%s)", tag_connected, name, mac))
+  seen_macs[mac] = true
+end
 
-		local mac="" name=""
-		if [[ "$line" =~ \[NEW\][[:space:]]+Device[[:space:]]+([0-9A-Fa-f:]{17})[[:space:]]+(.*) ]]; then
-			mac="${BASH_REMATCH[1]}"
-			name="${BASH_REMATCH[2]}"
-		elif [[ "$line" =~ \[CHG\][[:space:]]+Device[[:space:]]+([0-9A-Fa-f:]{17})[[:space:]]+Name:[[:space:]]+(.*) ]]; then
-			mac="${BASH_REMATCH[1]}"
-			name="${BASH_REMATCH[2]}"
-		fi
+-- Add paired devices
+for mac, name in pairs(paired_devs) do
+  if not seen_macs[mac] then
+    table.insert(menu_lines, string.format("  %s %s (%s)", tag_paired, name, mac))
+    seen_macs[mac] = true
+  end
+end
 
-		[[ -n "$mac" ]] || continue
-		[[ "$seen_macs" == *" $mac "* ]] && continue
-		# Filter out nameless BLE beacon aliases
-		[[ -z "$name" || "$name" =~ ^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$ ]] && continue
+-- Add discovered devices
+for mac, name in pairs(all_devs) do
+  if not seen_macs[mac] then
+    table.insert(menu_lines, string.format("  %s %s (%s)", tag_available, name, mac))
+    seen_macs[mac] = true
+  end
+end
 
-		printf '  %s %s (%s)\n' "$tag_available" "$name" "$mac"
-		seen_macs+="$mac "
-	done
-}
+-- 6. Open Fuzzel dmenu
+local tmp = os.tmpname()
+local f = io.open(tmp, "w")
+if f then
+  f:write(table.concat(menu_lines, "\n") .. "\n")
+  f:close()
+end
 
-# 6. Stream entries into Fuzzel dmenu
-chosen=$(stream_menu_entries | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
+local p = io.popen(
+  string.format("fuzzel --dmenu --prompt %q --lines 15 < %q 2>/dev/null", prompt_text, tmp),
+  "r"
+)
+local chosen = p and p:read("*l") or ""
+if p then
+  p:close()
+end
+os.remove(tmp)
 
-# 7. Stop background scanning immediately upon user selection to free radio bandwidth
-bluetoothctl scan off >/dev/null 2>&1 || true
+if not chosen or chosen == "" then
+  os.exit(0)
+end
 
-[[ -z "$chosen" ]] && exit 0
+local action_chosen = chosen:gsub("^%s+", ""):gsub("%s+$", "")
 
-action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
+-- 7. Handle action header items
+if action_chosen == power_off_text then
+  os.execute("bluetoothctl power off >/dev/null 2>&1")
+  os.exit(0)
+end
 
-# 8. Handle action header items
-if [[ "$action_chosen" == "$power_off_text" ]]; then
-	bluetoothctl power off >/dev/null 2>&1
-	exit 0
-fi
+if action_chosen == rescan_text then
+  os.execute("bluetoothctl --timeout 8 scan on >/dev/null 2>&1")
+  os.execute(arg[0] .. " &")
+  os.exit(0)
+end
 
-# Check if user clicked a disconnect action
-connected_raw=$(bluetoothctl devices Connected 2>/dev/null || true)
-if [[ -n "$connected_raw" ]]; then
-	while read -r _ mac dev_name; do
-		[[ -n "$mac" ]] || continue
-		dis_text="$(arch-i18n get blue_disconnect "dev=$dev_name")"
-		if [[ "$action_chosen" == "$dis_text" ]]; then
-			bluetoothctl disconnect "$mac" >/dev/null 2>&1 || true
-			notify "$(arch-i18n get blue_disconnected "dev=$dev_name")"
-			exit 0
-		fi
-	done <<<"$connected_raw"
-fi
+for mac, name in pairs(connected_devs) do
+  local dis_action = i18n("blue_disconnect", { dev = name })
+  if action_chosen == dis_action then
+    os.execute("bluetoothctl disconnect " .. mac .. " >/dev/null 2>&1")
+    notify(i18n("blue_disconnected", { dev = name }))
+    os.exit(0)
+  end
+end
 
-# 9. Handle device click (connect / disconnect)
-mac=$(grep -o -E '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' <<<"$chosen" || true)
-[[ -z "$mac" ]] && exit 0
+-- 8. Handle device click (connect / disconnect)
+local mac = chosen:match("(%x%x:%x%x:%x%x:%x%x:%x%x:%x%x)")
+if not mac then
+  os.exit(0)
+end
 
-dev_name=$(sed -E 's/^[ *]*\[[^]]+\][[:space:]]+//; s/[[:space:]]+\([0-9A-Fa-f:]+\)$//' <<<"$chosen")
-[[ -n "$dev_name" ]] || dev_name="$mac"
+local dev_name = chosen:match("%]%s+(.-)%s+%(") or mac
 
-# If already connected, disconnect
-if [[ -n "$connected_raw" ]] && grep -q -F "$mac" <<<"$connected_raw"; then
-	bluetoothctl disconnect "$mac" >/dev/null 2>&1 || true
-	notify "$(arch-i18n get blue_disconnected "dev=$dev_name")"
-	exit 0
-fi
+-- If already connected, disconnect
+if connected_devs[mac] then
+  os.execute("bluetoothctl disconnect " .. mac .. " >/dev/null 2>&1")
+  notify(i18n("blue_disconnected", { dev = dev_name }))
+  os.exit(0)
+end
 
-# If already paired, connect directly
-paired_raw=$(bluetoothctl devices Paired 2>/dev/null || true)
-if [[ -n "$paired_raw" ]] && grep -q -F "$mac" <<<"$paired_raw"; then
-	if bluetoothctl connect "$mac" >/dev/null 2>&1; then
-		notify "$(arch-i18n get blue_connected "dev=$dev_name")"
-	else
-		notify "$(arch-i18n get blue_failed "dev=$dev_name")"
-	fi
-	exit 0
-fi
+-- If already paired, connect directly
+if paired_devs[mac] then
+  local ok = os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
+  if ok == 0 or ok == true then
+    notify(i18n("blue_connected", { dev = dev_name }))
+  else
+    notify(i18n("blue_failed", { dev = dev_name }))
+  end
+  os.exit(0)
+end
 
-# 10. Pair and connect newly discovered device with auto-confirm agent
-pair_new_device() {
-	local target_mac="$1" target_name="$2"
-	bluetoothctl trust "$target_mac" >/dev/null 2>&1 || true
-
-	# Start interactive bluetoothctl session with default agent
-	coproc AGENT { bluetoothctl 2>/dev/null; }
-	# shellcheck disable=SC2153
-	local agent_pid="$AGENT_PID"
-
-	# shellcheck disable=SC2329
-	cleanup_agent() {
-		if [[ -n "$agent_pid" ]] && kill -0 "$agent_pid" 2>/dev/null; then
-			printf 'exit\n' >&"${AGENT[1]}" || true
-			kill "$agent_pid" 2>/dev/null || true
-		fi
-	}
-	trap cleanup_agent EXIT
-
-	printf 'default-agent\npair %s\n' "$target_mac" >&"${AGENT[1]}" || true
-
-	local success=false
-	while IFS= read -r -u "${AGENT[0]}" raw_line; do
-		local line
-		line=$(sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' <<<"$raw_line")
-
-		# 1. Numeric Comparison (Smartphones / Tablets): auto-confirm with 'yes'
-		if [[ "$line" =~ Confirm[[:space:]]+passkey[[:space:]]+([0-9]+) ]]; then
-			printf 'yes\n' >&"${AGENT[1]}" || true
-		# 2. Passkey Entry (Bluetooth Keyboards): notify user to type code on keyboard
-		elif [[ "$line" =~ Passkey:[[:space:]]+([0-9]+) ]]; then
-			local passkey="${BASH_REMATCH[1]}"
-			notify "$(arch-i18n get blue_passkey_notify "passkey=$passkey")"
-		# 3. Legacy PIN code (Car audio, old devices): prompt via fuzzel password box
-		elif [[ "$line" =~ (Enter[[:space:]]+PIN|Enter[[:space:]]+passkey) ]]; then
-			local pin pin_prompt
-			pin_prompt="$(arch-i18n get blue_pin_prompt)"
-			pin=$(fuzzel --dmenu --prompt "$pin_prompt" --password </dev/null || true)
-			if [[ -n "$pin" ]]; then
-				printf '%s\n' "$pin" >&"${AGENT[1]}" || true
-			else
-				break
-			fi
-		elif [[ "$line" =~ (Pairing[[:space:]]+successful|Bonded:[[:space:]]+yes|Paired:[[:space:]]+yes) ]]; then
-			success=true
-			break
-		elif [[ "$line" =~ Failed[[:space:]]+to[[:space:]]+pair ]]; then
-			break
-		fi
-	done
-
-	printf 'exit\n' >&"${AGENT[1]}" || true
-	kill "$agent_pid" 2>/dev/null || true
-
-	if $success || (bluetoothctl info "$target_mac" 2>/dev/null | grep -q "Paired: yes"); then
-		bluetoothctl connect "$target_mac" >/dev/null 2>&1 || true
-		notify "$(arch-i18n get blue_connected "dev=$target_name")"
-	else
-		notify "$(arch-i18n get blue_failed "dev=$target_name")"
-	fi
-}
-
-pair_new_device "$mac" "$dev_name"
+-- Otherwise (new device): trust + pair with NoInputNoOutput auto-confirm + connect
+os.execute("bluetoothctl trust " .. mac .. " >/dev/null 2>&1")
+os.execute("bluetoothctl --agent NoInputNoOutput --timeout 15 pair " .. mac .. " >/dev/null 2>&1")
+local ok = os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
+if ok == 0 or ok == true then
+  notify(i18n("blue_connected", { dev = dev_name }))
+else
+  notify(i18n("blue_failed", { dev = dev_name }))
+end

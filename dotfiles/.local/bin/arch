@@ -7,7 +7,7 @@ BIN_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # Scan metadata header from a script file
 get_metadata() {
 	local file="$1" key="$2"
-	grep -m 30 -E "^#[[:space:]]*arch:${key}=" "$file" 2>/dev/null | head -1 | sed "s/^#[[:space:]]*arch:${key}=//" || true
+	grep -m 30 -E "^(#|--)[[:space:]]*arch:${key}=" "$file" 2>/dev/null | head -1 | sed -E "s/^(#|--)[[:space:]]*arch:${key}=//" || true
 }
 
 show_help() {
