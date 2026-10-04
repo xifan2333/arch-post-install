@@ -75,6 +75,8 @@
   "blue_tag_connected": "[Connected]",
   "blue_tag_paired": "[Paired]",
   "blue_tag_available": "[Discovered]",
+  "blue_passkey_notify": "Pairing passkey: {passkey} (Type on keyboard and press Enter)",
+  "blue_pin_prompt": "PIN Code: ",
   "font_title": "Typography",
   "font_switched": "Monospace font switched to: {font}",
   "wallpaper_notify_title": "Wallpaper",
