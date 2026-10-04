@@ -83,27 +83,14 @@ set_wallpaper() {
 	mv -f "$tmp" "$state_file"
 }
 
-get_current() {
-	if [[ -s "$state_file" ]]; then
-		cat "$state_file"
-	else
-		printf 'none\n'
-	fi
-}
-
 main() {
 	if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
-		printf 'Usage: arch-wallpaper-set <path|wallhaven-url|wallhaven-id|image-url|current>\n'
+		printf 'Usage: arch-wallpaper-set <path|wallhaven-url|wallhaven-id|image-url>\n'
 		return 0
 	fi
 
 	local arg="$1" img="" id=""
 	arg="${arg/#\~\//$HOME/}"
-
-	if [[ "$arg" == "current" || "$arg" == "get" ]]; then
-		get_current
-		return 0
-	fi
 
 	if [[ -f "$arg" ]]; then
 		img="$arg"
