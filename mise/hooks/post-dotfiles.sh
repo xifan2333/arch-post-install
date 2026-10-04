@@ -27,9 +27,9 @@ if command -v mise &>/dev/null; then
 fi
 
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
-if [[ -x "dotfiles/.local/bin/arch-theme-set" ]]; then
+if [[ -x "dotfiles/.local/bin/arch-theme" ]]; then
     printf 'post-dotfiles: refreshing desktop theme...\n'
-    dotfiles/.local/bin/arch-theme-set --refresh 2>/dev/null || dotfiles/.local/bin/arch-theme-set tokyo-night
+    dotfiles/.local/bin/arch-theme refresh 2>/dev/null || dotfiles/.local/bin/arch-theme tokyo-night
 fi
 
 # Seed initial desktop monospace font configuration for Waybar and terminal UI

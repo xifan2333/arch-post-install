@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
--- arch:summary=Apply or switch desktop semantic color theme
--- arch:args=<theme-name> | --list | --current | --refresh
--- arch:examples=arch theme set tokyo-night | arch theme set --list
+-- arch:summary=Manage, switch, or interactively select desktop semantic color themes
+-- arch:args=[<theme-name> | menu | current | list | refresh]
+-- arch:examples=arch theme tokyo-night | arch theme | arch theme current
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -519,30 +519,68 @@ local function apply_theme(theme_name)
   return true
 end
 
+local function interactive_menu(themes_dir)
+  local curr = get_current_theme() or ""
+  local p =
+    io.popen(string.format("find %q -mindepth 1 -maxdepth 1 -type d | sort", themes_dir), "r")
+  if not p then
+    return
+  end
+  local menu_lines = {}
+  if curr ~= "" then
+    table.insert(menu_lines, "* " .. curr)
+  end
+  for dir in p:lines() do
+    local name = dir:match("([^/]+)$")
+    if name and name ~= curr and file_exists(dir .. "/colors.toml") then
+      table.insert(menu_lines, "  " .. name)
+    end
+  end
+  p:close()
+
+  local tmp = os.tmpname()
+  local f = io.open(tmp, "w")
+  if f then
+    f:write(table.concat(menu_lines, "\n") .. "\n")
+    f:close()
+  end
+  local chosen_p = io.popen(
+    string.format("fuzzel --dmenu --prompt 'Theme: ' --lines 15 < %q 2>/dev/null", tmp),
+    "r"
+  )
+  local chosen = chosen_p and chosen_p:read("*l") or ""
+  if chosen_p then
+    chosen_p:close()
+  end
+  os.remove(tmp)
+
+  if chosen and chosen ~= "" then
+    local cleaned = chosen:gsub("^[ *]+", ""):gsub("%s+$", "")
+    apply_theme(cleaned)
+  end
+end
+
 local function main()
   local cfg = get_config_dir()
   local themes_dir = cfg .. "/themes"
 
   local arg1 = arg[1]
-  if not arg1 or arg1 == "-h" or arg1 == "--help" or arg1 == "help" then
-    local curr = get_current_theme() or "none"
-    io.stdout:write("Usage: arch-theme-set <theme-name> | --list | --current | --refresh\n")
-    io.stdout:write(string.format("Active theme: %s\n", curr))
-    return
-  end
-
-  if arg1 == "-l" or arg1 == "--list" then
+  if not arg1 or arg1 == "menu" then
+    interactive_menu(themes_dir)
+  elseif arg1 == "list" or arg1 == "--list" or arg1 == "-l" then
     list_themes(themes_dir)
-  elseif arg1 == "-c" or arg1 == "--current" then
+  elseif arg1 == "current" or arg1 == "--current" or arg1 == "-c" then
     local curr = get_current_theme()
     io.stdout:write(string.format("%s\n", curr or "none"))
-  elseif arg1 == "-r" or arg1 == "--refresh" then
+  elseif arg1 == "refresh" or arg1 == "--refresh" or arg1 == "-r" then
     local curr = get_current_theme()
     if not curr or curr == "" then
       io.stderr:write("Error: No active theme found to refresh\n")
       os.exit(1)
     end
     apply_theme(curr)
+  elseif arg1 == "-h" or arg1 == "--help" or arg1 == "help" then
+    io.stdout:write("Usage: arch theme [<theme-name> | menu | current | list | refresh]\n")
   else
     if not apply_theme(arg1) then
       os.exit(1)
