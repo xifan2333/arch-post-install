@@ -175,7 +175,9 @@ search_flow() {
 		exec 3<&-
 
 		if [[ "$count" -eq 0 && ${#menu_items[@]} -eq 0 ]]; then
-			notify-send "Wallhaven" "No wallpapers found" 2>/dev/null || true
+			if command -v notify-send >/dev/null 2>&1; then
+				notify-send "$(x-i18n get wallpaper_notify_title 2>/dev/null || echo "Wallpaper")" "$(x-i18n get wallpaper_none_found "dir=Wallhaven" 2>/dev/null || echo "No wallpapers found")"
+			fi
 			return 0
 		fi
 
@@ -183,10 +185,13 @@ search_flow() {
 		[[ "$count" -ge 24 ]] && menu_items+=("$next_label")
 		menu_items+=("$back_label")
 
+		local prompt_page
+		prompt_page="$(x-i18n get wallpaper_search_page_prompt "page=$page" 2>/dev/null || echo "Wallhaven (p.$page): ")"
+
 		pick="$(
 			for item in "${menu_items[@]}"; do
 				printf '%b\n' "$item"
-			done | dmenu "Wallhaven (p.$page):" --lines 15
+			done | dmenu "$prompt_page" --lines 15
 		)"
 		[[ -n "$pick" ]] || return 0
 

@@ -39,8 +39,13 @@ set -euo pipefail
 description = "Run all hk fixers to format files"
 run = "hk fix"
 
+[tasks."check:standards"]
+description = "Validate desktop bin metadata, i18n key parity, and zero hardcoded user strings"
+run = "./scripts/check-standards.py"
+
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
+depends = ["check:standards"]
 run = "hk check --all"
 
 [tasks.format]

@@ -4,6 +4,12 @@
 # arch:examples=x-font | x-font current | x-font "JetBrainsMono Nerd Font" "Sarasa Mono SC"
 set -euo pipefail
 
+notify() {
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$(x-i18n get font_title 2>/dev/null || echo "Typography")" "$1"
+	fi
+}
+
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/font"
 mkdir -p "$state_dir"
 
@@ -159,6 +165,7 @@ EOF
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	fc-cache 2>/dev/null || true
 
+	notify "$(x-i18n get font_switched "font=$mono_font" 2>/dev/null || echo "Monospace font switched to: $mono_font")"
 	printf '✓ Set active fonts:\n  Mono: %s\n  CJK : %s\n' "$mono_font" "$cjk_font"
 }
 
@@ -192,10 +199,14 @@ interactive_menu() {
 	}
 
 	# Step 1: Select Monospace Font
+	local prompt_mono prompt_cjk
+	prompt_mono="$(x-i18n get font_prompt_mono 2>/dev/null || echo "Monospace Font: ")"
+	prompt_cjk="$(x-i18n get font_prompt_cjk 2>/dev/null || echo "CJK Font: ")"
+
 	local mono_raw mono_menu selected_mono
 	mono_raw="$(get_mono_fonts "$curr_mono")"
 	mono_menu="$(format_menu "$curr_mono" "$mono_raw")"
-	selected_mono=$(printf '%s\n' "$mono_menu" | $dmenu_cmd "Mono: ")
+	selected_mono=$(printf '%s\n' "$mono_menu" | $dmenu_cmd "$prompt_mono")
 	[[ -n "${selected_mono:-}" ]] || return 0
 	selected_mono="${selected_mono#\* }"
 	selected_mono="${selected_mono#  }"
@@ -204,7 +215,7 @@ interactive_menu() {
 	local cjk_raw cjk_menu selected_cjk
 	cjk_raw="$(get_cjk_fonts "$curr_cjk")"
 	cjk_menu="$(format_menu "$curr_cjk" "$cjk_raw")"
-	selected_cjk=$(printf '%s\n' "$cjk_menu" | $dmenu_cmd "CJK: ")
+	selected_cjk=$(printf '%s\n' "$cjk_menu" | $dmenu_cmd "$prompt_cjk")
 	if [[ -z "${selected_cjk:-}" ]]; then
 		selected_cjk="$curr_cjk"
 	else
