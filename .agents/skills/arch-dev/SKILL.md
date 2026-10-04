@@ -62,7 +62,7 @@ Read the matching reference before editing:
 | Map a dotfile into `~/.config` / `~/.local` | `mise/conf.d/30-dotfiles.toml` |
 | Update pre-packages setup hook | `mise/hooks/pre-packages.sh` |
 | Update post-dotfiles runtime hook | `mise/hooks/post-dotfiles.sh` |
-| Configure River window manager & compositor | `dotfiles/.config/river/` |
+| Configure xrwm window manager & desktop rules | `dotfiles/.config/xrwm/` |
 | Manage state collectors & CLI tools | `dotfiles/.local/bin/` |
 | Dotfile sources | `dotfiles/` (never edit target symlinks directly) |
 
