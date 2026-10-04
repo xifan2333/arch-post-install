@@ -127,8 +127,8 @@ This system follows the principles documented in `.agents/skills/arch-dev/refere
    - **Priority 3: Pure Python 3 (`python3`)**: Reserved for complex structured data or long-running daemons. **Strict constraints**:
      * Standard library only (zero `pip` dependencies).
      * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
-5. **Universal CLI Convention (`arch-<domain>-<action>`)**:
-   - All scripts in `dotfiles/.local/bin/` follow `arch-<domain>` or `arch-<domain>-<action>` directly accessible via `$PATH`. Every script includes `# arch:summary=...` metadata.
+5. **Universal CLI Convention (`x-<tool>`)**:
+   - All scripts in `dotfiles/.local/bin/` follow the unified single-character namespace `x-<tool>` (e.g. `x-audio`, `x-wifi`, `x-blue`, `x-cap`, `x-ocr`, `x-rec`, `x-wall`, `x-theme`, `x-camera`, `x-captions`, `x-keys`, `x-title`) directly accessible via `$PATH`. Every script includes `# arch:summary=...` metadata.
 6. **Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)**:
    When investigating tools, CLI flags, configuration formats, or protocols:
    - **Priority 1: Local `man <tool>`**: Always check local manual pages first.
