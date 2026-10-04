@@ -99,11 +99,6 @@ window#waybar {
     color: @cyan;
 }
 
-#custom-screenshot:hover {
-    background: @selection;
-    color: @fg_bright;
-}
-
 /* Screen Recording & Live Streaming */
 #custom-screenrecord {
     padding: 0 8px;
@@ -140,6 +135,26 @@ window#waybar {
 
 #tray > .needs-attention {
     background: @red;
+}
+
+/* Bluetooth */
+#bluetooth {
+    padding: 0 8px;
+    margin: 1px 2px;
+    color: @blue;
+}
+
+#bluetooth.on {
+    color: @blue;
+}
+
+#bluetooth.connected {
+    color: @green;
+}
+
+#bluetooth.off,
+#bluetooth.disabled {
+    color: @red;
 }
 
 /* Network */
@@ -213,7 +228,18 @@ window#waybar {
     color: @red;
 }
 
+/* Unified Interactive Module Hover */
+#bluetooth:hover,
+#network:hover,
+#pulseaudio:hover,
+#pulseaudio.microphone:hover,
+#backlight:hover,
+#battery:hover,
+#clock:hover,
+#custom-screenshot:hover,
+#custom-screenrecord:hover,
 #custom-power:hover {
     background: @selection;
-    color: @fg_bright;
+    border-radius: 4px;
+    transition: all 0.15s ease-in-out;
 }
