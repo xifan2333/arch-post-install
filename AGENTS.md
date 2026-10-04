@@ -121,14 +121,17 @@ This system follows the principles documented in `.agents/skills/arch-dev/refere
 3. **Suckless Frugality**:
    - Favor minimal C / Zig / POSIX Shell components over bloated GUI wrappers or multi-megabyte daemon frameworks.
    - Mechanism over policy: The window manager and shell should remain strictly within the user's cognitive control.
-4. **Pure Script First-Class Citizens (Language Priority: `sh` > `perl` > `py`)**:
-   - **Priority 1: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: All system glue, hardware controls, state collectors, and CLI dispatchers must be written in pure shell. 100% native, instant startup (< 1ms), and zero cache files.
-   - **Priority 2: Pure Perl (`perl`)**: For complex text transformations, in-memory regex mappings, or multi-dimensional template rendering where shell/awk becomes convoluted. 100% native, runs purely in memory, and never produces disk bytecode cache.
-   - **Priority 3: Pure Python 3 (`python3`)**: Reserved for complex structured data or long-running daemons. **Strict constraints**:
+4. **Pure Script First-Class Citizens (Language Priority: `bash` > `lua` > `python`)**:
+   - **Priority 1: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: All system glue, hardware controls, state collectors, and CLI dispatchers must be written in pure Bash. 100% native, instant startup (< 2ms), and zero disk bytecode cache.
+   - **Priority 2: Pure Lua (`luajit` / `lua`)**: Preferred for complex system IPC (e.g. D-Bus asynchronous communication in `x-blue` / `x-wifi`), real-time data structures, or multi-dimensional palette rendering (`x-theme`). Runs purely in memory with native execution speed, minimal RAM footprint (< 2 MB), and zero disk bytecode cache.
+   - **Priority 3: Pure Python 3 (`python3`)**: Reserved for complex GUI windows (e.g. `x-live-config`), audio/video inferencing (`x-captions`), or long-running daemons. **Strict constraints**:
      * Standard library only (zero `pip` dependencies).
      * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
-5. **Universal CLI Convention (`x-<tool>`)**:
-   - All scripts in `dotfiles/.local/bin/` follow the unified single-character namespace `x-<tool>` (e.g. `x-audio`, `x-wifi`, `x-blue`, `x-cap`, `x-ocr`, `x-rec`, `x-wall`, `x-theme`, `x-camera`, `x-captions`, `x-keys`, `x-title`) directly accessible via `$PATH`. Every script includes `# arch:summary=...` metadata.
+5. **Universal CLI Convention (`x-<domain>`) & Desktop Bin Standards**:
+   - **Namespace & Metadata**: All scripts in `dotfiles/.local/bin/` follow the unified single-character namespace `x-<domain>` (e.g. `x-audio`, `x-wifi`, `x-blue`, `x-cap`, `x-ocr`, `x-rec`, `x-wall`, `x-theme`, `x-camera`, `x-captions`, `x-keys`, `x-title`) directly accessible via `$PATH`. Every script includes `# arch:summary=...` metadata.
+   - **Zero Hardcoded User-Facing Text**: Notifications (`notify-send`), dmenu prompts (`--prompt`), menu option labels, and fail messages must route through `x-i18n get <key> [var=val] 2>/dev/null || echo "Fallback"` with pair-wise translations in `zh-cn.json` and `en-us.json`.
+   - **UI Selection Strategy**: `fuzzel` (primary keyboard-driven dmenu) > `zenity` (secondary standard forms/dialogs) > custom GTK (`PyGObject`, complex stateful panels only).
+   - **Menu Specifications**: Single-level for $\le 8$ options; two-level for mode dispatch vs entity browsing. Use equal-width state alignment (`* ` / `  `), standard NerdFont glyphs, instant-apply interactions, and user-private tmpfs (`$XDG_RUNTIME_DIR`) for thumbnails/previews.
 6. **Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)**:
    When investigating tools, CLI flags, configuration formats, or protocols:
    - **Priority 1: Local `man <tool>`**: Always check local manual pages first.
