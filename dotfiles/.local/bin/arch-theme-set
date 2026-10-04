@@ -1,499 +1,553 @@
-#!/usr/bin/env bash
-# arch:summary=Apply or switch desktop semantic color theme
-# arch:args=<theme-name> | --list | --current | --refresh
-# arch:examples=arch theme set tokyo-night | arch theme set --list
-set -euo pipefail
-
-get_config_dir() {
-	local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
-	if [[ -d "$xdg/themes" ]]; then
-		printf '%s' "$xdg"
-		return 0
-	fi
-	local repo_cfg
-	repo_cfg="$(dirname "$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")")/.config"
-	if [[ -d "$repo_cfg/themes" ]]; then
-		printf '%s' "$repo_cfg"
-		return 0
-	fi
-	printf '%s' "$xdg"
-}
-
-get_state_dir() {
-	printf '%s' "${XDG_STATE_HOME:-$HOME/.local/state}"
-}
-
-get_current_theme() {
-	local state_dir
-	state_dir="$(get_state_dir)"
-	local name_file="$state_dir/theme/current.name"
-	if [[ -f "$name_file" ]]; then
-		cat "$name_file"
-		return 0
-	fi
-	local link="$state_dir/theme/current"
-	if [[ -L "$link" ]]; then
-		basename "$(readlink -f "$link")"
-		return 0
-	fi
-	return 1
-}
-
-list_themes() {
-	local themes_dir="$1"
-	local curr
-	curr="$(get_current_theme || true)"
-	for d in "$themes_dir"/*; do
-		if [[ -d "$d" && -f "$d/colors.toml" ]]; then
-			local name="${d##*/}"
-			local prefix="  "
-			[[ "$name" == "$curr" ]] && prefix="* "
-			printf '%s%s\n' "$prefix" "$name"
-		fi
-	done
-}
-
-broadcast_reloads() {
-	pkill -SIGUSR2 waybar 2>/dev/null || true
-	pkill -SIGUSR1 fnott 2>/dev/null || true
-	pkill -SIGUSR1 ftty 2>/dev/null || true
-	pkill -SIGUSR2 btop 2>/dev/null || true
-
-	if pgrep -x mako >/dev/null 2>&1; then
-		makoctl reload 2>/dev/null || true
-	fi
-
-	# Gracefully reload Fcitx5 via native DBus Controller interface or fcitx5-remote
-	if pgrep -x fcitx5 >/dev/null 2>&1; then
-		busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Restart 2>/dev/null || fcitx5-remote -r 2>/dev/null || true
-	elif systemctl --user is-active --quiet fcitx5.service 2>/dev/null; then
-		systemctl --user restart fcitx5.service 2>/dev/null || true
-	fi
-
-	# Reload Herdr server config if running
-	if pgrep -x herdr >/dev/null 2>&1 && command -v herdr >/dev/null 2>&1; then
-		herdr server reload-config >/dev/null 2>&1 || true
-	fi
-
-	# Reload running Neovim instances over active Unix domain sockets
-	local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
-	if [[ -d "$runtime_dir" ]]; then
-		while IFS= read -r sock; do
-			[[ -S "$sock" ]] || continue
-			nvim --server "$sock" --remote-send "<Cmd>doautocmd User LazyReload<CR>" >/dev/null 2>&1 || true
-		done < <(find "$runtime_dir" -type s -name "*nvim*.sock" 2>/dev/null)
-	fi
-
-	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-		local state_dir
-		state_dir="$(get_state_dir)"
-		local xrwm_theme="$state_dir/theme/xrwm.sh"
-		if [[ -x "$xrwm_theme" ]]; then
-			"$xrwm_theme" >/dev/null 2>&1 || true
-		fi
-	fi
-}
-
-ensure_fcitx5_theme() {
-	local state_theme="$1"
-	[[ -f "$state_theme" ]] || return 0
-
-	local fcitx_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fcitx5/themes/custom"
-	mkdir -p "$fcitx_dir"
-
-	local target_conf="$fcitx_dir/theme.conf"
-	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_theme" ]]; then
-		ln -sf "$state_theme" "$target_conf"
-	fi
-
-	for svg in arrow.svg next.svg prev.svg radio.svg; do
-		if [[ -f "/usr/share/fcitx5/themes/default/$svg" && ! -e "$fcitx_dir/$svg" ]]; then
-			ln -sf "/usr/share/fcitx5/themes/default/$svg" "$fcitx_dir/$svg"
-		fi
-	done
-}
-
-ensure_ftty_theme() {
-	# Theme colors are dynamically included via ~/.local/state/theme/ftty.toml
-	return 0
-}
-
-ensure_neovim_theme() {
-	local state_theme="$1"
-	[[ -f "$state_theme" ]] || return 0
-
-	local nvim_plugins_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lua/plugins"
-	mkdir -p "$nvim_plugins_dir"
-
-	local target_conf="$nvim_plugins_dir/theme.lua"
-	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_theme" ]]; then
-		ln -sf "$state_theme" "$target_conf"
-	fi
-	touch -c "$target_conf" 2>/dev/null || true
-}
-
-ensure_gtk_theme() {
-	local state_gtk="$1"
-	local colors_file="${2:-}"
-	[[ -f "$state_gtk" ]] || return 0
-
-	local mode="dark"
-	if [[ -n "$colors_file" && -f "$colors_file" ]]; then
-		mode="$(get_color_token "$colors_file" "mode" "dark")"
-	fi
-
-	local gtk_prefer_dark=1
-	local gtk_theme="adw-gtk3-dark"
-	local gtk_icon_theme="Adwaita"
-	local color_scheme="prefer-dark"
-
-	if [[ "$mode" == "light" ]]; then
-		gtk_prefer_dark=0
-		gtk_theme="adw-gtk3"
-		gtk_icon_theme="Adwaita"
-		color_scheme="prefer-light"
-	fi
-
-	local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
-	for v in gtk-3.0 gtk-4.0; do
-		local dir="$xdg/$v"
-		mkdir -p "$dir"
-		local target_css="$dir/gtk.css"
-		if [[ "$(readlink -f "$target_css" 2>/dev/null || true)" != "$state_gtk" ]]; then
-			ln -sf "$state_gtk" "$target_css"
-		fi
-
-		cat >"$dir/settings.ini" <<EOF
-[Settings]
-gtk-application-prefer-dark-theme=$gtk_prefer_dark
-gtk-theme-name=$gtk_theme
-gtk-icon-theme-name=$gtk_icon_theme
-gtk-decoration-layout=
-EOF
-	done
-
-	if command -v gsettings >/dev/null 2>&1; then
-		gsettings set org.gnome.desktop.interface color-scheme "$color_scheme" 2>/dev/null || true
-		gsettings set org.gnome.desktop.interface gtk-theme "$gtk_theme" 2>/dev/null || true
-		gsettings set org.gnome.desktop.interface icon-theme "$gtk_icon_theme" 2>/dev/null || true
-		gsettings set org.gnome.desktop.wm.preferences button-layout "" 2>/dev/null || true
-	fi
-}
-
-ensure_mako_theme() {
-	local state_mako="$1"
-	[[ -f "$state_mako" ]] || return 0
-
-	local mako_dir="${XDG_CONFIG_HOME:-$HOME/.config}/mako"
-	mkdir -p "$mako_dir"
-
-	local target_conf="$mako_dir/config"
-	if [[ "$(readlink -f "$target_conf" 2>/dev/null || true)" != "$state_mako" ]]; then
-		ln -sf "$state_mako" "$target_conf"
-	fi
-}
-
-ensure_btop_theme() {
-	local state_btop="$1"
-	[[ -f "$state_btop" ]] || return 0
-
-	local btop_dir="${XDG_CONFIG_HOME:-$HOME/.config}/btop"
-	local themes_dir="$btop_dir/themes"
-	mkdir -p "$themes_dir"
-
-	local target_theme="$themes_dir/current.theme"
-	if [[ "$(readlink -f "$target_theme" 2>/dev/null || true)" != "$state_btop" ]]; then
-		ln -sf "$state_btop" "$target_theme"
-	fi
-
-	local btop_conf="$btop_dir/btop.conf"
-	if [[ -f "$btop_conf" ]]; then
-		if grep -q "^color_theme = " "$btop_conf"; then
-			sed -i 's|^color_theme = .*|color_theme = "current"|' "$btop_conf"
-		else
-			printf '\ncolor_theme = "current"\n' >>"$btop_conf"
-		fi
-	fi
-}
-
-ensure_wayhud_theme() {
-	local state_wayhud="$1"
-	[[ -f "$state_wayhud" ]] || return 0
-
-	local wayhud_dir="${XDG_CONFIG_HOME:-$HOME/.config}/wayhud"
-	mkdir -p "$wayhud_dir"
-
-	local target_css="$wayhud_dir/style.css"
-	if [[ "$(readlink -f "$target_css" 2>/dev/null || true)" != "$state_wayhud" ]]; then
-		rm -f "$target_css"
-		ln -sf "$state_wayhud" "$target_css"
-	fi
-}
-
-blend_color() {
-	local base="${1#\#}" over="${2#\#}" ratio="$3"
-	local br=$((16#${base:0:2})) bg=$((16#${base:2:2})) bb=$((16#${base:4:2}))
-	local or=$((16#${over:0:2})) og=$((16#${over:2:2})) ob=$((16#${over:4:2}))
-	printf "#%02x%02x%02x" \
-		$((br + (or - br) * ratio / 100)) \
-		$((bg + (og - bg) * ratio / 100)) \
-		$((bb + (ob - bb) * ratio / 100))
-}
-
-get_color_token() {
-	local file="$1" key="$2" default="${3:-}"
-	local val
-	val="$(grep -E "^${key}[[:space:]]*=" "$file" 2>/dev/null | head -1 | cut -d'"' -f2 || true)"
-	if [[ -n "$val" ]]; then
-		printf '%s' "$val"
-	else
-		printf '%s' "$default"
-	fi
-}
-
-assemble_herdr_theme() {
-	local colors_file="$1" theme_state="$2"
-	local cfg
-	cfg="$(get_config_dir)"
-
-	local base_cfg=""
-	if [[ -f "$cfg/herdr/config.base.toml" ]]; then
-		base_cfg="$cfg/herdr/config.base.toml"
-	elif [[ -f "$HOME/.config/herdr/config.base.toml" ]]; then
-		base_cfg="$HOME/.config/herdr/config.base.toml"
-	fi
-
-	[[ -n "$base_cfg" && -f "$base_cfg" ]] || return 0
-
-	local accent background foreground selection muted
-	local lighter_background light_foreground
-	local magenta green yellow red blue cyan orange
-
-	accent="$(get_color_token "$colors_file" "accent" "#7aa2f7")"
-	background="$(get_color_token "$colors_file" "background" "#1a1b26")"
-	foreground="$(get_color_token "$colors_file" "foreground" "#a9b1d6")"
-	selection="$(get_color_token "$colors_file" "selection" "$accent")"
-	muted="$(get_color_token "$colors_file" "muted" "#414868")"
-	lighter_background="$(get_color_token "$colors_file" "lighter_background" "")"
-	light_foreground="$(get_color_token "$colors_file" "light_foreground" "")"
-
-	magenta="$(get_color_token "$colors_file" "magenta" "#ad8ee6")"
-	green="$(get_color_token "$colors_file" "green" "#9ece6a")"
-	yellow="$(get_color_token "$colors_file" "yellow" "#e0af68")"
-	red="$(get_color_token "$colors_file" "red" "#f7768e")"
-	blue="$(get_color_token "$colors_file" "blue" "#7aa2f7")"
-	cyan="$(get_color_token "$colors_file" "cyan" "#449dab")"
-	orange="$(get_color_token "$colors_file" "orange" "$yellow")"
-
-	local active_row_bg selection_bg surface_dim surface0 surface1 overlay0 overlay1 subtext0
-	active_row_bg="$(blend_color "$background" "$foreground" 12)"
-	selection_bg="$(blend_color "$background" "$selection" 40)"
-	surface_dim="$(blend_color "$background" "$foreground" 6)"
-	surface0="${lighter_background:-$(blend_color "$background" "$foreground" 8)}"
-	surface1="${muted:-$(blend_color "$background" "$foreground" 16)}"
-	overlay0="$(blend_color "$background" "$foreground" 88)"
-	overlay1="$(blend_color "$background" "$foreground" 94)"
-	subtext0="${light_foreground:-$(blend_color "$background" "$foreground" 78)}"
-
-	local target_herdr="$theme_state/herdr.toml"
-	{
-		cat "$base_cfg"
-		printf '\n# Auto-generated by arch-theme-set from active theme\n'
-		printf '[theme.custom]\n'
-		printf 'accent = "%s"\n' "$accent"
-		printf 'panel_bg = "%s"\n' "$background"
-		printf 'sidebar_bg = "%s"\n' "$background"
-		printf 'active_row_bg = "%s"\n' "$active_row_bg"
-		printf 'selection_bg = "%s"\n' "$selection_bg"
-		printf 'surface0 = "%s"\n' "$surface0"
-		printf 'surface1 = "%s"\n' "$surface1"
-		printf 'surface_dim = "%s"\n' "$surface_dim"
-		printf 'overlay0 = "%s"\n' "$overlay0"
-		printf 'overlay1 = "%s"\n' "$overlay1"
-		printf 'text = "%s"\n' "$foreground"
-		printf 'subtext0 = "%s"\n' "$subtext0"
-		printf 'mauve = "%s"\n' "$magenta"
-		printf 'green = "%s"\n' "$green"
-		printf 'yellow = "%s"\n' "$yellow"
-		printf 'red = "%s"\n' "$red"
-		printf 'blue = "%s"\n' "$blue"
-		printf 'teal = "%s"\n' "$cyan"
-		printf 'peach = "%s"\n' "$orange"
-	} >"$target_herdr"
-
-	local herdr_dir="${XDG_CONFIG_HOME:-$HOME/.config}/herdr"
-	mkdir -p "$herdr_dir"
-	local herdr_conf="$herdr_dir/config.toml"
-	if [[ "$(readlink -f "$herdr_conf" 2>/dev/null || true)" != "$target_herdr" ]]; then
-		ln -sf "$target_herdr" "$herdr_conf"
-	fi
-}
-
-render_template() {
-	local colors_file="$1"
-	local tpl_file="$2"
-	local target_file="$3"
-	local is_exec="${4:-0}"
-
-	mkdir -p "$(dirname "$target_file")"
-	local tmp
-	tmp=$(mktemp -p "$(dirname "$target_file")" ".${target_file##*/}.tmp.XXXXXX")
-
-	awk '
-    function hex2dec(hex,   chars, val, i) {
-        hex = tolower(hex)
-        chars = "0123456789abcdef"
-        val = 0
-        for (i = 1; i <= length(hex); i++) {
-            val = val * 16 + (index(chars, substr(hex, i, 1)) - 1)
-        }
-        return val
-    }
-
-    function hex2rgb(hex,   r, g, b) {
-        sub(/^#/, "", hex)
-        r = hex2dec(substr(hex, 1, 2))
-        g = hex2dec(substr(hex, 3, 2))
-        b = hex2dec(substr(hex, 5, 2))
-        return r "," g "," b
-    }
-
-    NR == FNR {
-        if ($0 ~ /^[a-z_]+[ \t]*=/) {
-            split($0, parts, "=")
-            gsub(/[ \t]/, "", parts[1])
-            gsub(/[ \t"\047]/, "", parts[2])
-            colors[parts[1]] = parts[2]
-        }
-        next
-    }
-
-    FNR == 1 {
-        if (!("orange" in colors) && ("yellow" in colors)) colors["orange"] = colors["yellow"]
-        if (!("brown" in colors) && ("muted" in colors)) colors["brown"] = colors["muted"]
-        if (!("darker_background" in colors) && ("dark_background" in colors)) colors["darker_background"] = colors["dark_background"]
-        if (!("selection_foreground" in colors) && ("bright_foreground" in colors)) colors["selection_foreground"] = colors["bright_foreground"]
-        if (!("selection_background" in colors) && ("selection" in colors)) colors["selection_background"] = colors["selection"]
-    }
-
-    {
-        line = $0
-        for (k in colors) {
-            c = colors[k]
-            c_strip = c
-            sub(/^#/, "", c_strip)
-            c_rgb = hex2rgb(c)
-
-            pat_plain = "\\{\\{[ \t]*" k "[ \t]*\\}\\}"
-            pat_strip = "\\{\\{[ \t]*" k "(_strip|[ \t]*\\|[ \t]*strip)[ \t]*\\}\\}"
-            pat_rgb   = "\\{\\{[ \t]*" k "(_rgb|[ \t]*\\|[ \t]*rgb)[ \t]*\\}\\}"
-
-            gsub(pat_strip, c_strip, line)
-            gsub(pat_rgb, c_rgb, line)
-            gsub(pat_plain, c, line)
-        }
-        print line
-    }
-    ' "$colors_file" "$tpl_file" >"$tmp"
-
-	if [[ "$is_exec" -eq 1 ]]; then
-		chmod 0755 "$tmp"
-	else
-		chmod 0644 "$tmp"
-	fi
-	mv -f "$tmp" "$target_file"
-}
-
-apply_theme() {
-	local theme_name="$1"
-	local cfg
-	cfg="$(get_config_dir)"
-	local state_dir
-	state_dir="$(get_state_dir)"
-	local theme_path="$cfg/themes/$theme_name"
-	local colors_file="$theme_path/colors.toml"
-
-	if [[ ! -f "$colors_file" ]]; then
-		printf 'Error: Theme "%s" not found at %s\n' "$theme_name" "$colors_file" >&2
-		return 1
-	fi
-
-	local theme_state="$state_dir/theme"
-	mkdir -p "$theme_state"
-
-	local themed_dir="$cfg/themed"
-	local rendered_count=0
-	if [[ -d "$themed_dir" ]]; then
-		for tpl in "$themed_dir"/*.tpl; do
-			[[ -f "$tpl" ]] || continue
-			local filename="${tpl##*/}"
-			local target_name="${filename%.tpl}"
-			local target="$theme_state/$target_name"
-			local is_exec=0
-			if [[ "$target_name" == *.sh ]]; then
-				is_exec=1
-			fi
-			render_template "$colors_file" "$tpl" "$target" "$is_exec"
-			rendered_count=$((rendered_count + 1))
-		done
-	fi
-
-	cp -f "$colors_file" "$theme_state/colors.toml"
-	printf '%s\n' "$theme_name" >"$theme_state/current.name"
-
-	local current_symlink="$theme_state/current"
-	rm -f "$current_symlink"
-	ln -s "$theme_path" "$current_symlink" 2>/dev/null || true
-
-	ensure_fcitx5_theme "$theme_state/fcitx5-theme.conf"
-	ensure_neovim_theme "$theme_state/neovim.lua"
-	ensure_gtk_theme "$theme_state/gtk.css" "$colors_file"
-	ensure_ftty_theme "$theme_state/ftty.toml"
-	ensure_mako_theme "$theme_state/mako.conf"
-	ensure_btop_theme "$theme_state/btop.theme"
-	ensure_wayhud_theme "$theme_state/wayhud.css"
-	assemble_herdr_theme "$colors_file" "$theme_state"
-	broadcast_reloads
-
-	printf '✓ Applied theme "%s" (%d template(s) rendered)\n' "$theme_name" "$rendered_count"
-}
-
-main() {
-	local cfg
-	cfg="$(get_config_dir)"
-	local themes_dir="$cfg/themes"
-
-	if [[ $# -lt 1 ]]; then
-		local curr
-		curr="$(get_current_theme || echo "none")"
-		printf 'Usage: arch-theme-set <theme-name> | --list | --current | --refresh\n'
-		printf 'Active theme: %s\n' "$curr"
-		return 0
-	fi
-
-	case "$1" in
-	-l | --list)
-		list_themes "$themes_dir"
-		;;
-	-c | --current)
-		get_current_theme || printf 'none\n'
-		;;
-	-r | --refresh)
-		local curr
-		curr="$(get_current_theme || true)"
-		if [[ -z "$curr" ]]; then
-			printf 'Error: No active theme found to refresh\n' >&2
-			return 1
-		fi
-		apply_theme "$curr"
-		;;
-	-h | --help | help)
-		printf 'Usage: arch-theme-set <theme-name> | --list | --current | --refresh\n'
-		;;
-	*)
-		apply_theme "$1"
-		;;
-	esac
-}
-
-main "$@"
+#!/usr/bin/env luajit
+-- arch:summary=Apply or switch desktop semantic color theme
+-- arch:args=<theme-name> | --list | --current | --refresh
+-- arch:examples=arch theme set tokyo-night | arch theme set --list
+
+local function exec_cmd(cmd)
+  local p = io.popen(cmd, "r")
+  if not p then
+    return ""
+  end
+  local out = p:read("*a") or ""
+  p:close()
+  return (out:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local home = os.getenv("HOME") or "/home/xifan"
+local xdg_config = os.getenv("XDG_CONFIG_HOME") or (home .. "/.config")
+local xdg_state = os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")
+local xdg_data = os.getenv("XDG_DATA_HOME") or (home .. "/.local/share")
+local xdg_runtime = os.getenv("XDG_RUNTIME_DIR")
+  or ("/run/user/" .. (exec_cmd("id -u"):gsub("%s+", "")))
+
+local function file_exists(path)
+  local f = io.open(path, "r")
+  if f then
+    f:close()
+    return true
+  end
+  return false
+end
+
+local function read_file(path)
+  local f = io.open(path, "r")
+  if not f then
+    return nil
+  end
+  local content = f:read("*a")
+  f:close()
+  return content
+end
+
+local function write_atomic(path, content, is_exec)
+  local dir = path:match("^(.-)/[^/]+$")
+  if dir and dir ~= "" then
+    os.execute(string.format("mkdir -p %q", dir))
+  end
+  local tmp = path .. ".tmp." .. os.time()
+  local f = io.open(tmp, "w")
+  if not f then
+    return false
+  end
+  f:write(content)
+  f:close()
+  if is_exec then
+    os.execute(string.format("chmod 0755 %q", tmp))
+  else
+    os.execute(string.format("chmod 0644 %q", tmp))
+  end
+  os.rename(tmp, path)
+  return true
+end
+
+local function get_config_dir()
+  if file_exists(xdg_config .. "/themes") then
+    return xdg_config
+  end
+  local script_dir = exec_cmd(string.format("dirname $(readlink -f %q)", arg[0]))
+  local repo_cfg = exec_cmd(string.format("dirname $(dirname $(dirname %q))", script_dir))
+    .. "/.config"
+  if file_exists(repo_cfg .. "/themes") then
+    return repo_cfg
+  end
+  return xdg_config
+end
+
+local function get_current_theme()
+  local name_file = xdg_state .. "/theme/current.name"
+  local name = read_file(name_file)
+  if name and name ~= "" then
+    return (name:gsub("%s+", ""))
+  end
+  local link = xdg_state .. "/theme/current"
+  local target = exec_cmd(string.format("readlink -f %q 2>/dev/null", link))
+  if target and target ~= "" then
+    return target:match("([^/]+)$")
+  end
+  return nil
+end
+
+local function list_themes(themes_dir)
+  local curr = get_current_theme() or ""
+  local p =
+    io.popen(string.format("find %q -mindepth 1 -maxdepth 1 -type d | sort", themes_dir), "r")
+  if not p then
+    return
+  end
+  for dir in p:lines() do
+    local name = dir:match("([^/]+)$")
+    if name and file_exists(dir .. "/colors.toml") then
+      local prefix = (name == curr) and "* " or "  "
+      io.stdout:write(string.format("%s%s\n", prefix, name))
+    end
+  end
+  p:close()
+end
+
+local function hex2rgb(hex)
+  hex = hex:gsub("^#", "")
+  if #hex == 3 then
+    hex = hex:sub(1, 1):rep(2) .. hex:sub(2, 2):rep(2) .. hex:sub(3, 3):rep(2)
+  end
+  local r = tonumber(hex:sub(1, 2), 16) or 0
+  local g = tonumber(hex:sub(3, 4), 16) or 0
+  local b = tonumber(hex:sub(5, 6), 16) or 0
+  return string.format("%d, %d, %d", r, g, b)
+end
+
+local function blend_color(base, over, ratio)
+  base = base:gsub("^#", "")
+  over = over:gsub("^#", "")
+  local br = tonumber(base:sub(1, 2), 16) or 0
+  local bg = tonumber(base:sub(3, 4), 16) or 0
+  local bb = tonumber(base:sub(5, 6), 16) or 0
+  local or_c = tonumber(over:sub(1, 2), 16) or 0
+  local og = tonumber(over:sub(3, 4), 16) or 0
+  local ob = tonumber(over:sub(5, 6), 16) or 0
+  local r = math.floor(br + (or_c - br) * ratio / 100 + 0.5)
+  local g = math.floor(bg + (og - bg) * ratio / 100 + 0.5)
+  local b = math.floor(bb + (ob - bb) * ratio / 100 + 0.5)
+  return string.format("#%02x%02x%02x", r, g, b)
+end
+
+local function parse_colors(colors_file)
+  local colors = {}
+  local f = io.open(colors_file, "r")
+  if not f then
+    return nil
+  end
+  for line in f:lines() do
+    local k, v = line:match("^([%w_]+)%s*=%s*[\"'](.-)[\"']")
+    if k and v then
+      colors[k] = v
+    end
+  end
+  f:close()
+
+  -- Set color fallbacks and derivations matching previous awk logic
+  colors.orange = colors.orange or colors.yellow or "#e0af68"
+  colors.brown = colors.brown or colors.muted or "#414868"
+  colors.darker_background = colors.darker_background or colors.dark_background or "#13141c"
+  colors.selection_foreground = colors.selection_foreground or colors.bright_foreground or "#c0caf5"
+  colors.selection_background = colors.selection_background
+    or colors.selection
+    or colors.accent
+    or "#7aa2f7"
+  colors.lighter_background = colors.lighter_background or ""
+  colors.light_foreground = colors.light_foreground or ""
+
+  local bg = colors.background or "#1a1b26"
+  local fg = colors.foreground or "#a9b1d6"
+  local sel = colors.selection or colors.accent or "#7aa2f7"
+
+  colors.active_row_bg = blend_color(bg, fg, 12)
+  colors.selection_bg = blend_color(bg, sel, 40)
+  colors.surface_dim = blend_color(bg, fg, 6)
+  colors.surface0 = (colors.lighter_background ~= "" and colors.lighter_background)
+    or blend_color(bg, fg, 8)
+  colors.surface1 = colors.muted or blend_color(bg, fg, 16)
+  colors.overlay0 = blend_color(bg, fg, 88)
+  colors.overlay1 = blend_color(bg, fg, 94)
+  colors.subtext0 = (colors.light_foreground ~= "" and colors.light_foreground)
+    or blend_color(bg, fg, 78)
+
+  return colors
+end
+
+local function render_template_content(content, colors)
+  -- 1. Strip variant: {{ key_strip }} or {{ key | strip }}
+  content = content:gsub("{{%s*([%w_]+)%s*_strip%s*}}", function(k)
+    local c = colors[k] or ""
+    return c:gsub("^#", "")
+  end)
+  content = content:gsub("{{%s*([%w_]+)%s*|%s*strip%s*}}", function(k)
+    local c = colors[k] or ""
+    return c:gsub("^#", "")
+  end)
+
+  -- 2. RGB variant: {{ key_rgb }} or {{ key | rgb }}
+  content = content:gsub("{{%s*([%w_]+)%s*_rgb%s*}}", function(k)
+    local c = colors[k]
+    return c and hex2rgb(c) or ""
+  end)
+  content = content:gsub("{{%s*([%w_]+)%s*|%s*rgb%s*}}", function(k)
+    local c = colors[k]
+    return c and hex2rgb(c) or ""
+  end)
+
+  -- 3. Plain variant: {{ key }}
+  content = content:gsub("{{%s*([%w_]+)%s*}}", function(k)
+    return colors[k] or ""
+  end)
+
+  return content
+end
+
+local function ensure_fcitx5_theme(state_theme)
+  if not file_exists(state_theme) then
+    return
+  end
+  local fcitx_dir = xdg_data .. "/fcitx5/themes/custom"
+  os.execute(string.format("mkdir -p %q", fcitx_dir))
+  local target_conf = fcitx_dir .. "/theme.conf"
+  os.execute(string.format("ln -sf %q %q", state_theme, target_conf))
+
+  for _, svg in ipairs({ "arrow.svg", "next.svg", "prev.svg", "radio.svg" }) do
+    local default_svg = "/usr/share/fcitx5/themes/default/" .. svg
+    local custom_svg = fcitx_dir .. "/" .. svg
+    if file_exists(default_svg) and not file_exists(custom_svg) then
+      os.execute(string.format("ln -sf %q %q", default_svg, custom_svg))
+    end
+  end
+end
+
+local function ensure_neovim_theme(state_theme)
+  if not file_exists(state_theme) then
+    return
+  end
+  local nvim_plugins_dir = xdg_config .. "/nvim/lua/plugins"
+  os.execute(string.format("mkdir -p %q", nvim_plugins_dir))
+  local target_conf = nvim_plugins_dir .. "/theme.lua"
+  os.execute(string.format("ln -sf %q %q", state_theme, target_conf))
+  os.execute(string.format("touch -c %q 2>/dev/null || true", target_conf))
+end
+
+local function ensure_gtk_theme(state_gtk, colors)
+  if not file_exists(state_gtk) then
+    return
+  end
+  local mode = colors.mode or "dark"
+  local gtk_prefer_dark = (mode == "dark") and 1 or 0
+  local gtk_theme = (mode == "dark") and "adw-gtk3-dark" or "adw-gtk3"
+  local gtk_icon_theme = "Adwaita"
+  local color_scheme = (mode == "dark") and "prefer-dark" or "prefer-light"
+
+  for _, v in ipairs({ "gtk-3.0", "gtk-4.0" }) do
+    local dir = xdg_config .. "/" .. v
+    os.execute(string.format("mkdir -p %q", dir))
+    local target_css = dir .. "/gtk.css"
+    os.execute(string.format("ln -sf %q %q", state_gtk, target_css))
+
+    local settings_content = string.format(
+      "[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-theme-name=%s\ngtk-icon-theme-name=%s\ngtk-decoration-layout=\n",
+      gtk_prefer_dark,
+      gtk_theme,
+      gtk_icon_theme
+    )
+    local f = io.open(dir .. "/settings.ini", "w")
+    if f then
+      f:write(settings_content)
+      f:close()
+    end
+  end
+
+  if os.execute("command -v gsettings >/dev/null 2>&1") == 0 then
+    os.execute(
+      string.format(
+        "gsettings set org.gnome.desktop.interface color-scheme %q 2>/dev/null || true",
+        color_scheme
+      )
+    )
+    os.execute(
+      string.format(
+        "gsettings set org.gnome.desktop.interface gtk-theme %q 2>/dev/null || true",
+        gtk_theme
+      )
+    )
+    os.execute(
+      string.format(
+        "gsettings set org.gnome.desktop.interface icon-theme %q 2>/dev/null || true",
+        gtk_icon_theme
+      )
+    )
+    os.execute(
+      "gsettings set org.gnome.desktop.wm.preferences button-layout '' 2>/dev/null || true"
+    )
+  end
+end
+
+local function ensure_mako_theme(state_mako)
+  if not file_exists(state_mako) then
+    return
+  end
+  local mako_dir = xdg_config .. "/mako"
+  os.execute(string.format("mkdir -p %q", mako_dir))
+  os.execute(string.format("ln -sf %q %q", state_mako, mako_dir .. "/config"))
+end
+
+local function ensure_btop_theme(state_btop)
+  if not file_exists(state_btop) then
+    return
+  end
+  local btop_dir = xdg_config .. "/btop"
+  local themes_dir = btop_dir .. "/themes"
+  os.execute(string.format("mkdir -p %q", themes_dir))
+  os.execute(string.format("ln -sf %q %q", state_btop, themes_dir .. "/current.theme"))
+
+  local btop_conf = btop_dir .. "/btop.conf"
+  local conf_content = read_file(btop_conf)
+  if conf_content then
+    if conf_content:find("color_theme%s*=") then
+      conf_content =
+        conf_content:gsub("color_theme%s*=%s*[\"'](.-)[\"']", 'color_theme = "current"')
+    else
+      conf_content = conf_content .. '\ncolor_theme = "current"\n'
+    end
+    local f = io.open(btop_conf, "w")
+    if f then
+      f:write(conf_content)
+      f:close()
+    end
+  end
+end
+
+local function ensure_wayhud_theme(state_wayhud)
+  if not file_exists(state_wayhud) then
+    return
+  end
+  local wayhud_dir = xdg_config .. "/wayhud"
+  os.execute(string.format("mkdir -p %q", wayhud_dir))
+  local target_css = wayhud_dir .. "/style.css"
+  os.execute(string.format("rm -f %q && ln -sf %q %q", target_css, state_wayhud, target_css))
+end
+
+local function assemble_herdr_theme(colors, theme_state)
+  local cfg = get_config_dir()
+  local base_cfg = nil
+  if file_exists(cfg .. "/herdr/config.base.toml") then
+    base_cfg = cfg .. "/herdr/config.base.toml"
+  elseif file_exists(home .. "/.config/herdr/config.base.toml") then
+    base_cfg = home .. "/.config/herdr/config.base.toml"
+  end
+  if not base_cfg then
+    return
+  end
+
+  local base_content = read_file(base_cfg) or ""
+  local herdr_custom = string.format(
+    [=[%s
+# Auto-generated by arch-theme-set from active theme
+[theme.custom]
+accent = "%s"
+panel_bg = "%s"
+sidebar_bg = "%s"
+active_row_bg = "%s"
+selection_bg = "%s"
+surface0 = "%s"
+surface1 = "%s"
+surface_dim = "%s"
+overlay0 = "%s"
+overlay1 = "%s"
+text = "%s"
+subtext0 = "%s"
+mauve = "%s"
+green = "%s"
+yellow = "%s"
+red = "%s"
+blue = "%s"
+teal = "%s"
+peach = "%s"
+]=],
+    base_content,
+    colors.accent or "#7aa2f7",
+    colors.background or "#1a1b26",
+    colors.background or "#1a1b26",
+    colors.active_row_bg or "#24283b",
+    colors.selection_bg or "#292e42",
+    colors.surface0 or "#24283b",
+    colors.surface1 or "#414868",
+    colors.surface_dim or "#1a1b26",
+    colors.overlay0 or "#a9b1d6",
+    colors.overlay1 or "#c0caf5",
+    colors.foreground or "#a9b1d6",
+    colors.subtext0 or "#c0caf5",
+    colors.magenta or "#ad8ee6",
+    colors.green or "#9ece6a",
+    colors.yellow or "#e0af68",
+    colors.red or "#f7768e",
+    colors.blue or "#7aa2f7",
+    colors.cyan or "#449dab",
+    colors.orange or "#e0af68"
+  )
+
+  local target_herdr = theme_state .. "/herdr.toml"
+  write_atomic(target_herdr, herdr_custom, false)
+
+  local herdr_dir = xdg_config .. "/herdr"
+  os.execute(string.format("mkdir -p %q", herdr_dir))
+  os.execute(string.format("ln -sf %q %q", target_herdr, herdr_dir .. "/config.toml"))
+end
+
+local function broadcast_reloads()
+  os.execute("pkill -SIGUSR2 waybar 2>/dev/null || true")
+  os.execute("pkill -SIGUSR1 fnott 2>/dev/null || true")
+  os.execute("pkill -SIGUSR1 ftty 2>/dev/null || true")
+  os.execute("pkill -SIGUSR2 btop 2>/dev/null || true")
+
+  if os.execute("pgrep -x mako >/dev/null 2>&1") == 0 then
+    os.execute("makoctl reload 2>/dev/null || true")
+  end
+
+  if os.execute("pgrep -x fcitx5 >/dev/null 2>&1") == 0 then
+    os.execute(
+      "busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Restart 2>/dev/null || fcitx5-remote -r 2>/dev/null || true"
+    )
+  elseif os.execute("systemctl --user is-active --quiet fcitx5.service 2>/dev/null") == 0 then
+    os.execute("systemctl --user restart fcitx5.service 2>/dev/null || true")
+  end
+
+  if
+    os.execute("pgrep -x herdr >/dev/null 2>&1") == 0
+    and os.execute("command -v herdr >/dev/null 2>&1") == 0
+  then
+    os.execute("herdr server reload-config >/dev/null 2>&1 || true")
+  end
+
+  local p = io.popen("find " .. xdg_runtime .. " -type s -name '*nvim*.sock' 2>/dev/null", "r")
+  if p then
+    for sock in p:lines() do
+      os.execute(
+        string.format(
+          "nvim --server %q --remote-send '<Cmd>doautocmd User LazyReload<CR>' >/dev/null 2>&1 || true",
+          sock
+        )
+      )
+    end
+    p:close()
+  end
+
+  if os.getenv("WAYLAND_DISPLAY") then
+    local xrwm_theme = xdg_state .. "/theme/xrwm.sh"
+    if file_exists(xrwm_theme) then
+      os.execute(string.format("%q >/dev/null 2>&1 || true", xrwm_theme))
+    end
+  end
+end
+
+local function apply_theme(theme_name)
+  local cfg = get_config_dir()
+  local theme_path = cfg .. "/themes/" .. theme_name
+  local colors_file = theme_path .. "/colors.toml"
+
+  if not file_exists(colors_file) then
+    io.stderr:write(string.format('Error: Theme "%s" not found at %s\n', theme_name, colors_file))
+    return false
+  end
+
+  local colors = parse_colors(colors_file)
+  if not colors then
+    io.stderr:write(string.format("Error: Failed to parse colors from %s\n", colors_file))
+    return false
+  end
+
+  local theme_state = xdg_state .. "/theme"
+  os.execute(string.format("mkdir -p %q", theme_state))
+
+  local themed_dir = cfg .. "/themed"
+  local rendered_count = 0
+
+  local p = io.popen(string.format("find %q -maxdepth 1 -name '*.tpl' | sort", themed_dir), "r")
+  if p then
+    for tpl in p:lines() do
+      local filename = tpl:match("([^/]+)$")
+      if filename then
+        local target_name = filename:gsub("%.tpl$", "")
+        local target = theme_state .. "/" .. target_name
+        local is_exec = (target_name:match("%.sh$") ~= nil)
+
+        local raw_tpl = read_file(tpl)
+        if raw_tpl then
+          local rendered = render_template_content(raw_tpl, colors)
+          write_atomic(target, rendered, is_exec)
+          rendered_count = rendered_count + 1
+        end
+      end
+    end
+    p:close()
+  end
+
+  os.execute(string.format("cp -f %q %q", colors_file, theme_state .. "/colors.toml"))
+
+  local name_f = io.open(theme_state .. "/current.name", "w")
+  if name_f then
+    name_f:write(theme_name .. "\n")
+    name_f:close()
+  end
+
+  local current_symlink = theme_state .. "/current"
+  os.execute(
+    string.format(
+      "rm -f %q && ln -s %q %q 2>/dev/null || true",
+      current_symlink,
+      theme_path,
+      current_symlink
+    )
+  )
+
+  ensure_fcitx5_theme(theme_state .. "/fcitx5-theme.conf")
+  ensure_neovim_theme(theme_state .. "/neovim.lua")
+  ensure_gtk_theme(theme_state .. "/gtk.css", colors)
+  ensure_mako_theme(theme_state .. "/mako.conf")
+  ensure_btop_theme(theme_state .. "/btop.theme")
+  ensure_wayhud_theme(theme_state .. "/wayhud.css")
+  assemble_herdr_theme(colors, theme_state)
+  broadcast_reloads()
+
+  io.stdout:write(
+    string.format('✓ Applied theme "%s" (%d template(s) rendered)\n', theme_name, rendered_count)
+  )
+  return true
+end
+
+local function main()
+  local cfg = get_config_dir()
+  local themes_dir = cfg .. "/themes"
+
+  local arg1 = arg[1]
+  if not arg1 or arg1 == "-h" or arg1 == "--help" or arg1 == "help" then
+    local curr = get_current_theme() or "none"
+    io.stdout:write("Usage: arch-theme-set <theme-name> | --list | --current | --refresh\n")
+    io.stdout:write(string.format("Active theme: %s\n", curr))
+    return
+  end
+
+  if arg1 == "-l" or arg1 == "--list" then
+    list_themes(themes_dir)
+  elseif arg1 == "-c" or arg1 == "--current" then
+    local curr = get_current_theme()
+    io.stdout:write(string.format("%s\n", curr or "none"))
+  elseif arg1 == "-r" or arg1 == "--refresh" then
+    local curr = get_current_theme()
+    if not curr or curr == "" then
+      io.stderr:write("Error: No active theme found to refresh\n")
+      os.exit(1)
+    end
+    apply_theme(curr)
+  else
+    if not apply_theme(arg1) then
+      os.exit(1)
+    end
+  end
+end
+
+main()
