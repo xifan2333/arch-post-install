@@ -138,8 +138,8 @@
     "tooltip-format-connected": "{controller_alias}\t{controller_address}\n{num_connections} connected\n\n{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
     "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_battery_percentage}%",
-    "on-click": "arch-blue-menu toggle",
-    "on-click-right": "arch-blue-menu"
+    "on-click": "arch-blue toggle",
+    "on-click-right": "arch-blue"
   },
   "network": {
     "format-wifi": "{icon}",
@@ -153,8 +153,8 @@
     ],
     "tooltip-format": "{ifname} via {gwaddr}\nSSID: {essid}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
     "tooltip-format-disconnected": "网络已断开",
-    "on-click": "arch-net-menu toggle",
-    "on-click-right": "arch-net-menu"
+    "on-click": "arch-net toggle",
+    "on-click-right": "arch-net"
   },
   "pulseaudio": {
     "format": "{icon}  {volume}%",
@@ -167,7 +167,7 @@
       ]
     },
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-click-right": "arch-audio-menu sink",
+    "on-click-right": "arch-audio sink",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
@@ -176,7 +176,7 @@
     "format-source": "󰍬  {volume}%",
     "format-source-muted": "󰍭  {volume}%",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-    "on-click-right": "arch-audio-menu source",
+    "on-click-right": "arch-audio source",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SOURCE@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
   },

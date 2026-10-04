@@ -27,7 +27,7 @@ xrwm map normal "Super+Shift" E spawn ftty -e yazi
 xrwm map normal Super V spawn arch-clip-menu
 
 # Network (N)
-xrwm map normal Super N spawn arch-net-menu
+xrwm map normal Super N spawn arch-net
 
 # ===========================================================================
 # 2. Window Lifecycle & Layout Management

@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
--- arch:summary=Interactive text-only Bluetooth connection menu driven by Fuzzel and D-Bus
--- arch:args=[menu | off | toggle]
--- arch:examples=arch blue menu | arch blue toggle | arch blue off
+-- arch:summary=Manage, connect, pair, or toggle Bluetooth devices via D-Bus
+-- arch:args=[menu | toggle | off]
+-- arch:examples=arch blue | arch blue toggle | arch blue off
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")

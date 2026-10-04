@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
--- arch:summary=Interactive Wi-Fi connection menu driven by Fuzzel and iwd D-Bus
+-- arch:summary=Manage, connect, or toggle Wi-Fi networks via iwd D-Bus
 -- arch:args=[menu | toggle]
--- arch:examples=arch net menu | arch net toggle
+-- arch:examples=arch net | arch net toggle
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
