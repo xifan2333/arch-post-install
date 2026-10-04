@@ -32,6 +32,11 @@ local function notify(msg)
   os.execute(string.format("notify-send %q %q 2>/dev/null", title, msg))
 end
 
+local function is_device_connected(mac)
+  local info = exec_cmd("bluetoothctl info " .. mac .. " 2>/dev/null")
+  return info:find("Connected:%s*yes") ~= nil
+end
+
 -- 1. Dependency checks
 if os.execute("command -v bluetoothctl >/dev/null 2>&1") ~= 0 then
   io.stderr:write("Error: bluetoothctl not found. Please install bluez-utils\n")
@@ -213,8 +218,8 @@ end
 
 -- If already paired, connect directly
 if paired_devs[mac] then
-  local ok = os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
-  if ok == 0 or ok == true then
+  os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
+  if is_device_connected(mac) then
     notify(i18n("blue_connected", { dev = dev_name }))
   else
     notify(i18n("blue_failed", { dev = dev_name }))
@@ -225,8 +230,8 @@ end
 -- Otherwise (new device): trust + pair with NoInputNoOutput auto-confirm + connect
 os.execute("bluetoothctl trust " .. mac .. " >/dev/null 2>&1")
 os.execute("bluetoothctl --agent NoInputNoOutput --timeout 15 pair " .. mac .. " >/dev/null 2>&1")
-local ok = os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
-if ok == 0 or ok == true then
+os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
+if is_device_connected(mac) then
   notify(i18n("blue_connected", { dev = dev_name }))
 else
   notify(i18n("blue_failed", { dev = dev_name }))
