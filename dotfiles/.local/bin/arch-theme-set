@@ -13,7 +13,7 @@ local function exec_cmd(cmd)
   return (out:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
-local home = os.getenv("HOME") or "/home/xifan"
+local home = os.getenv("HOME")
 local xdg_config = os.getenv("XDG_CONFIG_HOME") or (home .. "/.config")
 local xdg_state = os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")
 local xdg_data = os.getenv("XDG_DATA_HOME") or (home .. "/.local/share")
