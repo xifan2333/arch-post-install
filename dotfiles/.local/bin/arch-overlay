@@ -1,0 +1,318 @@
+#!/usr/bin/env bash
+# arch:summary=Manage, toggle, or interactively control desktop on-screen HUD overlays
+# arch:args=[menu | keys [toggle|start|stop] | title [toggle|edit|set|get|clear] | camera [toggle|start|stop] | captions [toggle|start|stop]]
+# arch:examples=arch overlay | arch overlay keys toggle | arch overlay title edit
+set -euo pipefail
+
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/wayhud"
+
+# ==================== Keys HUD ====================
+KEYS_PID_FILE="$RUNTIME_DIR/keys.pid"
+
+is_keys_running() {
+	if [[ -f "$KEYS_PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$KEYS_PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	pgrep -f "wayhud[[:space:]]+-n[[:space:]]+keys\b" >/dev/null 2>&1
+}
+
+stop_keys() {
+	if [[ -f "$KEYS_PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$KEYS_PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			kill -TERM "$pid" 2>/dev/null || true
+		fi
+		rm -f "$KEYS_PID_FILE"
+	fi
+	pkill -f "wayhud[[:space:]]+-n[[:space:]]+keys\b" 2>/dev/null || true
+}
+
+start_keys() {
+	if ! command -v wayhud >/dev/null 2>&1; then
+		echo "Error: wayhud is not installed" >&2
+		exit 1
+	fi
+	stop_keys
+	mkdir -p "$RUNTIME_DIR"
+	wayhud -n keys >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$KEYS_PID_FILE"
+}
+
+toggle_keys() {
+	if is_keys_running; then
+		stop_keys
+	else
+		start_keys
+	fi
+}
+
+handle_keys() {
+	local act="${1:-toggle}"
+	case "$act" in
+	start) start_keys ;;
+	stop) stop_keys ;;
+	toggle) toggle_keys ;;
+	status)
+		if is_keys_running; then
+			echo "active"
+		else
+			echo "inactive"
+		fi
+		;;
+	*)
+		echo "Usage: arch overlay keys [toggle | start | stop | status]" >&2
+		exit 1
+		;;
+	esac
+}
+
+# ==================== Title HUD ====================
+TITLE_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/wayhud"
+TITLE_HISTORY_FILE="$TITLE_STATE_DIR/title_history.txt"
+TITLE_PID_FILE="$RUNTIME_DIR/title.pid"
+
+title_notify() {
+	local title body
+	title="$(arch-i18n get overlay_title_edit_title)"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send "$title" "$body"
+	fi
+}
+
+is_title_running() {
+	if [[ -f "$TITLE_PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$TITLE_PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			return 0
+		fi
+	fi
+	pgrep -f "wayhud[[:space:]]+-n[[:space:]]+title\b" >/dev/null 2>&1
+}
+
+stop_title() {
+	if [[ -f "$TITLE_PID_FILE" ]]; then
+		local pid
+		pid="$(cat "$TITLE_PID_FILE" 2>/dev/null || true)"
+		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+			kill -TERM "$pid" 2>/dev/null || true
+		fi
+		rm -f "$TITLE_PID_FILE"
+	fi
+	pkill -f "wayhud[[:space:]]+-n[[:space:]]+title\b" 2>/dev/null || true
+}
+
+start_title() {
+	local text="$1"
+	[[ -n "$text" ]] || return 0
+	if ! command -v wayhud >/dev/null 2>&1; then
+		return 0
+	fi
+	stop_title
+	mkdir -p "$RUNTIME_DIR"
+	printf '%s\n' "$text" | nohup wayhud -n title >/dev/null 2>&1 &
+	local pid=$!
+	printf '%s\n' "$pid" >"$TITLE_PID_FILE"
+}
+
+get_title() {
+	if [[ -f "$TITLE_HISTORY_FILE" ]]; then
+		head -n 1 "$TITLE_HISTORY_FILE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+	fi
+}
+
+set_title() {
+	local new_title="$1"
+	if [[ -z "$new_title" ]]; then
+		stop_title
+		return 0
+	fi
+	mkdir -p "$TITLE_STATE_DIR"
+	local tmp_file="$TITLE_STATE_DIR/title_history.tmp.$$"
+	{
+		printf '%s\n' "$new_title"
+		if [[ -f "$TITLE_HISTORY_FILE" ]]; then
+			grep -v -F -x "$new_title" "$TITLE_HISTORY_FILE" 2>/dev/null || true
+		fi
+	} | head -n 30 >"$tmp_file"
+	mv -f "$tmp_file" "$TITLE_HISTORY_FILE"
+	start_title "$new_title"
+}
+
+clear_title() {
+	set_title ""
+}
+
+clear_title_history() {
+	rm -f "$TITLE_HISTORY_FILE"
+	stop_title
+	title_notify "$(arch-i18n get overlay_title_history_cleared)"
+}
+
+edit_title() {
+	local prompt clear_opt
+	prompt="$(arch-i18n get overlay_title_prompt)"
+	clear_opt="$(arch-i18n get overlay_title_clear_history)"
+
+	local candidates=""
+	if [[ -f "$TITLE_HISTORY_FILE" ]]; then
+		candidates="$(grep -v '^[[:space:]]*$' "$TITLE_HISTORY_FILE" 2>/dev/null || true)"
+	fi
+
+	local chosen
+	chosen=$({
+		if [[ -n "$candidates" ]]; then
+			printf '  %s\n' "$clear_opt"
+			printf '%s\n' "$candidates"
+		fi
+	} | fuzzel --dmenu --prompt "$prompt" || true)
+
+	[[ -n "$chosen" ]] || exit 0
+
+	if [[ "$chosen" == *" $clear_opt" || "$chosen" == "$clear_opt" ]]; then
+		clear_title_history
+		return 0
+	fi
+
+	set_title "$chosen"
+}
+
+toggle_title() {
+	if is_title_running; then
+		stop_title
+	else
+		local current
+		current="$(get_title)"
+		if [[ -n "$current" ]]; then
+			start_title "$current"
+		else
+			edit_title
+		fi
+	fi
+}
+
+handle_title() {
+	local act="${1:-edit}"
+	case "$act" in
+	get) get_title ;;
+	set)
+		shift
+		set_title "$*"
+		;;
+	clear) clear_title ;;
+	clear-history) clear_title_history ;;
+	edit) edit_title ;;
+	toggle) toggle_title ;;
+	start)
+		local current
+		current="$(get_title)"
+		if [[ -n "$current" ]]; then
+			start_title "$current"
+		else
+			edit_title
+		fi
+		;;
+	stop | close | hide | kill) stop_title ;;
+	status)
+		local mode="${2:-}"
+		if [[ "$mode" == "hud" || "$mode" == "--hud" ]]; then
+			if is_title_running; then
+				echo "open"
+			else
+				echo "closed"
+			fi
+		else
+			get_title
+		fi
+		;;
+	*)
+		echo "Usage: arch overlay title [get | set <text> | edit | clear | clear-history | toggle | start | stop | status [hud]]" >&2
+		exit 1
+		;;
+	esac
+}
+
+# ==================== HUD Master Menu ====================
+interactive_menu() {
+	local k_stat="[󰘳]"
+	is_keys_running && k_stat="[󰄬]"
+
+	local t_stat="[󰘳]"
+	is_title_running && t_stat="[󰄬]"
+
+	local cam_stat="[󰘳]"
+	pgrep -f "pip-camera" >/dev/null 2>&1 && cam_stat="[󰄬]"
+
+	local cap_stat="[󰘳]"
+	pgrep -f "vinput-wayhud" >/dev/null 2>&1 && cap_stat="[󰄬]"
+
+	local items=(
+		"  $k_stat  󰌌  按键回显 (Keys HUD)"
+		"  $t_stat  󰓹  直播标题 (Title HUD)"
+		"  $cam_stat  󰕧  摄像头画中画 (Camera PIP)"
+		"  $cap_stat  󰚥  实时语音字幕 (Captions)"
+	)
+
+	local choice
+	choice=$(printf '%s\n' "${items[@]}" | fuzzel --dmenu --prompt "Overlay HUD: " --lines 4 || true)
+	[[ -n "$choice" ]] || return 0
+
+	if [[ "$choice" =~ Keys ]]; then
+		toggle_keys
+	elif [[ "$choice" =~ Title ]]; then
+		toggle_title
+	elif [[ "$choice" =~ Camera ]]; then
+		if [[ -x "$SCRIPT_DIR/arch-overlay-camera" ]]; then
+			"$SCRIPT_DIR/arch-overlay-camera" toggle
+		fi
+	elif [[ "$choice" =~ Captions ]]; then
+		if [[ -x "$SCRIPT_DIR/arch-overlay-captions" ]]; then
+			"$SCRIPT_DIR/arch-overlay-captions" toggle
+		fi
+	fi
+}
+
+main() {
+	local domain="${1:-menu}"
+	case "$domain" in
+	menu)
+		interactive_menu
+		;;
+	keys)
+		shift
+		handle_keys "${1:-toggle}"
+		;;
+	title)
+		shift
+		handle_title "$@"
+		;;
+	camera)
+		shift
+		if [[ -x "$SCRIPT_DIR/arch-overlay-camera" ]]; then
+			exec "$SCRIPT_DIR/arch-overlay-camera" "$@"
+		fi
+		;;
+	captions)
+		shift
+		if [[ -x "$SCRIPT_DIR/arch-overlay-captions" ]]; then
+			exec "$SCRIPT_DIR/arch-overlay-captions" "$@"
+		fi
+		;;
+	-h | --help | help)
+		echo "Usage: arch overlay [menu | keys | title | camera | captions]"
+		;;
+	*)
+		interactive_menu
+		;;
+	esac
+}
+
+main "$@"
