@@ -123,6 +123,13 @@ main() {
 	rand_online_label="$(arch-i18n get wallpaper_mode_random_online)"
 	search_label="$(arch-i18n get wallpaper_mode_search)"
 
+	local use_icons=0 thumb_dir=""
+	if command -v fuzzel >/dev/null 2>&1 && command -v magick >/dev/null 2>&1; then
+		use_icons=1
+		thumb_dir="$(mktemp -d)"
+		trap 'rm -rf "$thumb_dir"' EXIT
+	fi
+
 	local curr_wall curr_file images
 	curr_wall=""
 	if [[ -s "$state_file" ]]; then
@@ -134,18 +141,45 @@ main() {
 	local choice
 	choice="$(
 		{
-			printf '  󰑐  %s\n' "$rand_online_label"
-			printf '  󰍉  %s\n' "$search_label"
+			if [[ "$use_icons" -eq 1 ]]; then
+				printf '  %s\0icon\x1fview-refresh\n' "$rand_online_label"
+				printf '  %s\0icon\x1fsystem-search\n' "$search_label"
 
-			if [[ -n "$curr_file" && -f "$wall_dir/$curr_file" ]]; then
-				printf '* 󰋩  %s\n' "$curr_file"
+				if [[ -n "$curr_file" && -f "$wall_dir/$curr_file" ]]; then
+					local thumb=""
+					if thumb="$(make_thumb "$curr_file" "$thumb_dir")"; then
+						printf '* %s\0icon\x1f%s\n' "$curr_file" "$thumb"
+					else
+						printf '* %s\n' "$curr_file"
+					fi
+				fi
+
+				while IFS= read -r f; do
+					[[ -n "$f" ]] || continue
+					[[ "$f" == "$curr_file" ]] && continue
+					(
+						local t=""
+						if t="$(make_thumb "$f" "$thumb_dir")"; then
+							printf '  %s\0icon\x1f%s\n' "$f" "$t"
+						else
+							printf '  %s\n' "$f"
+						fi
+					) &
+					while (($(jobs -rp | wc -l) >= 8)); do wait -n 2>/dev/null || break; done
+				done <<<"$images"
+				wait
+			else
+				printf '  󰑐  %s\n' "$rand_online_label"
+				printf '  󰍉  %s\n' "$search_label"
+				if [[ -n "$curr_file" && -f "$wall_dir/$curr_file" ]]; then
+					printf '* 󰋩  %s\n' "$curr_file"
+				fi
+				while IFS= read -r f; do
+					[[ -n "$f" ]] || continue
+					[[ "$f" == "$curr_file" ]] && continue
+					printf '  󰋩  %s\n' "$f"
+				done <<<"$images"
 			fi
-
-			while IFS= read -r f; do
-				[[ -n "$f" ]] || continue
-				[[ "$f" == "$curr_file" ]] && continue
-				printf '  󰋩  %s\n' "$f"
-			done <<<"$images"
 		} | dmenu "$(arch-i18n get wallpaper_mode_prompt)" --lines 15
 	)"
 
@@ -153,13 +187,14 @@ main() {
 
 	local action_chosen
 	action_chosen="${choice#"${choice%%[![:space:]]*}"}"
+	action_chosen="${action_chosen%%$'\0'*}"
 
-	if [[ "$action_chosen" =~ ^󰑐 ]]; then
+	if [[ "$action_chosen" =~ (󰑐|$rand_online_label) ]]; then
 		random_online
 		return 0
 	fi
 
-	if [[ "$action_chosen" =~ ^󰍉 ]]; then
+	if [[ "$action_chosen" =~ (󰍉|$search_label) ]]; then
 		search_flow
 		return 0
 	fi
@@ -170,6 +205,7 @@ main() {
 	if [[ "$clean_file" == *"󰋩"* ]]; then
 		clean_file="${clean_file#*󰋩}"
 	fi
+	clean_file="${clean_file%%$'\0'*}"
 	clean_file="${clean_file#"${clean_file%%[![:space:]]*}"}"
 	clean_file="${clean_file%"${clean_file##*[![:space:]]}"}"
 
