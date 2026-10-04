@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # arch:summary=Set wallpaper from a local file, Wallhaven URL, or Wallhaven ID
-# arch:args=<path|wallhaven-url|wallhaven-id|image-url>
+# arch:args=<path|wallhaven-url|wallhaven-id|image-url|current>
 # arch:examples=arch wallpaper set e8v2mk | arch wallpaper set ~/Pictures/wallpapers/a.jpg
 set -euo pipefail
 
@@ -9,24 +9,14 @@ state_file="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
 wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
 max_bytes=52428800
 
-tr_msg() {
-	local key="$1"
-	shift
-	if command -v arch-i18n >/dev/null 2>&1; then
-		arch-i18n get "$key" "$@"
-	else
-		printf '%s' "$key"
-	fi
-}
-
 notify() {
 	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$(tr_msg wallpaper_notify_title)" "$1"
+		notify-send "$(arch-i18n get wallpaper_notify_title)" "$1"
 	fi
 }
 
 fail() {
-	notify "$(tr_msg wallpaper_failed)"
+	notify "$(arch-i18n get wallpaper_failed)"
 	printf '%s\n' "$1" >&2
 	exit 1
 }
@@ -61,7 +51,6 @@ download_image() {
 	*) ext="jpg" ;;
 	esac
 
-	# Keep exactly one downloaded wallpaper; favorites are curated manually.
 	rm -f "$wall_dir"/wallpaper.*
 	dest="$wall_dir/wallpaper.$ext"
 	tmp="$dest.part.$$"
@@ -74,23 +63,47 @@ download_image() {
 }
 
 set_wallpaper() {
-	local img="$1" tmp
-	pkill -x swaybg 2>/dev/null || true
-	swaybg -i "$img" -m fill &
+	local img="$1" tmp old_pids
+	old_pids=$(pgrep -x swaybg || true)
+
+	if command -v uwsm >/dev/null 2>&1; then
+		uwsm app -s b -S both -- swaybg -i "$img" -m fill >/dev/null 2>&1 &
+	else
+		swaybg -i "$img" -m fill >/dev/null 2>&1 &
+	fi
+
+	sleep 0.2
+	if [[ -n "$old_pids" ]]; then
+		kill "$old_pids" 2>/dev/null || true
+	fi
+
 	mkdir -p "$(dirname "$state_file")"
 	tmp="$state_file.tmp.$$"
 	printf '%s\n' "$img" >"$tmp"
 	mv -f "$tmp" "$state_file"
 }
 
+get_current() {
+	if [[ -s "$state_file" ]]; then
+		cat "$state_file"
+	else
+		printf 'none\n'
+	fi
+}
+
 main() {
 	if [[ $# -lt 1 || "$1" == "-h" || "$1" == "--help" ]]; then
-		printf 'Usage: arch-wallpaper-set <path|wallhaven-url|wallhaven-id|image-url>\n'
+		printf 'Usage: arch-wallpaper-set <path|wallhaven-url|wallhaven-id|image-url|current>\n'
 		return 0
 	fi
 
 	local arg="$1" img="" id=""
 	arg="${arg/#\~\//$HOME/}"
+
+	if [[ "$arg" == "current" || "$arg" == "get" ]]; then
+		get_current
+		return 0
+	fi
 
 	if [[ -f "$arg" ]]; then
 		img="$arg"
@@ -112,7 +125,7 @@ main() {
 			fail "Failed to download wallpaper"
 		fi
 	else
-		fail "$(tr_msg wallpaper_invalid_target)"
+		fail "$(arch-i18n get wallpaper_invalid_target)"
 	fi
 
 	[[ -f "$img" ]] || fail "Wallpaper file not found: $img"
