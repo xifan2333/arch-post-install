@@ -224,11 +224,12 @@ pair_new_device() {
 		# 2. Passkey Entry (Bluetooth Keyboards): notify user to type code on keyboard
 		elif [[ "$line" =~ Passkey:[[:space:]]+([0-9]+) ]]; then
 			local passkey="${BASH_REMATCH[1]}"
-			notify "配对验证码: $passkey (请在蓝牙键盘上输入并按回车)"
+			notify "$(arch-i18n get blue_passkey_notify "passkey=$passkey")"
 		# 3. Legacy PIN code (Car audio, old devices): prompt via fuzzel password box
 		elif [[ "$line" =~ (Enter[[:space:]]+PIN|Enter[[:space:]]+passkey) ]]; then
-			local pin
-			pin=$(fuzzel --dmenu --prompt "PIN / Passkey: " --password </dev/null || true)
+			local pin pin_prompt
+			pin_prompt="$(arch-i18n get blue_pin_prompt)"
+			pin=$(fuzzel --dmenu --prompt "$pin_prompt" --password </dev/null || true)
 			if [[ -n "$pin" ]]; then
 				printf '%s\n' "$pin" >&"${AGENT[1]}" || true
 			else
