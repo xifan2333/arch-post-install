@@ -113,11 +113,11 @@
     },
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-cap rec status waybar",
+    "exec": "arch-rec status waybar",
     "signal": 8,
     "interval": 1,
-    "on-click": "arch-cap rec toggle",
-    "on-click-right": "arch-cap rec"
+    "on-click": "arch-rec toggle",
+    "on-click-right": "arch-rec"
   },
   "tray": {
     "icon-size": 16,

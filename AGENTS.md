@@ -128,7 +128,7 @@ This system follows the principles documented in `.agents/skills/arch-dev/refere
      * Standard library only (zero `pip` dependencies).
      * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
 5. **Universal CLI Convention (`arch-<domain>-<action>`)**:
-   - All scripts in `dotfiles/.local/bin/` follow `arch-<domain>-<action>` and are accessible via the root dispatcher `arch <domain> <action>`. Every script includes `# arch:summary=...` metadata.
+   - All scripts in `dotfiles/.local/bin/` follow `arch-<domain>` or `arch-<domain>-<action>` directly accessible via `$PATH`. Every script includes `# arch:summary=...` metadata.
 6. **Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)**:
    When investigating tools, CLI flags, configuration formats, or protocols:
    - **Priority 1: Local `man <tool>`**: Always check local manual pages first.

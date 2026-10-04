@@ -90,8 +90,8 @@ xrwm map normal "Super+Shift" Comma send-to-output previous
 # 4. Pop-up Menus & Selectors (Super + Control + Key)
 # ===========================================================================
 
-# Recording & Streaming Options Menu
-xrwm map normal "Super+Control" G spawn arch-cap rec
+# Recording Options Menu
+xrwm map normal "Super+Control" G spawn arch-rec
 
 # ===========================================================================
 # 5. On-Screen Overlay HUD Suite (Super + Alt + Key)
@@ -114,7 +114,7 @@ xrwm map normal "Super+Alt" T spawn arch-overlay title toggle
 # ===========================================================================
 
 # Screen Recording via Portal
-xrwm map normal Super G spawn arch-cap rec toggle
+xrwm map normal Super G spawn arch-rec toggle
 
 # Live Stream Push via Portal
 xrwm map normal "Super+Shift" G spawn arch-live toggle

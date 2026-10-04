@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 -- arch:summary=Manage, connect, or toggle Wi-Fi networks via iwd D-Bus
--- arch:args=[menu | toggle]
--- arch:examples=arch net | arch net toggle
+-- arch:args=[menu | list | status | connect <ssid> | disconnect | toggle]
+-- arch:examples=arch-net list | arch-net status | arch-net connect "MyWiFi" | arch-net toggle
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -36,11 +36,6 @@ end
 -- 1. Dependency checks
 if os.execute("command -v busctl >/dev/null 2>&1") ~= 0 then
   io.stderr:write("Error: busctl not found. Please install systemd\n")
-  os.exit(1)
-end
-
-if os.execute("command -v fuzzel >/dev/null 2>&1") ~= 0 then
-  io.stderr:write("Error: fuzzel not found\n")
   os.exit(1)
 end
 
@@ -165,6 +160,44 @@ local function get_signal_icon(sig)
   else
     return "󰤯"
   end
+end
+
+-- CLI subcommands: status, list, disconnect
+if action == "status" then
+  local conn_name = "none"
+  for _, net in pairs(networks_by_path) do
+    if net.connected then
+      conn_name = net.name
+      break
+    end
+  end
+  io.stdout:write(
+    string.format("device: %s\nstate: %s\nconnected: %s\n", dev_name, station_state, conn_name)
+  )
+  os.exit(0)
+end
+
+if action == "list" or action == "scan" then
+  for _, net in ipairs(ordered_networks) do
+    local conn_s = net.connected and "connected" or "disconnected"
+    local sig_dbm = math.floor(net.signal / 100)
+    io.stdout:write(
+      string.format("%s\t%d dBm\t%s\t%s\n", net.name, sig_dbm, net.type or "psk", conn_s)
+    )
+  end
+  os.exit(0)
+end
+
+if action == "disconnect" then
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
+      station_path
+    )
+  )
+  notify(i18n("net_disconnected", { ssid = dev_name }))
+  io.stdout:write("Disconnected\n")
+  os.exit(0)
 end
 
 local function get_lock_icon(net_type)
