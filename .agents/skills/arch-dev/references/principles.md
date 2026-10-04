@@ -57,10 +57,12 @@
 ### 3.3 Local-First & Resilient
 - The core desktop experience, window management, terminal, and Chinese IME (Fcitx5 + Rime Xiaohe Double Pinyin) must operate 100% offline without external network dependencies.
 
-### 3.4 Pure Script Standards (Hierarchy: `sh` > `perl` > `py`)
-- **First Priority: Pure Shell (`sh` / `bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, and CLI dispatchers. 0ms startup, zero cache files.
-- **Second Priority: Pure Perl (`perl`)**: Preferred when complex text manipulation, in-memory regex mappings, or template rendering is required. Native, purely in-memory execution, and never leaves disk bytecode cache.
-- **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to standard library only (zero pip dependencies). Zero bytecode cache is enforced via `PYTHONDONTWRITEBYTECODE=1` in environment and script shebangs (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
+### 3.4 Pure Script Standards (Hierarchy: `bash` > `lua` > `python`)
+- **First Priority: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, and CLI dispatchers. Instant startup (< 2ms), zero disk bytecode cache.
+- **Second Priority: Pure Lua (`luajit` / `lua`)**: Preferred for complex system IPC (e.g. D-Bus asynchronous communication in `x-blue` / `x-wifi`), real-time data structures, or multi-dimensional palette rendering (`x-theme`). Runs purely in memory with native execution speed, minimal RAM footprint (< 2 MB), and zero disk bytecode cache.
+- **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to complex GUI windows (e.g. PyGObject in `x-live-config`), audio/video inferencing (`x-captions`), or long-running daemons. **Strict constraints**:
+  - Standard library or declared system packages only (zero `pip` dependencies).
+  - Zero bytecode cache enforced via `PYTHONDONTWRITEBYTECODE=1` in environment and script shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
 
 ### 3.5 Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)
 When investigating tools, CLI flags, configuration formats, or protocols:
@@ -68,3 +70,87 @@ When investigating tools, CLI flags, configuration formats, or protocols:
 - **Priority 2: Built-in `<tool> --help` / `-h`**: Inspect CLI flags and usage directly.
 - **Priority 3: Upstream Source Inspection in `~/Code/`**: If local documentation is insufficient or a package is not yet installed, clone the repository into `~/Code/<repo>` (via `git clone --depth 1 <url>`) and directly inspect source code, CLI structs, and configuration examples.
 - **Strict Prohibition**: Never perform speculative or random web searches when authoritative manpages, CLI help, or upstream source code can be directly inspected locally.
+
+---
+
+## 4. Desktop Bin Architecture & UI/Menu Standards
+
+### 4.1 Universal CLI Convention (`x-<domain>`) & Metadata Header
+- **Single-Character Namespace**: All scripts under `dotfiles/.local/bin/` must use the unified `x-<domain>` namespace (e.g. `x-audio`, `x-wifi`, `x-blue`, `x-wall`, `x-theme`, `x-rec`, `x-cap`).
+  - Guarantees 100% collision-free isolation from system `pacman` and `AUR` binaries.
+  - Offers instant tab-completion via `x-<TAB>`.
+- **Standardized Metadata Header**: Every executable script must begin with structured metadata comments:
+  ```bash
+  # arch:summary=Manage, switch, or select desktop wallpapers
+  # arch:args=[menu | list | current | ...]
+  # arch:examples=x-wall current | x-wall set ~/Pictures/wallpapers/a.jpg
+  ```
+- **CLI Behavior**: Support `-h` / `--help`, emit structured plain text (TSV / Key-Value) in subcommands for pipeline composition, and direct errors to `stderr`.
+
+### 4.2 Global i18n & Zero Hardcoded Strings Policy
+- **Zero Hardcoded User-Facing Text**:
+  - Notifications (`notify-send`), dmenu/fuzzel prompts (`--prompt`), menu option labels, and user-facing error messages must NEVER contain hardcoded English or Chinese strings in code.
+- **Centralized Dictionary Registry**:
+  - All user-facing strings must be declared pair-wise in `dotfiles/.config/i18n/zh-cn.json` and `dotfiles/.config/i18n/en-us.json`.
+  - Keys use structured snake_case: `<domain>_notify_title`, `<domain>_menu_prompt`, `<domain>_mode_<name>`, `<domain>_failed`.
+- **Graceful Fallback**:
+  - Always invoke with fallback protection:
+    ```bash
+    x-i18n get <key> [var=val] 2>/dev/null || echo "Fallback Text"
+    ```
+
+### 4.3 UI Selection Strategy Hierarchy (`fuzzel` > `zenity` > `custom GTK`)
+Desktop tools follow a strict three-tier UI strategy to prevent visual clutter and resource bloat:
+
+```
++------------------------------------------------------------+
+| Tier 1: Fuzzel --dmenu (Default: ~90% of desktop tasks)    |
+| Keyboard-driven / Layer-shell / Instant / Theme-synced     |
++-----------------------------+------------------------------+
+                              | Multi-field / structured forms
++-----------------------------v------------------------------+
+| Tier 2: Zenity (Secondary: ~8% of desktop tasks)           |
+| Multi-entry forms / Password prompts / Progress / Confirm  |
++-----------------------------+------------------------------+
+                              | Complex stateful widgets
++-----------------------------v------------------------------+
+| Tier 3: Custom GTK / PyGObject (Last resort: ~2% of tasks) |
+| Complex stateful panels (e.g. x-live-config)               |
++------------------------------------------------------------+
+```
+
+1. **Tier 1 (Default): `fuzzel --dmenu`**:
+   - Primary launcher for list filtering, mode toggling, single-line input, and quick action dispatch.
+   - Wayland-native layer-shell surface, cold-boots in < 5ms, supports Rofi extended icon protocol.
+2. **Tier 2 (Secondary): `zenity`**:
+   - Used when standard dmenu cannot express the interaction: multi-field structured forms, masked password inputs, native file pickers, or destructive operation confirmations.
+   - Relies on system C library binary without custom script runtimes.
+3. **Tier 3 (Last Resort): Custom GTK (`PyGObject`)**:
+   - Strictly reserved for complex multi-control panels with dynamic cards, sliders, and live state (e.g. `x-live-config`).
+   - Must be single-file self-contained, enforce `PYTHONDONTWRITEBYTECODE=1`, and follow desktop light/dark theme tokens.
+
+### 4.4 Menu Specifications (`dmenu` / Fuzzel Interaction)
+To maintain consistent muscle memory and visual harmony across all CLI menus:
+
+1. **Level & Cognitive Load**:
+   - **Single-Level Flat Menu**: Used when options $\le 8$ and have no sub-attributes (e.g. `x-power`, `x-cap`).
+   - **Two-Level Menu**: Used when separating mode dispatch from entity browsing, or when items exceed 15 (e.g. `x-wall`: mode menu -> wallpaper picker).
+   - **Navigation Semantics**: Submenus must provide a localized `_back` option. Esc key must always safely cancel with zero side-effects (`exit 0` / `return 0`).
+2. **Visual Format & NerdFont Glyphs**:
+   - Structure: `"<status_prefix><NerdFont_glyph>  <label>"` (strictly **two spaces** separating glyph and text).
+   - Equal-width state alignment: Active/current item prefixed with `* ` or `󰄬 `; inactive items prefixed with `  ` (two spaces) to ensure vertical text alignment.
+   - Standard glyph semantics:
+     - 🖼 Image / Local: `󰋩` (`nf-md-image`)
+     - 🎲 Random / Shuffle: `󰒝` (`nf-md-shuffle_variant`)
+     - 🔍 Search: `󰍉` (`nf-md-magnify`)
+     - 📶 Wi-Fi: `󰖩` (`nf-md-wifi`)
+     - 󰂯 Bluetooth: `󰂯` (`nf-md-bluetooth`) / Headset `󰋋` / Speaker `󰓃`
+     - 🎤 Microphone: `󰍬` (`nf-md-microphone`)
+     - ⚙ Settings / Config: `󰒓` (`nf-md-cog`)
+3. **Thumbnail & Icon Preview Protocol**:
+   - Format: `"<label>\0icon\x1f<path>"` via Rofi extended protocol.
+   - Storage: All generated thumbnails and temporary icons **MUST reside in user-private tmpfs** (`${XDG_RUNTIME_DIR:-/tmp/user-${UID:-1000}}/...`), never accumulating on persistent disk.
+   - Fallback: Gracefully fallback to the designated NerdFont glyph when icons are unavailable.
+4. **Instant Apply**:
+   - Selecting an item applies immediately without redundant "Confirm" dialogs (except for destructive actions like reboot/poweroff).
+   - Provide immediate closure feedback via `x-i18n` localized `notify-send`.
