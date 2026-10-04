@@ -7,9 +7,9 @@ This reference documents the River 0.4+ desktop architecture, component boundari
 ## 1. Compositor vs. Window Manager Separation
 
 River 0.4+ is a non-monolithic Wayland compositor:
-- **`river` (Compositor)**: Strictly responsible for KMS/DRM rendering, display outputs, Wayland server, and protocol extensions. It has NO built-in window tiling logic and does NOT provide `riverctl`.
-- **Window Manager (Client)**: An independent process implementing `river-window-management-v1`. It controls window layouts, tiling policy, window borders, and focus. If the WM crashes, client applications remain running.
-- **`~/.config/river/init`**: The session startup executable. It acts as the process group leader, launching the window manager, output manager (`kanshi`), status bar, notification daemon, and background collectors.
+- **`river` (Compositor)**: Strictly responsible for KMS/DRM rendering, display outputs, Wayland server, and protocol extensions (`river -c xrwm`). It has NO built-in window tiling logic and does NOT provide `riverctl`.
+- **`xrwm` (Window Manager Client)**: An independent dedicated window manager implementing `river-window-management-v1`. It controls window layouts, tiling policy, window borders, and keybindings. If the WM crashes, client applications remain running.
+- **`~/.config/xrwm/init`**: The session startup executable. It initializes desktop layout, borders, window rules (`~/.config/xrwm/rules`), keybindings (`~/.config/xrwm/bindings`), and background services (`~/.config/xrwm/autostart`).
 
 ---
 
@@ -18,7 +18,7 @@ River 0.4+ is a non-monolithic Wayland compositor:
 | Component | Software | Role & Philosophy |
 | :--- | :--- | :--- |
 | **Compositor** | `river` (0.4.8+) | Zig-based, wlroots 0.20, frame-perfect |
-| **Window Manager** | C/Zig River WM Client | dwm-inspired tiling (master-stack), lightweight, low memory |
+| **Window Manager** | `xrwm` (AUR `xrwm-bin`) | Dedicated Wayland tiling WM client (`dotfiles/.config/xrwm/`), dwm-inspired tiling (master-stack), lightweight, low memory |
 | **Terminal** | `foot` | Millisecond cold boot, Wayland-native, < 10 MB base memory |
 | **Launcher / Menu** | `fuzzel` / `bemenu` | Dynamic stdin/stdout pipe menu, instant launch |
 | **Status Bar** | `waybar` (or layer bar) | Pure presentation reading `$XDG_RUNTIME_DIR/state/*.json` |

@@ -6,9 +6,9 @@ description: >
   the River suckless desktop environment. Use whenever running mise bootstrap,
   declaring official pacman or AUR packages in mise/conf.d/20-packages.toml,
   configuring system services or privileged files in 10-system.toml, mapping
-  dotfiles in 30-dotfiles.toml, configuring River window manager, Fcitx5 + Rime
+  dotfiles in 30-dotfiles.toml, configuring xrwm window manager, Fcitx5 + Rime
   Chinese IME, ThinkPad hardware controls, or audio/multimedia. Trigger on: 恢复桌面,
-  archinstall 装机后, 安装软件/添加包, 配置系统服务, River桌面使用, 快捷键说明,
+  archinstall 装机后, 安装软件/添加包, 配置系统服务, River/xrwm桌面使用, 快捷键说明,
   中文输入法, dotfiles管理.
 ---
 
@@ -91,7 +91,7 @@ dotfiles.default_mode = "symlink"
 
 [dotfiles]
 "~/.config/foot" = { source = "../../dotfiles/.config/foot", mode = "symlink-each" }
-"~/.config/river" = { source = "../../dotfiles/.config/river", mode = "symlink-each" }
+"~/.config/xrwm" = { source = "../../dotfiles/.config/xrwm", mode = "symlink-each" }
 ```
 
 Apply dotfile updates:
