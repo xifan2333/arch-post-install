@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 -- arch:summary=Manage, connect, or toggle Wi-Fi networks via iwd D-Bus
 -- arch:args=[menu | list | status | connect <ssid> | disconnect | toggle]
--- arch:examples=arch-net list | arch-net status | arch-net connect "MyWiFi" | arch-net toggle
+-- arch:examples=x-wifi list | x-wifi status | x-wifi connect "MyWiFi" | x-wifi toggle
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -14,7 +14,7 @@ local function exec_cmd(cmd)
 end
 
 local function i18n(key, vars)
-  local args = { "arch-i18n", "get", key }
+  local args = { "x-i18n", "get", key }
   if vars then
     for k, v in pairs(vars) do
       table.insert(args, string.format("%s=%s", k, tostring(v)))

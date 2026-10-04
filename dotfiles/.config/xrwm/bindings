@@ -24,10 +24,10 @@ xrwm map normal Super E spawn pcmanfm
 xrwm map normal "Super+Shift" E spawn ftty -e yazi
 
 # Clipboard (V)
-xrwm map normal Super V spawn arch-clip
+xrwm map normal Super V spawn x-clip
 
 # Network (N)
-xrwm map normal Super N spawn arch-net
+xrwm map normal Super N spawn x-wifi
 
 # ===========================================================================
 # 2. Window Lifecycle & Layout Management
@@ -91,40 +91,40 @@ xrwm map normal "Super+Shift" Comma send-to-output previous
 # ===========================================================================
 
 # Recording Options Menu
-xrwm map normal "Super+Control" G spawn arch-rec
+xrwm map normal "Super+Control" G spawn x-rec
 
 # ===========================================================================
 # 5. On-Screen Overlay HUD Suite (Super + Alt + Key)
 # ===========================================================================
 
 # Keys Overlay (K = Keystrokes)
-xrwm map normal "Super+Alt" K spawn arch-overlay keys toggle
+xrwm map normal "Super+Alt" K spawn x-keys toggle
 
 # Camera PIP Overlay (V = Video / Camera)
-xrwm map normal "Super+Alt" V spawn arch-overlay camera toggle
+xrwm map normal "Super+Alt" V spawn x-camera toggle
 
 # Captions Overlay (C = Captions)
-xrwm map normal "Super+Alt" C spawn arch-overlay captions toggle
+xrwm map normal "Super+Alt" C spawn x-captions toggle
 
 # Title Overlay (T = Title)
-xrwm map normal "Super+Alt" T spawn arch-overlay title toggle
+xrwm map normal "Super+Alt" T spawn x-title toggle
 
 # ===========================================================================
 # 6. Screen Recording & Live Streaming (G = Grab / Record / Stream)
 # ===========================================================================
 
 # Screen Recording via Portal
-xrwm map normal Super G spawn arch-rec toggle
+xrwm map normal Super G spawn x-rec toggle
 
 # Live Stream Push via Portal
-xrwm map normal "Super+Shift" G spawn arch-live toggle
+xrwm map normal "Super+Shift" G spawn x-live toggle
 
 # ===========================================================================
 # 7. Title HUD Direct Actions (T)
 # ===========================================================================
 
-xrwm map normal Super T spawn arch-overlay title edit
-xrwm map normal "Super+Shift" T spawn arch-overlay title clear
+xrwm map normal Super T spawn x-title edit
+xrwm map normal "Super+Shift" T spawn x-title clear
 
 # ===========================================================================
 # 8. Workspace Tags (1 - 9, 0, Tab)
@@ -164,15 +164,15 @@ xrwm map-pointer normal Super BTN_MIDDLE toggle-float
 
 # Screen Locker & Power Menu
 xrwm map normal Super Escape spawn hyprlock
-xrwm map normal "Super+Shift" Escape spawn arch-power
+xrwm map normal "Super+Shift" Escape spawn x-power
 
 # Screenshots (Print family)
-xrwm map normal None Print spawn arch-cap area
-xrwm map normal Shift Print spawn arch-cap full
-xrwm map normal Super Print spawn arch-cap
-xrwm map normal "Super+Shift" S spawn arch-cap edit
-xrwm map normal "Super+Shift" Print spawn arch-cap color
-xrwm map normal Control Print spawn arch-cap preview
+xrwm map normal None Print spawn x-cap area
+xrwm map normal Shift Print spawn x-cap full
+xrwm map normal Super Print spawn x-cap
+xrwm map normal "Super+Shift" S spawn x-cap edit
+xrwm map normal "Super+Shift" Print spawn x-cap color
+xrwm map normal Control Print spawn x-cap preview
 
 # Volume Controls via PipeWire
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+

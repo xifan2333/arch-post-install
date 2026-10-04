@@ -9,11 +9,11 @@ PID_FILE="$RUNTIME_DIR/pid"
 LOG_FILE="$RUNTIME_DIR/livestream.log"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
 CONFIG_FILE="$CONFIG_DIR/config.json"
-DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/arch-live-danmaku"
+DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-danmaku"
 
 notify() {
 	local title body
-	title="$(arch-i18n get livestream_notify_title)"
+	title="$(x-i18n get livestream_notify_title)"
 	body="$1"
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send -u "${2:-normal}" "$title" "$body"
@@ -25,16 +25,16 @@ notify_waybar() {
 }
 
 boost_hardware() {
-	if command -v arch-hw >/dev/null 2>&1; then
-		arch-hw gpu max >/dev/null 2>&1 || true
-		arch-hw fan max >/dev/null 2>&1 || true
+	if command -v x-hw >/dev/null 2>&1; then
+		x-hw gpu max >/dev/null 2>&1 || true
+		x-hw fan max >/dev/null 2>&1 || true
 	fi
 }
 
 restore_hardware() {
-	if command -v arch-hw >/dev/null 2>&1; then
-		arch-hw gpu auto >/dev/null 2>&1 || true
-		arch-hw fan auto >/dev/null 2>&1 || true
+	if command -v x-hw >/dev/null 2>&1; then
+		x-hw gpu auto >/dev/null 2>&1 || true
+		x-hw fan auto >/dev/null 2>&1 || true
 	fi
 }
 
@@ -76,8 +76,8 @@ cmd_start() {
 	fi
 
 	if [[ ! -f "$CONFIG_FILE" ]]; then
-		if command -v arch-live-config >/dev/null 2>&1; then
-			arch-live-config
+		if command -v x-live-config >/dev/null 2>&1; then
+			x-live-config
 		fi
 		return 0
 	fi
@@ -88,8 +88,8 @@ cmd_start() {
 	bitrate="$(jq -r '.bitrate // 4500' "$CONFIG_FILE" 2>/dev/null || echo 4500)"
 
 	if [[ -z "$server" || "$server" == "null" ]]; then
-		if command -v arch-live-config >/dev/null 2>&1; then
-			arch-live-config
+		if command -v x-live-config >/dev/null 2>&1; then
+			x-live-config
 		fi
 		return 0
 	fi
@@ -180,8 +180,8 @@ main() {
 		cmd_start
 		;;
 	config)
-		if command -v arch-live-config >/dev/null 2>&1; then
-			arch-live-config
+		if command -v x-live-config >/dev/null 2>&1; then
+			x-live-config
 		fi
 		;;
 	danmaku)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Manage, switch, or select desktop wallpapers
 # arch:args=[menu | current | list | random | search [query] | set <path|id|url>]
-# arch:examples=arch-wallpaper current | arch-wallpaper random | arch-wallpaper set ~/Pictures/wallpapers/a.jpg
+# arch:examples=x-wall current | x-wall random | x-wall set ~/Pictures/wallpapers/a.jpg
 set -euo pipefail
 
 wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
@@ -10,12 +10,12 @@ mkdir -p "$wall_dir"
 
 notify() {
 	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$(arch-i18n get wallpaper_notify_title 2>/dev/null || echo "Wallpaper")" "$1"
+		notify-send "$(x-i18n get wallpaper_notify_title 2>/dev/null || echo "Wallpaper")" "$1"
 	fi
 }
 
 fail() {
-	notify "$(arch-i18n get wallpaper_failed 2>/dev/null || echo "Wallpaper failed")"
+	notify "$(x-i18n get wallpaper_failed 2>/dev/null || echo "Wallpaper failed")"
 	printf '%s\n' "$1" >&2
 	exit 1
 }
@@ -74,17 +74,17 @@ apply_target() {
 		return 0
 	fi
 
-	# If argument is a URL or Wallhaven ID, delegate to arch-wallhaven download
-	if [[ -x "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/arch-wallhaven" ]]; then
+	# If argument is a URL or Wallhaven ID, delegate to x-wallhaven download
+	if [[ -x "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-wallhaven" ]]; then
 		local downloaded
-		downloaded="$("$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/arch-wallhaven" download "$arg" 2>/dev/null || true)"
+		downloaded="$("$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-wallhaven" download "$arg" 2>/dev/null || true)"
 		if [[ -n "$downloaded" && -f "$downloaded" ]]; then
 			set_wallpaper "$downloaded"
 			return 0
 		fi
 	fi
 
-	fail "$(arch-i18n get wallpaper_invalid_target 2>/dev/null || echo "Invalid wallpaper target")"
+	fail "$(x-i18n get wallpaper_invalid_target 2>/dev/null || echo "Invalid wallpaper target")"
 }
 
 random_local() {
@@ -113,7 +113,7 @@ select_local_menu() {
 		fi
 	done <<<"$files"
 
-	pick="$(printf '%s\n' "${menu_items[@]}" | dmenu "$(arch-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15)"
+	pick="$(printf '%s\n' "${menu_items[@]}" | dmenu "$(x-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15)"
 	[[ -n "$pick" ]] || return 0
 
 	pick="${pick#* }"
@@ -127,9 +127,9 @@ select_local_menu() {
 
 interactive_menu() {
 	local rand_label local_label search_label
-	rand_label="$(arch-i18n get wallpaper_mode_random 2>/dev/null || echo "Random Local")"
-	local_label="$(arch-i18n get wallpaper_mode_local 2>/dev/null || echo "Select Local")"
-	search_label="$(arch-i18n get wallpaper_mode_search 2>/dev/null || echo "Search Online (Wallhaven)")"
+	rand_label="$(x-i18n get wallpaper_mode_random 2>/dev/null || echo "Random Local")"
+	local_label="$(x-i18n get wallpaper_mode_local 2>/dev/null || echo "Select Local")"
+	search_label="$(x-i18n get wallpaper_mode_search 2>/dev/null || echo "Search Online (Wallhaven)")"
 
 	local choices=(
 		"󰄬  $local_label"
@@ -138,16 +138,16 @@ interactive_menu() {
 	)
 
 	local choice
-	choice="$(printf '%s\n' "${choices[@]}" | dmenu "$(arch-i18n get wallpaper_mode_prompt 2>/dev/null || echo "Wallpaper Mode: ")" --lines 5)"
+	choice="$(printf '%s\n' "${choices[@]}" | dmenu "$(x-i18n get wallpaper_mode_prompt 2>/dev/null || echo "Wallpaper Mode: ")" --lines 5)"
 	[[ -n "$choice" ]] || return 0
 
 	case "$choice" in
 	*"$local_label") select_local_menu ;;
 	*"$rand_label") random_local ;;
 	*"$search_label")
-		if command -v arch-wallhaven >/dev/null 2>&1; then
+		if command -v x-wallhaven >/dev/null 2>&1; then
 			local dl
-			dl="$(arch-wallhaven menu || true)"
+			dl="$(x-wallhaven menu || true)"
 			[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
 		fi
 		;;
@@ -163,22 +163,22 @@ main() {
 	random) random_local ;;
 	search)
 		shift
-		if command -v arch-wallhaven >/dev/null 2>&1; then
+		if command -v x-wallhaven >/dev/null 2>&1; then
 			local dl
-			dl="$(arch-wallhaven menu "${1:-}" || true)"
+			dl="$(x-wallhaven menu "${1:-}" || true)"
 			[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
 		fi
 		;;
 	set)
 		shift
 		[[ $# -ge 1 ]] || {
-			printf 'Usage: arch-wallpaper set <path|id|url>\n' >&2
+			printf 'Usage: x-wall set <path|id|url>\n' >&2
 			exit 1
 		}
 		apply_target "$1"
 		;;
 	-h | --help | help)
-		printf 'Usage: arch-wallpaper [menu | current | list | random | search [query] | set <path|id|url>]\n'
+		printf 'Usage: x-wall [menu | current | list | random | search [query] | set <path|id|url>]\n'
 		;;
 	*)
 		apply_target "$cmd"

@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # arch:summary=Manage, interactively select, or clear clipboard history via cliphist
 # arch:args=[menu | clear | wipe]
-# arch:examples=arch clip | arch clip clear
+# arch:examples=x-clip | x-clip clear
 set -euo pipefail
 
 action="${1:-menu}"
 
 notify_err() {
 	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -u critical "$(arch-i18n get clip_title)" "$1"
+		notify-send -u critical "$(x-i18n get clip_title)" "$1"
 	fi
 }
 
 if ! command -v cliphist >/dev/null 2>&1; then
-	notify_err "$(arch-i18n get clip_not_installed)"
+	notify_err "$(x-i18n get clip_not_installed)"
 	exit 1
 fi
 
@@ -34,13 +34,13 @@ menu | *)
 		fi
 	}
 
-	clear_option="$(arch-i18n get clip_clear_option)"
+	clear_option="$(x-i18n get clip_clear_option)"
 
 	selected=$(
 		{
 			printf '  %s\n' "$clear_option"
 			cliphist list 2>/dev/null || true
-		} | dmenu_exec "$(arch-i18n get clip_prompt)"
+		} | dmenu_exec "$(x-i18n get clip_prompt)"
 	)
 
 	[[ -n "${selected:-}" ]] || exit 0

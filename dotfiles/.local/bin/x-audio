@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # arch:summary=Select and switch PipeWire audio output (sink) and microphone (source) devices
 # arch:args=[devices [sink|source] | get [sink|source] | set <id> [sink|source] | sink | source | menu [sink|source]]
-# arch:examples=arch-audio devices | arch-audio get | arch-audio set 45 | arch-audio sink
+# arch:examples=x-audio devices | x-audio get | x-audio set 45 | x-audio sink
 set -euo pipefail
 
 notify() {
 	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$(arch-i18n get audio_notify_title 2>/dev/null || echo "Audio")" "$1"
+		notify-send "$(x-i18n get audio_notify_title 2>/dev/null || echo "Audio")" "$1"
 	fi
 }
 
@@ -92,9 +92,9 @@ set_device() {
 	dev_name="$(pw-dump Node 2>/dev/null | jq -r --arg id "$dev_id" '.[] | select((.id | tostring) == $id) | .info.props["node.description"] // .info.props["node.name"] // empty' 2>/dev/null || echo "$dev_id")"
 
 	if [[ "$m" == "source" ]]; then
-		notify "$(arch-i18n get audio_source_switched "dev=$dev_name" 2>/dev/null || echo "Switched mic: $dev_name")"
+		notify "$(x-i18n get audio_source_switched "dev=$dev_name" 2>/dev/null || echo "Switched mic: $dev_name")"
 	else
-		notify "$(arch-i18n get audio_sink_switched "dev=$dev_name" 2>/dev/null || echo "Switched sink: $dev_name")"
+		notify "$(x-i18n get audio_sink_switched "dev=$dev_name" 2>/dev/null || echo "Switched sink: $dev_name")"
 	fi
 	printf '%s\t%s\n' "$dev_id" "$dev_name"
 }
@@ -104,15 +104,15 @@ interactive_menu() {
 	m="$(resolve_mode "${1:-sink}")"
 	local prompt_text
 	if [[ "$m" == "source" ]]; then
-		prompt_text="$(arch-i18n get audio_source_prompt 2>/dev/null || echo "Audio Input: ")"
+		prompt_text="$(x-i18n get audio_source_prompt 2>/dev/null || echo "Audio Input: ")"
 	else
-		prompt_text="$(arch-i18n get audio_sink_prompt 2>/dev/null || echo "Audio Output: ")"
+		prompt_text="$(x-i18n get audio_sink_prompt 2>/dev/null || echo "Audio Output: ")"
 	fi
 
 	local dev_lines
 	dev_lines="$(list_devices "$m")"
 	if [[ -z "$dev_lines" ]]; then
-		notify "$(arch-i18n get audio_no_devices 2>/dev/null || echo "No devices found")"
+		notify "$(x-i18n get audio_no_devices 2>/dev/null || echo "No devices found")"
 		return 0
 	fi
 
@@ -160,7 +160,7 @@ main() {
 		interactive_menu "$cmd"
 		;;
 	-h | --help | help)
-		printf 'Usage: arch-audio [devices [sink|source] | get [sink|source] | set <id> [sink|source] | menu [sink|source] | sink | source]\n'
+		printf 'Usage: x-audio [devices [sink|source] | get [sink|source] | set <id> [sink|source] | menu [sink|source] | sink | source]\n'
 		;;
 	*)
 		interactive_menu "$cmd"

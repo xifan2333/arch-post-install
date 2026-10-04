@@ -101,8 +101,8 @@
   "custom/screenshot": {
     "format": "󰻿",
     "tooltip": false,
-    "on-click": "arch-cap area",
-    "on-click-right": "arch-cap"
+    "on-click": "x-cap area",
+    "on-click-right": "x-cap"
   },
   "custom/screenrecord": {
     "format": "{icon} {text}",
@@ -113,11 +113,11 @@
     },
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-rec status waybar",
+    "exec": "x-rec status waybar",
     "signal": 8,
     "interval": 1,
-    "on-click": "arch-rec toggle",
-    "on-click-right": "arch-rec"
+    "on-click": "x-rec toggle",
+    "on-click-right": "x-rec"
   },
   "tray": {
     "icon-size": 16,
@@ -138,8 +138,8 @@
     "tooltip-format-connected": "{controller_alias}\t{controller_address}\n{num_connections} connected\n\n{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
     "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_battery_percentage}%",
-    "on-click": "arch-blue toggle",
-    "on-click-right": "arch-blue"
+    "on-click": "x-blue toggle",
+    "on-click-right": "x-blue"
   },
   "network": {
     "format-wifi": "{icon}",
@@ -153,8 +153,8 @@
     ],
     "tooltip-format": "{ifname} via {gwaddr}\nSSID: {essid}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
     "tooltip-format-disconnected": "网络已断开",
-    "on-click": "arch-net toggle",
-    "on-click-right": "arch-net"
+    "on-click": "x-wifi toggle",
+    "on-click-right": "x-wifi"
   },
   "pulseaudio": {
     "format": "{icon}  {volume}%",
@@ -167,7 +167,7 @@
       ]
     },
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-click-right": "arch-audio sink",
+    "on-click-right": "x-audio sink",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
@@ -176,7 +176,7 @@
     "format-source": "󰍬  {volume}%",
     "format-source-muted": "󰍭  {volume}%",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-    "on-click-right": "arch-audio source",
+    "on-click-right": "x-audio source",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SOURCE@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
   },
@@ -216,6 +216,6 @@
     "format": "⏻",
     "tooltip": false,
     "on-click": "systemctl poweroff",
-    "on-click-right": "arch-power"
+    "on-click-right": "x-power"
   }
 }

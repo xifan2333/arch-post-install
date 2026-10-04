@@ -1,7 +1,7 @@
 #!/usr/bin/env luajit
 -- arch:summary=Manage, connect, pair, or toggle Bluetooth devices via D-Bus
 -- arch:args=[menu | list | status | connect <mac|name> | disconnect [mac|name] | toggle | off]
--- arch:examples=arch-blue list | arch-blue status | arch-blue connect "Pixel 8" | arch-blue toggle
+-- arch:examples=x-blue list | x-blue status | x-blue connect "Pixel 8" | x-blue toggle
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -14,7 +14,7 @@ local function exec_cmd(cmd)
 end
 
 local function i18n(key, vars)
-  local args = { "arch-i18n", "get", key }
+  local args = { "x-i18n", "get", key }
   if vars then
     for k, v in pairs(vars) do
       table.insert(args, string.format("%s=%s", k, tostring(v)))
@@ -374,7 +374,7 @@ end
 if action == "connect" then
   local target_arg = arg[2]
   if not target_arg or target_arg == "" then
-    io.stderr:write("Usage: arch-blue connect <mac|name>\n")
+    io.stderr:write("Usage: x-blue connect <mac|name>\n")
     os.exit(1)
   end
   for _, dev in ipairs(devices) do

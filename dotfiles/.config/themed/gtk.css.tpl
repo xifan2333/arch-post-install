@@ -1,5 +1,5 @@
 /* GTK3 & GTK4 / Libadwaita theme integration with CSD suppression
- * Managed by arch-theme-set template pipeline
+ * Managed by x-theme template pipeline
  */
 
 /* GTK 3 standard theme color overrides */

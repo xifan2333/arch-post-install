@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Manage session power actions or interactively select power menu options
 # arch:args=[menu | off | shutdown | reboot | suspend | lock | logout]
-# arch:examples=arch power | arch power off | arch power reboot
+# arch:examples=x-power | x-power off | x-power reboot
 set -euo pipefail
 
 action="${1:-menu}"
@@ -45,11 +45,11 @@ menu | *)
 		fi
 	}
 
-	opt_lock="$(arch-i18n get power_lock)"
-	opt_suspend="$(arch-i18n get power_suspend)"
-	opt_logout="$(arch-i18n get power_logout)"
-	opt_reboot="$(arch-i18n get power_reboot)"
-	opt_shutdown="$(arch-i18n get power_shutdown)"
+	opt_lock="$(x-i18n get power_lock)"
+	opt_suspend="$(x-i18n get power_suspend)"
+	opt_logout="$(x-i18n get power_logout)"
+	opt_reboot="$(x-i18n get power_reboot)"
+	opt_shutdown="$(x-i18n get power_shutdown)"
 
 	menu_items=(
 		"$opt_lock"
@@ -59,7 +59,7 @@ menu | *)
 		"$opt_shutdown"
 	)
 
-	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(arch-i18n get power_menu_prompt)")
+	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(x-i18n get power_menu_prompt)")
 	[[ -n "${choice:-}" ]] || exit 0
 
 	case "$choice" in

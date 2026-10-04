@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Manage and control screen video recording via gpu-screen-recorder
 # arch:args=[full | area | stop | toggle | status [text|waybar] | menu]
-# arch:examples=arch-rec full | arch-rec stop | arch-rec status waybar
+# arch:examples=x-rec full | x-rec stop | x-rec status waybar
 set -euo pipefail
 
 REC_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/screenrecord"
@@ -12,7 +12,7 @@ mkdir -p "$REC_STATE_DIR" "$REC_VIDEOS_DIR"
 
 notify_rec() {
 	local title body
-	title="$(arch-i18n get screenrecord_notify_title 2>/dev/null || echo "Screen Recording")"
+	title="$(x-i18n get screenrecord_notify_title 2>/dev/null || echo "Screen Recording")"
 	body="$1"
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send -u "${2:-normal}" "$title" "$body"
@@ -49,7 +49,7 @@ rec_stop() {
 		fi
 		rm -f "$REC_PID_FILE"
 		rm -f "$REC_TARGET_FILE"
-		notify_rec "$(arch-i18n get screenrecord_notify_stopped 2>/dev/null || echo "Recording stopped")"
+		notify_rec "$(x-i18n get screenrecord_notify_stopped 2>/dev/null || echo "Recording stopped")"
 		notify_waybar
 		if [[ -n "$filepath" ]]; then
 			printf '%s\n' "$filepath"
@@ -67,7 +67,7 @@ rec_start_full() {
 	gpu-screen-recorder -w screen -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
 	local pid=$!
 	printf '%s\n' "$pid" >"$REC_PID_FILE"
-	notify_rec "$(arch-i18n get screenrecord_notify_started_full 2>/dev/null || echo "Started full recording")"
+	notify_rec "$(x-i18n get screenrecord_notify_started_full 2>/dev/null || echo "Started full recording")"
 	notify_waybar
 }
 
@@ -84,7 +84,7 @@ rec_start_area() {
 	gpu-screen-recorder -w "$geometry" -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
 	local pid=$!
 	printf '%s\n' "$pid" >"$REC_PID_FILE"
-	notify_rec "$(arch-i18n get screenrecord_notify_started_area 2>/dev/null || echo "Started area recording")"
+	notify_rec "$(x-i18n get screenrecord_notify_started_area 2>/dev/null || echo "Started area recording")"
 	notify_waybar
 }
 
@@ -132,9 +132,9 @@ dmenu_exec() {
 
 rec_menu() {
 	local opt_full opt_area opt_stop
-	opt_full="$(arch-i18n get rec_menu_full 2>/dev/null || echo "Record Fullscreen")"
-	opt_area="$(arch-i18n get rec_menu_area 2>/dev/null || echo "Record Area")"
-	opt_stop="$(arch-i18n get rec_menu_stop 2>/dev/null || echo "Stop Recording")"
+	opt_full="$(x-i18n get rec_menu_full 2>/dev/null || echo "Record Fullscreen")"
+	opt_area="$(x-i18n get rec_menu_area 2>/dev/null || echo "Record Area")"
+	opt_stop="$(x-i18n get rec_menu_stop 2>/dev/null || echo "Stop Recording")"
 
 	local menu_items=()
 	if is_recording; then
@@ -144,7 +144,7 @@ rec_menu() {
 	fi
 
 	local choice
-	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(arch-i18n get rec_menu_prompt 2>/dev/null || echo "Recording: ")")
+	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(x-i18n get rec_menu_prompt 2>/dev/null || echo "Recording: ")")
 	[[ -n "${choice:-}" ]] || exit 0
 
 	case "$choice" in
@@ -167,7 +167,7 @@ main() {
 		;;
 	menu) rec_menu ;;
 	-h | --help | help)
-		printf 'Usage: arch-rec [full | area | stop | toggle | status [text|waybar] | menu]\n'
+		printf 'Usage: x-rec [full | area | stop | toggle | status [text|waybar] | menu]\n'
 		;;
 	*)
 		rec_menu

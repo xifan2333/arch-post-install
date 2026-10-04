@@ -113,10 +113,12 @@ Non-root write permissions are granted via `/etc/tmpfiles.d/`:
 
 ## 5. Universal Desktop CLI (`arch`)
 
-All desktop utilities can be invoked directly as `arch-<group>` or `arch-<group>-<action>`:
-- `arch-theme set <name>` / `arch-theme menu`: switch desktop themes.
-- `arch-hw fan` / `arch-hw gpu`: inspect/control hardware.
-- `arch-cap ocr` / `arch-ocr`: capture screen region and copy recognized text.
-- `arch-i18n get <key>`: query localized strings.
-- `arch-font sync`: sync pixel fonts from GitHub releases.
-- `arch-live start` / `arch-live stop`: control live streaming pipeline.
+All desktop utilities can be invoked directly as `x-<tool>`:
+- `x-theme set <name>` / `x-theme menu`: switch desktop themes.
+- `x-hw fan` / `x-hw gpu`: inspect/control hardware.
+- `x-cap ocr` / `x-ocr`: capture screen region and copy recognized text.
+- `x-i18n get <key>`: query localized strings.
+- `x-font sync`: sync pixel fonts from GitHub releases.
+- `x-live start` / `x-live stop`: control live streaming pipeline.
+- `x-camera toggle`: webcam PIP floating player.
+- `x-captions toggle`: real-time live captions overlay.

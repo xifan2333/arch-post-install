@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Inspect or control ThinkPad ACPI fan speed and Intel GPU frequency
 # arch:args=[status | fan [auto|full|0-7|toggle] | gpu [auto|max|<mhz>|cur|toggle]]
-# arch:examples=arch hw | arch hw fan auto | arch hw gpu max
+# arch:examples=x-hw | x-hw fan auto | x-hw gpu max
 set -euo pipefail
 
 FAN_PROC="/proc/acpi/ibm/fan"
@@ -194,10 +194,10 @@ main() {
 		handle_gpu "${1:-status}"
 		;;
 	-h | --help | help)
-		echo "Usage: arch hw [status | fan [auto|full|0-7|toggle] | gpu [auto|max|<mhz>|cur|toggle]]"
+		echo "Usage: x-hw [status | fan [auto|full|0-7|toggle] | gpu [auto|max|<mhz>|cur|toggle]]"
 		;;
 	*)
-		echo "Unknown command: $cmd (run 'arch hw --help' for usage)" >&2
+		echo "Unknown command: $cmd (run 'x-hw --help' for usage)" >&2
 		exit 1
 		;;
 	esac

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Search and download wallpapers from Wallhaven API
 # arch:args=[search <query> | download <id|url> | menu [query]]
-# arch:examples=arch-wallhaven search anime | arch-wallhaven download 852109 | arch-wallhaven menu
+# arch:examples=x-wallhaven search anime | x-wallhaven download 852109 | x-wallhaven menu
 set -euo pipefail
 
 wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
@@ -136,14 +136,14 @@ resolve_and_download() {
 search_flow() {
 	local initial_query="${1:-}"
 	local query="$initial_query" page=1 pick id back_label prev_label next_label thumb_dir use_icons=0
-	back_label="$(arch-i18n get wallpaper_back 2>/dev/null || echo "Back")"
-	prev_label="$(arch-i18n get wallpaper_prev 2>/dev/null || echo "Previous")"
-	next_label="$(arch-i18n get wallpaper_next 2>/dev/null || echo "Next")"
+	back_label="$(x-i18n get wallpaper_back 2>/dev/null || echo "Back")"
+	prev_label="$(x-i18n get wallpaper_prev 2>/dev/null || echo "Previous")"
+	next_label="$(x-i18n get wallpaper_next 2>/dev/null || echo "Next")"
 
 	if command -v fuzzel >/dev/null 2>&1; then use_icons=1; fi
 
 	if [[ -z "$query" ]]; then
-		query="$(dmenu "$(arch-i18n get wallpaper_search_prompt 2>/dev/null || echo "Search Wallhaven: ")" --lines 0)"
+		query="$(dmenu "$(x-i18n get wallpaper_search_prompt 2>/dev/null || echo "Search Wallhaven: ")" --lines 0)"
 	fi
 	[[ -n "$query" ]] || return 0
 
@@ -221,7 +221,7 @@ main() {
 	download)
 		shift
 		[[ $# -ge 1 ]] || {
-			printf 'Usage: arch-wallhaven download <id|url>\n' >&2
+			printf 'Usage: x-wallhaven download <id|url>\n' >&2
 			exit 1
 		}
 		resolve_and_download "$1"
@@ -231,7 +231,7 @@ main() {
 		search_flow "${1:-}"
 		;;
 	-h | --help | help)
-		printf 'Usage: arch-wallhaven [search <query> | download <id|url> | menu [query]]\n'
+		printf 'Usage: x-wallhaven [search <query> | download <id|url> | menu [query]]\n'
 		;;
 	*)
 		search_flow "$cmd"

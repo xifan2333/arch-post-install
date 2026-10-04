@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Get localized UI strings based on system language
 # arch:args=get <key> [var=val ...] | current | list | env
-# arch:examples=arch i18n get ocr_notify_title | arch i18n current
+# arch:examples=x-i18n get ocr_notify_title | x-i18n current
 set -euo pipefail
 
 get_i18n_dir() {
@@ -33,7 +33,7 @@ detect_language() {
 
 main() {
 	if [[ $# -lt 1 ]]; then
-		printf 'Usage: arch-i18n get <key> [var=val ...] | current | list | env\n'
+		printf 'Usage: x-i18n get <key> [var=val ...] | current | list | env\n'
 		return 0
 	fi
 
