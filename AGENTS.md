@@ -16,7 +16,7 @@ Always edit source files within this repository. The `~/.config` and `~/.local` 
 | Dotfile symlink mappings | `mise/conf.d/30-dotfiles.toml` |
 | Pre-packages bootstrap hook | `mise/hooks/pre-packages.sh` |
 | Post-dotfiles runtime hook | `mise/hooks/post-dotfiles.sh` |
-| Window manager & compositor | `dotfiles/.config/river/` |
+| Window manager (xrwm) & desktop rules | `dotfiles/.config/xrwm/` |
 | State collectors & CLI tools | `dotfiles/.local/bin/` |
 | Dotfile sources | `dotfiles/` (never edit target symlinks directly) |
 
