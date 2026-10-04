@@ -1,6 +1,7 @@
 #!/usr/bin/env luajit
 -- arch:summary=Interactive text-only Bluetooth connection menu driven by Fuzzel and D-Bus
--- arch:examples=arch blue menu
+-- arch:args=[menu | off]
+-- arch:examples=arch blue menu | arch blue off
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -57,7 +58,19 @@ if adapter_path == "" then
   os.exit(1)
 end
 
--- 3. Check adapter power status via D-Bus and ensure Pairable is enabled
+-- 3. Check CLI arguments (off / power-off)
+local action = arg[1]
+if action == "off" or action == "power-off" then
+  os.execute(
+    string.format(
+      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b false >/dev/null 2>&1",
+      adapter_path
+    )
+  )
+  os.exit(0)
+end
+
+-- 4. Check adapter power status via D-Bus and ensure Powered & Pairable are enabled
 local powered_prop = exec_cmd(
   string.format(
     "busctl get-property org.bluez %s org.bluez.Adapter1 Powered 2>/dev/null",
@@ -66,49 +79,24 @@ local powered_prop = exec_cmd(
 )
 local is_powered = powered_prop:find("b true") ~= nil
 
-if is_powered then
+if not is_powered then
   os.execute(
     string.format(
-      "busctl set-property org.bluez %s org.bluez.Adapter1 Pairable b true >/dev/null 2>&1",
+      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b true >/dev/null 2>&1",
       adapter_path
     )
   )
 end
 
-local prompt_text = i18n("blue_prompt")
-local power_on_text = i18n("blue_power_on")
-local power_off_text = i18n("blue_power_off")
-local rescan_text = i18n("blue_rescan")
-
--- 4. Handle powered-off state
-if not is_powered then
-  local tmp = os.tmpname()
-  local f = io.open(tmp, "w")
-  if f then
-    f:write("  " .. power_on_text .. "\n")
-    f:close()
-  end
-  local p = io.popen(
-    string.format("fuzzel --dmenu --prompt %q --lines 3 < %q 2>/dev/null", prompt_text, tmp),
-    "r"
+os.execute(
+  string.format(
+    "busctl set-property org.bluez %s org.bluez.Adapter1 Pairable b true >/dev/null 2>&1",
+    adapter_path
   )
-  local chosen = p and p:read("*l") or ""
-  if p then
-    p:close()
-  end
-  os.remove(tmp)
+)
 
-  if chosen:find(power_on_text, 1, true) then
-    os.execute(
-      string.format(
-        "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b true >/dev/null 2>&1",
-        adapter_path
-      )
-    )
-    os.execute(arg[0] .. " &")
-  end
-  os.exit(0)
-end
+local prompt_text = i18n("blue_prompt")
+local rescan_text = i18n("blue_rescan")
 
 -- 5. Query all managed objects via D-Bus and parse with jq
 local query_cmd =
@@ -172,7 +160,6 @@ for _, dev in ipairs(devices) do
 end
 
 table.insert(menu_lines, "  " .. rescan_text)
-table.insert(menu_lines, "  " .. power_off_text)
 
 for _, dev in ipairs(devices) do
   if dev.connected then
@@ -209,16 +196,6 @@ end
 local action_chosen = chosen:gsub("^%s+", ""):gsub("%s+$", "")
 
 -- 9. Handle action header items
-if action_chosen == power_off_text then
-  os.execute(
-    string.format(
-      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b false >/dev/null 2>&1",
-      adapter_path
-    )
-  )
-  os.exit(0)
-end
-
 if action_chosen == rescan_text then
   -- Perform a clean 6-second discovery cycle via D-Bus
   os.execute(
