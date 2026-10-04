@@ -153,7 +153,8 @@
     ],
     "tooltip-format": "{ifname} via {gwaddr}\nSSID: {essid}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
     "tooltip-format-disconnected": "网络已断开",
-    "on-click": "arch-net-menu"
+    "on-click": "arch-net-menu toggle",
+    "on-click-right": "arch-net-menu"
   },
   "pulseaudio": {
     "format": "{icon}  {volume}%",
@@ -214,6 +215,7 @@
   "custom/power": {
     "format": "⏻",
     "tooltip": false,
-    "on-click": "arch-power-menu"
+    "on-click": "systemctl poweroff",
+    "on-click-right": "arch-power-menu"
   }
 }
