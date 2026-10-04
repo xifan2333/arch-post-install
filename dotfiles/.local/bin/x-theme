@@ -20,6 +20,26 @@ local xdg_data = os.getenv("XDG_DATA_HOME") or (home .. "/.local/share")
 local xdg_runtime = os.getenv("XDG_RUNTIME_DIR")
   or ("/run/user/" .. (exec_cmd("id -u"):gsub("%s+", "")))
 
+local function i18n(key, vars)
+  local cmd = { "x-i18n", "get", key }
+  if vars then
+    for k, v in pairs(vars) do
+      table.insert(cmd, string.format("%s=%s", k, tostring(v)))
+    end
+  end
+  local quoted = {}
+  for _, c in ipairs(cmd) do
+    table.insert(quoted, string.format("%q", c))
+  end
+  local p = io.popen(table.concat(quoted, " ") .. " 2>/dev/null", "r")
+  if not p then
+    return key
+  end
+  local res = p:read("*a")
+  p:close()
+  return (res and res:gsub("%s+$", "")) or key
+end
+
 local function file_exists(path)
   local f = io.open(path, "r")
   if f then
@@ -513,6 +533,10 @@ local function apply_theme(theme_name)
   assemble_herdr_theme(colors, theme_state)
   broadcast_reloads()
 
+  local title = i18n("theme_notify_title") or "Theme"
+  local msg = i18n("theme_switched", { theme = theme_name })
+  os.execute(string.format("notify-send %q %q 2>/dev/null || true", title, msg))
+
   io.stdout:write(
     string.format('✓ Applied theme "%s" (%d template(s) rendered)\n', theme_name, rendered_count)
   )
@@ -544,8 +568,9 @@ local function interactive_menu(themes_dir)
     f:write(table.concat(menu_lines, "\n") .. "\n")
     f:close()
   end
+  local prompt = i18n("theme_prompt") or "Theme: "
   local chosen_p = io.popen(
-    string.format("fuzzel --dmenu --prompt 'Theme: ' --lines 15 < %q 2>/dev/null", tmp),
+    string.format("fuzzel --dmenu --prompt %q --lines 15 < %q 2>/dev/null", prompt, tmp),
     "r"
   )
   local chosen = chosen_p and chosen_p:read("*l") or ""

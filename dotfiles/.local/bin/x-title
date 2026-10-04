@@ -79,11 +79,14 @@ edit_title() {
 		candidates="$(grep -v '^[[:space:]]*$' "$TITLE_HISTORY_FILE" 2>/dev/null || true)"
 	fi
 
+	local prompt_text
+	prompt_text="$(x-i18n get overlay_title_prompt 2>/dev/null || echo "Stream Title: ")"
+
 	local chosen=""
 	if command -v fuzzel >/dev/null 2>&1; then
-		chosen="$(printf '%s\n' "$candidates" | fuzzel --dmenu --prompt "Title HUD: " || true)"
+		chosen="$(printf '%s\n' "$candidates" | fuzzel --dmenu --prompt "$prompt_text" || true)"
 	elif command -v bemenu >/dev/null 2>&1; then
-		chosen="$(printf '%s\n' "$candidates" | bemenu -p "Title HUD: " || true)"
+		chosen="$(printf '%s\n' "$candidates" | bemenu -p "$prompt_text" || true)"
 	fi
 	[[ -n "$chosen" ]] || return 0
 
