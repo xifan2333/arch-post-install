@@ -139,11 +139,15 @@ stream_menu_entries() {
 
 # 6. Stream entries into Fuzzel dmenu
 chosen=$(stream_menu_entries | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
+
+# 7. Stop background scanning immediately upon user selection to free radio bandwidth
+bluetoothctl scan off >/dev/null 2>&1 || true
+
 [[ -z "$chosen" ]] && exit 0
 
 action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
 
-# 7. Handle action header items
+# 8. Handle action header items
 if [[ "$action_chosen" == "$power_off_text" ]]; then
 	bluetoothctl power off >/dev/null 2>&1
 	exit 0
@@ -163,7 +167,7 @@ if [[ -n "$connected_raw" ]]; then
 	done <<<"$connected_raw"
 fi
 
-# 8. Handle device click (connect / disconnect)
+# 9. Handle device click (connect / disconnect)
 mac=$(grep -o -E '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' <<<"$chosen" || true)
 [[ -z "$mac" ]] && exit 0
 
@@ -188,10 +192,11 @@ if [[ -n "$paired_raw" ]] && grep -q -F "$mac" <<<"$paired_raw"; then
 	exit 0
 fi
 
-# Otherwise, pair + trust + connect newly discovered device
-bluetoothctl pair "$mac" >/dev/null 2>&1 || true
+# Otherwise, trust + pair + connect newly discovered device
 bluetoothctl trust "$mac" >/dev/null 2>&1 || true
-if bluetoothctl connect "$mac" >/dev/null 2>&1; then
+if bluetoothctl pair "$mac" >/dev/null 2>&1 && bluetoothctl connect "$mac" >/dev/null 2>&1; then
+	notify "$(arch-i18n get blue_connected "dev=$dev_name")"
+elif bluetoothctl connect "$mac" >/dev/null 2>&1; then
 	notify "$(arch-i18n get blue_connected "dev=$dev_name")"
 else
 	notify "$(arch-i18n get blue_failed "dev=$dev_name")"
