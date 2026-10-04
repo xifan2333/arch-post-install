@@ -35,6 +35,21 @@ dmenu() {
 set_wallpaper() {
 	local img="$1" tmp old_pids
 	[[ -f "$img" ]] || fail "Wallpaper file not found: $img"
+
+	# If image is outside wall_dir (e.g. runtime cache, tmpfs, or remote download),
+	# copy it into wall_dir so the active wallpaper persists cleanly across reboots.
+	if [[ "$img" != "$wall_dir"/* ]]; then
+		local ext="${img##*.}"
+		case "$ext" in
+		jpg | jpeg | png | webp) ;;
+		*) ext="jpg" ;;
+		esac
+		local target_img="$wall_dir/wallpaper.$ext"
+		rm -f "$wall_dir"/wallpaper.*
+		cp -f "$img" "$target_img"
+		img="$target_img"
+	fi
+
 	old_pids=$(pgrep -x swaybg || true)
 
 	if command -v uwsm >/dev/null 2>&1; then
