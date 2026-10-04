@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Capture screenshots, OCR text, or pick colors on screen
 # arch:args=[menu | area [-o path] | full [-o path] | edit | ocr | color | preview | scroll | rec [args...]]
-# arch:examples=arch-cap area | arch-cap edit | arch-cap color | arch-cap rec toggle
+# arch:examples=x-cap area | x-cap edit | x-cap color | x-cap rec toggle
 set -euo pipefail
 
 save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
@@ -120,23 +120,23 @@ cap_ocr() {
 	[[ -n "$geometry" ]] || exit 0
 
 	local text
-	text="$(grim -g "$geometry" - | arch-ocr - 2>/dev/null || true)"
+	text="$(grim -g "$geometry" - | x-ocr - 2>/dev/null || true)"
 	if [[ -n "$text" ]]; then
 		printf '%s' "$text" | wl-copy
-		notify_cap "$(arch-i18n get ocr_notify_title 2>/dev/null || echo "OCR")" "$text"
+		notify_cap "$(x-i18n get ocr_notify_title 2>/dev/null || echo "OCR")" "$text"
 		printf '%s\n' "$text"
 	fi
 }
 
 interactive_menu() {
 	local opt_area opt_full opt_edit opt_preview opt_ocr opt_color opt_scroll opt_rec
-	opt_area="$(arch-i18n get cap_menu_area 2>/dev/null || echo "Area Screenshot")"
-	opt_full="$(arch-i18n get cap_menu_full 2>/dev/null || echo "Fullscreen")"
-	opt_edit="$(arch-i18n get cap_menu_edit 2>/dev/null || echo "Annotate & Edit")"
-	opt_preview="$(arch-i18n get cap_menu_preview 2>/dev/null || echo "Preview & Pin")"
-	opt_ocr="$(arch-i18n get cap_menu_ocr 2>/dev/null || echo "Extract Text (OCR)")"
-	opt_color="$(arch-i18n get cap_menu_color 2>/dev/null || echo "Pick Color")"
-	opt_scroll="$(arch-i18n get cap_menu_scroll 2>/dev/null || echo "Scroll Shot")"
+	opt_area="$(x-i18n get cap_menu_area 2>/dev/null || echo "Area Screenshot")"
+	opt_full="$(x-i18n get cap_menu_full 2>/dev/null || echo "Fullscreen")"
+	opt_edit="$(x-i18n get cap_menu_edit 2>/dev/null || echo "Annotate & Edit")"
+	opt_preview="$(x-i18n get cap_menu_preview 2>/dev/null || echo "Preview & Pin")"
+	opt_ocr="$(x-i18n get cap_menu_ocr 2>/dev/null || echo "Extract Text (OCR)")"
+	opt_color="$(x-i18n get cap_menu_color 2>/dev/null || echo "Pick Color")"
+	opt_scroll="$(x-i18n get cap_menu_scroll 2>/dev/null || echo "Scroll Shot")"
 	opt_rec="Record Video..."
 
 	local menu_items=(
@@ -151,7 +151,7 @@ interactive_menu() {
 	)
 
 	local choice
-	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(arch-i18n get cap_menu_prompt 2>/dev/null || echo "Screen Capture: ")")
+	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(x-i18n get cap_menu_prompt 2>/dev/null || echo "Screen Capture: ")")
 	[[ -n "${choice:-}" ]] || return 0
 
 	case "$choice" in
@@ -162,7 +162,7 @@ interactive_menu() {
 	*"$opt_ocr") cap_ocr ;;
 	*"$opt_color") cap_color ;;
 	*"$opt_scroll") cap_scroll ;;
-	*"$opt_rec") arch-rec menu ;;
+	*"$opt_rec") x-rec menu ;;
 	esac
 }
 
@@ -188,10 +188,10 @@ main() {
 		;;
 	rec)
 		shift
-		exec arch-rec "$@"
+		exec x-rec "$@"
 		;;
 	-h | --help | help)
-		printf 'Usage: arch-cap [menu | area [-o path] | full [-o path] | edit | ocr | color | preview | scroll | rec ...]\n'
+		printf 'Usage: x-cap [menu | area [-o path] | full [-o path] | edit | ocr | color | preview | scroll | rec ...]\n'
 		;;
 	*)
 		interactive_menu

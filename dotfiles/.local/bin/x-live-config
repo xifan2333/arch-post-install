@@ -24,7 +24,7 @@ DEFAULT_AUDIO_BITRATE = 160
 def tr_msg(key: str, fallback: str) -> str:
     try:
         res = subprocess.run(
-            ["arch-i18n", "get", key],
+            ["x-i18n", "get", key],
             capture_output=True,
             text=True,
             timeout=1,
@@ -180,7 +180,7 @@ class LivestreamConfigDialog(Gtk.Dialog):
 
 
 def main() -> None:
-    GLib.set_prgname("arch-live-config")
+    GLib.set_prgname("x-live-config")
     server, key, video, audio = load_config()
     dialog = LivestreamConfigDialog(server, key, video, audio)
     response = dialog.run()

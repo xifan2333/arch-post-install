@@ -552,7 +552,7 @@ def main() -> int:
         return cmd_run()
 
     print(
-        "Usage: arch-overlay-captions [toggle | start | stop | status | run]",
+        "Usage: x-captions [toggle | start | stop | status | run]",
         file=sys.stderr,
     )
     return 1

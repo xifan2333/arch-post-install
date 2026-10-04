@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Extract text from image file or stdin stream using newbee-ocr
 # arch:args=[<image-path> | -]
-# arch:examples=arch-ocr image.png | grim -g "$(slurp)" - | arch-ocr | wl-copy
+# arch:examples=x-ocr image.png | grim -g "$(slurp)" - | x-ocr | wl-copy
 set -euo pipefail
 
 input_src="${1:--}"
