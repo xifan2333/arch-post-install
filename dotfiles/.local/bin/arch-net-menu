@@ -1,166 +1,335 @@
-#!/usr/bin/env bash
-# arch:summary=Interactive Wi-Fi connection menu driven by Fuzzel and iwctl with i18n
-set -euo pipefail
+#!/usr/bin/env luajit
+-- arch:summary=Interactive Wi-Fi connection menu driven by Fuzzel and iwd D-Bus
+-- arch:examples=arch net menu
 
-# 1. Dependency checks
-if ! command -v iwctl >/dev/null 2>&1; then
-	printf 'Error: iwctl not found. Please install iwd\n' >&2
-	exit 1
-fi
+local function exec_cmd(cmd)
+  local p = io.popen(cmd, "r")
+  if not p then
+    return ""
+  end
+  local output = p:read("*a") or ""
+  p:close()
+  return output
+end
 
-if ! command -v fuzzel >/dev/null 2>&1; then
-	printf 'Error: fuzzel not found\n' >&2
-	exit 1
-fi
+local function i18n(key, vars)
+  local args = { "arch-i18n", "get", key }
+  if vars then
+    for k, v in pairs(vars) do
+      table.insert(args, string.format("%s=%s", k, tostring(v)))
+    end
+  end
+  local quoted = {}
+  for _, arg_val in ipairs(args) do
+    table.insert(quoted, string.format("%q", arg_val))
+  end
+  local text = exec_cmd(table.concat(quoted, " "))
+  return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+end
 
-# 2. i18n helper
-tr_msg() {
-	local key="$1"
-	shift
-	if command -v arch-i18n >/dev/null 2>&1; then
-		arch-i18n get "$key" "$@"
-	else
-		printf '%s' "$key"
-	fi
-}
+local function notify(msg)
+  local title = i18n("net_notify_title")
+  os.execute(string.format("notify-send %q %q 2>/dev/null", title, msg))
+end
 
-notify() {
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send "$(tr_msg net_notify_title)" "$1"
-	fi
-}
+-- 1. Dependency checks
+if os.execute("command -v busctl >/dev/null 2>&1") ~= 0 then
+  io.stderr:write("Error: busctl not found. Please install systemd\n")
+  os.exit(1)
+end
 
-# 3. Detect wireless device from kernel sysfs
-dev=""
-for d in /sys/class/net/*/wireless; do
-	if [[ -d "$d" ]]; then
-		dev=$(basename "$(dirname "$d")")
-		break
-	fi
-done
+if os.execute("command -v fuzzel >/dev/null 2>&1") ~= 0 then
+  io.stderr:write("Error: fuzzel not found\n")
+  os.exit(1)
+end
 
-if [[ -z "$dev" ]]; then
-	notify "$(tr_msg net_no_device)"
-	exit 1
-fi
+if os.execute("command -v jq >/dev/null 2>&1") ~= 0 then
+  io.stderr:write("Error: jq not found\n")
+  os.exit(1)
+end
 
-# 4. Helpers: strip ANSI codes, wait for the iwd scan to finish
-strip_ansi() { sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g'; }
+-- 2. Query iwd D-Bus ObjectManager for station and device
+local query_station_cmd =
+  [[busctl call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short 2>/dev/null | jq -r '
+.data[0] | to_entries[] |
+select(.value["net.connman.iwd.Station"]) |
+[
+  .key,
+  (.value["net.connman.iwd.Device"].Name.data // ""),
+  (.value["net.connman.iwd.Station"].State.data // ""),
+  (.value["net.connman.iwd.Station"].ConnectedNetwork.data // "")
+] | @tsv
+' | head -n 1]]
 
-wait_for_scan() {
-	local d="$1" s n=0
-	while ((n < 50)); do
-		s="$(iwctl station "$d" show 2>/dev/null | strip_ansi | awk '$1=="Scanning"{print $2; exit}')"
-		[[ "$s" != "yes" ]] && return 0
-		sleep 0.2
-		n=$((n + 1))
-	done
-	return 0
-}
+local station_line = exec_cmd(query_station_cmd)
+local station_path, dev_name = station_line:match("^(.-)\t(.-)\t")
 
-# 5. Rescan on open and wait for it to finish, so the list reflects reality
-#    (iwctl's scan is asynchronous; querying before it completes returns stale/partial data)
-iwctl station "$dev" scan 2>/dev/null || true
-wait_for_scan "$dev"
+if not station_path or station_path == "" then
+  notify(i18n("net_no_device"))
+  os.exit(1)
+end
 
-station_info=$(iwctl station "$dev" show 2>/dev/null || true)
-connected_ssid=$(awk -F': ' '/Connected network/ { print $2; exit }' <<<"$station_info" | xargs || true)
+-- 3. Query all networks from D-Bus
+local query_networks_cmd =
+  [[busctl call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short 2>/dev/null | jq -r '
+.data[0] | to_entries[] |
+select(.value["net.connman.iwd.Network"]) |
+.key as $path |
+.value["net.connman.iwd.Network"] |
+[
+  $path,
+  .Name.data,
+  .Type.data,
+  (if .Connected.data then "1" else "0" end),
+  (.KnownNetwork.data // "")
+] | @tsv
+']]
 
-# 6. Build action header
-actions=()
-if [[ -n "$connected_ssid" ]]; then
-	actions+=("󰖪  $(tr_msg net_disconnect "ssid=$connected_ssid")")
-fi
-actions+=("󰑐  $(tr_msg net_rescan)")
+local networks_by_path = {}
+for line in exec_cmd(query_networks_cmd):gmatch("[^\r\n]+") do
+  local path, name, net_type, conn_s, known_path = line:match("^(.-)\t(.-)\t(.-)\t(.-)\t(.*)$")
+  if path and name and name ~= "" then
+    networks_by_path[path] = {
+      path = path,
+      name = name,
+      type = net_type,
+      connected = (conn_s == "1"),
+      known_network = (known_path ~= "" and known_path) or nil,
+    }
+  end
+end
 
-# 7. Display fuzzel menu
-menu_input=$(
-	for a in "${actions[@]}"; do printf '  %s\n' "$a"; done
-	while IFS= read -r line; do
-		[[ -z "$line" || "$line" =~ ^[-[:space:]]+$ || "$line" =~ Network\ name || "$line" =~ Available\ networks ]] && continue
-
-		is_active=false
-		[[ "$line" =~ ^[[:space:]]*\> ]] && is_active=true
-		clean_content=$(sed -E 's/^[[:space:]]*>[[:space:]]*//; s/^[[:space:]]+//' <<<"$line")
-
-		parts=()
-		read -r -a parts <<<"$clean_content"
-		[[ ${#parts[@]} -lt 2 ]] && continue
-
-		raw_sig="${parts[-1]}"
-		sec=""
-		ssid=""
-		if [[ ${#parts[@]} -ge 3 && "${parts[-2]}" =~ ^(psk|8021x|open)$ ]]; then
-			sec="${parts[-2]}"
-			ssid="${parts[*]:0:${#parts[@]}-2}"
-		else
-			ssid="${parts[*]:0:${#parts[@]}-1}"
-		fi
-
-		star="  "
-		$is_active && star="* "
-
-		sig_icon="󰤯"
-		case "$raw_sig" in
-		"****") sig_icon="󰤨" ;;
-		"***") sig_icon="󰤥" ;;
-		"**") sig_icon="󰤢" ;;
-		"*") sig_icon="󰤟" ;;
-		esac
-
-		lock_icon="󰌿"
-		[[ "$sec" =~ (psk|8021x) ]] && lock_icon="󰌾"
-
-		printf '%s\n' "$star$sig_icon   $lock_icon   $ssid"
-	done <<<"$(iwctl station "$dev" get-networks 2>/dev/null | strip_ansi || true)"
+-- 4. Query ordered networks with signal metrics (100*dBm)
+local query_ordered_cmd = string.format(
+  [[busctl call net.connman.iwd %s net.connman.iwd.Station GetOrderedNetworks --json=short 2>/dev/null | jq -r '.data[0][] | [(.[0] // ""), (.[1] // 0)] | @tsv']],
+  station_path
 )
 
-prompt_text=$(tr_msg net_prompt "dev=$dev")
-chosen=$(printf '%s' "$menu_input" | fuzzel --dmenu --prompt "$prompt_text" --lines 15 || true)
-[[ -z "$chosen" ]] && exit 0
+local ordered_networks = {}
+local seen_names = {}
 
-# Strip optional leading alignment spaces for action headers
-action_chosen="${chosen#"${chosen%%[![:space:]]*}"}"
+for line in exec_cmd(query_ordered_cmd):gmatch("[^\r\n]+") do
+  local path, sig_str = line:match("^(.-)\t(.-)$")
+  local net = networks_by_path[path]
+  if net and not seen_names[net.name] then
+    net.signal = tonumber(sig_str) or -10000
+    table.insert(ordered_networks, net)
+    seen_names[net.name] = true
+  end
+end
 
-# 8. Handle action header items
-if [[ "$action_chosen" =~ ^󰖪[[:space:]] ]]; then
-	iwctl station "$dev" disconnect
-	exit 0
-elif [[ "$action_chosen" =~ ^󰑐[[:space:]] ]]; then
-	exec "$0"
-fi
+-- 5. Format NerdFont glyphs
+local function get_signal_icon(sig)
+  if sig >= -5000 then
+    return "󰤨"
+  elseif sig >= -6500 then
+    return "󰤥"
+  elseif sig >= -7500 then
+    return "󰤢"
+  elseif sig >= -8500 then
+    return "󰤟"
+  else
+    return "󰤯"
+  end
+end
 
-# 9. Extract target SSID
-target_ssid=$(sed -E 's/^(\*|  )[[:space:]]*[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+//' <<<"$chosen" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-[[ -z "$target_ssid" ]] && exit 0
+local function get_lock_icon(net_type)
+  if net_type == "open" then
+    return "󰌿"
+  else
+    return "󰌾"
+  end
+end
 
-# 10. Check if network is known (already saved)
-is_known=false
-if iwctl known-networks list 2>/dev/null | grep -Fq "$target_ssid"; then
-	is_known=true
-fi
+-- 6. Build action header
+local menu_lines = {}
+local connected_ssid = nil
 
-if $is_known; then
-	if ! iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-		notify "$(tr_msg net_failed "ssid=$target_ssid")"
-	fi
-	exit 0
-fi
+for _, net in ipairs(ordered_networks) do
+  if net.connected then
+    connected_ssid = net.name
+    break
+  end
+end
 
-# 11. Check if secured
-is_secure=false
-[[ "$chosen" =~ 󰌾 ]] && is_secure=true
+if connected_ssid then
+  table.insert(
+    menu_lines,
+    string.format("  󰖪  %s", i18n("net_disconnect", { ssid = connected_ssid }))
+  )
+end
+table.insert(menu_lines, string.format("  󰑐  %s", i18n("net_rescan")))
 
-if $is_secure; then
-	pass_prompt=$(tr_msg net_password_prompt "ssid=$target_ssid")
-	password=$(fuzzel --dmenu --password --prompt "$pass_prompt" --lines 0 || true)
-	[[ -z "$password" ]] && exit 0
+-- 7. Build network list entries
+for _, net in ipairs(ordered_networks) do
+  local star = net.connected and "* " or "  "
+  local sig_icon = get_signal_icon(net.signal or -7000)
+  local lock_icon = get_lock_icon(net.type)
+  table.insert(menu_lines, string.format("%s%s   %s   %s", star, sig_icon, lock_icon, net.name))
+end
 
-	if ! iwctl --passphrase="$password" station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-		notify "$(tr_msg net_auth_failed "ssid=$target_ssid")"
-	fi
-else
-	if ! iwctl station "$dev" connect "$target_ssid" >/dev/null 2>&1; then
-		notify "$(tr_msg net_failed "ssid=$target_ssid")"
-	fi
-fi
+-- 8. Display Fuzzel dmenu
+local prompt_text = i18n("net_prompt", { dev = dev_name })
+local tmp = os.tmpname()
+local f = io.open(tmp, "w")
+if f then
+  f:write(table.concat(menu_lines, "\n") .. "\n")
+  f:close()
+end
+
+local p = io.popen(
+  string.format("fuzzel --dmenu --prompt %q --lines 15 < %q 2>/dev/null", prompt_text, tmp),
+  "r"
+)
+local chosen = p and p:read("*l") or ""
+if p then
+  p:close()
+end
+os.remove(tmp)
+
+if not chosen or chosen == "" then
+  os.exit(0)
+end
+
+local action_chosen = chosen:gsub("^%s+", ""):gsub("%s+$", "")
+
+-- 9. Handle action header items
+if action_chosen:find("^󰑐") then
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.Station Scan >/dev/null 2>&1",
+      station_path
+    )
+  )
+  os.execute("sleep 1.2")
+  os.execute(arg[0] .. " &")
+  os.exit(0)
+end
+
+if action_chosen:find("^󰖪") then
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
+      station_path
+    )
+  )
+  notify(i18n("net_disconnected", { ssid = connected_ssid or "" }))
+  os.exit(0)
+end
+
+-- 10. Extract target SSID
+local target_ssid = chosen:match("^[ *]+%S+%s+%S+%s+(.*)$")
+if not target_ssid or target_ssid == "" then
+  os.exit(0)
+end
+target_ssid = target_ssid:gsub("^%s+", ""):gsub("%s+$", "")
+
+local target_net = nil
+for _, net in ipairs(ordered_networks) do
+  if net.name == target_ssid then
+    target_net = net
+    break
+  end
+end
+
+if not target_net then
+  os.exit(0)
+end
+
+-- If already connected: disconnect
+if target_net.connected then
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
+      station_path
+    )
+  )
+  notify(i18n("net_disconnected", { ssid = target_net.name }))
+  os.exit(0)
+end
+
+-- Function to connect with a passphrase via iwctl
+local function connect_with_passphrase(prompt_str)
+  local pass_p = io.popen(
+    string.format("fuzzel --dmenu --password --prompt %q --lines 0 2>/dev/null", prompt_str),
+    "r"
+  )
+  local pass = pass_p and pass_p:read("*l") or ""
+  if pass_p then
+    pass_p:close()
+  end
+  if not pass or pass == "" then
+    os.exit(0)
+  end
+
+  local cmd = string.format(
+    "iwctl --passphrase %q station %s connect %q >/dev/null 2>&1",
+    pass,
+    dev_name,
+    target_net.name
+  )
+  if os.execute(cmd) == 0 then
+    notify(i18n("net_connected", { ssid = target_net.name }))
+  else
+    notify(i18n("net_auth_failed", { ssid = target_net.name }))
+  end
+  os.exit(0)
+end
+
+-- If known network (already saved credentials): connect directly via D-Bus
+if target_net.known_network then
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.Network Connect >/dev/null 2>&1",
+      target_net.path
+    )
+  )
+
+  -- Check if connection succeeded
+  local state = exec_cmd(
+    string.format(
+      "busctl get-property net.connman.iwd %s net.connman.iwd.Station State 2>/dev/null",
+      station_path
+    )
+  )
+  if state:find("connected") then
+    notify(i18n("net_connected", { ssid = target_net.name }))
+    os.exit(0)
+  end
+
+  -- Auto-recovery: if connection failed (password changed on router)
+  -- Purge stale known network via D-Bus and prompt for the new password!
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.KnownNetwork Forget >/dev/null 2>&1",
+      target_net.known_network
+    )
+  )
+  connect_with_passphrase(i18n("net_password_changed_prompt"))
+  os.exit(0)
+end
+
+-- If open network (no password required): connect directly via D-Bus
+if target_net.type == "open" then
+  os.execute(
+    string.format(
+      "busctl call net.connman.iwd %s net.connman.iwd.Network Connect >/dev/null 2>&1",
+      target_net.path
+    )
+  )
+  local state = exec_cmd(
+    string.format(
+      "busctl get-property net.connman.iwd %s net.connman.iwd.Station State 2>/dev/null",
+      station_path
+    )
+  )
+  if state:find("connected") then
+    notify(i18n("net_connected", { ssid = target_net.name }))
+  else
+    notify(i18n("net_failed", { ssid = target_net.name }))
+  end
+  os.exit(0)
+end
+
+-- Unconfigured secure network: prompt for passphrase
+connect_with_passphrase(i18n("net_password_prompt", { ssid = target_net.name }))
