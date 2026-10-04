@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# arch:summary=Interactive audio output (sink) and microphone (source) selector driven by Fuzzel and PipeWire
+# arch:summary=Select and switch PipeWire audio output (sink) and microphone (source) devices
 # arch:args=[sink | source]
-# arch:examples=arch audio menu sink | arch audio menu source
+# arch:examples=arch audio | arch audio sink | arch audio source
 set -euo pipefail
 
 mode="${1:-sink}"
