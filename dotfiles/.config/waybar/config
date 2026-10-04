@@ -101,8 +101,8 @@
   "custom/screenshot": {
     "format": "󰻿",
     "tooltip": false,
-    "on-click": "arch-cap-area",
-    "on-click-right": "arch-cap-menu"
+    "on-click": "arch-cap area",
+    "on-click-right": "arch-cap"
   },
   "custom/screenrecord": {
     "format": "{icon} {text}",
@@ -113,11 +113,11 @@
     },
     "tooltip": false,
     "return-type": "json",
-    "exec": "arch-cap-rec status --waybar",
+    "exec": "arch-cap rec status waybar",
     "signal": 8,
     "interval": 1,
-    "on-click": "arch-cap-rec toggle",
-    "on-click-right": "arch-rec-menu"
+    "on-click": "arch-cap rec toggle",
+    "on-click-right": "arch-cap rec"
   },
   "tray": {
     "icon-size": 16,
@@ -216,6 +216,6 @@
     "format": "⏻",
     "tooltip": false,
     "on-click": "systemctl poweroff",
-    "on-click-right": "arch-power-menu"
+    "on-click-right": "arch-power"
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # arch:summary=Start, stop, or inspect desktop live streaming pipeline
-# arch:args=[start | stop | status | toggle | restart | config | is-active]
-# arch:examples=arch live push start | arch live push toggle | arch live push config
+# arch:args=[toggle | start | stop | status | restart | config | danmaku [start|stop]]
+# arch:examples=arch live | arch live config | arch live stop
 set -euo pipefail
 
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/livestream"
@@ -11,19 +11,9 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/arch-live-danmaku"
 
-tr_msg() {
-	local key="$1"
-	shift
-	if command -v arch-i18n >/dev/null 2>&1; then
-		arch-i18n get "$key" "$@"
-	else
-		printf '%s' "$key"
-	fi
-}
-
 notify() {
 	local title body
-	title="$(tr_msg livestream_notify_title)"
+	title="$(arch-i18n get livestream_notify_title)"
 	body="$1"
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send -u "${2:-normal}" "$title" "$body"
@@ -35,20 +25,16 @@ notify_waybar() {
 }
 
 boost_hardware() {
-	if command -v arch-hw-gpu >/dev/null 2>&1; then
-		arch-hw-gpu max >/dev/null 2>&1 || true
-	fi
-	if command -v arch-hw-fan >/dev/null 2>&1; then
-		arch-hw-fan max >/dev/null 2>&1 || true
+	if command -v arch-hw >/dev/null 2>&1; then
+		arch-hw gpu max >/dev/null 2>&1 || true
+		arch-hw fan max >/dev/null 2>&1 || true
 	fi
 }
 
 restore_hardware() {
-	if command -v arch-hw-gpu >/dev/null 2>&1; then
-		arch-hw-gpu auto >/dev/null 2>&1 || true
-	fi
-	if command -v arch-hw-fan >/dev/null 2>&1; then
-		arch-hw-fan auto >/dev/null 2>&1 || true
+	if command -v arch-hw >/dev/null 2>&1; then
+		arch-hw gpu auto >/dev/null 2>&1 || true
+		arch-hw fan auto >/dev/null 2>&1 || true
 	fi
 }
 
@@ -177,7 +163,7 @@ cmd_toggle() {
 }
 
 main() {
-	local action="${1:-status}"
+	local action="${1:-toggle}"
 	case "$action" in
 	start)
 		cmd_start
@@ -198,6 +184,12 @@ main() {
 			arch-live-config
 		fi
 		;;
+	danmaku)
+		shift
+		if [[ -x "$DANMAKU" ]]; then
+			"$DANMAKU" "${1:-start}"
+		fi
+		;;
 	is-active)
 		is_active
 		;;
@@ -209,7 +201,7 @@ main() {
 		fi
 		;;
 	*)
-		printf 'Usage: arch-live-push [start | stop | toggle | restart | config | status]\n'
+		printf 'Usage: arch live [toggle | start | stop | status | restart | config | danmaku [start|stop]]\n'
 		;;
 	esac
 }
