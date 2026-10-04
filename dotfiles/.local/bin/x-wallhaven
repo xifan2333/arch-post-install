@@ -65,7 +65,7 @@ download_image() {
 fetch_thumb() {
 	local id="$1" url="$2" dir="$3"
 	curl -fsSL --connect-timeout 3 --max-time 8 "$url" 2>/dev/null |
-		timeout 8 magick jpeg:- -thumbnail 96x96 "$dir/$id.png" 2>/dev/null || return 1
+		timeout 8 magick - -thumbnail 96x96 "$dir/$id.png" 2>/dev/null || return 1
 	printf '%s' "$dir/$id.png"
 }
 
@@ -182,8 +182,9 @@ search_flow() {
 		menu_items+=("$back_label")
 
 		pick="$(
-			IFS=$'\n'
-			printf '%b\n' "${menu_items[*]}" | dmenu "Wallhaven (p.$page):" --lines 15
+			for item in "${menu_items[@]}"; do
+				printf '%b\n' "$item"
+			done | dmenu "Wallhaven (p.$page):" --lines 15
 		)"
 		[[ -n "$pick" ]] || return 0
 
