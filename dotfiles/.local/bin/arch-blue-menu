@@ -325,7 +325,7 @@ if target_dev.paired then
         target_dev.path
       )
     )
-    if is_device_connected(target_dev.path) or target_dev.icon == "phone" then
+    if is_device_connected(target_dev.path) then
       notify(i18n("blue_connected", { dev = target_dev.name }))
     else
       notify(i18n("blue_failed", { dev = target_dev.name }))
@@ -357,7 +357,7 @@ os.execute(
   )
 )
 
-if is_device_connected(target_dev.path) or target_dev.icon == "phone" then
+if is_device_connected(target_dev.path) then
   notify(i18n("blue_connected", { dev = target_dev.name }))
 else
   notify(i18n("blue_failed", { dev = target_dev.name }))
