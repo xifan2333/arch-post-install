@@ -216,23 +216,37 @@ if connected_devs[mac] then
   os.exit(0)
 end
 
--- If already paired, connect directly
+local function pair_and_connect(target_mac, target_name)
+  os.execute("bluetoothctl trust " .. target_mac .. " >/dev/null 2>&1")
+  os.execute(
+    "bluetoothctl --agent NoInputNoOutput --timeout 15 pair " .. target_mac .. " >/dev/null 2>&1"
+  )
+  os.execute("bluetoothctl --timeout 10 connect " .. target_mac .. " >/dev/null 2>&1")
+  if is_device_connected(target_mac) then
+    notify(i18n("blue_connected", { dev = target_name }))
+  else
+    notify(i18n("blue_failed", { dev = target_name }))
+  end
+end
+
+-- If already paired, connect directly with auto-recovery
 if paired_devs[mac] then
-  os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
+  local out = exec_cmd("bluetoothctl --timeout 8 connect " .. mac .. " 2>&1")
   if is_device_connected(mac) then
     notify(i18n("blue_connected", { dev = dev_name }))
-  else
-    notify(i18n("blue_failed", { dev = dev_name }))
+    os.exit(0)
   end
+
+  -- Auto-recovery: if connection failed due to stale pairing / key mismatch on remote device
+  if out:find("key%-missing") or out:find("Authentication") or out:find("Failed") then
+    os.execute("bluetoothctl remove " .. mac .. " >/dev/null 2>&1")
+    pair_and_connect(mac, dev_name)
+    os.exit(0)
+  end
+
+  notify(i18n("blue_failed", { dev = dev_name }))
   os.exit(0)
 end
 
 -- Otherwise (new device): trust + pair with NoInputNoOutput auto-confirm + connect
-os.execute("bluetoothctl trust " .. mac .. " >/dev/null 2>&1")
-os.execute("bluetoothctl --agent NoInputNoOutput --timeout 15 pair " .. mac .. " >/dev/null 2>&1")
-os.execute("bluetoothctl --timeout 10 connect " .. mac .. " >/dev/null 2>&1")
-if is_device_connected(mac) then
-  notify(i18n("blue_connected", { dev = dev_name }))
-else
-  notify(i18n("blue_failed", { dev = dev_name }))
-end
+pair_and_connect(mac, dev_name)
