@@ -105,7 +105,7 @@ select_local_menu() {
 		use_icons=1
 	fi
 
-	local thumb_dir="${XDG_CACHE_HOME:-$HOME/.cache}/wallpaper/thumbs"
+	local thumb_dir="${XDG_RUNTIME_DIR:-/tmp/user-${UID:-1000}}/wallpaper/thumbs"
 	if [[ "$use_icons" -eq 1 ]] && command -v magick >/dev/null 2>&1; then
 		mkdir -p "$thumb_dir"
 		local gen_jobs=0
