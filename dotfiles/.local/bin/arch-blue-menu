@@ -192,12 +192,65 @@ if [[ -n "$paired_raw" ]] && grep -q -F "$mac" <<<"$paired_raw"; then
 	exit 0
 fi
 
-# Otherwise, trust + pair + connect newly discovered device
-bluetoothctl trust "$mac" >/dev/null 2>&1 || true
-if bluetoothctl pair "$mac" >/dev/null 2>&1 && bluetoothctl connect "$mac" >/dev/null 2>&1; then
-	notify "$(arch-i18n get blue_connected "dev=$dev_name")"
-elif bluetoothctl connect "$mac" >/dev/null 2>&1; then
-	notify "$(arch-i18n get blue_connected "dev=$dev_name")"
-else
-	notify "$(arch-i18n get blue_failed "dev=$dev_name")"
-fi
+# 10. Pair and connect newly discovered device with auto-confirm agent
+pair_new_device() {
+	local target_mac="$1" target_name="$2"
+	bluetoothctl trust "$target_mac" >/dev/null 2>&1 || true
+
+	# Start interactive bluetoothctl session with default agent
+	coproc AGENT { bluetoothctl 2>/dev/null; }
+	# shellcheck disable=SC2153
+	local agent_pid="$AGENT_PID"
+
+	# shellcheck disable=SC2329
+	cleanup_agent() {
+		if [[ -n "$agent_pid" ]] && kill -0 "$agent_pid" 2>/dev/null; then
+			printf 'exit\n' >&"${AGENT[1]}" || true
+			kill "$agent_pid" 2>/dev/null || true
+		fi
+	}
+	trap cleanup_agent EXIT
+
+	printf 'default-agent\npair %s\n' "$target_mac" >&"${AGENT[1]}" || true
+
+	local success=false
+	while IFS= read -r -u "${AGENT[0]}" raw_line; do
+		local line
+		line=$(sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' <<<"$raw_line")
+
+		# 1. Numeric Comparison (Smartphones / Tablets): auto-confirm with 'yes'
+		if [[ "$line" =~ Confirm[[:space:]]+passkey[[:space:]]+([0-9]+) ]]; then
+			printf 'yes\n' >&"${AGENT[1]}" || true
+		# 2. Passkey Entry (Bluetooth Keyboards): notify user to type code on keyboard
+		elif [[ "$line" =~ Passkey:[[:space:]]+([0-9]+) ]]; then
+			local passkey="${BASH_REMATCH[1]}"
+			notify "配对验证码: $passkey (请在蓝牙键盘上输入并按回车)"
+		# 3. Legacy PIN code (Car audio, old devices): prompt via fuzzel password box
+		elif [[ "$line" =~ (Enter[[:space:]]+PIN|Enter[[:space:]]+passkey) ]]; then
+			local pin
+			pin=$(fuzzel --dmenu --prompt "PIN / Passkey: " --password </dev/null || true)
+			if [[ -n "$pin" ]]; then
+				printf '%s\n' "$pin" >&"${AGENT[1]}" || true
+			else
+				break
+			fi
+		elif [[ "$line" =~ (Pairing[[:space:]]+successful|Bonded:[[:space:]]+yes|Paired:[[:space:]]+yes) ]]; then
+			success=true
+			break
+		elif [[ "$line" =~ Failed[[:space:]]+to[[:space:]]+pair ]]; then
+			break
+		fi
+	done
+
+	printf 'exit\n' >&"${AGENT[1]}" || true
+	kill "$agent_pid" 2>/dev/null || true
+
+	if $success || (bluetoothctl info "$target_mac" 2>/dev/null | grep -q "Paired: yes"); then
+		bluetoothctl connect "$target_mac" >/dev/null 2>&1 || true
+		notify "$(arch-i18n get blue_connected "dev=$target_name")"
+	else
+		notify "$(arch-i18n get blue_failed "dev=$target_name")"
+	fi
+}
+
+pair_new_device "$mac" "$dev_name"
