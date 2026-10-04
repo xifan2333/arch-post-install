@@ -1,6 +1,7 @@
 #!/usr/bin/env luajit
 -- arch:summary=Interactive Wi-Fi connection menu driven by Fuzzel and iwd D-Bus
--- arch:examples=arch net menu
+-- arch:args=[menu | toggle]
+-- arch:examples=arch net menu | arch net toggle
 
 local function exec_cmd(cmd)
   local p = io.popen(cmd, "r")
@@ -62,11 +63,44 @@ select(.value["net.connman.iwd.Station"]) |
 ' | head -n 1]]
 
 local station_line = exec_cmd(query_station_cmd)
-local station_path, dev_name = station_line:match("^(.-)\t(.-)\t")
+local station_path, dev_name, station_state, connected_network_path =
+  station_line:match("^(.-)\t(.-)\t(.-)\t(.*)$")
 
 if not station_path or station_path == "" then
   notify(i18n("net_no_device"))
   os.exit(1)
+end
+
+-- Handle CLI toggle action (quick connect / disconnect)
+local action = arg[1]
+if action == "toggle" then
+  if connected_network_path and connected_network_path ~= "" then
+    os.execute(
+      string.format(
+        "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
+        station_path
+      )
+    )
+    notify(i18n("net_disconnected", { ssid = dev_name }))
+  else
+    local quick_connect_cmd = string.format(
+      [[busctl call net.connman.iwd %s net.connman.iwd.Station GetOrderedNetworks --json=short 2>/dev/null | jq -r '.data[0][][0] // empty' | head -n 1]],
+      station_path
+    )
+    local best_net_path = exec_cmd(quick_connect_cmd)
+    if best_net_path ~= "" then
+      os.execute(
+        string.format(
+          "busctl call net.connman.iwd %s net.connman.iwd.Network Connect >/dev/null 2>&1",
+          best_net_path
+        )
+      )
+      notify(i18n("net_connected", { ssid = dev_name }))
+    else
+      os.execute(arg[0] .. " &")
+    end
+  end
+  os.exit(0)
 end
 
 -- 3. Query all networks from D-Bus
