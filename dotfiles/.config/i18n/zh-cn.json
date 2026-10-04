@@ -69,6 +69,7 @@
   "blue_rescan": "重新扫描",
   "blue_disconnect": "断开 {dev}",
   "blue_connected": "已连接：{dev}",
+  "blue_paired": "已配对：{dev}",
   "blue_disconnected": "已断开：{dev}",
   "blue_failed": "连接失败：{dev}",
   "blue_no_device": "未检测到蓝牙适配器",

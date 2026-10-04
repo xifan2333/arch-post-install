@@ -69,6 +69,7 @@
   "blue_rescan": "Rescan Devices",
   "blue_disconnect": "Disconnect {dev}",
   "blue_connected": "Connected: {dev}",
+  "blue_paired": "Paired: {dev}",
   "blue_disconnected": "Disconnected: {dev}",
   "blue_failed": "Connection failed: {dev}",
   "blue_no_device": "No Bluetooth adapter detected",

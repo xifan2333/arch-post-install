@@ -57,7 +57,7 @@ if adapter_path == "" then
   os.exit(1)
 end
 
--- 3. Check adapter power status via D-Bus
+-- 3. Check adapter power status via D-Bus and ensure Pairable is enabled
 local powered_prop = exec_cmd(
   string.format(
     "busctl get-property org.bluez %s org.bluez.Adapter1 Powered 2>/dev/null",
@@ -65,6 +65,15 @@ local powered_prop = exec_cmd(
   )
 )
 local is_powered = powered_prop:find("b true") ~= nil
+
+if is_powered then
+  os.execute(
+    string.format(
+      "busctl set-property org.bluez %s org.bluez.Adapter1 Pairable b true >/dev/null 2>&1",
+      adapter_path
+    )
+  )
+end
 
 local prompt_text = i18n("blue_prompt")
 local power_on_text = i18n("blue_power_on")
@@ -272,6 +281,20 @@ local function is_device_connected(path)
   return prop:find("b true") ~= nil
 end
 
+local function is_device_paired(path)
+  local prop = exec_cmd(
+    string.format("busctl get-property org.bluez %s org.bluez.Device1 Paired 2>/dev/null", path)
+  )
+  return prop:find("b true") ~= nil
+end
+
+local function is_peripheral(icon)
+  if not icon or icon == "" then
+    return true
+  end
+  return icon:find("^audio%-") ~= nil or icon:find("^input%-") ~= nil or icon == "printer"
+end
+
 -- If currently connected: disconnect it
 if target_dev.connected then
   os.execute(
@@ -286,6 +309,11 @@ end
 
 -- If paired: attempt connection via D-Bus
 if target_dev.paired then
+  if not is_peripheral(target_dev.icon) then
+    notify(i18n("blue_paired", { dev = target_dev.name }))
+    os.exit(0)
+  end
+
   local out = exec_cmd(
     string.format("busctl call org.bluez %s org.bluez.Device1 Connect 2>&1", target_dev.path)
   )
@@ -318,15 +346,18 @@ if target_dev.paired then
         target_dev.path
       )
     )
-    -- Connect if not a pure phone audio gateway
-    os.execute(
-      string.format(
-        "busctl call org.bluez %s org.bluez.Device1 Connect >/dev/null 2>&1",
-        target_dev.path
+    if is_peripheral(target_dev.icon) then
+      os.execute(
+        string.format(
+          "busctl call org.bluez %s org.bluez.Device1 Connect >/dev/null 2>&1",
+          target_dev.path
+        )
       )
-    )
+    end
     if is_device_connected(target_dev.path) then
       notify(i18n("blue_connected", { dev = target_dev.name }))
+    elseif is_device_paired(target_dev.path) then
+      notify(i18n("blue_paired", { dev = target_dev.name }))
     else
       notify(i18n("blue_failed", { dev = target_dev.name }))
     end
@@ -350,15 +381,19 @@ os.execute(
     target_dev.mac
   )
 )
-os.execute(
-  string.format(
-    "busctl call org.bluez %s org.bluez.Device1 Connect >/dev/null 2>&1",
-    target_dev.path
+if is_peripheral(target_dev.icon) then
+  os.execute(
+    string.format(
+      "busctl call org.bluez %s org.bluez.Device1 Connect >/dev/null 2>&1",
+      target_dev.path
+    )
   )
-)
+end
 
 if is_device_connected(target_dev.path) then
   notify(i18n("blue_connected", { dev = target_dev.name }))
+elseif is_device_paired(target_dev.path) then
+  notify(i18n("blue_paired", { dev = target_dev.name }))
 else
   notify(i18n("blue_failed", { dev = target_dev.name }))
 end
