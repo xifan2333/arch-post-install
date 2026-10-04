@@ -5,7 +5,7 @@
 set -euo pipefail
 
 wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/wallhaven"
+cache_dir="${XDG_RUNTIME_DIR:-/tmp/user-${UID:-1000}}/wallhaven"
 api_base="https://wallhaven.cc/api/v1"
 max_bytes=52428800
 
@@ -147,7 +147,9 @@ search_flow() {
 	fi
 	[[ -n "$query" ]] || return 0
 
-	thumb_dir="$(mktemp -d -t wallhaven-thumbs-XXXXXX)"
+	local runtime_base="${XDG_RUNTIME_DIR:-/tmp/user-${UID:-1000}}"
+	mkdir -p "$runtime_base"
+	thumb_dir="$(mktemp -d -p "$runtime_base" wallhaven-thumbs-XXXXXX)"
 	cleanup_thumbs() { rm -rf "$thumb_dir"; }
 	trap cleanup_thumbs EXIT
 
