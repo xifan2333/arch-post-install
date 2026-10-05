@@ -126,7 +126,7 @@ edit_server() {
 	if [[ ${#history_servers[@]} -gt 0 ]]; then
 		local menu_items=()
 		if [[ -n "$CURRENT_SERVER" ]]; then
-			menu_items+=("* 󰄬  $CURRENT_SERVER")
+			menu_items+=("* 󰒓  $CURRENT_SERVER")
 		fi
 		menu_items+=("${history_servers[@]}")
 		choice="$(printf '%s\n' "${menu_items[@]}" | dmenu "$prompt" --lines 6)"
@@ -136,7 +136,7 @@ edit_server() {
 	[[ -n "$choice" ]] || return 0
 
 	local clean_server="$choice"
-	clean_server="${clean_server#\* 󰄬  }"
+	clean_server="${clean_server#\* 󰒓  }"
 	clean_server="${clean_server#  󰒓  }"
 	clean_server="${clean_server#"${clean_server%%[![:space:]]*}"}"
 	clean_server="${clean_server%"${clean_server##*[![:space:]]}"}"
@@ -165,7 +165,7 @@ edit_video_bitrate() {
 	local menu_items=()
 	for r in "${rates[@]}"; do
 		if [[ "$r" == "$CURRENT_BITRATE" ]]; then
-			menu_items+=("* 󰄬  ${r} kbps")
+			menu_items+=("* 󰕧  ${r} kbps")
 		else
 			menu_items+=("  󰕧  ${r} kbps")
 		fi
@@ -188,7 +188,7 @@ edit_audio_bitrate() {
 	local menu_items=()
 	for r in "${rates[@]}"; do
 		if [[ "$r" == "$CURRENT_AUDIO_BITRATE" ]]; then
-			menu_items+=("* 󰄬  ${r} kbps")
+			menu_items+=("* 󰓃  ${r} kbps")
 		else
 			menu_items+=("  󰓃  ${r} kbps")
 		fi
