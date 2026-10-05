@@ -134,5 +134,13 @@
   "blue_operation_failed": "Bluetooth operation failed; see diagnostics above",
   "blue_missing_tool": "Required command is missing: {tool}",
   "blue_ambiguous_device": "More than one device is named {dev}; use its MAC address",
-  "blue_device_not_found": "Device not found: {dev}"
+  "blue_device_not_found": "Device not found: {dev}",
+  "net_usage": "Usage: x-wifi [menu | list | status | connect <ssid> [--passphrase-stdin] | disconnect | toggle]",
+  "net_operation_failed": "Wi-Fi operation failed; see diagnostics above",
+  "net_missing_tool": "Required command is missing: {tool}",
+  "net_credentials_required": "Credentials required for {ssid}; use --passphrase-stdin or x-wifi menu",
+  "net_ambiguous_ssid": "More than one network matches {ssid}",
+  "net_not_found": "Network not found: {ssid}",
+  "net_empty_passphrase": "No passphrase received on stdin",
+  "net_no_saved_network": "No saved or open network available; use x-wifi menu"
 }

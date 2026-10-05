@@ -134,5 +134,13 @@
   "blue_operation_failed": "蓝牙操作失败，请查看上方诊断信息",
   "blue_missing_tool": "缺少必需命令：{tool}",
   "blue_ambiguous_device": "存在多个名为 {dev} 的设备，请使用 MAC 地址",
-  "blue_device_not_found": "未找到设备：{dev}"
+  "blue_device_not_found": "未找到设备：{dev}",
+  "net_usage": "用法：x-wifi [menu | list | status | connect <ssid> [--passphrase-stdin] | disconnect | toggle]",
+  "net_operation_failed": "Wi-Fi 操作失败，请查看上方诊断信息",
+  "net_missing_tool": "缺少必需命令：{tool}",
+  "net_credentials_required": "{ssid} 需要口令，请使用 --passphrase-stdin 或 x-wifi menu",
+  "net_ambiguous_ssid": "存在多个匹配的网络：{ssid}",
+  "net_not_found": "未找到网络：{ssid}",
+  "net_empty_passphrase": "未从标准输入读到口令",
+  "net_no_saved_network": "没有可用的已保存或开放网络，请使用 x-wifi menu"
 }
