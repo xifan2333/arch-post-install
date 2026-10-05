@@ -75,7 +75,7 @@ When investigating tools, CLI flags, configuration formats, or protocols:
 
 ## 4. Custom Script Architecture & Standards
 
-All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/` follow the unified `custom-<domain>` namespace (with legacy `x-<domain>` as transitional compatibility aliases) and strictly adhere to the following design principles, execution invariants, and UI standards.
+All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/` follow the unified `custom-<domain>` namespace and strictly adhere to the following design principles, execution invariants, and UI standards.
 
 ### 4.1 Design Criteria (Evaluating Script Existence & Boundaries)
 
@@ -91,7 +91,7 @@ All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/`
 ### 4.2 Hard Invariants & Execution Rules (Implementation Redlines)
 
 1. **Unified Command Namespace (`custom-<domain>`)**:
-   - Public commands strictly adopt the **`custom-<domain>`** naming convention (e.g. `custom-wifi`, `custom-audio`, `custom-cap`, `custom-theme`). Existing `x-<domain>` commands serve as transitional compatibility aliases.
+   - Public commands strictly adopt the **`custom-<domain>`** naming convention (e.g. `custom-wifi`, `custom-audio`, `custom-cap`, `custom-theme`).
    - Guarantees 100% collision-free isolation from system `pacman` and `AUR` binaries while enabling fast, predictable tab-completion.
 2. **Standard ShellDoc Comment Header (No Private Prefixes)**:
    - Every executable script must begin with a standardized ShellDoc / JSDoc comment block. Proprietary prefixes (such as `arch:`) are strictly prohibited:

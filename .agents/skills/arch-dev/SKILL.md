@@ -36,7 +36,7 @@ All engineering, architecture, and code decisions MUST strictly adhere to the Su
        * Standard library only (zero `pip` dependencies).
        * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
    - **Custom Script Architecture & Invariants (`custom-<domain>`)**:
-     - All user-facing tools follow the unified namespace `custom-<domain>` (with legacy `x-<domain>` as compatibility aliases) directly accessible via `$PATH` with standard ShellDoc metadata (`@summary`, `@usage`, `@deps`, `@examples`).
+     - All user-facing tools follow the unified namespace `custom-<domain>` directly accessible via `$PATH` with standard ShellDoc metadata (`@summary`, `@usage`, `@deps`, `@examples`).
      - **Design Criteria**: Clear value, single responsibility, composition over monolithic, separation of mechanism & policy, transparent & predictable, holistic simplicity.
      - **Hard Invariants**: Zero hardcoding (100% i18n, zero hardcoded paths/hex colors/magic numbers), strict XDG paths (`${XDG_*:-$HOME/...}`), full Standard I/O (`stdin/stdout/stderr`), POSIX exit codes, `set -euo pipefail`, guaranteed cleanup via traps, atomic file replacement, and notification title strictly matching domain i18n (`domain_<name>`).
      - **UI Strategy Hierarchy**: `fuzzel` (primary dmenu) > `zenity` (dialogs/forms) > custom GTK (`PyGObject`, complex panels).
