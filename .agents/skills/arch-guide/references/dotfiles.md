@@ -48,7 +48,6 @@ excluded from symlinking. They are seeded by the `mise/hooks/post-dotfiles.sh` h
 first run only:
 
 - `dotfiles/.config/screenrecord/*.conf.example`
-- `dotfiles/.config/livestream/config.json.example` (mode 0600)
 - `dotfiles/.config/dmnotifier/config.yaml.example`
 - `dotfiles/.config/vinput/config.json.example` (mode 0600)
 - `dotfiles/.config/qutebrowser/translate.json.example` (mode 0600)

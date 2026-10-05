@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# arch:summary=Start, stop, or configure desktop live streaming pipeline via TSV targets
-# arch:args=[toggle | start | stop | status | restart | config | danmaku [start|stop]]
+# arch:summary=Start, stop, or configure desktop live streaming pipeline via TSV history
+# arch:args=[toggle | start | stop | status | restart | config | clear | danmaku [start|stop]]
 # arch:examples=x-live | x-live config | x-live stop
 set -euo pipefail
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/livestream"
+HISTORY_FILE="$STATE_DIR/history.tsv"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/livestream"
 PID_FILE="$RUNTIME_DIR/pid"
 LOG_FILE="$RUNTIME_DIR/livestream.log"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
-TARGETS_FILE="$CONFIG_DIR/targets.tsv"
 DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-danmaku"
 
 notify() {
@@ -76,351 +76,249 @@ dmenu() {
 	fi
 }
 
-ensure_targets_file() {
-	mkdir -p "$CONFIG_DIR"
-	if [[ -f "$TARGETS_FILE" ]]; then
-		return 0
+ensure_state_dir() {
+	mkdir -p "$STATE_DIR"
+	if [[ ! -f "$HISTORY_FILE" ]]; then
+		touch "$HISTORY_FILE"
+		chmod 0600 "$HISTORY_FILE" 2>/dev/null || true
 	fi
-
-	# 1. Copy from example if present
-	if [[ -f "$CONFIG_DIR/targets.tsv.example" ]]; then
-		cp -f "$CONFIG_DIR/targets.tsv.example" "$TARGETS_FILE"
-		return 0
-	fi
-
-	# 2. Default presets
-	printf 'rtmp://live-push.bilivideo.com/live-bvc/\t\t4500\t160\tBilibili\n' >"$TARGETS_FILE"
-	printf 'rtmp://live-push.xhscdn.com/live/\t\t6000\t160\t小红书\n' >>"$TARGETS_FILE"
-	printf 'srt://192.168.1.100:9999?mode=caller\t\t12000\t192\tLAN SRT\n' >>"$TARGETS_FILE"
 }
 
-get_active_target() {
-	ensure_targets_file
+get_active_record() {
+	ensure_state_dir
 	CURRENT_SERVER=""
 	CURRENT_KEY=""
-	CURRENT_BITRATE=""
-	CURRENT_AUDIO_BITRATE=""
-	CURRENT_LABEL=""
+	CURRENT_BITRATE="4500"
+	CURRENT_AUDIO_BITRATE="160"
 
-	if [[ -f "$TARGETS_FILE" ]]; then
-		IFS=$'\t' read -r CURRENT_SERVER CURRENT_KEY CURRENT_BITRATE CURRENT_AUDIO_BITRATE CURRENT_LABEL <"$TARGETS_FILE" || true
+	if [[ -s "$HISTORY_FILE" ]]; then
+		IFS=$'\t' read -r CURRENT_SERVER CURRENT_KEY CURRENT_BITRATE CURRENT_AUDIO_BITRATE <"$HISTORY_FILE" || true
 	fi
 
-	CURRENT_SERVER="${CURRENT_SERVER:-rtmp://live-push.bilivideo.com/live-bvc/}"
-	CURRENT_KEY="${CURRENT_KEY:-}"
 	CURRENT_BITRATE="${CURRENT_BITRATE:-4500}"
 	CURRENT_AUDIO_BITRATE="${CURRENT_AUDIO_BITRATE:-160}"
-	CURRENT_LABEL="${CURRENT_LABEL:-Default}"
 }
 
-save_active_target() {
-	local s="$1" k="$2" vb="$3" ab="$4" lbl="$5"
-	mkdir -p "$CONFIG_DIR"
-	local tmp="$TARGETS_FILE.tmp.$$"
-	printf '%s\t%s\t%s\t%s\t%s\n' "$s" "$k" "$vb" "$ab" "$lbl" >"$tmp"
-	if [[ -f "$TARGETS_FILE" ]]; then
-		tail -n +2 "$TARGETS_FILE" >>"$tmp" 2>/dev/null || true
+save_active_record() {
+	local s="$1" k="$2" vb="$3" ab="$4"
+	ensure_state_dir
+	local tmp="$HISTORY_FILE.tmp.$$"
+	printf '%s\t%s\t%s\t%s\n' "$s" "$k" "$vb" "$ab" >"$tmp"
+	if [[ -f "$HISTORY_FILE" ]]; then
+		tail -n +2 "$HISTORY_FILE" >>"$tmp" 2>/dev/null || true
 	fi
-	mv -f "$tmp" "$TARGETS_FILE"
+	chmod 0600 "$tmp" 2>/dev/null || true
+	mv -f "$tmp" "$HISTORY_FILE"
 }
 
 edit_server() {
-	local prompt choice clip_val=""
-	prompt="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server: ")"
-	if command -v wl-paste >/dev/null 2>&1; then
-		clip_val="$(wl-paste --no-newline 2>/dev/null | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+	local prompt choice
+	prompt="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): "
+
+	local history_servers=()
+	if [[ -f "$HISTORY_FILE" ]]; then
+		while IFS=$'\t' read -r s k vb ab; do
+			[[ -n "$s" && "$s" != "$CURRENT_SERVER" ]] || continue
+			history_servers+=("  󰒓  $s")
+		done < <(tail -n +2 "$HISTORY_FILE" 2>/dev/null | awk -F'\t' '!seen[$1]++')
 	fi
 
-	local options=()
-	if [[ -n "$clip_val" && "$clip_val" =~ ^(rtmp|srt|https?):// ]]; then
-		options+=("󰅍  $clip_val")
+	if [[ ${#history_servers[@]} -gt 0 ]]; then
+		local menu_items=()
+		if [[ -n "$CURRENT_SERVER" ]]; then
+			menu_items+=("* 󰄬  $CURRENT_SERVER")
+		fi
+		menu_items+=("${history_servers[@]}")
+		choice="$(printf '%s\n' "${menu_items[@]}" | dmenu "$prompt" --lines 6)"
+	else
+		choice="$(dmenu "$prompt" --lines 0)"
 	fi
-	options+=("󰌆  $CURRENT_SERVER")
-
-	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 3)"
 	[[ -n "$choice" ]] || return 0
 
-	local new_server=""
-	if [[ "$choice" == "󰅍  "* ]]; then
-		new_server="${choice#󰅍  }"
-	else
-		new_server="${choice#󰌆  }"
-	fi
+	local clean_server="$choice"
+	clean_server="${clean_server#\* 󰄬  }"
+	clean_server="${clean_server#  󰒓  }"
+	clean_server="${clean_server#"${clean_server%%[![:space:]]*}"}"
+	clean_server="${clean_server%"${clean_server##*[![:space:]]}"}"
 
-	new_server="${new_server#"${new_server%%[![:space:]]*}"}"
-	if [[ -n "$new_server" ]]; then
-		save_active_target "$new_server" "$CURRENT_KEY" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE" "$CURRENT_LABEL"
+	if [[ -n "$clean_server" ]]; then
+		save_active_record "$clean_server" "$CURRENT_KEY" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE"
 	fi
 }
 
 edit_key() {
-	local prompt choice clip_val=""
-	prompt="$(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key: ")"
-	if command -v wl-paste >/dev/null 2>&1; then
-		clip_val="$(wl-paste --no-newline 2>/dev/null | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
-	fi
-
-	local options=()
-	if [[ -n "$clip_val" ]]; then
-		local clip_short="$clip_val"
-		if [[ ${#clip_short} -gt 32 ]]; then
-			clip_short="${clip_short:0:20}...${clip_short: -8}"
-		fi
-		options+=("󰅍  $clip_short")
-	fi
-	options+=("󰌆  $(x-i18n get edit_manual 2>/dev/null || echo "Input manually...")")
-
-	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 3)"
-	[[ -n "$choice" ]] || return 0
-
-	local new_key=""
-	if [[ "$choice" == "󰅍  "* ]]; then
-		new_key="$clip_val"
-	else
-		new_key="$(dmenu "$prompt" --password --lines 0)"
-	fi
+	local prompt new_key
+	prompt="$(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): "
+	new_key="$(dmenu "$prompt" --password --lines 0)"
+	[[ -n "$new_key" ]] || return 0
 
 	new_key="${new_key#"${new_key%%[![:space:]]*}"}"
-	save_active_target "$CURRENT_SERVER" "$new_key" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE" "$CURRENT_LABEL"
+	new_key="${new_key%"${new_key##*[![:space:]]}"}"
+	save_active_record "$CURRENT_SERVER" "$new_key" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE"
+	notify "$(x-i18n get livestream_key_updated 2>/dev/null || echo "Stream key updated")"
 }
 
 edit_video_bitrate() {
 	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate (kbps): ")"
-	local options=(
-		"4500 (1080p 30fps)"
-		"6000 (1080p 60fps)"
-		"8000 (HD+)"
-		"12000 (LAN SRT)"
-	)
-	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 5)"
+	prompt="$(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate"): "
+	local rates=("4500" "6000" "8000" "12000")
+	local menu_items=()
+	for r in "${rates[@]}"; do
+		if [[ "$r" == "$CURRENT_BITRATE" ]]; then
+			menu_items+=("* 󰄬  ${r} kbps")
+		else
+			menu_items+=("  󰕧  ${r} kbps")
+		fi
+	done
+
+	choice="$(printf '%s\n' "${menu_items[@]}" | dmenu "$prompt" --lines 4)"
 	[[ -n "$choice" ]] || return 0
 
 	local val
-	val="$(printf '%s' "$choice" | awk '{print $1}')"
-	if [[ "$val" =~ ^[0-9]+$ ]]; then
-		save_active_target "$CURRENT_SERVER" "$CURRENT_KEY" "$val" "$CURRENT_AUDIO_BITRATE" "$CURRENT_LABEL"
+	val="$(printf '%s' "$choice" | grep -oE '[0-9]+' | head -n 1)"
+	if [[ -n "$val" ]]; then
+		save_active_record "$CURRENT_SERVER" "$CURRENT_KEY" "$val" "$CURRENT_AUDIO_BITRATE"
 	fi
 }
 
 edit_audio_bitrate() {
 	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate (kbps): ")"
-	local options=(
-		"128"
-		"160 (Recommended)"
-		"192"
-		"320"
-	)
-	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 5)"
+	prompt="$(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate"): "
+	local rates=("128" "160" "192" "320")
+	local menu_items=()
+	for r in "${rates[@]}"; do
+		if [[ "$r" == "$CURRENT_AUDIO_BITRATE" ]]; then
+			menu_items+=("* 󰄬  ${r} kbps")
+		else
+			menu_items+=("  󰓃  ${r} kbps")
+		fi
+	done
+
+	choice="$(printf '%s\n' "${menu_items[@]}" | dmenu "$prompt" --lines 4)"
 	[[ -n "$choice" ]] || return 0
 
 	local val
-	val="$(printf '%s' "$choice" | awk '{print $1}')"
-	if [[ "$val" =~ ^[0-9]+$ ]]; then
-		save_active_target "$CURRENT_SERVER" "$CURRENT_KEY" "$CURRENT_BITRATE" "$val" "$CURRENT_LABEL"
+	val="$(printf '%s' "$choice" | grep -oE '[0-9]+' | head -n 1)"
+	if [[ -n "$val" ]]; then
+		save_active_record "$CURRENT_SERVER" "$CURRENT_KEY" "$CURRENT_BITRATE" "$val"
 	fi
 }
 
-edit_label() {
-	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_name 2>/dev/null || echo "Preset Name: ")"
-	choice="$(dmenu "$prompt" --lines 0)"
-	choice="${choice#"${choice%%[![:space:]]*}"}"
-	if [[ -n "$choice" ]]; then
-		save_active_target "$CURRENT_SERVER" "$CURRENT_KEY" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE" "$choice"
-	fi
-}
-
-add_target() {
-	local prompt_name prompt_server name srv clip_val=""
-	prompt_name="$(x-i18n get livestream_cfg_name 2>/dev/null || echo "Preset Name: ")"
-	name="$(dmenu "$prompt_name" --lines 0)"
-	name="${name#"${name%%[![:space:]]*}"}"
-	[[ -n "$name" ]] || return 0
-
-	prompt_server="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server URL: ")"
-	if command -v wl-paste >/dev/null 2>&1; then
-		clip_val="$(wl-paste --no-newline 2>/dev/null | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+history_menu() {
+	ensure_state_dir
+	local count
+	count="$(wc -l <"$HISTORY_FILE" 2>/dev/null || echo 0)"
+	if [[ $count -le 1 ]]; then
+		return 0
 	fi
 
-	local options=()
-	if [[ -n "$clip_val" && "$clip_val" =~ ^(rtmp|srt|https?):// ]]; then
-		options+=("󰅍  $clip_val")
-	fi
-	options+=("󰌆  $(x-i18n get edit_manual 2>/dev/null || echo "Input manually...")")
-
-	local choice
-	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt_server" --lines 3)"
-	[[ -n "$choice" ]] || return 0
-
-	if [[ "$choice" == "󰅍  "* ]]; then
-		srv="$clip_val"
-	else
-		srv="$(dmenu "$prompt_server" --lines 0)"
-	fi
-
-	srv="${srv#"${srv%%[![:space:]]*}"}"
-	[[ -n "$srv" ]] || return 0
-
-	printf '%s\t\t4500\t160\t%s\n' "$srv" "$name" >>"$TARGETS_FILE"
-}
-
-delete_target() {
-	ensure_targets_file
 	local lines=()
-	local map_indices=()
-	local idx=1
-	while IFS=$'\t' read -r s k vb ab lbl; do
-		if [[ $idx -gt 1 && -n "$s" ]]; then
-			lines+=("󰆴  ${lbl:-Target $idx} (${vb}k · ${s:0:30}...)")
-			map_indices+=("$idx")
-		fi
+	local line_indices=()
+	local idx=2
+	while IFS=$'\t' read -r s k vb ab; do
+		[[ -n "$s" ]] || continue
+		local host="${s#*://}"
+		host="${host%%/*}"
+		lines+=("  󰒓  ${host:-$s} (${vb}k/${ab}k)")
+		line_indices+=("$idx")
 		idx=$((idx + 1))
-	done <"$TARGETS_FILE"
+	done < <(tail -n +2 "$HISTORY_FILE")
 
 	if [[ ${#lines[@]} -eq 0 ]]; then
 		return 0
 	fi
 
+	local opt_clr
+	opt_clr="  󰆴  $(x-i18n get livestream_action_clear_history 2>/dev/null || echo "Clear All History")"
+	local menu_items=("${lines[@]}" "$opt_clr")
+
 	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_delete_target 2>/dev/null || echo "Delete Preset: ")"
-	choice="$(printf '%s\n' "${lines[@]}" | dmenu "$prompt" --lines 6)"
+	prompt="$(x-i18n get livestream_history_title 2>/dev/null || echo "History"): "
+	choice="$(printf '%s\n' "${menu_items[@]}" | dmenu "$prompt" --lines 8)"
 	[[ -n "$choice" ]] || return 0
+
+	if [[ "$choice" == "$opt_clr" ]]; then
+		local tmp="$HISTORY_FILE.tmp.$$"
+		head -n 1 "$HISTORY_FILE" >"$tmp"
+		chmod 0600 "$tmp" 2>/dev/null || true
+		mv -f "$tmp" "$HISTORY_FILE"
+		notify "$(x-i18n get livestream_history_cleared 2>/dev/null || echo "History cleared")"
+		return 0
+	fi
 
 	local chosen_line=0
 	for i in "${!lines[@]}"; do
 		if [[ "${lines[$i]}" == "$choice" ]]; then
-			chosen_line="${map_indices[$i]}"
+			chosen_line="${line_indices[$i]}"
 			break
 		fi
 	done
 
-	if [[ $chosen_line -gt 1 ]]; then
-		local tmp="$TARGETS_FILE.tmp.$$"
-		sed "${chosen_line}d" "$TARGETS_FILE" >"$tmp"
-		mv -f "$tmp" "$TARGETS_FILE"
-	fi
-}
-
-clear_history() {
-	ensure_targets_file
-	local tmp="$TARGETS_FILE.tmp.$$"
-	head -n 1 "$TARGETS_FILE" >"$tmp"
-	mv -f "$tmp" "$TARGETS_FILE"
-}
-
-switch_target_menu() {
-	ensure_targets_file
-	local lines=()
-	local idx=1
-	while IFS=$'\t' read -r s k vb ab lbl; do
-		[[ -n "$s" ]] || continue
-		local prefix="  󰒓  "
-		if [[ $idx -eq 1 ]]; then
-			prefix="* 󰄬  "
-		fi
-		lines+=("${prefix}${lbl:-Target $idx} (${vb}k · ${s:0:30}...)")
-		idx=$((idx + 1))
-	done <"$TARGETS_FILE"
-
-	local opt_add opt_del opt_clr
-	opt_add="󰐕  $(x-i18n get livestream_cfg_add_target 2>/dev/null || echo "Add New Preset...")"
-	lines+=("$opt_add")
-
-	if [[ $(wc -l <"$TARGETS_FILE") -gt 1 ]]; then
-		opt_del="󰆴  $(x-i18n get livestream_cfg_delete_target 2>/dev/null || echo "Delete a Preset...")"
-		opt_clr="󰆴  $(x-i18n get livestream_cfg_clear_history 2>/dev/null || echo "Clear History Presets")"
-		lines+=("$opt_del" "$opt_clr")
-	fi
-
-	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_switch_target 2>/dev/null || echo "Switch Target: ")"
-	choice="$(printf '%s\n' "${lines[@]}" | dmenu "$prompt" --lines 8)"
-	[[ -n "$choice" ]] || return 0
-
-	if [[ "$choice" == "$opt_add" ]]; then
-		add_target
-		return 0
-	elif [[ -n "${opt_del:-}" && "$choice" == "$opt_del" ]]; then
-		delete_target
-		return 0
-	elif [[ -n "${opt_clr:-}" && "$choice" == "$opt_clr" ]]; then
-		clear_history
-		return 0
-	fi
-
-	local chosen_idx=1
-	idx=1
-	while IFS=$'\t' read -r s k vb ab lbl; do
-		local line_str="${lbl:-Target $idx} (${vb}k · ${s:0:30}...)"
-		if [[ "$choice" == *"$line_str"* ]]; then
-			chosen_idx=$idx
-			break
-		fi
-		idx=$((idx + 1))
-	done <"$TARGETS_FILE"
-
-	if [[ $chosen_idx -gt 1 ]]; then
-		local tmp="$TARGETS_FILE.tmp.$$"
-		sed -n "${chosen_idx}p" "$TARGETS_FILE" >"$tmp"
-		sed "${chosen_idx}d" "$TARGETS_FILE" >>"$tmp"
-		mv -f "$tmp" "$TARGETS_FILE"
+	if [[ $chosen_line -ge 2 ]]; then
+		local tmp="$HISTORY_FILE.tmp.$$"
+		sed -n "${chosen_line}p" "$HISTORY_FILE" >"$tmp"
+		sed "${chosen_line}d" "$HISTORY_FILE" >>"$tmp"
+		chmod 0600 "$tmp" 2>/dev/null || true
+		mv -f "$tmp" "$HISTORY_FILE"
+		notify "$(x-i18n get livestream_switched "target=${choice#*  }" 2>/dev/null || echo "Switched target")"
 	fi
 }
 
 cmd_config() {
 	while true; do
-		get_active_target
+		get_active_record
 
-		local key_display
+		local srv_display key_display
+		if [[ -n "$CURRENT_SERVER" ]]; then
+			local host="${CURRENT_SERVER#*://}"
+			host="${host%%/*}"
+			srv_display="${host:-$CURRENT_SERVER}"
+		else
+			srv_display="$(x-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
+		fi
+
 		if [[ -n "$CURRENT_KEY" ]]; then
 			key_display="$(x-i18n get state_configured 2>/dev/null || echo "configured")"
 		else
 			key_display="$(x-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
 		fi
 
-		local opt_label opt_server opt_key opt_bitrate opt_audio opt_switch
-		opt_label="$(x-i18n get livestream_cfg_name 2>/dev/null || echo "Name"): $CURRENT_LABEL"
-		opt_server="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): ${CURRENT_SERVER:0:30}..."
-		opt_key="$(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): $key_display"
-		opt_bitrate="$(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video"): ${CURRENT_BITRATE}k"
-		opt_audio="$(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio"): ${CURRENT_AUDIO_BITRATE}k"
-		opt_switch="$(x-i18n get livestream_cfg_switch_target 2>/dev/null || echo "Switch Platform / Presets")"
+		local opt_server opt_key opt_vbitrate opt_abitrate opt_history
+		opt_server="  󰒓  $(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): $srv_display"
+		opt_key="  󰌆  $(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): $key_display"
+		opt_vbitrate="  󰕧  $(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate"): ${CURRENT_BITRATE} kbps"
+		opt_abitrate="  󰓃  $(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate"): ${CURRENT_AUDIO_BITRATE} kbps"
 
-		local choices=(
-			"󰒓  $opt_label"
-			"󰒓  $opt_server"
-			"󰌆  $opt_key"
-			"󰕧  $opt_bitrate"
-			"󰓃  $opt_audio"
-			"󰌍  $opt_switch"
-		)
+		local choices=("$opt_server" "$opt_key" "$opt_vbitrate" "$opt_abitrate")
+
+		local hist_count
+		hist_count="$(wc -l <"$HISTORY_FILE" 2>/dev/null || echo 0)"
+		if [[ $hist_count -ge 2 ]]; then
+			opt_history="  󰋚  $(x-i18n get livestream_history_title 2>/dev/null || echo "History")"
+			choices+=("$opt_history")
+		fi
 
 		local prompt_text
-		prompt_text="$(x-i18n get livestream_cfg_title 2>/dev/null || echo "Live Stream Config"): "
+		prompt_text="$(x-i18n get livestream_prompt 2>/dev/null || echo "Live Stream Config: ")"
 		local choice
-		choice="$(printf '%s\n' "${choices[@]}" | dmenu "$prompt_text" --lines 7)"
+		choice="$(printf '%s\n' "${choices[@]}" | dmenu "$prompt_text" --lines 6)"
 		[[ -n "$choice" ]] || return 0
 
 		case "$choice" in
-		*"$opt_label"*)
-			edit_label
-			;;
 		*"$opt_server"*)
 			edit_server
 			;;
 		*"$opt_key"*)
 			edit_key
 			;;
-		*"$opt_bitrate"*)
+		*"$opt_vbitrate"*)
 			edit_video_bitrate
 			;;
-		*"$opt_audio"*)
+		*"$opt_abitrate"*)
 			edit_audio_bitrate
 			;;
-		*"$opt_switch"*)
-			switch_target_menu
+		*"$opt_history"*)
+			history_menu
 			;;
 		esac
 	done
@@ -433,15 +331,15 @@ cmd_start() {
 	fi
 
 	if ! command -v gpu-screen-recorder >/dev/null 2>&1; then
-		notify "未安装 gpu-screen-recorder" critical
+		notify "gpu-screen-recorder not installed" critical
 		return 1
 	fi
 
-	get_active_target
+	get_active_record
 
 	if [[ -z "$CURRENT_SERVER" || -z "$CURRENT_KEY" ]]; then
 		cmd_config
-		get_active_target
+		get_active_record
 		if [[ -z "$CURRENT_SERVER" || -z "$CURRENT_KEY" ]]; then
 			notify "$(x-i18n get livestream_notify_missing_rtmp 2>/dev/null || echo "No streaming target configured")"
 			return 1
@@ -515,6 +413,12 @@ cmd_toggle() {
 	fi
 }
 
+cmd_clear() {
+	ensure_state_dir
+	rm -f "$HISTORY_FILE"
+	notify "$(x-i18n get livestream_history_cleared 2>/dev/null || echo "History cleared")"
+}
+
 main() {
 	local action="${1:-toggle}"
 	case "$action" in
@@ -535,6 +439,9 @@ main() {
 	config)
 		cmd_config
 		;;
+	clear)
+		cmd_clear
+		;;
 	danmaku)
 		shift
 		if [[ -x "$DANMAKU" ]]; then
@@ -552,7 +459,7 @@ main() {
 		fi
 		;;
 	*)
-		printf 'Usage: x-live [toggle | start | stop | status | restart | config | danmaku [start|stop]]\n'
+		printf 'Usage: x-live [toggle | start | stop | status | restart | config | clear | danmaku [start|stop]]\n'
 		;;
 	esac
 }
