@@ -138,7 +138,7 @@ To maintain consistent muscle memory and visual harmony across all CLI menus:
    - **Navigation Semantics**: Submenus must provide a localized `_back` option. Esc key must always safely cancel with zero side-effects (`exit 0` / `return 0`).
 2. **Visual Format & NerdFont Glyphs**:
    - Structure: `"<status_prefix><NerdFont_glyph>  <label>"` (strictly **two spaces** separating glyph and text).
-   - Equal-width state alignment: Active/current item prefixed with `* ` or `󰄬 `; inactive items prefixed with `  ` (two spaces) to ensure vertical text alignment.
+   - Equal-width state alignment: Active/current item prefixed with `* `; inactive items prefixed with `  ` (two spaces) to ensure vertical text alignment. The domain NerdFont glyph remains constant across active and inactive states.
    - Standard glyph semantics:
      - 🖼 Image / Local: `󰋩` (`nf-md-image`)
      - 🎲 Random / Shuffle: `󰒝` (`nf-md-shuffle_variant`)
