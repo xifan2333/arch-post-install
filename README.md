@@ -132,6 +132,27 @@ mise self-update
 mise -C ~/Code/arch-post-install bootstrap --yes
 ```
 
+## 蓝牙和 Wi-Fi 命令
+
+`x-blue` 和 `x-wifi` 不带参数时打开菜单；显式子命令可用于脚本，只有 `menu` 会弹出菜单和桌面通知。
+
+| 操作 | 蓝牙 | Wi-Fi |
+| --- | --- | --- |
+| 帮助 | `x-blue --help` | `x-wifi --help` |
+| 只读查询 | `x-blue status` / `x-blue list` | `x-wifi status` / `x-wifi list` |
+| 连接 | `x-blue connect <MAC或名称>` | `x-wifi connect <SSID>` |
+| 断开 | `x-blue disconnect [MAC或名称]` | `x-wifi disconnect` |
+| 切换 | `x-blue toggle` 切换适配器电源 | `x-wifi toggle` 断开当前连接或连接信号最强的已保存/开放网络 |
+| 菜单 | `x-blue menu` | `x-wifi menu` |
+
+重复连接已连接的目标不会断开它。蓝牙省略断开目标时断开当前适配器的已连接设备；名称重复时使用 MAC。脚本默认使用查询到的第一个适配器/无线设备。
+
+Wi-Fi 已保存网络和开放网络可直接连接；新加密网络用菜单输入口令，或通过 `x-wifi connect <SSID> --passphrase-stdin` 从标准输入读取一行口令。显式命令缺少口令、目标或依赖时会报错，不会自动打开菜单。失败不会自动删除保存的凭据。口令经正确引用传给 `iwctl --dont-ask --passphrase`，该子进程的参数仍含口令。
+
+蓝牙菜单保留自动开启适配器、启用配对和点击设备切换连接的行为；手机/电脑配对后不强制连接音频服务。CLI 的 `connect` 只请求连接，配对在菜单中完成；设备不支持连接时返回失败。
+
+`list` 输出 TSV，`status` 输出键值文本，连接/断开结果使用固定的英文状态标识。名称中的反斜杠、制表符、换行符和回车分别编码为 `\\`、`\t`、`\n`、`\r`。诊断写入 stderr；退出码 `0` 表示成功或菜单取消，`1` 表示操作失败，`2` 表示参数错误。
+
 ## 代码规范与检查
 
 项目按文件类型使用对应工具：Python 用 Ruff，JavaScript 用 Oxlint，Bash 用 ShellCheck，Lua 和 Zsh 做语法检查，TOML 用 Taplo，JSON/JSONC/YAML 用 Prettier。版本统一固定在根目录的 `mise.toml`。
@@ -155,6 +176,14 @@ mise run format
 ```
 
 提交前建议至少执行一次 `mise run lint`；GitHub Actions 也会对 push 和 pull request 执行同一检查。
+
+蓝牙和 Wi-Fi 的行为回归检查：
+
+```bash
+mise run test:connectivity
+```
+
+需要 Python 3、Bash、jq 和 LuaJIT（也支持 Lua）。测试运行真实的解释器和文本处理工具，通过隔离的 PATH 替换 D-Bus、菜单等命令，不连接真实设备。CI 同样运行这些检查；hk 对无扩展名的 `x-blue`、`x-wifi` 也执行 Lua 格式和语法检查。
 
 ## 配置文件是怎么连接的
 

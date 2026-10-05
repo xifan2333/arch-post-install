@@ -1,184 +1,160 @@
 #!/usr/bin/env luajit
--- arch:summary=Manage, connect, pair, or toggle Bluetooth devices via D-Bus
+-- arch:summary=Manage Bluetooth devices through explicit CLI operations or an interactive menu
 -- arch:args=[menu | list | status | connect <mac|name> | disconnect [mac|name] | toggle | off]
--- arch:examples=x-blue list | x-blue status | x-blue connect "Pixel 8" | x-blue toggle
+-- arch:examples=x-blue list | x-blue status | x-blue connect "Pixel 8" | x-blue menu
 
-local function exec_cmd(cmd)
-  local p = io.popen(cmd, "r")
-  if not p then
-    return ""
+local function quote(value)
+  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
+local function command(...)
+  local args = { ... }
+  for i, value in ipairs(args) do
+    args[i] = quote(value)
   end
-  local output = p:read("*a") or ""
-  p:close()
-  return output
+  return table.concat(args, " ")
+end
+
+local function capture(cmd)
+  -- LuaJIT's Lua 5.1 pclose discards the child status. Frame it explicitly;
+  -- pipefail also preserves failures from busctl before jq in query pipelines.
+  local pipe =
+    io.popen(command("bash", "-o", "pipefail", "-c", cmd .. "\nrc=$?\nprintf '\\n%d' \"$rc\""), "r")
+  if not pipe then
+    return "", 1
+  end
+  local output = pipe:read("*a") or ""
+  pipe:close()
+  local body, status = output:match("^(.*)\n(%d+)$")
+  return body or "", tonumber(status) or 1
 end
 
 local function i18n(key, vars)
-  local args = { "x-i18n", "get", key }
-  if vars then
-    for k, v in pairs(vars) do
-      table.insert(args, string.format("%s=%s", k, tostring(v)))
-    end
+  local cmd = command("x-i18n", "get", key)
+  for k, v in pairs(vars or {}) do
+    cmd = cmd .. " " .. quote(k .. "=" .. v)
   end
-  local quoted = {}
-  for _, arg_val in ipairs(args) do
-    table.insert(quoted, string.format("%q", arg_val))
+  local text, status = capture(cmd .. " 2>/dev/null")
+  return status == 0 and text ~= "" and text:gsub("\n$", "") or key
+end
+
+local function fail(key, vars, status)
+  io.stderr:write(i18n(key, vars) .. "\n")
+  os.exit(status or 1)
+end
+
+local function checked(cmd)
+  local output, status = capture(cmd)
+  if status ~= 0 then
+    fail("blue_operation_failed")
   end
-  local text = exec_cmd(table.concat(quoted, " "))
-  return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+  return output
 end
 
-local function notify(msg)
-  local title = i18n("blue_notify_title")
-  os.execute(string.format("notify-send %q %q 2>/dev/null", title, msg))
+local function require_tool(name)
+  local _, status = capture(command("command", "-v", name) .. " >/dev/null")
+  if status ~= 0 then
+    fail("blue_missing_tool", { tool = name })
+  end
 end
 
--- 1. Dependency checks
-if os.execute("command -v busctl >/dev/null 2>&1") ~= 0 then
-  io.stderr:write("Error: busctl not found. Please ensure systemd is installed\n")
-  os.exit(1)
-end
-
-if os.execute("command -v jq >/dev/null 2>&1") ~= 0 then
-  io.stderr:write("Error: jq not found\n")
-  os.exit(1)
-end
-
--- 2. Find primary bluetooth adapter via D-Bus
-local adapter_path = exec_cmd(
-  [[busctl tree org.bluez 2>/dev/null | grep -o '/org/bluez/hci[0-9]*' | head -n 1]]
-):gsub("%s+$", "")
-if adapter_path == "" then
-  notify(i18n("blue_no_device"))
-  os.exit(1)
-end
-
--- 3. Check CLI arguments (off / power-off / toggle)
-local action = arg[1]
-if action == "off" or action == "power-off" then
-  os.execute(
-    string.format(
-      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b false >/dev/null 2>&1",
-      adapter_path
-    )
-  )
+local action = arg[1] or "menu"
+if action == "-h" or action == "--help" or action == "help" then
+  io.stdout:write(i18n("blue_usage") .. "\n")
   os.exit(0)
 end
-
--- 4. Check adapter power status via D-Bus and ensure Powered & Pairable are enabled
-local powered_prop = exec_cmd(
-  string.format(
-    "busctl get-property org.bluez %s org.bluez.Adapter1 Powered 2>/dev/null",
-    adapter_path
-  )
-)
-local is_powered = powered_prop:find("b true") ~= nil
-
-if action == "toggle" then
-  local new_state = not is_powered
-  os.execute(
-    string.format(
-      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b %s >/dev/null 2>&1",
-      adapter_path,
-      tostring(new_state)
-    )
-  )
-  os.exit(0)
+local valid = {
+  menu = true,
+  list = true,
+  devices = true,
+  status = true,
+  connect = true,
+  disconnect = true,
+  toggle = true,
+  off = true,
+  ["power-off"] = true,
+}
+if
+  not valid[action]
+  or arg[3]
+  or (arg[2] and action ~= "connect" and action ~= "disconnect")
+  or (action == "connect" and (not arg[2] or arg[2] == ""))
+  or arg[2] == ""
+then
+  fail("blue_usage", nil, 2)
+end
+require_tool("busctl")
+require_tool("jq")
+if action == "menu" then
+  require_tool("fuzzel")
 end
 
-if not is_powered then
-  os.execute(
-    string.format(
-      "busctl set-property org.bluez %s org.bluez.Adapter1 Powered b true >/dev/null 2>&1",
-      adapter_path
-    )
-  )
+local function notify(key, vars)
+  if action == "menu" then
+    capture(command("notify-send", i18n("blue_notify_title"), i18n(key, vars)) .. " 2>/dev/null")
+  end
 end
 
-os.execute(
-  string.format(
-    "busctl set-property org.bluez %s org.bluez.Adapter1 Pairable b true >/dev/null 2>&1",
-    adapter_path
-  )
-)
+local function decode(value)
+  return (value:gsub("\\([\\tnr])", { ["\\"] = "\\", t = "\t", n = "\n", r = "\r" }))
+end
 
-local prompt_text = i18n("blue_prompt")
-local rescan_text = i18n("blue_rescan")
+local function tsv(value)
+  return (value:gsub("\\", "\\\\"):gsub("\t", "\\t"):gsub("\n", "\\n"):gsub("\r", "\\r"))
+end
 
--- 5. Query all managed objects via D-Bus and parse with jq
-local query_cmd =
-  [[busctl call org.bluez / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short 2>/dev/null | jq -r '
-.data[0] | to_entries[] |
-select(.value["org.bluez.Device1"]) |
-.key as $path |
-.value["org.bluez.Device1"] |
-[
-  $path,
-  (.Address.data // ""),
-  (.Alias.data // .Name.data // ""),
-  (if .Connected.data then "1" else "0" end),
-  (if .Paired.data then "1" else "0" end),
-  (.Icon.data // "")
-] | @tsv
-']]
-
+local adapter, powered
 local devices = {}
-for line in exec_cmd(query_cmd):gmatch("[^\r\n]+") do
-  local path, mac, name, conn_s, paired_s, icon = line:match("^(.-)\t(.-)\t(.-)\t(.-)\t(.-)\t(.*)$")
-  if path and mac and mac ~= "" then
-    -- Filter out nameless BLE beacon aliases (e.g. XX-XX-XX-XX-XX-XX)
-    local is_dummy = name:match("^%x%x%-%x%x%-%x%x%-%x%x%-%x%x%-%x%x$")
-      or name:match("^%x%x:%x%x:%x%x:%x%x:%x%x:%x%x$")
-    if not is_dummy or paired_s == "1" or conn_s == "1" then
-      table.insert(devices, {
-        path = path,
-        mac = mac,
-        name = (name ~= "" and name) or mac,
-        connected = (conn_s == "1"),
-        paired = (paired_s == "1"),
-        icon = icon,
-      })
-    end
+local query = [[
+.data[0] | to_entries[] |
+if .value["org.bluez.Adapter1"] then
+  ["adapter", .key, (.value["org.bluez.Adapter1"].Powered.data | tostring)]
+elif .value["org.bluez.Device1"] then
+  .key as $path | .value["org.bluez.Device1"] |
+  ["device", $path, (.Address.data // ""), (.Alias.data // .Name.data // .Address.data),
+   (.Connected.data | tostring), (.Paired.data | tostring), (.Icon.data // "")]
+else empty end | @tsv
+]]
+local rows = checked(
+  command(
+    "busctl",
+    "--auto-start=no",
+    "call",
+    "org.bluez",
+    "/",
+    "org.freedesktop.DBus.ObjectManager",
+    "GetManagedObjects",
+    "--json=short"
+  )
+    .. " | "
+    .. command("jq", "-r", query)
+)
+for line in rows:gmatch("[^\n]+") do
+  local fields = {}
+  for field in (line .. "\t"):gmatch("(.-)\t") do
+    table.insert(fields, decode(field))
+  end
+  if fields[1] == "adapter" and not adapter then
+    adapter, powered = fields[2], fields[3] == "true"
+  elseif fields[1] == "device" then
+    table.insert(devices, {
+      path = fields[2],
+      mac = fields[3],
+      name = fields[4],
+      connected = fields[5] == "true",
+      paired = fields[6] == "true",
+      icon = fields[7],
+    })
   end
 end
-
--- 5. Format device type and pairing status icons (Scheme B)
-local function get_device_type_icon(icon)
-  if not icon or icon == "" then
-    return "󰂯"
-  end
-  if icon:find("headphones") or icon:find("headset") then
-    return "󰋋"
-  elseif icon:find("speakers") or icon:find("audio%-card") then
-    return "󰓃"
-  elseif icon:find("keyboard") then
-    return "󰌌"
-  elseif icon:find("mouse") then
-    return "󰍽"
-  elseif icon:find("gaming") then
-    return "󰊴"
-  elseif icon == "phone" then
-    return "󰏲"
-  elseif icon:find("computer") then
-    return "󰌢"
-  elseif icon:find("watch") or icon:find("wearable") then
-    return "󰟸"
-  elseif icon:find("printer") then
-    return "󰐪"
-  else
-    return "󰂯"
+if not adapter then
+  fail("blue_no_device")
+end
+for i = #devices, 1, -1 do
+  if devices[i].path:sub(1, #adapter + 1) ~= adapter .. "/" then
+    table.remove(devices, i)
   end
 end
-
-local function get_pairing_icon(paired)
-  if paired then
-    return "󰌷" -- Link / Bonded (已绑定/已配对)
-  else
-    return "󰐕" -- Plus / Add (未绑定/可添加)
-  end
-end
-
--- 6. Sort devices: Connected first, then Paired, then Available
 table.sort(devices, function(a, b)
   if a.connected ~= b.connected then
     return a.connected
@@ -189,296 +165,178 @@ table.sort(devices, function(a, b)
   return a.name:lower() < b.name:lower()
 end)
 
--- 6. Helper functions for device connection
-local function is_device_connected(path)
-  local prop = exec_cmd(
-    string.format("busctl get-property org.bluez %s org.bluez.Device1 Connected 2>/dev/null", path)
+local function set_property(path, interface, property, value)
+  checked(
+    command("busctl", "set-property", "org.bluez", path, interface, property, "b", tostring(value))
   )
-  return prop:find("b true") ~= nil
 end
 
-local function is_device_paired(path)
-  local prop = exec_cmd(
-    string.format("busctl get-property org.bluez %s org.bluez.Device1 Paired 2>/dev/null", path)
-  )
-  return prop:find("b true") ~= nil
+local function device_call(dev, method)
+  checked(command("busctl", "call", "org.bluez", dev.path, "org.bluez.Device1", method))
 end
 
-local function is_peripheral(icon)
-  if not icon or icon == "" then
-    return true
-  end
-  return icon:find("^audio%-") ~= nil or icon:find("^input%-") ~= nil or icon == "printer"
+local function connected(dev)
+  return checked(
+    command("busctl", "get-property", "org.bluez", dev.path, "org.bluez.Device1", "Connected")
+  ):match("^b true%s*$") ~= nil
 end
 
-local function perform_device_action(target_dev)
-  -- If currently connected: disconnect it
-  if target_dev.connected then
-    os.execute(
-      string.format(
-        "busctl call org.bluez %s org.bluez.Device1 Disconnect >/dev/null 2>&1",
-        target_dev.path
-      )
-    )
-    notify(i18n("blue_disconnected", { dev = target_dev.name }))
-    io.stdout:write(string.format("Disconnected: %s\n", target_dev.name))
-    os.exit(0)
-  end
-
-  -- If paired: attempt connection via D-Bus
-  if target_dev.paired then
-    if not is_peripheral(target_dev.icon) then
-      notify(i18n("blue_paired", { dev = target_dev.name }))
-      os.exit(0)
+local function connect(dev)
+  if not dev.connected then
+    device_call(dev, "Connect")
+    if not connected(dev) then
+      fail("blue_failed", { dev = dev.name })
     end
+  end
+  notify("blue_connected", { dev = dev.name })
+  io.stdout:write("connected\t" .. dev.mac .. "\n")
+end
 
-    local out = exec_cmd(
-      string.format("busctl call org.bluez %s org.bluez.Device1 Connect 2>&1", target_dev.path)
-    )
-    if is_device_connected(target_dev.path) then
-      notify(i18n("blue_connected", { dev = target_dev.name }))
-      io.stdout:write(string.format("Connected: %s\n", target_dev.name))
-      os.exit(0)
+local function disconnect(dev)
+  if dev.connected then
+    device_call(dev, "Disconnect")
+  end
+  notify("blue_disconnected", { dev = dev.name })
+  io.stdout:write("disconnected\t" .. dev.mac .. "\n")
+end
+
+local function find_device(target)
+  local found
+  for _, dev in ipairs(devices) do
+    if dev.mac:lower() == target:lower() then
+      return dev
     end
-
-    -- Auto-recovery: if link key is missing or authentication failed
-    if out:find("br-connection-key-missing") or out:find("Authentication") or out:find("Failed") then
-      os.execute(
-        string.format(
-          "busctl call org.bluez %s org.bluez.Adapter1 RemoveDevice o %s >/dev/null 2>&1",
-          adapter_path,
-          target_dev.path
-        )
-      )
-      os.execute(
-        string.format(
-          "printf 'yes\\n' | timeout 15 bluetoothctl --agent DisplayYesNo pair %s >/dev/null 2>&1",
-          target_dev.mac
-        )
-      )
-      os.execute(
-        string.format(
-          "busctl set-property org.bluez %s org.bluez.Device1 Trusted b true 2>/dev/null",
-          target_dev.path
-        )
-      )
-      if is_peripheral(target_dev.icon) then
-        os.execute(
-          string.format(
-            "busctl call org.bluez %s org.bluez.Device1 Connect >/dev/null 2>&1",
-            target_dev.path
-          )
-        )
+    if dev.name == target then
+      if found then
+        fail("blue_ambiguous_device", { dev = target })
       end
-      if is_device_connected(target_dev.path) then
-        notify(i18n("blue_connected", { dev = target_dev.name }))
-        io.stdout:write(string.format("Connected: %s\n", target_dev.name))
-      elseif is_device_paired(target_dev.path) then
-        notify(i18n("blue_paired", { dev = target_dev.name }))
-        io.stdout:write(string.format("Paired: %s\n", target_dev.name))
-      else
-        notify(i18n("blue_failed", { dev = target_dev.name }))
-        os.exit(1)
-      end
-      os.exit(0)
+      found = dev
     end
-
-    notify(i18n("blue_failed", { dev = target_dev.name }))
-    os.exit(1)
   end
-
-  -- Otherwise (new device): trust + pair with DisplayYesNo auto-confirm + connect
-  os.execute(
-    string.format(
-      "busctl set-property org.bluez %s org.bluez.Device1 Trusted b true 2>/dev/null",
-      target_dev.path
-    )
-  )
-  os.execute(
-    string.format(
-      "printf 'yes\\n' | timeout 15 bluetoothctl --agent DisplayYesNo pair %s >/dev/null 2>&1",
-      target_dev.mac
-    )
-  )
-  if is_peripheral(target_dev.icon) then
-    os.execute(
-      string.format(
-        "busctl call org.bluez %s org.bluez.Device1 Connect >/dev/null 2>&1",
-        target_dev.path
-      )
-    )
+  if not found then
+    fail("blue_device_not_found", { dev = target })
   end
-
-  if is_device_connected(target_dev.path) then
-    notify(i18n("blue_connected", { dev = target_dev.name }))
-    io.stdout:write(string.format("Connected: %s\n", target_dev.name))
-  elseif is_device_paired(target_dev.path) then
-    notify(i18n("blue_paired", { dev = target_dev.name }))
-    io.stdout:write(string.format("Paired: %s\n", target_dev.name))
-  else
-    notify(i18n("blue_failed", { dev = target_dev.name }))
-    os.exit(1)
-  end
+  return found
 end
 
--- CLI subcommands: list, status, connect, disconnect
 if action == "list" or action == "devices" then
   for _, dev in ipairs(devices) do
-    local conn_str = dev.connected and "connected" or "disconnected"
-    local pair_str = dev.paired and "paired" or "unpaired"
-    io.stdout:write(string.format("%s\t%s\t%s\t%s\n", dev.mac, dev.name, conn_str, pair_str))
+    io.stdout:write(
+      string.format(
+        "%s\t%s\t%s\t%s\n",
+        dev.mac,
+        tsv(dev.name),
+        dev.connected and "connected" or "disconnected",
+        dev.paired and "paired" or "unpaired"
+      )
+    )
   end
-  os.exit(0)
-end
-
-if action == "status" then
-  local connected_names = {}
+elseif action == "status" then
+  local names = {}
   for _, dev in ipairs(devices) do
     if dev.connected then
-      table.insert(connected_names, dev.name)
+      table.insert(names, tsv(dev.name))
     end
   end
   io.stdout:write(
     string.format(
       "powered: %s\nconnected: %s\n",
-      is_powered and "on" or "off",
-      #connected_names > 0 and table.concat(connected_names, ", ") or "none"
+      powered and "on" or "off",
+      #names > 0 and table.concat(names, ", ") or "none"
     )
   )
-  os.exit(0)
-end
-
-if action == "disconnect" then
-  local target_arg = arg[2]
-  local disconnected_any = false
-  for _, dev in ipairs(devices) do
-    if dev.connected and (not target_arg or target_arg == "" or dev.mac == target_arg or dev.name == target_arg) then
-      os.execute(
-        string.format(
-          "busctl call org.bluez %s org.bluez.Device1 Disconnect >/dev/null 2>&1",
-          dev.path
-        )
-      )
-      notify(i18n("blue_disconnected", { dev = dev.name }))
-      io.stdout:write(string.format("Disconnected: %s (%s)\n", dev.name, dev.mac))
-      disconnected_any = true
+elseif action == "toggle" or action == "off" or action == "power-off" then
+  set_property(adapter, "org.bluez.Adapter1", "Powered", action == "toggle" and not powered)
+elseif action == "connect" then
+  connect(find_device(arg[2]))
+elseif action == "disconnect" then
+  if arg[2] then
+    disconnect(find_device(arg[2]))
+  else
+    for _, dev in ipairs(devices) do
+      if dev.connected then
+        disconnect(dev)
+      end
     end
   end
-  if not disconnected_any and target_arg then
-    io.stderr:write(string.format("No connected device matched: %s\n", target_arg))
-    os.exit(1)
+else
+  -- Pairability and phone-specific pairing are policies of the desktop menu.
+  if not powered then
+    set_property(adapter, "org.bluez.Adapter1", "Powered", true)
   end
-  os.exit(0)
-end
-
-if action == "connect" then
-  local target_arg = arg[2]
-  if not target_arg or target_arg == "" then
-    io.stderr:write("Usage: x-blue connect <mac|name>\n")
-    os.exit(1)
-  end
+  set_property(adapter, "org.bluez.Adapter1", "Pairable", true)
+  local entries = { "  󰑐  " .. i18n("blue_rescan") }
+  local icons = {
+    headphones = "󰋋",
+    headset = "󰋋",
+    speakers = "󰓃",
+    ["audio-card"] = "󰓃",
+    keyboard = "󰌌",
+    mouse = "󰍽",
+    phone = "󰏲",
+    computer = "󰌢",
+  }
   for _, dev in ipairs(devices) do
-    if dev.mac == target_arg or dev.name == target_arg then
-      perform_device_action(dev)
-      os.exit(0)
-    end
-  end
-  io.stderr:write(string.format("Device not found: %s\n", target_arg))
-  os.exit(1)
-end
-
--- 7. Display Fuzzel dmenu
-local menu_lines = {}
-
--- Disconnect action for connected devices with Bluetooth disconnect icon (󰂲)
-for _, dev in ipairs(devices) do
-  if dev.connected then
     table.insert(
-      menu_lines,
-      string.format("  󰂲  %s", i18n("blue_disconnect", { dev = dev.name }))
+      entries,
+      string.format(
+        "%s%s  %s  %s",
+        dev.connected and "* " or "  ",
+        icons[dev.icon] or "󰂯",
+        dev.paired and "󰌷" or "󰐕",
+        tsv(dev.name)
+      )
     )
   end
-end
-
-table.insert(menu_lines, string.format("  󰑐  %s", rescan_text))
-
-for _, dev in ipairs(devices) do
-  local star = dev.connected and "* " or "  "
-  local type_icon = get_device_type_icon(dev.icon)
-  local pair_icon = get_pairing_icon(dev.paired)
-  table.insert(menu_lines, string.format("%s%s   %s   %s", star, type_icon, pair_icon, dev.name))
-end
-
--- 8. Display Fuzzel dmenu
-local tmp = os.tmpname()
-local f = io.open(tmp, "w")
-if f then
-  f:write(table.concat(menu_lines, "\n") .. "\n")
-  f:close()
-end
-
-local p = io.popen(
-  string.format("fuzzel --dmenu --prompt %q --lines 15 < %q 2>/dev/null", prompt_text, tmp),
-  "r"
-)
-local chosen = p and p:read("*l") or ""
-if p then
-  p:close()
-end
-os.remove(tmp)
-
-if not chosen or chosen == "" then
-  os.exit(0)
-end
-
-local action_chosen = chosen:gsub("^%s+", ""):gsub("%s+$", "")
-
--- 9. Handle action header items
-if action_chosen:find("^󰑐") then
-  -- Perform a clean 6-second discovery cycle via D-Bus
-  os.execute(
-    string.format(
-      "busctl call org.bluez %s org.bluez.Adapter1 StartDiscovery >/dev/null 2>&1",
-      adapter_path
-    )
+  local selection, status = capture(
+    command("printf", "%s", table.concat(entries, "\n") .. "\n")
+      .. " | "
+      .. command("fuzzel", "--dmenu", "--index", "--prompt", i18n("blue_prompt"), "--lines", "15")
   )
-  os.execute("sleep 6")
-  os.execute(
-    string.format(
-      "busctl call org.bluez %s org.bluez.Adapter1 StopDiscovery >/dev/null 2>&1",
-      adapter_path
-    )
-  )
-  os.execute(arg[0] .. " &")
-  os.exit(0)
-end
-
-if action_chosen:find("^󰂲") then
-  for _, dev in ipairs(devices) do
+  if status == 1 then
+    os.exit(0)
+  end -- Fuzzel cancellation.
+  if status ~= 0 then
+    fail("blue_operation_failed")
+  end
+  local index = tonumber(selection)
+  if not index then
+    fail("blue_operation_failed")
+  end
+  if index == 0 then
+    checked(command("busctl", "call", "org.bluez", adapter, "org.bluez.Adapter1", "StartDiscovery"))
+    capture(command("sleep", "6"))
+    checked(command("busctl", "call", "org.bluez", adapter, "org.bluez.Adapter1", "StopDiscovery"))
+    checked(command(arg[0], "menu"))
+  else
+    local dev = devices[index]
+    if not dev then
+      fail("blue_operation_failed")
+    end
     if dev.connected then
-      os.execute(
-        string.format(
-          "busctl call org.bluez %s org.bluez.Device1 Disconnect >/dev/null 2>&1",
-          dev.path
+      disconnect(dev)
+    else
+      if not dev.paired then
+        require_tool("bluetoothctl")
+        checked(
+          command("printf", "yes\n")
+            .. " | "
+            .. command("timeout", "15", "bluetoothctl", "--agent", "DisplayYesNo", "pair", dev.mac)
         )
-      )
-      notify(i18n("blue_disconnected", { dev = dev.name }))
+        local paired = checked(
+          command("busctl", "get-property", "org.bluez", dev.path, "org.bluez.Device1", "Paired")
+        )
+        if not paired:match("^b true%s*$") then
+          fail("blue_failed", { dev = dev.name })
+        end
+        set_property(dev.path, "org.bluez.Device1", "Trusted", true)
+      end
+      if dev.icon == "phone" or dev.icon == "computer" then
+        notify("blue_paired", { dev = dev.name })
+        io.stdout:write("paired\t" .. dev.mac .. "\n")
+      else
+        connect(dev)
+      end
     end
   end
-  os.exit(0)
 end
-
--- 10. Handle device click
-local target_name = chosen:match("^[ *]+%S+%s+%S+%s+(.*)$")
-if not target_name or target_name == "" then
-  os.exit(0)
-end
-target_name = target_name:gsub("^%s+", ""):gsub("%s+$", "")
-
-for _, dev in ipairs(devices) do
-  if dev.name == target_name then
-    perform_device_action(dev)
-    os.exit(0)
-  end
-end
-os.exit(0)

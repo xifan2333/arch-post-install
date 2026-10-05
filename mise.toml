@@ -43,6 +43,10 @@ run = "hk fix"
 description = "Validate desktop bin metadata, i18n key parity, and zero hardcoded user strings"
 run = "./scripts/check-standards.py"
 
+[tasks."test:connectivity"]
+description = "Test Bluetooth and Wi-Fi CLI contracts using isolated device fixtures"
+run = "python3 scripts/test-connectivity.py"
+
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
 depends = ["check:standards"]

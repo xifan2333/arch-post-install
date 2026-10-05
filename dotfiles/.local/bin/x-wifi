@@ -1,402 +1,363 @@
 #!/usr/bin/env luajit
--- arch:summary=Manage, connect, or toggle Wi-Fi networks via iwd D-Bus
--- arch:args=[menu | list | status | connect <ssid> | disconnect | toggle]
--- arch:examples=x-wifi list | x-wifi status | x-wifi connect "MyWiFi" | x-wifi toggle
+-- arch:summary=Manage Wi-Fi through explicit CLI operations or an interactive menu
+-- arch:args=[menu | list | status | connect <ssid> [--passphrase-stdin] | disconnect | toggle]
+-- arch:examples=x-wifi list | x-wifi connect "MyWiFi" | x-wifi menu
 
-local function exec_cmd(cmd)
-  local p = io.popen(cmd, "r")
-  if not p then
-    return ""
+local function quote(value)
+  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
+local function command(...)
+  local args = { ... }
+  for i, value in ipairs(args) do
+    args[i] = quote(value)
   end
-  local output = p:read("*a") or ""
-  p:close()
-  return output
+  return table.concat(args, " ")
+end
+
+local function capture(cmd)
+  -- LuaJIT's Lua 5.1 pclose discards the child status. Frame it explicitly;
+  -- pipefail also preserves failures from busctl before jq in query pipelines.
+  local pipe =
+    io.popen(command("bash", "-o", "pipefail", "-c", cmd .. "\nrc=$?\nprintf '\\n%d' \"$rc\""), "r")
+  if not pipe then
+    return "", 1
+  end
+  local output = pipe:read("*a") or ""
+  pipe:close()
+  local body, status = output:match("^(.*)\n(%d+)$")
+  return body or "", tonumber(status) or 1
 end
 
 local function i18n(key, vars)
-  local args = { "x-i18n", "get", key }
-  if vars then
-    for k, v in pairs(vars) do
-      table.insert(args, string.format("%s=%s", k, tostring(v)))
-    end
+  local cmd = command("x-i18n", "get", key)
+  for k, v in pairs(vars or {}) do
+    cmd = cmd .. " " .. quote(k .. "=" .. v)
   end
-  local quoted = {}
-  for _, arg_val in ipairs(args) do
-    table.insert(quoted, string.format("%q", arg_val))
+  local text, status = capture(cmd .. " 2>/dev/null")
+  return status == 0 and text ~= "" and text:gsub("\n$", "") or key
+end
+
+local function fail(key, vars, status)
+  io.stderr:write(i18n(key, vars) .. "\n")
+  os.exit(status or 1)
+end
+
+local function checked(cmd)
+  local output, status = capture(cmd)
+  if status ~= 0 then
+    fail("net_operation_failed")
   end
-  local text = exec_cmd(table.concat(quoted, " "))
-  return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+  return output
 end
 
-local function notify(msg)
-  local title = i18n("net_notify_title")
-  os.execute(string.format("notify-send %q %q 2>/dev/null", title, msg))
+local function require_tool(name)
+  local _, status = capture(command("command", "-v", name) .. " >/dev/null")
+  if status ~= 0 then
+    fail("net_missing_tool", { tool = name })
+  end
 end
 
--- 1. Dependency checks
-if os.execute("command -v busctl >/dev/null 2>&1") ~= 0 then
-  io.stderr:write("Error: busctl not found. Please install systemd\n")
-  os.exit(1)
+local action = arg[1] or "menu"
+if action == "-h" or action == "--help" or action == "help" then
+  io.stdout:write(i18n("net_usage") .. "\n")
+  os.exit(0)
+end
+local valid = {
+  menu = true,
+  list = true,
+  scan = true,
+  status = true,
+  connect = true,
+  disconnect = true,
+  toggle = true,
+}
+if
+  not valid[action]
+  or arg[4]
+  or (action ~= "connect" and arg[2])
+  or (
+    action == "connect"
+    and (not arg[2] or arg[2] == "" or (arg[3] and arg[3] ~= "--passphrase-stdin"))
+  )
+then
+  fail("net_usage", nil, 2)
+end
+require_tool("busctl")
+require_tool("jq")
+if action == "menu" then
+  require_tool("fuzzel")
 end
 
-if os.execute("command -v jq >/dev/null 2>&1") ~= 0 then
-  io.stderr:write("Error: jq not found\n")
-  os.exit(1)
+local function notify(key, vars)
+  if action == "menu" then
+    capture(command("notify-send", i18n("net_notify_title"), i18n(key, vars)) .. " 2>/dev/null")
+  end
 end
 
--- 2. Query iwd D-Bus ObjectManager for station and device
-local query_station_cmd =
-  [[busctl call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short 2>/dev/null | jq -r '
-.data[0] | to_entries[] |
-select(.value["net.connman.iwd.Station"]) |
-[
-  .key,
-  (.value["net.connman.iwd.Device"].Name.data // ""),
-  (.value["net.connman.iwd.Station"].State.data // ""),
-  (.value["net.connman.iwd.Station"].ConnectedNetwork.data // "")
-] | @tsv
-' | head -n 1]]
-
-local station_line = exec_cmd(query_station_cmd)
-local station_path, dev_name, station_state, connected_network_path =
-  station_line:match("^(.-)\t(.-)\t(.-)\t(.*)$")
-
-if not station_path or station_path == "" then
-  notify(i18n("net_no_device"))
-  os.exit(1)
+local function tsv(value)
+  return (value:gsub("\\", "\\\\"):gsub("\t", "\\t"):gsub("\n", "\\n"):gsub("\r", "\\r"))
 end
 
--- Handle CLI toggle action (quick connect / disconnect)
-local action = arg[1]
-if action == "toggle" then
-  if connected_network_path and connected_network_path ~= "" then
-    os.execute(
-      string.format(
-        "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
-        station_path
-      )
+local function fields(line)
+  local result = {}
+  for value in (line .. "\t"):gmatch("(.-)\t") do
+    table.insert(
+      result,
+      (value:gsub("\\([\\tnr])", { ["\\"] = "\\", t = "\t", n = "\n", r = "\r" }))
     )
-    notify(i18n("net_disconnected", { ssid = dev_name }))
-  else
-    local quick_connect_cmd = string.format(
-      [[busctl call net.connman.iwd %s net.connman.iwd.Station GetOrderedNetworks --json=short 2>/dev/null | jq -r '.data[0][][0] // empty' | head -n 1]],
-      station_path
-    )
-    local best_net_path = exec_cmd(quick_connect_cmd)
-    if best_net_path ~= "" then
-      os.execute(
-        string.format(
-          "busctl call net.connman.iwd %s net.connman.iwd.Network Connect >/dev/null 2>&1",
-          best_net_path
-        )
-      )
-      notify(i18n("net_connected", { ssid = dev_name }))
-    else
-      os.execute(arg[0] .. " &")
-    end
   end
+  return result
+end
+
+local objects_cmd = command(
+  "busctl",
+  "--auto-start=no",
+  "call",
+  "net.connman.iwd",
+  "/",
+  "org.freedesktop.DBus.ObjectManager",
+  "GetManagedObjects",
+  "--json=short"
+)
+local station_query = [[
+.data[0] | to_entries | map(select(.value["net.connman.iwd.Station"])) | .[0] // empty |
+[.key, (.value["net.connman.iwd.Device"].Name.data // ""),
+ (.value["net.connman.iwd.Station"].State.data // ""),
+ (.value["net.connman.iwd.Station"].ConnectedNetwork.data // "")] | @tsv
+]]
+local station_line =
+  checked(objects_cmd .. " | " .. command("jq", "-r", station_query)):match("[^\n]+")
+if not station_line then
+  fail("net_no_device")
+end
+local station = fields(station_line)
+local station_path, device, state, connected_path = station[1], station[2], station[3], station[4]
+
+local function station_call(method)
+  return checked(
+    command("busctl", "call", "net.connman.iwd", station_path, "net.connman.iwd.Station", method)
+  )
+end
+
+local function disconnect()
+  if state ~= "disconnected" then
+    station_call("Disconnect")
+  end
+  notify("net_disconnected", { ssid = device })
+  io.stdout:write("disconnected\n")
+end
+
+if action == "disconnect" or (action == "toggle" and state ~= "disconnected") then
+  disconnect()
   os.exit(0)
 end
 
--- 3. Query all networks from D-Bus
-local query_networks_cmd =
-  [[busctl call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short 2>/dev/null | jq -r '
-.data[0] | to_entries[] |
-select(.value["net.connman.iwd.Network"]) |
-.key as $path |
-.value["net.connman.iwd.Network"] |
-[
-  $path,
-  .Name.data,
-  .Type.data,
-  (if .Connected.data then "1" else "0" end),
-  (.KnownNetwork.data // "")
-] | @tsv
-']]
-
-local networks_by_path = {}
-for line in exec_cmd(query_networks_cmd):gmatch("[^\r\n]+") do
-  local path, name, net_type, conn_s, known_path = line:match("^(.-)\t(.-)\t(.-)\t(.-)\t(.*)$")
-  if path and name and name ~= "" then
-    networks_by_path[path] = {
-      path = path,
-      name = name,
-      type = net_type,
-      connected = (conn_s == "1"),
-      known_network = (known_path ~= "" and known_path) or nil,
-    }
-  end
+local net_query = [[
+.data[0] | to_entries[] | select(.value["net.connman.iwd.Network"]) |
+.key as $path | .value["net.connman.iwd.Network"] |
+[$path, .Name.data, .Type.data, (.Connected.data | tostring), (.KnownNetwork.data // "")] | @tsv
+]]
+local networks = {}
+for line in checked(objects_cmd .. " | " .. command("jq", "-r", net_query)):gmatch("[^\n]+") do
+  local f = fields(line)
+  networks[f[1]] =
+    { path = f[1], name = f[2], type = f[3], connected = f[4] == "true", known = f[5] ~= "" }
 end
 
--- 4. Query ordered networks with signal metrics (100*dBm)
-local query_ordered_cmd = string.format(
-  [[busctl call net.connman.iwd %s net.connman.iwd.Station GetOrderedNetworks --json=short 2>/dev/null | jq -r '.data[0][] | [(.[0] // ""), (.[1] // 0)] | @tsv']],
-  station_path
-)
-
-local ordered_networks = {}
-local seen_names = {}
-
-for line in exec_cmd(query_ordered_cmd):gmatch("[^\r\n]+") do
-  local path, sig_str = line:match("^(.-)\t(.-)$")
-  local net = networks_by_path[path]
-  if net and not seen_names[net.name] then
-    net.signal = tonumber(sig_str) or -10000
-    table.insert(ordered_networks, net)
-    seen_names[net.name] = true
-  end
-end
-
--- 5. Format NerdFont glyphs
-local function get_signal_icon(sig)
-  if sig >= -5000 then
-    return "󰤨"
-  elseif sig >= -6500 then
-    return "󰤥"
-  elseif sig >= -7500 then
-    return "󰤢"
-  elseif sig >= -8500 then
-    return "󰤟"
-  else
-    return "󰤯"
-  end
-end
-
--- CLI subcommands: status, list, disconnect
 if action == "status" then
-  local conn_name = "none"
-  for _, net in pairs(networks_by_path) do
-    if net.connected then
-      conn_name = net.name
-      break
-    end
-  end
+  local current = networks[connected_path]
   io.stdout:write(
-    string.format("device: %s\nstate: %s\nconnected: %s\n", dev_name, station_state, conn_name)
+    string.format(
+      "device: %s\nstate: %s\nconnected: %s\n",
+      tsv(device),
+      state,
+      current and tsv(current.name) or "none"
+    )
   )
   os.exit(0)
+end
+
+local ordered_cmd = command(
+  "busctl",
+  "call",
+  "net.connman.iwd",
+  station_path,
+  "net.connman.iwd.Station",
+  "GetOrderedNetworks",
+  "--json=short"
+)
+local ordered_query = ".data[0][] | [.[0], .[1]] | @tsv"
+local ordered = {}
+for line in checked(ordered_cmd .. " | " .. command("jq", "-r", ordered_query)):gmatch("[^\n]+") do
+  local f = fields(line)
+  local net = networks[f[1]]
+  if net then
+    net.signal = tonumber(f[2]) or -10000
+    table.insert(ordered, net)
+  end
+end
+
+local function connected(net)
+  return checked(
+    command(
+      "busctl",
+      "get-property",
+      "net.connman.iwd",
+      net.path,
+      "net.connman.iwd.Network",
+      "Connected"
+    )
+  ):match("^b true%s*$") ~= nil
+end
+
+local function connect(net, passphrase)
+  if not net.connected then
+    if passphrase then
+      require_tool("iwctl")
+      checked(
+        command(
+          "iwctl",
+          "--dont-ask",
+          "--passphrase",
+          passphrase,
+          "station",
+          device,
+          "connect",
+          net.name
+        )
+      )
+    else
+      if not net.known and net.type ~= "open" then
+        fail("net_credentials_required", { ssid = net.name })
+      end
+      checked(
+        command("busctl", "call", "net.connman.iwd", net.path, "net.connman.iwd.Network", "Connect")
+      )
+    end
+    if not connected(net) then
+      fail("net_failed", { ssid = net.name })
+    end
+  end
+  notify("net_connected", { ssid = net.name })
+  io.stdout:write("connected\t" .. tsv(net.name) .. "\n")
+end
+
+local function find_network(ssid)
+  local found
+  for _, net in ipairs(ordered) do
+    if net.name == ssid then
+      if found then
+        fail("net_ambiguous_ssid", { ssid = ssid })
+      end
+      found = net
+    end
+  end
+  if not found then
+    fail("net_not_found", { ssid = ssid })
+  end
+  return found
 end
 
 if action == "list" or action == "scan" then
-  for _, net in ipairs(ordered_networks) do
-    local conn_s = net.connected and "connected" or "disconnected"
-    local sig_dbm = math.floor(net.signal / 100)
+  for _, net in ipairs(ordered) do
     io.stdout:write(
-      string.format("%s\t%d dBm\t%s\t%s\n", net.name, sig_dbm, net.type or "psk", conn_s)
+      string.format(
+        "%s\t%d dBm\t%s\t%s\n",
+        tsv(net.name),
+        math.floor(net.signal / 100),
+        net.type,
+        net.connected and "connected" or "disconnected"
+      )
     )
   end
-  os.exit(0)
-end
-
-if action == "disconnect" then
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
-      station_path
-    )
-  )
-  notify(i18n("net_disconnected", { ssid = dev_name }))
-  io.stdout:write("Disconnected\n")
-  os.exit(0)
-end
-
-local function get_lock_icon(net_type)
-  if net_type == "open" then
-    return "󰌿"
-  else
-    return "󰌾"
+elseif action == "connect" then
+  local net = find_network(arg[2])
+  local passphrase
+  if arg[3] then
+    passphrase = io.read("*l")
+    if not passphrase or passphrase == "" then
+      fail("net_empty_passphrase")
+    end
   end
-end
-
--- 6. Build action header
-local menu_lines = {}
-local connected_ssid = nil
-
-for _, net in ipairs(ordered_networks) do
-  if net.connected then
-    connected_ssid = net.name
-    break
+  connect(net, passphrase)
+elseif action == "toggle" then
+  for _, net in ipairs(ordered) do
+    if net.known or net.type == "open" then
+      connect(net)
+      os.exit(0)
+    end
   end
-end
-
-if connected_ssid then
-  table.insert(
-    menu_lines,
-    string.format("  󰖪  %s", i18n("net_disconnect", { ssid = connected_ssid }))
-  )
-end
-table.insert(menu_lines, string.format("  󰑐  %s", i18n("net_rescan")))
-
--- 7. Build network list entries
-for _, net in ipairs(ordered_networks) do
-  local star = net.connected and "* " or "  "
-  local sig_icon = get_signal_icon(net.signal or -7000)
-  local lock_icon = get_lock_icon(net.type)
-  table.insert(menu_lines, string.format("%s%s   %s   %s", star, sig_icon, lock_icon, net.name))
-end
-
--- 8. Display Fuzzel dmenu
-local prompt_text = i18n("net_prompt", { dev = dev_name })
-local tmp = os.tmpname()
-local f = io.open(tmp, "w")
-if f then
-  f:write(table.concat(menu_lines, "\n") .. "\n")
-  f:close()
-end
-
-local p = io.popen(
-  string.format("fuzzel --dmenu --prompt %q --lines 15 < %q 2>/dev/null", prompt_text, tmp),
-  "r"
-)
-local chosen = p and p:read("*l") or ""
-if p then
-  p:close()
-end
-os.remove(tmp)
-
-if not chosen or chosen == "" then
-  os.exit(0)
-end
-
-local action_chosen = chosen:gsub("^%s+", ""):gsub("%s+$", "")
-
--- 9. Handle action header items
-if action_chosen:find("^󰑐") then
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.Station Scan >/dev/null 2>&1",
-      station_path
+  fail("net_no_saved_network")
+else
+  local entries = { "  󰑐  " .. i18n("net_rescan") }
+  for _, net in ipairs(ordered) do
+    local icon = net.signal >= -5000 and "󰤨"
+      or net.signal >= -6500 and "󰤥"
+      or net.signal >= -7500 and "󰤢"
+      or "󰤟"
+    table.insert(
+      entries,
+      string.format(
+        "%s%s  %s  %s",
+        net.connected and "* " or "  ",
+        icon,
+        net.type == "open" and "󰌿" or "󰌾",
+        tsv(net.name)
+      )
     )
-  )
-  os.execute("sleep 1.2")
-  os.execute(arg[0] .. " &")
-  os.exit(0)
-end
-
-if action_chosen:find("^󰖪") then
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
-      station_path
-    )
-  )
-  notify(i18n("net_disconnected", { ssid = connected_ssid or "" }))
-  os.exit(0)
-end
-
--- 10. Extract target SSID
-local target_ssid = chosen:match("^[ *]+%S+%s+%S+%s+(.*)$")
-if not target_ssid or target_ssid == "" then
-  os.exit(0)
-end
-target_ssid = target_ssid:gsub("^%s+", ""):gsub("%s+$", "")
-
-local target_net = nil
-for _, net in ipairs(ordered_networks) do
-  if net.name == target_ssid then
-    target_net = net
-    break
   end
-end
-
-if not target_net then
-  os.exit(0)
-end
-
--- If already connected: disconnect
-if target_net.connected then
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.Station Disconnect >/dev/null 2>&1",
-      station_path
-    )
+  local selection, status = capture(
+    command("printf", "%s", table.concat(entries, "\n") .. "\n")
+      .. " | "
+      .. command("fuzzel", "--dmenu", "--index", "--prompt", i18n("net_prompt"), "--lines", "15")
   )
-  notify(i18n("net_disconnected", { ssid = target_net.name }))
-  os.exit(0)
-end
-
--- Function to connect with a passphrase via iwctl
-local function connect_with_passphrase(prompt_str)
-  local pass_p = io.popen(
-    string.format("fuzzel --dmenu --password --prompt %q --lines 0 2>/dev/null", prompt_str),
-    "r"
-  )
-  local pass = pass_p and pass_p:read("*l") or ""
-  if pass_p then
-    pass_p:close()
-  end
-  if not pass or pass == "" then
+  if status == 1 then
     os.exit(0)
   end
-
-  local cmd = string.format(
-    "iwctl --passphrase %q station %s connect %q >/dev/null 2>&1",
-    pass,
-    dev_name,
-    target_net.name
-  )
-  if os.execute(cmd) == 0 then
-    notify(i18n("net_connected", { ssid = target_net.name }))
+  if status ~= 0 then
+    fail("net_operation_failed")
+  end
+  local index = tonumber(selection)
+  if not index then
+    fail("net_operation_failed")
+  end
+  if index == 0 then
+    station_call("Scan")
+    capture(command("sleep", "1.2"))
+    checked(command(arg[0], "menu"))
   else
-    notify(i18n("net_auth_failed", { ssid = target_net.name }))
+    local net = ordered[index]
+    if not net then
+      fail("net_operation_failed")
+    end
+    if net.connected then
+      disconnect()
+    elseif not net.known and net.type ~= "open" then
+      local passphrase, pass_status = capture(
+        command(
+          "fuzzel",
+          "--dmenu",
+          "--password",
+          "--prompt",
+          i18n("net_password_prompt", { ssid = net.name }),
+          "--lines",
+          "0"
+        ) .. " < /dev/null"
+      )
+      if pass_status == 1 then
+        os.exit(0)
+      end
+      if pass_status ~= 0 then
+        fail("net_operation_failed")
+      end
+      passphrase = passphrase:gsub("\n$", "")
+      if passphrase == "" then
+        os.exit(0)
+      end
+      connect(net, passphrase)
+    else
+      connect(net)
+    end
   end
-  os.exit(0)
 end
-
--- If known network (already saved credentials): connect directly via D-Bus
-if target_net.known_network then
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.Network Connect >/dev/null 2>&1",
-      target_net.path
-    )
-  )
-
-  -- Check if connection succeeded
-  local state = exec_cmd(
-    string.format(
-      "busctl get-property net.connman.iwd %s net.connman.iwd.Station State 2>/dev/null",
-      station_path
-    )
-  )
-  if state:find("connected") then
-    notify(i18n("net_connected", { ssid = target_net.name }))
-    os.exit(0)
-  end
-
-  -- Auto-recovery: if connection failed (password changed on router)
-  -- Purge stale known network via D-Bus and prompt for the new password!
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.KnownNetwork Forget >/dev/null 2>&1",
-      target_net.known_network
-    )
-  )
-  connect_with_passphrase(i18n("net_password_changed_prompt"))
-  os.exit(0)
-end
-
--- If open network (no password required): connect directly via D-Bus
-if target_net.type == "open" then
-  os.execute(
-    string.format(
-      "busctl call net.connman.iwd %s net.connman.iwd.Network Connect >/dev/null 2>&1",
-      target_net.path
-    )
-  )
-  local state = exec_cmd(
-    string.format(
-      "busctl get-property net.connman.iwd %s net.connman.iwd.Station State 2>/dev/null",
-      station_path
-    )
-  )
-  if state:find("connected") then
-    notify(i18n("net_connected", { ssid = target_net.name }))
-  else
-    notify(i18n("net_failed", { ssid = target_net.name }))
-  end
-  os.exit(0)
-end
-
--- Unconfigured secure network: prompt for passphrase
-connect_with_passphrase(i18n("net_password_prompt", { ssid = target_net.name }))
