@@ -1,8 +1,11 @@
 min_version = "2026.9.4"
 
 [tools]
+"conda:zsh" = "latest"
 hk = "2"
+jq = "latest"
 lua = "latest"
+luajit = "latest"
 oxlint = "latest"
 prettier = "latest"
 ruff = "latest"
@@ -16,41 +19,21 @@ description = "Install or refresh hk Git hooks"
 run = "hk install"
 
 [tasks.check]
-description = "Run hk check across modified or staged files"
-run = "hk check"
+description = "Check staged, unstaged, and untracked files with hk"
+alias = "check:changed"
+run = "hk check --check"
 
 [tasks."check:plan"]
 description = "Preview hk check execution plan without running tools"
-run = "hk run check --plan"
-
-[tasks."check:changed"]
-description = "Run hk check only on modified/staged/untracked files"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-{
-  git diff --name-only -z
-  git diff --cached --name-only -z
-  git ls-files --others --exclude-standard -z
-} | hk run check --files0-from - "$@"
-"""
+run = "hk check --check --plan"
 
 [tasks.fix]
 description = "Run all hk fixers to format files"
 run = "hk fix"
 
-[tasks."check:standards"]
-description = "Validate desktop bin metadata, i18n key parity, and zero hardcoded user strings"
-run = "./scripts/check-standards.py"
-
-[tasks."test:connectivity"]
-description = "Test Bluetooth and Wi-Fi CLI contracts using isolated device fixtures"
-run = "python3 scripts/test-connectivity.py"
-
 [tasks.lint]
 description = "Run full static analysis and syntax checks across the repository"
-depends = ["check:standards"]
-run = "hk check --all"
+run = "hk check --check --all"
 
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"

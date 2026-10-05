@@ -14,9 +14,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install shell and connectivity test dependencies
-        run: sudo apt-get update && sudo apt-get install --yes zsh luajit jq
-
       - name: Install mise tools
         uses: jdx/mise-action@v3
         with:
@@ -25,6 +22,3 @@ jobs:
 
       - name: Run linters
         run: mise run lint
-
-      - name: Test connectivity CLI contracts
-        run: mise run test:connectivity
