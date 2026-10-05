@@ -129,5 +129,10 @@
   "power_suspend": "Suspend",
   "power_logout": "Logout",
   "power_reboot": "Reboot",
-  "power_shutdown": "Power Off"
+  "power_shutdown": "Power Off",
+  "blue_usage": "Usage: x-blue [menu | list | status | connect <mac|name> | disconnect [mac|name] | toggle | off]",
+  "blue_operation_failed": "Bluetooth operation failed; see diagnostics above",
+  "blue_missing_tool": "Required command is missing: {tool}",
+  "blue_ambiguous_device": "More than one device is named {dev}; use its MAC address",
+  "blue_device_not_found": "Device not found: {dev}"
 }

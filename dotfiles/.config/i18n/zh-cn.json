@@ -129,5 +129,10 @@
   "power_suspend": "挂起休眠",
   "power_logout": "注销会话",
   "power_reboot": "重启系统",
-  "power_shutdown": "关闭系统"
+  "power_shutdown": "关闭系统",
+  "blue_usage": "用法：x-blue [menu | list | status | connect <mac|name> | disconnect [mac|name] | toggle | off]",
+  "blue_operation_failed": "蓝牙操作失败，请查看上方诊断信息",
+  "blue_missing_tool": "缺少必需命令：{tool}",
+  "blue_ambiguous_device": "存在多个名为 {dev} 的设备，请使用 MAC 地址",
+  "blue_device_not_found": "未找到设备：{dev}"
 }
