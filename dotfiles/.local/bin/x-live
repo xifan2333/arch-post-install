@@ -9,7 +9,6 @@ PID_FILE="$RUNTIME_DIR/pid"
 LOG_FILE="$RUNTIME_DIR/livestream.log"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
 TARGETS_FILE="$CONFIG_DIR/targets.tsv"
-LEGACY_CONFIG="$CONFIG_DIR/config.json"
 DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-danmaku"
 
 notify() {
@@ -83,27 +82,16 @@ ensure_targets_file() {
 		return 0
 	fi
 
-	# 1. Migrate from legacy config.json if present
-	if [[ -f "$LEGACY_CONFIG" ]] && command -v jq >/dev/null 2>&1; then
-		local s k vb ab
-		s="$(jq -r '.server // ""' "$LEGACY_CONFIG" 2>/dev/null || true)"
-		k="$(jq -r '.key // ""' "$LEGACY_CONFIG" 2>/dev/null || true)"
-		vb="$(jq -r '.bitrate // 4500' "$LEGACY_CONFIG" 2>/dev/null || echo 4500)"
-		ab="$(jq -r '.audio_bitrate // 160' "$LEGACY_CONFIG" 2>/dev/null || echo 160)"
-		if [[ -n "$s" ]]; then
-			printf '%s\t%s\t%s\t%s\t%s\n' "$s" "$k" "$vb" "$ab" "Default" >"$TARGETS_FILE"
-			return 0
-		fi
-	fi
-
-	# 2. Copy from example if present
+	# 1. Copy from example if present
 	if [[ -f "$CONFIG_DIR/targets.tsv.example" ]]; then
 		cp -f "$CONFIG_DIR/targets.tsv.example" "$TARGETS_FILE"
 		return 0
 	fi
 
-	# 3. Default preset
+	# 2. Default presets
 	printf 'rtmp://live-push.bilivideo.com/live-bvc/\t\t4500\t160\tBilibili\n' >"$TARGETS_FILE"
+	printf 'rtmp://live-push.xhscdn.com/live/\t\t6000\t160\t小红书\n' >>"$TARGETS_FILE"
+	printf 'srt://192.168.1.100:9999?mode=caller\t\t12000\t192\tLAN SRT\n' >>"$TARGETS_FILE"
 }
 
 get_active_target() {
@@ -145,7 +133,7 @@ edit_server() {
 
 	local options=()
 	if [[ -n "$clip_val" && "$clip_val" =~ ^(rtmp|srt|https?):// ]]; then
-		options+=("📋  $clip_val")
+		options+=("󰅍  $clip_val")
 	fi
 	options+=("󰌆  $CURRENT_SERVER")
 
@@ -153,8 +141,8 @@ edit_server() {
 	[[ -n "$choice" ]] || return 0
 
 	local new_server=""
-	if [[ "$choice" == "📋  "* ]]; then
-		new_server="${choice#📋  }"
+	if [[ "$choice" == "󰅍  "* ]]; then
+		new_server="${choice#󰅍  }"
 	else
 		new_server="${choice#󰌆  }"
 	fi
@@ -178,7 +166,7 @@ edit_key() {
 		if [[ ${#clip_short} -gt 32 ]]; then
 			clip_short="${clip_short:0:20}...${clip_short: -8}"
 		fi
-		options+=("📋  $clip_short")
+		options+=("󰅍  $clip_short")
 	fi
 	options+=("󰌆  $(x-i18n get edit_manual 2>/dev/null || echo "Input manually...")")
 
@@ -186,7 +174,7 @@ edit_key() {
 	[[ -n "$choice" ]] || return 0
 
 	local new_key=""
-	if [[ "$choice" == "📋  "* ]]; then
+	if [[ "$choice" == "󰅍  "* ]]; then
 		new_key="$clip_val"
 	else
 		new_key="$(dmenu "$prompt" --password --lines 0)"
