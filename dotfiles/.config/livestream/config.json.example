@@ -1,6 +1,0 @@
-{
-  "server": "rtmp://live-push.bilivideo.com/live-bvc/",
-  "key": "",
-  "bitrate": 4500,
-  "audio_bitrate": 160
-}

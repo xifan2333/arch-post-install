@@ -60,7 +60,7 @@
 ### 3.4 Pure Script Standards (Hierarchy: `bash` > `lua` > `python`)
 - **First Priority: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, and CLI dispatchers. Instant startup (< 2ms), zero disk bytecode cache.
 - **Second Priority: Pure Lua (`luajit` / `lua`)**: Preferred for complex system IPC (e.g. D-Bus asynchronous communication in `x-blue` / `x-wifi`), real-time data structures, or multi-dimensional palette rendering (`x-theme`). Runs purely in memory with native execution speed, minimal RAM footprint (< 2 MB), and zero disk bytecode cache.
-- **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to complex GUI windows (e.g. PyGObject in `x-live-config`), audio/video inferencing (`x-captions`), or long-running daemons. **Strict constraints**:
+- **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to audio/video inferencing (`x-captions`), camera PIP overlays (`x-camera`), or long-running daemons. **Strict constraints**:
   - Standard library or declared system packages only (zero `pip` dependencies).
   - Zero bytecode cache enforced via `PYTHONDONTWRITEBYTECODE=1` in environment and script shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
 
@@ -115,7 +115,7 @@ Desktop tools follow a strict three-tier UI strategy to prevent visual clutter a
                               | Complex stateful widgets
 +-----------------------------v------------------------------+
 | Tier 3: Custom GTK / PyGObject (Last resort: ~2% of tasks) |
-| Complex stateful panels (e.g. x-live-config)               |
+| Complex stateful panels (when exceeding dmenu capabilities) |
 +------------------------------------------------------------+
 ```
 
@@ -126,7 +126,7 @@ Desktop tools follow a strict three-tier UI strategy to prevent visual clutter a
    - Used when standard dmenu cannot express the interaction: multi-field structured forms, masked password inputs, native file pickers, or destructive operation confirmations.
    - Relies on system C library binary without custom script runtimes.
 3. **Tier 3 (Last Resort): Custom GTK (`PyGObject`)**:
-   - Strictly reserved for complex multi-control panels with dynamic cards, sliders, and live state (e.g. `x-live-config`).
+   - Strictly reserved for complex multi-control panels with dynamic cards, sliders, and live state that exceed Fuzzel and Zenity capabilities.
    - Must be single-file self-contained, enforce `PYTHONDONTWRITEBYTECODE=1`, and follow desktop light/dark theme tokens.
 
 ### 4.4 Menu Specifications (`dmenu` / Fuzzel Interaction)

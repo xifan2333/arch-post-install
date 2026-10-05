@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# arch:summary=Start, stop, or inspect desktop live streaming pipeline
+# arch:summary=Start, stop, or configure desktop live streaming pipeline via TSV targets
 # arch:args=[toggle | start | stop | status | restart | config | danmaku [start|stop]]
-# arch:examples=arch live | arch live config | arch live stop
+# arch:examples=x-live | x-live config | x-live stop
 set -euo pipefail
 
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/livestream"
 PID_FILE="$RUNTIME_DIR/pid"
 LOG_FILE="$RUNTIME_DIR/livestream.log"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/livestream"
-CONFIG_FILE="$CONFIG_DIR/config.json"
+TARGETS_FILE="$CONFIG_DIR/targets.tsv"
+LEGACY_CONFIG="$CONFIG_DIR/config.json"
 DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-danmaku"
 
 notify() {
 	local title body
-	title="$(x-i18n get livestream_notify_title)"
+	title="$(x-i18n get livestream_notify_title 2>/dev/null || echo "Live Stream")"
 	body="$1"
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send -u "${2:-normal}" "$title" "$body"
@@ -64,9 +65,267 @@ is_active() {
 	return 1
 }
 
+dmenu() {
+	local prompt="$1"
+	shift
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt" "$@" || true
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt" || true
+	else
+		head -n 1
+	fi
+}
+
+ensure_targets_file() {
+	mkdir -p "$CONFIG_DIR"
+	if [[ -f "$TARGETS_FILE" ]]; then
+		return 0
+	fi
+
+	# 1. Migrate from legacy config.json if present
+	if [[ -f "$LEGACY_CONFIG" ]] && command -v jq >/dev/null 2>&1; then
+		local s k vb ab
+		s="$(jq -r '.server // ""' "$LEGACY_CONFIG" 2>/dev/null || true)"
+		k="$(jq -r '.key // ""' "$LEGACY_CONFIG" 2>/dev/null || true)"
+		vb="$(jq -r '.bitrate // 4500' "$LEGACY_CONFIG" 2>/dev/null || echo 4500)"
+		ab="$(jq -r '.audio_bitrate // 160' "$LEGACY_CONFIG" 2>/dev/null || echo 160)"
+		if [[ -n "$s" ]]; then
+			printf '%s\t%s\t%s\t%s\t%s\n' "$s" "$k" "$vb" "$ab" "Default" >"$TARGETS_FILE"
+			return 0
+		fi
+	fi
+
+	# 2. Copy from example if present
+	if [[ -f "$CONFIG_DIR/targets.tsv.example" ]]; then
+		cp -f "$CONFIG_DIR/targets.tsv.example" "$TARGETS_FILE"
+		return 0
+	fi
+
+	# 3. Default preset
+	printf 'rtmp://live-push.bilivideo.com/live-bvc/\t\t4500\t160\tBilibili\n' >"$TARGETS_FILE"
+}
+
+get_active_target() {
+	ensure_targets_file
+	CURRENT_SERVER=""
+	CURRENT_KEY=""
+	CURRENT_BITRATE=""
+	CURRENT_AUDIO_BITRATE=""
+	CURRENT_LABEL=""
+
+	if [[ -f "$TARGETS_FILE" ]]; then
+		IFS=$'\t' read -r CURRENT_SERVER CURRENT_KEY CURRENT_BITRATE CURRENT_AUDIO_BITRATE CURRENT_LABEL <"$TARGETS_FILE" || true
+	fi
+
+	CURRENT_SERVER="${CURRENT_SERVER:-rtmp://live-push.bilivideo.com/live-bvc/}"
+	CURRENT_KEY="${CURRENT_KEY:-}"
+	CURRENT_BITRATE="${CURRENT_BITRATE:-4500}"
+	CURRENT_AUDIO_BITRATE="${CURRENT_AUDIO_BITRATE:-160}"
+	CURRENT_LABEL="${CURRENT_LABEL:-Default}"
+}
+
+save_active_target() {
+	local s="$1" k="$2" vb="$3" ab="$4" lbl="$5"
+	mkdir -p "$CONFIG_DIR"
+	local tmp="$TARGETS_FILE.tmp.$$"
+	printf '%s\t%s\t%s\t%s\t%s\n' "$s" "$k" "$vb" "$ab" "$lbl" >"$tmp"
+	if [[ -f "$TARGETS_FILE" ]]; then
+		tail -n +2 "$TARGETS_FILE" >>"$tmp" 2>/dev/null || true
+	fi
+	mv -f "$tmp" "$TARGETS_FILE"
+}
+
+edit_server() {
+	local prompt choice clip_val=""
+	prompt="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server: ")"
+	if command -v wl-paste >/dev/null 2>&1; then
+		clip_val="$(wl-paste --no-newline 2>/dev/null | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+	fi
+
+	local options=()
+	if [[ -n "$clip_val" && "$clip_val" =~ ^(rtmp|srt|https?):// ]]; then
+		options+=("📋  $clip_val")
+	fi
+	options+=("󰌆  $CURRENT_SERVER")
+
+	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 3)"
+	[[ -n "$choice" ]] || return 0
+
+	local new_server=""
+	if [[ "$choice" == "📋  "* ]]; then
+		new_server="${choice#📋  }"
+	else
+		new_server="${choice#󰌆  }"
+	fi
+
+	new_server="${new_server#"${new_server%%[![:space:]]*}"}"
+	if [[ -n "$new_server" ]]; then
+		save_active_target "$new_server" "$CURRENT_KEY" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE" "$CURRENT_LABEL"
+	fi
+}
+
+edit_key() {
+	local prompt choice clip_val=""
+	prompt="$(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key: ")"
+	if command -v wl-paste >/dev/null 2>&1; then
+		clip_val="$(wl-paste --no-newline 2>/dev/null | tr '\n' ' ' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+	fi
+
+	local options=()
+	if [[ -n "$clip_val" ]]; then
+		local clip_short="$clip_val"
+		if [[ ${#clip_short} -gt 32 ]]; then
+			clip_short="${clip_short:0:20}...${clip_short: -8}"
+		fi
+		options+=("📋  $clip_short")
+	fi
+	options+=("󰌆  $(x-i18n get edit_manual 2>/dev/null || echo "Input manually...")")
+
+	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 3)"
+	[[ -n "$choice" ]] || return 0
+
+	local new_key=""
+	if [[ "$choice" == "📋  "* ]]; then
+		new_key="$clip_val"
+	else
+		new_key="$(dmenu "$prompt" --password --lines 0)"
+	fi
+
+	new_key="${new_key#"${new_key%%[![:space:]]*}"}"
+	save_active_target "$CURRENT_SERVER" "$new_key" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE" "$CURRENT_LABEL"
+}
+
+edit_video_bitrate() {
+	local prompt choice
+	prompt="$(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate (kbps): ")"
+	local options=(
+		"4500 (1080p 30fps)"
+		"6000 (1080p 60fps)"
+		"8000 (HD+)"
+		"12000 (LAN SRT)"
+	)
+	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 5)"
+	[[ -n "$choice" ]] || return 0
+
+	local val
+	val="$(printf '%s' "$choice" | awk '{print $1}')"
+	if [[ "$val" =~ ^[0-9]+$ ]]; then
+		save_active_target "$CURRENT_SERVER" "$CURRENT_KEY" "$val" "$CURRENT_AUDIO_BITRATE" "$CURRENT_LABEL"
+	fi
+}
+
+edit_audio_bitrate() {
+	local prompt choice
+	prompt="$(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate (kbps): ")"
+	local options=(
+		"128"
+		"160 (Recommended)"
+		"192"
+		"320"
+	)
+	choice="$(printf '%s\n' "${options[@]}" | dmenu "$prompt" --lines 5)"
+	[[ -n "$choice" ]] || return 0
+
+	local val
+	val="$(printf '%s' "$choice" | awk '{print $1}')"
+	if [[ "$val" =~ ^[0-9]+$ ]]; then
+		save_active_target "$CURRENT_SERVER" "$CURRENT_KEY" "$CURRENT_BITRATE" "$val" "$CURRENT_LABEL"
+	fi
+}
+
+switch_target_menu() {
+	ensure_targets_file
+	local lines=()
+	local idx=1
+	while IFS=$'\t' read -r s k vb ab lbl; do
+		[[ -n "$s" ]] || continue
+		local prefix="  󰒓  "
+		if [[ $idx -eq 1 ]]; then
+			prefix="* 󰄬  "
+		fi
+		lines+=("${prefix}${lbl:-Target $idx} (${vb}k · ${s:0:30}...)")
+		idx=$((idx + 1))
+	done <"$TARGETS_FILE"
+
+	local prompt choice
+	prompt="$(x-i18n get livestream_cfg_switch_target 2>/dev/null || echo "Switch Target: ")"
+	choice="$(printf '%s\n' "${lines[@]}" | dmenu "$prompt" --lines 8)"
+	[[ -n "$choice" ]] || return 0
+
+	local chosen_idx=1
+	idx=1
+	for line in "${lines[@]}"; do
+		if [[ "$line" == "$choice" ]]; then
+			chosen_idx=$idx
+			break
+		fi
+		idx=$((idx + 1))
+	done
+
+	if [[ $chosen_idx -gt 1 ]]; then
+		local tmp="$TARGETS_FILE.tmp.$$"
+		sed -n "${chosen_idx}p" "$TARGETS_FILE" >"$tmp"
+		sed "${chosen_idx}d" "$TARGETS_FILE" >>"$tmp"
+		mv -f "$tmp" "$TARGETS_FILE"
+	fi
+}
+
+cmd_config() {
+	while true; do
+		get_active_target
+
+		local key_display
+		if [[ -n "$CURRENT_KEY" ]]; then
+			key_display="$(x-i18n get state_configured 2>/dev/null || echo "configured")"
+		else
+			key_display="$(x-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
+		fi
+
+		local opt_server opt_key opt_bitrate opt_audio opt_switch
+		opt_server="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): ${CURRENT_SERVER:0:35}..."
+		opt_key="$(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): $key_display"
+		opt_bitrate="$(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video"): ${CURRENT_BITRATE}k"
+		opt_audio="$(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio"): ${CURRENT_AUDIO_BITRATE}k"
+		opt_switch="$(x-i18n get livestream_cfg_switch_target 2>/dev/null || echo "Switch Platform / Presets")"
+
+		local choices=(
+			"󰒓  $opt_server"
+			"󰌆  $opt_key"
+			"󰕧  $opt_bitrate"
+			"󰓃  $opt_audio"
+			"󰌍  $opt_switch"
+		)
+
+		local prompt_text
+		prompt_text="$(x-i18n get livestream_cfg_title 2>/dev/null || echo "Live Stream Config") [$CURRENT_LABEL]: "
+		local choice
+		choice="$(printf '%s\n' "${choices[@]}" | dmenu "$prompt_text" --lines 6)"
+		[[ -n "$choice" ]] || return 0
+
+		case "$choice" in
+		*"$opt_server"*)
+			edit_server
+			;;
+		*"$opt_key"*)
+			edit_key
+			;;
+		*"$opt_bitrate"*)
+			edit_video_bitrate
+			;;
+		*"$opt_audio"*)
+			edit_audio_bitrate
+			;;
+		*"$opt_switch"*)
+			switch_target_menu
+			;;
+		esac
+	done
+}
+
 cmd_start() {
 	if is_active; then
-		notify "$(tr_msg livestream_notify_already_active)"
+		notify "$(x-i18n get livestream_notify_already_active 2>/dev/null || echo "Stream already active")"
 		return 0
 	fi
 
@@ -75,33 +334,24 @@ cmd_start() {
 		return 1
 	fi
 
-	if [[ ! -f "$CONFIG_FILE" ]]; then
-		if command -v x-live-config >/dev/null 2>&1; then
-			x-live-config
+	get_active_target
+
+	if [[ -z "$CURRENT_SERVER" || -z "$CURRENT_KEY" ]]; then
+		cmd_config
+		get_active_target
+		if [[ -z "$CURRENT_SERVER" || -z "$CURRENT_KEY" ]]; then
+			notify "$(x-i18n get livestream_notify_missing_rtmp 2>/dev/null || echo "No streaming target configured")"
+			return 1
 		fi
-		return 0
 	fi
 
-	local server key bitrate full_url
-	server="$(jq -r '.server // ""' "$CONFIG_FILE" 2>/dev/null || true)"
-	key="$(jq -r '.key // ""' "$CONFIG_FILE" 2>/dev/null || true)"
-	bitrate="$(jq -r '.bitrate // 4500' "$CONFIG_FILE" 2>/dev/null || echo 4500)"
-
-	if [[ -z "$server" || "$server" == "null" ]]; then
-		if command -v x-live-config >/dev/null 2>&1; then
-			x-live-config
-		fi
-		return 0
-	fi
-
-	if [[ -z "$key" || "$key" == "null" ]]; then
-		full_url="$server"
-	elif [[ "$key" == \?* ]]; then
-		full_url="${server}${key}"
-	elif [[ "$server" == */ ]]; then
-		full_url="${server}${key}"
+	local full_url
+	if [[ "$CURRENT_KEY" == \?* ]]; then
+		full_url="${CURRENT_SERVER}${CURRENT_KEY}"
+	elif [[ "$CURRENT_SERVER" == */ ]]; then
+		full_url="${CURRENT_SERVER}${CURRENT_KEY}"
 	else
-		full_url="${server}/${key}"
+		full_url="${CURRENT_SERVER}/${CURRENT_KEY}"
 	fi
 
 	mkdir -p "$RUNTIME_DIR"
@@ -115,7 +365,7 @@ cmd_start() {
 		-k h264 \
 		-fallback-cpu-encoding yes \
 		-bm cbr \
-		-q "$bitrate" \
+		-q "$CURRENT_BITRATE" \
 		-a "default_output|default_input" \
 		-o "$full_url" >"$LOG_FILE" 2>&1 &
 	local pid=$!
@@ -123,12 +373,12 @@ cmd_start() {
 
 	notify_waybar
 	open_danmaku
-	notify "$(tr_msg livestream_notify_started_full)"
+	notify "$(x-i18n get livestream_notify_started_full 2>/dev/null || echo "Live streaming started")"
 }
 
 cmd_stop() {
 	if ! is_active; then
-		notify "$(tr_msg livestream_notify_not_active)"
+		notify "$(x-i18n get livestream_notify_not_active 2>/dev/null || echo "No active stream")"
 		return 0
 	fi
 
@@ -151,7 +401,7 @@ cmd_stop() {
 	close_danmaku
 	restore_hardware
 	notify_waybar
-	notify "$(tr_msg livestream_notify_stopped)"
+	notify "$(x-i18n get livestream_notify_stopped 2>/dev/null || echo "Live stream stopped")"
 }
 
 cmd_toggle() {
@@ -180,9 +430,7 @@ main() {
 		cmd_start
 		;;
 	config)
-		if command -v x-live-config >/dev/null 2>&1; then
-			x-live-config
-		fi
+		cmd_config
 		;;
 	danmaku)
 		shift
@@ -201,7 +449,7 @@ main() {
 		fi
 		;;
 	*)
-		printf 'Usage: arch live [toggle | start | stop | status | restart | config | danmaku [start|stop]]\n'
+		printf 'Usage: x-live [toggle | start | stop | status | restart | config | danmaku [start|stop]]\n'
 		;;
 	esac
 }
