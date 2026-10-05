@@ -73,63 +73,125 @@ When investigating tools, CLI flags, configuration formats, or protocols:
 
 ---
 
-## 4. Desktop Bin Architecture & UI/Menu Standards
+## 4. Custom Script Architecture & Standards
 
-### 4.1 Universal CLI Convention (`x-<domain>`) & Metadata Header
-- **Single-Character Namespace**: All scripts under `dotfiles/.local/bin/` must use the unified `x-<domain>` namespace (e.g. `x-audio`, `x-wifi`, `x-blue`, `x-wall`, `x-theme`, `x-rec`, `x-cap`).
-  - Guarantees 100% collision-free isolation from system `pacman` and `AUR` binaries.
-  - Offers instant tab-completion via `x-<TAB>`.
-- **Standardized Metadata Header**: Every executable script must begin with structured metadata comments:
-  ```bash
-  # arch:summary=Manage, switch, or select desktop wallpapers
-  # arch:args=[menu | list | current | ...]
-  # arch:examples=x-wall current | x-wall set ~/Pictures/wallpapers/a.jpg
-  ```
-- **CLI Behavior**: Support `-h` / `--help`, emit structured plain text (TSV / Key-Value) in subcommands for pipeline composition, and direct errors to `stderr`.
+All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/` follow the unified `custom-<domain>` namespace and strictly adhere to the following design principles, execution invariants, and UI standards.
 
-### 4.2 Global i18n & Zero Hardcoded Strings Policy
-- **Zero Hardcoded User-Facing Text**:
-  - Notifications (`notify-send`), dmenu/fuzzel prompts (`--prompt`), menu option labels, and user-facing error messages must NEVER contain hardcoded English or Chinese strings in code.
-- **Centralized Dictionary Registry**:
-  - All user-facing strings must be declared pair-wise in `dotfiles/.config/i18n/zh-cn.json` and `dotfiles/.config/i18n/en-us.json`.
-  - Keys use structured snake_case: `<domain>_notify_title`, `<domain>_menu_prompt`, `<domain>_mode_<name>`, `<domain>_failed`.
-- **Graceful Fallback**:
-  - Always invoke with fallback protection:
-    ```bash
-    x-i18n get <key> [var=val] 2>/dev/null || echo "Fallback Text"
-    ```
+### 4.1 Design Criteria (Evaluating Script Existence & Boundaries)
 
-### 4.3 UI Selection Strategy Hierarchy (`fuzzel` > `zenity` > `custom GTK`)
-Desktop tools follow a strict three-tier UI strategy to prevent visual clutter and resource bloat:
+1. **Clear Value**: Every script must solve an explicit, tangible problem, reducing manual repetition or invocation complexity. Any new abstraction or wrapper must yield measurable maintainability or performance dividends; zero-gain wrappers are strictly prohibited.
+2. **Single Responsibility**: Each script is organized around a single, coherent goal. Logic that changes together lives together; capabilities with independent utility maintain strict boundaries without cross-domain pollution.
+3. **Composition Over Monolithic**: Prefer composing standard Unix tools and existing desktop utilities. Core capabilities expose orthogonal, atomic subcommands, leaving the workflow orchestration to pipelines or callers rather than hardcoding business flows into the underlying mechanism.
+4. **Separation of Mechanism and Policy**: Low-level scripts provide clean, reusable operational mechanisms (headless, policy-free). User preferences, visual menus, and keybindings represent presentation policy, expressed through arguments, configuration files, or higher-level workflows.
+5. **Transparent & Predictable**: Inputs (`stdin`/arguments), outputs (`stdout`), diagnostics (`stderr`), dependencies, side effects, and failure behaviors must be unambiguous. Callers can safely and correctly use the tool from its documentation and `--help` without reading source code.
+6. **Holistic Simplicity**: Restrict the overall complexity of code, external dependencies, abstraction depth, and call chains. Splitting, merging, or extracting shared helpers must always be justified by lowering long-term system maintenance costs.
 
-```
-+------------------------------------------------------------+
-| Tier 1: Fuzzel --dmenu (Default: ~90% of desktop tasks)    |
-| Keyboard-driven / Layer-shell / Instant / Theme-synced     |
-+-----------------------------+------------------------------+
-                              | Multi-field / structured forms
-+-----------------------------v------------------------------+
-| Tier 2: Zenity (Secondary: ~8% of desktop tasks)           |
-| Multi-entry forms / Password prompts / Progress / Confirm  |
-+-----------------------------+------------------------------+
-                              | Complex stateful widgets
-+-----------------------------v------------------------------+
-| Tier 3: Custom GTK / PyGObject (Last resort: ~2% of tasks) |
-| Complex stateful panels (when exceeding dmenu capabilities) |
-+------------------------------------------------------------+
-```
+---
 
-1. **Tier 1 (Default): `fuzzel --dmenu`**:
-   - Primary launcher for list filtering, mode toggling, single-line input, and quick action dispatch.
-   - Wayland-native layer-shell surface, cold-boots in < 5ms, supports Rofi extended icon protocol.
-2. **Tier 2 (Secondary): `zenity`**:
-   - Used when standard dmenu cannot express the interaction: multi-field structured forms, masked password inputs, native file pickers, or destructive operation confirmations.
-   - Relies on system C library binary without custom script runtimes.
-3. **Tier 3 (Last Resort): Custom GTK (`PyGObject`)**:
-   - Strictly reserved for complex multi-control panels with dynamic cards, sliders, and live state that exceed Fuzzel and Zenity capabilities.
-   - Must be single-file self-contained, enforce `PYTHONDONTWRITEBYTECODE=1`, and follow desktop light/dark theme tokens.
+### 4.2 Hard Invariants & Execution Rules (Implementation Redlines)
 
-### 4.4 Menu Specifications (`dmenu` / Fuzzel Interaction)
+1. **Unified Command Namespace (`custom-<domain>`)**:
+   - Public commands strictly adopt the **`custom-<domain>`** naming convention (e.g. `custom-wifi`, `custom-audio`, `custom-cap`, `custom-theme`).
+   - Guarantees 100% collision-free isolation from system `pacman` and `AUR` binaries while enabling fast, predictable tab-completion.
+2. **Standard ShellDoc Comment Header (No Private Prefixes)**:
+   - Every executable script must begin with a standardized ShellDoc / JSDoc comment block. Proprietary prefixes (such as `arch:`) are strictly prohibited:
+     ```bash
+     #!/usr/bin/env bash
+     #
+     # @name         custom-wall
+     # @summary      Manage, switch, or select desktop wallpapers
+     # @version      1.0.0
+     # @deps         fuzzel, grim, magick
+     #
+     # @description  Universal desktop wallpaper manager for River WM.
+     #               Supports random selection, local browsing, and remote search.
+     #
+     # @usage        custom-wall [options] <command> [arguments...]
+     #
+     # @options
+     #   -h, --help  Show this help message and exit
+     #   -q, --quiet Suppress notification dialogs
+     #   --json      Output machine-readable JSON to stdout
+     #
+     # @commands
+     #   menu        Open interactive selection launcher via Fuzzel
+     #   current     Print active wallpaper path to stdout
+     #   list        List all available wallpaper paths
+     #   set <file>  Set wallpaper from specified path, URL, or stdin (-)
+     #
+     # @stdin        Accepts a file path, image URL, or stream of wallpaper candidate paths
+     # @stdout       Pure text / JSON data of current wallpaper path or candidates
+     # @stderr       Diagnostic errors and non-zero exit reason
+     #
+     # @examples
+     #   custom-wall current
+     #   custom-wall set ~/Pictures/wallpaper.jpg
+     #   find ~/Pictures -name '*.png' | custom-wall set -
+     ```
+3. **Zero Hardcoding Baseline**:
+   - **Display Strings**: Prompts, menu labels, notification text, help messages, and diagnostic strings **must route 100% through `custom-i18n get <key>`**, maintained in pair-wise parity across `dotfiles/.config/i18n/zh-cn.json` and `en-us.json`. Hardcoded Chinese or English text in script source is strictly prohibited.
+   - **Absolute Paths**: Never hardcode `/home/<user>` or `~/.local`. Always dynamically resolve paths via standard environment variables (`$HOME`, `$XDG_*`).
+   - **Hardware Identifiers**: Never hardcode network interfaces (e.g. `wlan0`), audio card IDs, or display output names; auto-detect or allow CLI/config overrides.
+   - **Visual Styling & Colors**: Never hardcode hex color values (`#ffffff`). Always read tokens generated by the global semantic theme pipeline (`custom-theme`).
+   - **Magic Numbers & Timeouts**: Timeouts, retry counts, and port numbers must be declared as top-level variables with sensible defaults.
+4. **Strict XDG Base Directory Compliance**:
+   - Path resolution must use safe fallback expansions:
+     - Configuration: `${XDG_CONFIG_HOME:-$HOME/.config}/custom-<domain>`
+     - Persistent Data: `${XDG_DATA_HOME:-$HOME/.local/share}/custom-<domain>`
+     - Persistent State: `${XDG_STATE_HOME:-$HOME/.local/state}/custom-<domain>`
+     - Transient Cache: `${XDG_CACHE_HOME:-$HOME/.cache}/custom-<domain>`
+     - Runtime tmpfs: `${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-<domain>`
+   - Never create dotfiles or dotdirs directly under `$HOME`. Temporary files, sockets, and PID locks must reside in user tmpfs (`$XDG_RUNTIME_DIR`).
+5. **Full Standard I/O (`stdin` / `stdout` / `stderr`) Contract**:
+   - **stdin**: Accept streaming input when `-` is specified as an argument or when piped in non-interactive mode (`[[ ! -t 0 ]]`).
+   - **stdout**: Dedicated exclusively to valid result data or machine-readable JSON. Decorative human text is strictly forbidden; strip ANSI escape codes when stdout is redirected to a pipe (`[[ ! -t 1 ]]`).
+   - **stderr**: Dedicated exclusively to progress indicators, operational diagnostics, and error reporting.
+6. **Notification Standard (Title Strictly Matches Domain i18n)**:
+   - **Standardized Title**: The notification summary/title **must strictly be the localized domain name itself** (obtained via `custom-i18n get "domain_${DOMAIN}"`, e.g. `"Wi-Fi"`, `"Audio"`, `"Bluetooth"`, `"Wallpaper"`). Scripts must not construct arbitrary descriptive titles.
+   - **Clean Body**: Dynamic statuses, switched targets, and error details belong solely in the notification body.
+   - **Tagging & In-Place Replacement**: Always pass `-a "custom-${DOMAIN}"` and `-h "string:x-canonical-private-synchronous:${DOMAIN}"` to ensure rapid status changes update in-place without notification spam.
+7. **Language Hierarchy (`bash` > `lua` > `python`)**:
+   - **Bash** (`bash` + POSIX core utilities): Preferred for system glue, CLI dispatch, hardware controls, and menu orchestration. Instant cold startup (< 2ms), zero disk bytecode cache.
+   - **Lua** (`luajit` / `lua`): Preferred for complex data structures, high-frequency string processing, or native asynchronous IPC (e.g., D-Bus communication). Minimal memory footprint (< 2MB).
+   - **Python 3**: Strictly confined to media inference, streaming pipelines, or complex GUI panels. No third-party pip dependencies; `PYTHONDONTWRITEBYTECODE=1` enforced.
+8. **Protocol Stability**:
+   - Command names, subcommands, arguments, state machine tokens, and JSON keys are immutable protocol interfaces and must never be translated. Display text and data contracts remain strictly decoupled.
+9. **Explicit Interaction & Headless Safety**:
+   - Interactive pickers (Fuzzel) and dialogs (Zenity) are explicit interaction entrypoints. When complete parameters are supplied via CLI, the command must execute directly without popping UI.
+   - Missing parameters in a headless or non-interactive environment (non-TTY `[[ ! -t 0 ]]` or missing `$WAYLAND_DISPLAY`) must immediately exit with an error on `stderr`, never hanging or spawning GUI dialogs.
+10. **UI Strategy Hierarchy (`fuzzel` > `zenity` > `custom GTK`)**:
+    - **Tier 1 (Default: ~90% of tasks) - Fuzzel**: Single-line text input, list filtering, mode toggling, and instant execution (cold startup < 5ms, Wayland layer-shell native).
+    - **Tier 2 (Secondary: ~8% of tasks) - Zenity**: Multi-field structured forms, masked password entry, native file picking, or destructive confirmation prompts.
+    - **Tier 3 (Last Resort: ~2% of tasks) - Custom GTK Panel (`PyGObject`)**: Multi-card dynamic panels with sliders and real-time state exceeding Fuzzel/Zenity capabilities.
+11. **Query Has No Side Effects**:
+    - Commands named `get`, `list`, `status`, or `current` must be strictly read-only. They must never trigger hardware scans, network reconnects, configuration modifications, or daemon processes.
+12. **Safe Argument Handling & Injection Prevention**:
+    - Arguments pass as raw values with strict double-quoting `"$arg"`.
+    - Dynamic execution via `eval` is strictly prohibited. Never infer or reverse-engineer entity IDs from localized display labels.
+13. **Strict Exit Code Contract (POSIX / sysexits)**:
+    - `0`: Success (or clean user cancellation via Esc/Cancel with zero side effects).
+    - `1`: General operational failure (network error, connection timeout).
+    - `2`: Command-line usage error, missing argument, or illegal option.
+    - `127`: Missing required system dependency.
+    - `130`: Interrupted by `SIGINT` (Ctrl+C).
+    - Never mask critical failures with `|| true`.
+14. **Bash Execution Environment & Scoping**:
+    - Always declare `set -euo pipefail`.
+    - All internal function variables must be declared with `local`; internal variables must be lowercase.
+15. **Atomic State Mutation & Idempotence**:
+    - State writes (configurations, state JSON files) must write to a temporary file first and atomically overwrite via `mv -f`. In-place overwriting (`>` or `sed -i`) on live state is forbidden.
+    - Mutation operations must be idempotent: executing the same set command multiple times yields the identical state without errors.
+16. **Guaranteed Cleanup via Traps & Single-Instance Locking**:
+    - Scripts creating temporary files or background processes must register `trap cleanup EXIT INT TERM HUP` at entry to ensure 100% resource reclamation.
+    - Exclusive background actions (recording, live streaming, webcam overlay) must enforce single-instance locking via `flock` or `$XDG_RUNTIME_DIR/custom-<domain>/run.pid`, verify liveness with `kill -0`, and provide idempotent `toggle`, `start`, `stop`, and `status` actions.
+17. **Contract Verification & Static Analysis Gate**:
+    - Scripts must pass linters (`shellcheck` + `shfmt` for Bash, `selene` + `stylua` for Lua, `ruff` for Python).
+    - Must pass `mise run check:standards` for doc block validity, XDG conformance, and dual-language i18n parity.
+    - Must explicitly test four runtime scenarios: normal operation, invalid arguments, user cancellation, and edge-case special character inputs.
+
+---
+
+### 4.3 Menu Specifications (`dmenu` / Fuzzel Interaction)
 To maintain consistent muscle memory and visual harmony across all CLI menus:
 
 1. **Level & Cognitive Load**:

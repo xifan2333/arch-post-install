@@ -35,9 +35,10 @@ All engineering, architecture, and code decisions MUST strictly adhere to the Su
      - Priority 3: Pure Python 3 (`python3`) for complex GUI windows, audio/video inferencing, or daemons. **Strict constraints**:
        * Standard library only (zero `pip` dependencies).
        * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
-   - **Desktop Bin & UI Architecture (`x-<domain>`)**:
-     - All user-facing tools follow the unified single-character namespace `x-<domain>` directly accessible via `$PATH` with `# arch:summary=...` metadata.
-     - **Zero Hardcoded Strings**: All notifications, prompts, labels, and fail messages route through `x-i18n` with paired translations in `zh-cn.json` and `en-us.json`.
+   - **Custom Script Architecture & Invariants (`custom-<domain>`)**:
+     - All user-facing tools follow the unified namespace `custom-<domain>` directly accessible via `$PATH` with standard ShellDoc metadata (`@summary`, `@usage`, `@deps`, `@examples`).
+     - **Design Criteria**: Clear value, single responsibility, composition over monolithic, separation of mechanism & policy, transparent & predictable, holistic simplicity.
+     - **Hard Invariants**: Zero hardcoding (100% i18n, zero hardcoded paths/hex colors/magic numbers), strict XDG paths (`${XDG_*:-$HOME/...}`), full Standard I/O (`stdin/stdout/stderr`), POSIX exit codes, `set -euo pipefail`, guaranteed cleanup via traps, atomic file replacement, and notification title strictly matching domain i18n (`domain_<name>`).
      - **UI Strategy Hierarchy**: `fuzzel` (primary dmenu) > `zenity` (dialogs/forms) > custom GTK (`PyGObject`, complex panels).
      - **Menu Standards**: Equal-width state alignment, NerdFont glyphs, instant-apply interactions, and user-private tmpfs (`$XDG_RUNTIME_DIR`) for thumbnails/previews.
    - **Authoritative Research Protocol**: Check `man <tool>` -> `<tool> --help` -> Clone to `~/Code/<repo>` to inspect source code. Speculative web search is strictly prohibited when authoritative docs/code can be inspected locally.
