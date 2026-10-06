@@ -5,38 +5,58 @@ min_hk_version = "2.0.0"
 
 fail_fast = false
 
+// hk 2.4 does not recognize env -S Python or LuaJIT shebangs.
+local python_selectors = List(
+  new FileSelector { types = List("python") },
+  new FileSelector { glob = List("dotfiles/.local/bin/x-camera", "dotfiles/.local/bin/x-captions") }
+)
+local lua_selectors = List(
+  new FileSelector { types = List("lua") },
+  new FileSelector { glob = List("dotfiles/.local/bin/x-blue", "dotfiles/.local/bin/x-wifi", "dotfiles/.local/bin/x-theme") }
+)
+local zsh_selectors = List(
+  new FileSelector { types = List("zsh") },
+  new FileSelector { glob = List("dotfiles/.zshrc") }
+)
+
 local lint_steps = new Mapping<String, Step> {
-  ["ruff"] = (Builtins.ruff) { glob = List("*.py") }
-  ["ruff_format"] = (Builtins.ruff_format) { glob = List("*.py") }
+  ["ruff"] = (Builtins.ruff) {
+    glob = null
+    types = null
+    match_any = python_selectors
+    check = new CommandSpec {
+      command = new Command { argv = List("ruff", "check", "--force-exclude", "--no-fix", "{{files}}") }
+      effect = "read"
+    }
+  }
+  ["ruff_format"] = (Builtins.ruff_format) {
+    glob = null
+    types = null
+    match_any = python_selectors
+  }
 
   ["shellcheck"] = Builtins.shellcheck
-  ["shfmt"] = Builtins.shfmt
+  ["shfmt"] = (Builtins.shfmt) {
+    match_any = Builtins.shfmt.match_any + zsh_selectors
+  }
 
   ["zsh"] {
-    glob = List("*.zsh")
+    match_any = zsh_selectors
     check = new CommandSpec {
-      command = new Command { argv = List("zsh", "-n", "{{files}}") }
+      command = new Command {
+        argv = List("bash", "-c", #"for file in "$@"; do zsh -f -n -- "$file" || exit; done"#, "zsh-syntax", "{{files}}")
+      }
       effect = "read"
-    }
-    fix = new CommandSpec {
-      command = new Command { argv = List("shfmt", "-w", "{{files}}") }
-      effect = "write"
     }
   }
 
-  ["stylua"] {
-    glob = List("*.lua", "dotfiles/.local/bin/x-blue", "dotfiles/.local/bin/x-wifi")
-    check = new CommandSpec {
-      command = new Command { argv = List("stylua", "--check", "{{files}}") }
-      effect = "read"
-    }
-    fix = new CommandSpec {
-      command = new Command { argv = List("stylua", "{{files}}") }
-      effect = "write"
-    }
+  ["stylua"] = (Builtins.stylua) {
+    glob = null
+    types = null
+    match_any = lua_selectors
   }
   ["luac"] {
-    glob = List("*.lua", "dotfiles/.local/bin/x-blue", "dotfiles/.local/bin/x-wifi")
+    match_any = lua_selectors
     check = new CommandSpec {
       command = new Command { argv = List("luac", "-p", "{{files}}") }
       effect = "read"
