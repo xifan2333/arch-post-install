@@ -239,13 +239,12 @@ search_flow() {
 				printf '▶  %s\n' "$next_label"
 				printf '↩  %s\n' "$back_label"
 				for item in "${items[@]}"; do
-					local tid res iconpath label
+					local tid res iconpath
 					IFS=$'\t' read -r tid res iconpath <<<"$item"
-					label="󰋩  ${tid}  ${res}"
 					if [[ "$use_icons" -eq 1 && -n "$iconpath" && -f "$iconpath" ]]; then
-						printf '%s\0icon\x1f%s\n' "$label" "$iconpath"
+						printf '%s  %s\0icon\x1f%s\n' "$tid" "$res" "$iconpath"
 					else
-						printf '%s\n' "$label"
+						printf '󰋩  %s  %s\n' "$tid" "$res"
 					fi
 				done
 			} | dmenu "$prompt_page" --lines 12
@@ -261,7 +260,7 @@ search_flow() {
 			page=$((page + 1))
 			;;
 		*)
-			id="$(echo "$pick" | awk '{print $2}')"
+			id="$(echo "$pick" | sed 's/^󰋩[[:space:]]*//' | awk '{print $1}')"
 			if [[ -n "$id" ]]; then
 				resolve_and_download "$id"
 				break
