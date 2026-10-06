@@ -73,6 +73,7 @@ pick() (
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/font"
 fcitx_dir="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5"
+qt_template="${XDG_CONFIG_HOME:-$HOME/.config}/qt6ct/qt6ct.conf.template"
 font_size=13
 ui_font_size=11
 notification_font_size=10
@@ -147,7 +148,7 @@ reload_fonts() {
 	notify-send -a custom-font -h string:x-canonical-private-synchronous:font "$title" "$body"
 }
 write_fonts() (
-	local write_mono="$1" write_cjk="$2" initialize="$3" tmp link_tmp mono_xml cjk_xml mono_css cjk_css
+	local write_mono="$1" write_cjk="$2" initialize="$3" tmp link_tmp mono_xml cjk_xml mono_css cjk_css qt qt_dir
 	local -a cleanup
 	require fc-list xmllint flock gsettings
 	if [[ "$initialize" == true && -e "$state_dir/fonts.conf" ]]; then read_fonts write_mono write_cjk; fi
@@ -182,6 +183,16 @@ EOF
 	xmllint --nonet --noout "$tmp/fonts.conf"
 	printf '* { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/waybar.css"
 	printf 'label { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/wayhud.css"
+	# QFont's INI serialization stores one family; QSS retains the CJK fallback list.
+	printf '* { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/qt.qss"
+	for qt in qt5ct qt6ct; do
+		qt_dir="${XDG_CONFIG_HOME:-$HOME/.config}/$qt"
+		cat -- "$qt_template" >"$tmp/$qt.conf"
+		printf '\ncolor_scheme_path="%s"\n\n[Fonts]\ngeneral="%s,%s,-1,5,50,0,0,0,0,0"\nfixed="%s,%s,-1,5,50,0,0,0,0,0"\n\n[Interface]\nstylesheets="%s"\n' \
+			"$(css_escape "$qt_dir/colors.conf")" \
+			"$mono_css" "$ui_font_size" "$mono_css" "$ui_font_size" \
+			"$(css_escape "$state_dir/qt.qss")" >>"$tmp/$qt.conf"
+	done
 	# Escape Fontconfig's family/point-size separator in literal family names.
 	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
 	# The validated names use the same quote escaping in CSS and TOML strings.
@@ -199,6 +210,8 @@ EOF
 	fi
 	mv -f -- "$tmp/waybar.css" "$state_dir/waybar.css"
 	mv -f -- "$tmp/wayhud.css" "$state_dir/wayhud.css"
+	mv -f -- "$tmp/qt.qss" "$state_dir/qt.qss"
+	for qt in qt5ct qt6ct; do mv -f -- "$tmp/$qt.conf" "$state_dir/$qt.conf"; done
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
 	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
 	mv -f -- "$tmp/mako.conf" "$state_dir/mako.conf"
@@ -211,6 +224,15 @@ EOF
 		ln -s -- "$state_dir/fcitx5.conf" "$link_tmp/classicui.conf"
 		mv -Tf -- "$link_tmp/classicui.conf" "$fcitx_dir/conf/classicui.conf"
 	fi
+	# Both plugins watch their config directory, not the symlink target's directory.
+	for qt in qt5ct qt6ct; do
+		qt_dir="${XDG_CONFIG_HOME:-$HOME/.config}/$qt"
+		mkdir -p -- "$qt_dir"
+		link_tmp=$(mktemp -d "$qt_dir/.font.XXXXXX")
+		cleanup+=("$link_tmp")
+		ln -s -- "$state_dir/$qt.conf" "$link_tmp/$qt.conf"
+		mv -Tf -- "$link_tmp/$qt.conf" "$qt_dir/$qt.conf"
+	done
 	sync_toolkit_fonts "$write_mono" "$write_cjk"
 )
 list_fonts() {

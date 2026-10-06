@@ -1,0 +1,6 @@
+# Non-font appearance settings; custom-font appends generated paths and fonts.
+[Appearance]
+style=Fusion
+icon_theme=Adwaita
+standard_dialogs=gtk3
+custom_palette=true

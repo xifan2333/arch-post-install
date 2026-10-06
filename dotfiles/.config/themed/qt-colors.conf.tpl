@@ -1,0 +1,7 @@
+# QPalette roles: WindowText, Button, Light, Midlight, Dark, Mid, Text, BrightText,
+# ButtonText, Base, Window, Shadow, Highlight, HighlightedText, Link, LinkVisited,
+# AlternateBase, NoRole, ToolTipBase, ToolTipText, PlaceholderText, Accent.
+[ColorScheme]
+active_colors={{ foreground }}, {{ dark_background }}, {{ light_foreground }}, {{ foreground }}, {{ darker_background }}, {{ selection }}, {{ foreground }}, {{ light_foreground }}, {{ foreground }}, {{ background }}, {{ background }}, {{ darker_background }}, {{ selection }}, {{ foreground }}, {{ blue }}, {{ magenta }}, {{ dark_background }}, {{ background }}, {{ dark_background }}, {{ foreground }}, {{ muted }}, {{ accent }}
+inactive_colors={{ foreground }}, {{ dark_background }}, {{ light_foreground }}, {{ foreground }}, {{ darker_background }}, {{ selection }}, {{ foreground }}, {{ light_foreground }}, {{ foreground }}, {{ background }}, {{ background }}, {{ darker_background }}, {{ selection }}, {{ foreground }}, {{ blue }}, {{ magenta }}, {{ dark_background }}, {{ background }}, {{ dark_background }}, {{ foreground }}, {{ muted }}, {{ accent }}
+disabled_colors={{ muted }}, {{ dark_background }}, {{ light_foreground }}, {{ foreground }}, {{ darker_background }}, {{ selection }}, {{ muted }}, {{ light_foreground }}, {{ muted }}, {{ background }}, {{ background }}, {{ darker_background }}, {{ selection }}, {{ muted }}, {{ blue }}, {{ magenta }}, {{ dark_background }}, {{ background }}, {{ dark_background }}, {{ muted }}, {{ muted }}, {{ accent }}
