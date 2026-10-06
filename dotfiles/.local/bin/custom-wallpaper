@@ -169,7 +169,7 @@ apply_target() {
 random_local() {
 	local img
 	img="$(list_local | shuf -n 1)"
-	[[ -n "$img" ]] || fail "$(custom-i18n get wallpaper_none_found "dir=$wall_dir" 2>/dev/null || echo "No wallpapers found in $wall_dir")"
+	[[ -n "$img" ]] || fail "$(custom-i18n get wallpaper_none_found 2>/dev/null || echo "No wallpapers found")"
 	set_wallpaper "$img"
 }
 
@@ -177,7 +177,7 @@ select_local_menu() {
 	local current files
 	current="$(get_current)"
 	files="$(list_local)"
-	[[ -n "$files" ]] || fail "$(custom-i18n get wallpaper_none_found "dir=$wall_dir" 2>/dev/null || echo "No wallpapers found in $wall_dir")"
+	[[ -n "$files" ]] || fail "$(custom-i18n get wallpaper_none_found 2>/dev/null || echo "No wallpapers found")"
 
 	local use_icons=0
 	if command -v fuzzel >/dev/null 2>&1; then
