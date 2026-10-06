@@ -39,11 +39,25 @@ To ensure the UI thread never freezes or stutters:
 
 ## 4. Session Launch (No Display Manager)
 
-Following Suckless frugality, this environment avoids heavy display managers (SDDM, GDM, LightDM).
-Log in at the Linux console (TTY1). The shell profile (`~/.zprofile`) automatically starts River:
+The declarative system service
+[`arch-seamless-login.service`](../../../../mise/systemd/system/arch-seamless-login.service)
+starts the TTY1 graphical session through UWSM, without a display manager or login-shell launch hook:
 
-```sh
-if [ -z "$WAYLAND_DISPLAY" ] && [ "$XDG_VTNR" -eq 1 ]; then
-    exec river
-fi
+```ini
+ExecStart=/usr/bin/uwsm start -- river -c xrwm
 ```
+
+UWSM owns the graphical session's systemd user units and activation environment.
+`dotfiles/.config/xrwm/init` calls `uwsm finalize` as part of session initialization.
+
+Application launch and lifecycle changes must follow
+[`principles.md` §1.4](../../arch-dev/references/principles.md): independent desktop
+applications launch through `uwsm app`, graphical background services follow the
+session lifetime, and native systemd/D-Bus services retain their existing owners.
+Helpers inherit the application unit. Reload and stop operations use the native
+application interface or the correct unit and process target. Missing required
+UWSM is an error; direct-launch fallback is forbidden.
+
+This is the required architecture. Existing direct-launch entrypoints must be
+migrated when their lifecycle is changed; the policy does not imply that all
+legacy entrypoints already conform.
