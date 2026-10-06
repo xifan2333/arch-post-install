@@ -1,12 +1,8 @@
 min_version = "2026.9.4"
 
 [tools]
-"conda:zsh" = "latest"
 hk = "2"
 jq = "latest"
-lua = "latest"
-luajit = "latest"
-oxlint = "latest"
 prettier = "latest"
 ruff = "latest"
 shellcheck = "latest"

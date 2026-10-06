@@ -175,15 +175,18 @@ mise run lint
 mise run format
 ```
 
-提交前建议至少执行一次 `mise run lint`；GitHub Actions 也会对 push 和 pull request 执行同一检查。
-
-蓝牙和 Wi-Fi 的行为回归检查：
+日常修改先预览检查范围，再执行增量检查：
 
 ```bash
-mise run test:connectivity
+mise run check:plan
+mise run check:changed
 ```
 
-需要 Python 3、Bash、jq 和 LuaJIT（也支持 Lua）。测试运行真实的解释器和文本处理工具，通过隔离的 PATH 替换 D-Bus、菜单等命令，不连接真实设备。CI 同样运行这些检查；hk 对无扩展名的 `x-blue`、`x-wifi` 也执行 Lua 格式和语法检查。
+`check:changed` 是 `check` 的别名，由 hk 原生选择暂存、未暂存和未跟踪文件。`mise run fix` 修复修改过的文件；`mise run format` 修复整个仓库。
+
+任务参数可直接传给 hk，例如 `mise run check:plan --all` 查看全量匹配范围，或 `mise run check dotfiles/.local/bin/x-cap` 检查指定文件。所有脚本和配置文件均完全由官方原生 linter 原生识别，零非标自定义检查。
+
+GitHub Actions 对 push 和 pull request 执行 `mise run lint`。开发工具统一在根目录 `mise.toml` 声明，CI 由 `mise-action` 自动安装。静态检查不运行桌面命令，运行行为仍需按变更领域验证。
 
 ## 配置文件是怎么连接的
 

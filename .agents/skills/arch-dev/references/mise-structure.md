@@ -34,8 +34,6 @@ min_version = "2026.8.2"
 
 [tools]
 hk = "latest"
-lua = "latest"
-oxlint = "latest"
 prettier = "latest"
 ruff = "latest"
 shellcheck = "latest"

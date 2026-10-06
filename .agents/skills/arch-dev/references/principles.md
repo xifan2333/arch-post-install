@@ -57,12 +57,11 @@
 ### 3.3 Local-First & Resilient
 - The core desktop experience, window management, terminal, and Chinese IME (Fcitx5 + Rime Xiaohe Double Pinyin) must operate 100% offline without external network dependencies.
 
-### 3.4 Pure Script Standards (Hierarchy: `bash` > `lua` > `python`)
-- **First Priority: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, and CLI dispatchers. Instant startup (< 2ms), zero disk bytecode cache.
-- **Second Priority: Pure Lua (`luajit` / `lua`)**: Preferred for complex system IPC (e.g. D-Bus asynchronous communication in `x-blue` / `x-wifi`), real-time data structures, or multi-dimensional palette rendering (`x-theme`). Runs purely in memory with native execution speed, minimal RAM footprint (< 2 MB), and zero disk bytecode cache.
-- **Third Priority: Pure Python 3 (`python3`)**: Strictly constrained to audio/video inferencing (`x-captions`), camera PIP overlays (`x-camera`), or long-running daemons. **Strict constraints**:
+### 3.4 Pure Script Standards (Hierarchy: `bash` > `python`)
+- **First Priority: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, D-Bus communication (via native CLI tools like `bluetoothctl`, `iwctl`, `busctl`), and CLI dispatchers. Instant startup (< 2ms), zero disk bytecode cache.
+- **Second Priority: Pure Python 3 (`python3`)**: Strictly constrained to audio/video inferencing (`x-captions`), camera PIP overlays (`x-camera`), or long-running daemons. **Strict constraints**:
   - Standard library or declared system packages only (zero `pip` dependencies).
-  - Zero bytecode cache enforced via `PYTHONDONTWRITEBYTECODE=1` in environment and script shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
+  - Zero bytecode cache enforced via `sys.dont_write_bytecode = True` and runtime environment.
 
 ### 3.5 Authoritative Research & Tooling Investigation Protocol (No Speculative Searching)
 When investigating tools, CLI flags, configuration formats, or protocols:
@@ -150,10 +149,9 @@ All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/`
    - **Standardized Title**: The notification summary/title **must strictly be the localized domain name itself** (obtained via `custom-i18n get "domain_${DOMAIN}"`, e.g. `"Wi-Fi"`, `"Audio"`, `"Bluetooth"`, `"Wallpaper"`). Scripts must not construct arbitrary descriptive titles.
    - **Clean Body**: Dynamic statuses, switched targets, and error details belong solely in the notification body.
    - **Tagging & In-Place Replacement**: Always pass `-a "custom-${DOMAIN}"` and `-h "string:x-canonical-private-synchronous:${DOMAIN}"` to ensure rapid status changes update in-place without notification spam.
-7. **Language Hierarchy (`bash` > `lua` > `python`)**:
-   - **Bash** (`bash` + POSIX core utilities): Preferred for system glue, CLI dispatch, hardware controls, and menu orchestration. Instant cold startup (< 2ms), zero disk bytecode cache.
-   - **Lua** (`luajit` / `lua`): Preferred for complex data structures, high-frequency string processing, or native asynchronous IPC (e.g., D-Bus communication). Minimal memory footprint (< 2MB).
-   - **Python 3**: Strictly confined to media inference, streaming pipelines, or complex GUI panels. No third-party pip dependencies; `PYTHONDONTWRITEBYTECODE=1` enforced.
+7. **Language Hierarchy (`bash` > `python`)**:
+   - **Bash** (`bash` + POSIX core utilities): The standard primary language for all system operations, hardware controls, CLI dispatch, state collection, and menu orchestration. Instant cold startup (< 2ms), zero toolchain complexity, zero disk bytecode cache.
+   - **Python 3**: Strictly confined to media inference, streaming pipelines, or complex GUI panels where Bash cannot suffice. No third-party pip dependencies; zero bytecode cache enforced.
 8. **Protocol Stability**:
    - Command names, subcommands, arguments, state machine tokens, and JSON keys are immutable protocol interfaces and must never be translated. Display text and data contracts remain strictly decoupled.
 9. **Explicit Interaction & Headless Safety**:
@@ -185,8 +183,7 @@ All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/`
     - Scripts creating temporary files or background processes must register `trap cleanup EXIT INT TERM HUP` at entry to ensure 100% resource reclamation.
     - Exclusive background actions (recording, live streaming, webcam overlay) must enforce single-instance locking via `flock` or `$XDG_RUNTIME_DIR/custom-<domain>/run.pid`, verify liveness with `kill -0`, and provide idempotent `toggle`, `start`, `stop`, and `status` actions.
 17. **Contract Verification & Static Analysis Gate**:
-    - Scripts must pass linters (`shellcheck` + `shfmt` for Bash, `selene` + `stylua` for Lua, `ruff` for Python).
-    - Must pass `mise run check:standards` for doc block validity, XDG conformance, and dual-language i18n parity.
+    - Scripts must pass linters (`shellcheck` + `shfmt` for Bash, `ruff` for Python, `stylua` for Neovim config).
     - Must explicitly test four runtime scenarios: normal operation, invalid arguments, user cancellation, and edge-case special character inputs.
 
 ---
