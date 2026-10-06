@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+#
+# @name         custom-hardware
+# @summary      Inspect or control ThinkPad ACPI fan speed and Intel GPU frequency
+# @version      1.0.0
+# @deps         awk, grep
+#
+# @description  Hardware performance and cooling controller for ThinkPad + Intel GPU.
+#               Supports status introspection, fan speed level toggling, and GPU clock limits.
+#
+# @usage        custom-hardware [options] [command] [subcommand]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @commands
+#   status                             Print overview of fan, GPU, and CPU status (default)
+#   fan [status|auto|full|0-7|toggle]  Inspect or set ThinkPad ACPI fan speed
+#   gpu [status|cur|min|max|auto|toggle|<mhz>] Inspect or set Intel GPU frequency limits
+#
+# @stdout       Hardware metrics and operation confirmation
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-hardware
+#   custom-hardware fan auto
+#   custom-hardware gpu max
+
+set -euo pipefail
+
+FAN_PROC="/proc/acpi/ibm/fan"
+
+GPU_SYSFS="/sys/class/drm/card1"
+[[ -d "$GPU_SYSFS" ]] || GPU_SYSFS="/sys/class/drm/card0"
+MIN_NODE="$GPU_SYSFS/gt_min_freq_mhz"
+MAX_NODE="$GPU_SYSFS/gt_max_freq_mhz"
+CUR_NODE="$GPU_SYSFS/gt_cur_freq_mhz"
+RP0_NODE="$GPU_SYSFS/gt_RP0_freq_mhz"
+RPN_NODE="$GPU_SYSFS/gt_RPn_freq_mhz"
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-hardware [options] [command] [subcommand]
+
+Options:
+  -h, --help  Show this help message and exit
+
+Commands:
+  status                             Print overview of fan, GPU, and CPU status (default)
+  fan [status|auto|full|0-7|toggle]  Inspect or set ThinkPad ACPI fan speed
+  gpu [status|cur|min|max|auto|toggle|<mhz>] Inspect or set Intel GPU frequency limits
+
+Examples:
+  custom-hardware
+  custom-hardware fan auto
+  custom-hardware gpu max
+EOF
+}
+
+# ----------------- Fan Functions -----------------
+fan_status() {
+	if [[ -r "$FAN_PROC" ]]; then
+		cat "$FAN_PROC"
+	else
+		echo "Fan status: unsupported or unreadable"
+	fi
+}
+
+fan_set() {
+	local lvl="$1"
+	if [[ ! -w "$FAN_PROC" ]]; then
+		if command -v pkexec >/dev/null 2>&1; then
+			echo "level $lvl" | pkexec tee "$FAN_PROC" >/dev/null
+		elif command -v sudo >/dev/null 2>&1; then
+			echo "level $lvl" | sudo tee "$FAN_PROC" >/dev/null
+		else
+			echo "Error: root permission required to write to $FAN_PROC" >&2
+			return 1
+		fi
+	else
+		echo "level $lvl" >"$FAN_PROC"
+	fi
+}
+
+fan_toggle() {
+	local lvl
+	lvl=$(grep "^level:" "$FAN_PROC" 2>/dev/null | awk '{print $2}' || echo "auto")
+	if [[ "$lvl" =~ (disengaged|full-speed|64|7) ]]; then
+		fan_set "auto"
+		echo "ThinkPad fan set to auto"
+	else
+		fan_set "disengaged"
+		echo "ThinkPad fan set to disengaged (max speed)"
+	fi
+}
+
+handle_fan() {
+	local sub="${1:-status}"
+	case "$sub" in
+	status)
+		fan_status
+		;;
+	auto)
+		fan_set "auto"
+		echo "ThinkPad fan set to auto"
+		;;
+	full | full-speed | max | disengaged)
+		fan_set "disengaged"
+		echo "ThinkPad fan set to full speed"
+		;;
+	toggle)
+		fan_toggle
+		;;
+	[0-7])
+		fan_set "$sub"
+		echo "ThinkPad fan set to level $sub"
+		;;
+	*)
+		echo "Usage: custom-hardware fan [status | auto | full | toggle | 0-7]" >&2
+		exit 2
+		;;
+	esac
+}
+
+# ----------------- GPU Functions -----------------
+gpu_get_cur() { cat "$CUR_NODE" 2>/dev/null || echo "0"; }
+gpu_get_min() { cat "$MIN_NODE" 2>/dev/null || echo "0"; }
+gpu_get_max() { cat "$MAX_NODE" 2>/dev/null || echo "0"; }
+gpu_get_limit_max() { cat "$RP0_NODE" 2>/dev/null || echo "1300"; }
+gpu_get_limit_min() { cat "$RPN_NODE" 2>/dev/null || echo "650"; }
+
+gpu_set_min() {
+	local target="$1"
+	if [[ -w "$MIN_NODE" ]]; then
+		echo "$target" >"$MIN_NODE"
+	elif command -v pkexec >/dev/null 2>&1; then
+		echo "$target" | pkexec tee "$MIN_NODE" >/dev/null
+	elif command -v sudo >/dev/null 2>&1; then
+		echo "$target" | sudo tee "$MIN_NODE" >/dev/null
+	else
+		echo "Error: root permission required to write to $MIN_NODE" >&2
+		return 1
+	fi
+}
+
+gpu_toggle() {
+	local cur_min max_limit min_limit
+	cur_min=$(gpu_get_min)
+	max_limit=$(gpu_get_limit_max)
+	min_limit=$(gpu_get_limit_min)
+
+	if [[ "$cur_min" -ge "$max_limit" ]]; then
+		gpu_set_min "$min_limit"
+		echo "GPU clock restored to auto (${min_limit} MHz)"
+	else
+		gpu_set_min "$max_limit"
+		echo "GPU locked to maximum performance (${max_limit} MHz)"
+	fi
+}
+
+handle_gpu() {
+	local sub="${1:-status}"
+	case "$sub" in
+	status)
+		echo "GPU Current: $(gpu_get_cur) MHz"
+		echo "GPU Min:     $(gpu_get_min) MHz"
+		echo "GPU Max:     $(gpu_get_max) MHz"
+		;;
+	cur)
+		gpu_get_cur
+		;;
+	min)
+		gpu_get_min
+		;;
+	max)
+		local limit
+		limit=$(gpu_get_limit_max)
+		gpu_set_min "$limit"
+		echo "GPU locked to maximum (${limit} MHz)"
+		;;
+	auto)
+		local limit
+		limit=$(gpu_get_limit_min)
+		gpu_set_min "$limit"
+		echo "GPU restored to auto (${limit} MHz)"
+		;;
+	toggle)
+		gpu_toggle
+		;;
+	[0-9]*)
+		gpu_set_min "$sub"
+		echo "GPU min frequency set to ${sub} MHz"
+		;;
+	*)
+		echo "Usage: custom-hardware gpu [status | cur | max | auto | toggle | <mhz>]" >&2
+		exit 2
+		;;
+	esac
+}
+
+# ----------------- Hardware Overview -----------------
+hw_overview() {
+	echo "=== Hardware Overview ==="
+	if [[ -r "$FAN_PROC" ]]; then
+		local fan_spd fan_lvl
+		fan_spd=$(awk '/^speed:/{print $2}' "$FAN_PROC" 2>/dev/null || echo "0")
+		fan_lvl=$(awk '/^level:/{print $2}' "$FAN_PROC" 2>/dev/null || echo "auto")
+		echo "Fan Speed:   ${fan_spd} RPM (Level: ${fan_lvl})"
+	fi
+	if [[ -d "$GPU_SYSFS" ]]; then
+		echo "GPU Clock:   $(gpu_get_cur) MHz (Min: $(gpu_get_min) MHz, Max: $(gpu_get_max) MHz)"
+	fi
+	for tz in /sys/class/thermal/thermal_zone*/temp; do
+		if [[ -r "$tz" ]]; then
+			local t
+			t=$(cat "$tz" 2>/dev/null || echo "0")
+			if [[ "$t" -gt 0 ]]; then
+				echo "CPU Temp:    $((t / 1000))°C"
+				break
+			fi
+		fi
+	done
+}
+
+main() {
+	local cmd="${1:-status}"
+	case "$cmd" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	status)
+		hw_overview
+		;;
+	fan)
+		shift
+		handle_fan "${1:-status}"
+		;;
+	gpu)
+		shift
+		handle_gpu "${1:-status}"
+		;;
+	*)
+		echo "Error: Unknown command '$cmd' (run 'custom-hardware --help' for usage)" >&2
+		exit 2
+		;;
+	esac
+}
+
+main "$@"
