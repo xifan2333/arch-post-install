@@ -3,7 +3,7 @@
 # @name         custom-font
 # @summary      Manage, switch, or interactively configure monospace and CJK fallback fonts
 # @version      1.0.0
-# @deps         fc-list, fc-cache, xmllint, fuzzel, notify-send
+# @deps         fc-list, fc-cache, xmllint, gsettings, fuzzel, notify-send, makoctl, fcitx5-remote
 #
 # @description  Universal typography manager for River WM desktop.
 #               Supports monospace/CJK font selection, atomic configuration rendering, and live reloading.
@@ -73,6 +73,8 @@ pick() (
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/font"
 font_size=13
+ui_font_size=11
+notification_font_size=10
 
 read_fonts() {
 	local -n selected_mono="$1" selected_cjk="$2"
@@ -87,8 +89,7 @@ read_fonts() {
 	[[ -n "$selected_mono" && -n "$selected_cjk" ]] || die 1 cli_unavailable "name=$state_dir/fonts.conf"
 }
 validate_font() {
-	# Newlines and Fontconfig pattern delimiters cannot be represented in Fuzzel's font field.
-	[[ -n "$1" && "$1" != *[$'\n\r\t:=,\\']* ]] || usage_error
+	font_argument "$1"
 	local installed family
 	installed=$(fc-list --format '%{family}\n')
 	installed=$(tr ',' '\n' <<<"$installed")
@@ -109,11 +110,32 @@ css_escape() {
 	printf '%s' "$value"
 }
 font_argument() {
-	[[ -n "$1" && "$1" != *[$'\n\r\t:=,\\']* ]] || usage_error
+	# Keep names representable in the line-based config formats and Fuzzel list.
+	[[ -n "$1" && "$1" != *[[:cntrl:]:=,\\]* ]] || usage_error
+}
+sync_toolkit_fonts() {
+	local family="$1, $2" key value
+	# GSettings uses quoted GVariant strings, not shell quoting.
+	value="'${family//\'/\\\'} $ui_font_size'"
+	for key in font-name monospace-font-name document-font-name; do
+		gsettings set org.gnome.desktop.interface "$key" "$value"
+	done
+	gsettings set org.gnome.desktop.wm.preferences titlebar-font "$value"
+}
+reload_if_running() {
+	local process="$1" rc
+	shift
+	if pgrep -u "$UID" -x "$process" >/dev/null; then
+		require "$1"
+		"$@"
+	else
+		rc=$?
+		((rc == 1)) || die 1 cli_unavailable "name=$process"
+	fi
 }
 reload_fonts() {
 	local rc title body
-	require pkill fc-cache notify-send
+	require pkill pgrep fc-cache notify-send
 	fc-cache
 	if pkill -u "$UID" -SIGUSR2 -x waybar; then
 		:
@@ -121,13 +143,21 @@ reload_fonts() {
 		rc=$?
 		((rc == 1)) || die 1 cli_unavailable name=waybar
 	fi
+	if pkill -u "$UID" -SIGUSR1 -x ftty; then
+		:
+	else
+		rc=$?
+		((rc == 1)) || die 1 cli_unavailable name=ftty
+	fi
+	reload_if_running mako makoctl reload
+	reload_if_running fcitx5 fcitx5-remote -r
 	title=$(t domain_font)
 	body=$(t font_switched "font=$1")
 	notify-send -a custom-font -h string:x-canonical-private-synchronous:font "$title" "$body"
 }
 write_fonts() (
 	local write_mono="$1" write_cjk="$2" initialize="$3" tmp mono_xml cjk_xml mono_css cjk_css
-	require fc-list xmllint flock
+	require fc-list xmllint flock gsettings
 	if [[ "$initialize" == true && -e "$state_dir/fonts.conf" ]]; then read_fonts write_mono write_cjk; fi
 	validate_font "$write_mono"
 	validate_font "$write_cjk"
@@ -158,13 +188,20 @@ write_fonts() (
 EOF
 	xmllint --nonet --noout "$tmp/fonts.conf"
 	printf '* { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/waybar.css"
-	printf '[main]\nfont=%s:size=%s\n' "$write_cjk" "$font_size" >"$tmp/fuzzel.ini"
+	# Escape Fontconfig's family/point-size separator in literal family names.
+	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
+	# The validated names use the same quote escaping in CSS and TOML strings.
+	printf '[font]\nfamily = ["%s", "%s", "Noto Color Emoji"]\n' "$mono_css" "$cjk_css" >"$tmp/ftty.toml"
+	printf 'font=%s,%s %s\n' "$write_mono" "$write_cjk" "$notification_font_size" >"$tmp/mako.conf"
 	# On init the existing authority is preserved byte for byte; only regenerate derivatives.
 	if [[ "$initialize" != true || ! -e "$state_dir/fonts.conf" ]]; then
 		mv -f -- "$tmp/fonts.conf" "$state_dir/fonts.conf"
 	fi
 	mv -f -- "$tmp/waybar.css" "$state_dir/waybar.css"
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
+	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
+	mv -f -- "$tmp/mako.conf" "$state_dir/mako.conf"
+	sync_toolkit_fonts "$write_mono" "$write_cjk"
 )
 list_fonts() {
 	local kind="$1" fonts

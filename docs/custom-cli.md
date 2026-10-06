@@ -34,9 +34,16 @@ neither a dictionary nor jq.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
-  `fuzzel.ini` and `waybar.css`. Malformed authority is an error. Bootstrap calls
-  `init`; `set` changes the pair and reloads Waybar. Omitting CJK in `set` keeps
-  the stored CJK selection.
+  `fuzzel.ini`, `ftty.toml`, `mako.conf`, and `waybar.css`. Malformed authority is
+  an error. These consumers use mono first and CJK for missing glyphs. Fontconfig
+  generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
+  share the same selection, including the lock screen, HUDs, IME, Satty, and
+  qutebrowser UI. Both `init` and `set` synchronize GTK/Qt desktop defaults via
+  GSettings (requires a user D-Bus session); `set` reloads Waybar, ftty, Mako,
+  and Fcitx5 when running. Fuzzel reads the new pair when a menu opens.
+  Reopen existing windows/HUDs without font reload support. App-specific or
+  website-specific fonts take precedence over generic defaults. Omitting CJK
+  in `set` keeps the stored CJK selection.
 - I18n dictionaries: `${XDG_CONFIG_HOME:-$HOME/.config}/i18n/{en-us,zh-cn}.json`.
   Chinese locales use zh-cn, English/C/POSIX use en-us. Other locales and missing
   dictionaries or keys are errors.
@@ -49,10 +56,12 @@ neither a dictionary nor jq.
   or empty-result failures report an error and leave the current wallpaper in
   place; local images are not used as a fallback.
 
-Fontconfig, Fuzzel, and Waybar configuration sources are `.tera` files in the
+Fontconfig, Fuzzel, ftty, Mako, and Waybar configuration sources are `.tera` files in the
 repository. Mise renders regular configuration files with absolute state paths.
 After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
 than the rendered target. The whole-tree mapping excludes template sources.
+Mako includes independent font and theme fragments; switching themes preserves
+the font selection. Qt inherits the GTK font through `QT_QPA_PLATFORMTHEME=gtk3`.
 
 Apply the current dotfiles and initialize missing font state:
 

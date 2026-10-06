@@ -101,7 +101,7 @@
   "audio_source_switched": "已切换麦克风输入至：{dev}",
   "audio_no_devices": "未检测到可用音频设备",
   "font_title": "字体设置",
-  "font_switched": "等宽主字体已切换为：{font}",
+  "font_switched": "桌面主字体已切换为：{font}；不支持热重载的窗口请重新打开。",
   "font_prompt_mono": "选择等宽主字体: ",
   "font_prompt_cjk": "选择 CJK 字体: ",
   "theme_notify_title": "主题",

@@ -1,0 +1,8 @@
+{% if env.XDG_STATE_HOME is defined and env.XDG_STATE_HOME != "" %}{% set state = env.XDG_STATE_HOME %}{% else %}{% set state = env.HOME ~ "/.local/state" %}{% endif -%}
+# Main user configuration for ftty terminal emulator
+# Managed by arch-post-install
+
+include = [{{ (state ~ "/theme/ftty.toml") | json_encode() }}, {{ (state ~ "/font/ftty.toml") | json_encode() }}]
+
+[window]
+padding = [8, 6]

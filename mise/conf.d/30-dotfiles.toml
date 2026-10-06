@@ -15,4 +15,8 @@ dotfiles.default_mode = "symlink-each"
 
 "~/.config/fuzzel/fuzzel.ini" = { source = "../../dotfiles/.config/fuzzel/fuzzel.ini.tera", mode = "template" }
 
+"~/.config/ftty/ftty.toml" = { source = "../../dotfiles/.config/ftty/ftty.toml.tera", mode = "template" }
+
+"~/.config/mako/config" = { source = "../../dotfiles/.config/mako/config.tera", mode = "template" }
+
 "~/.config/waybar/style.css" = { source = "../../dotfiles/.config/waybar/style.css.tera", mode = "template" }

@@ -269,7 +269,7 @@ local function ensure_gtk_theme(state_gtk, colors)
     os.execute(string.format("ln -sf %q %q", state_gtk, target_css))
 
     local settings_content = string.format(
-      "[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-theme-name=%s\ngtk-icon-theme-name=%s\ngtk-decoration-layout=\n",
+      "[Settings]\ngtk-application-prefer-dark-theme=%d\ngtk-theme-name=%s\ngtk-icon-theme-name=%s\ngtk-decoration-layout=\ngtk-font-name=monospace 11\n",
       gtk_prefer_dark,
       gtk_theme,
       gtk_icon_theme
@@ -304,15 +304,6 @@ local function ensure_gtk_theme(state_gtk, colors)
       "gsettings set org.gnome.desktop.wm.preferences button-layout '' 2>/dev/null || true"
     )
   end
-end
-
-local function ensure_mako_theme(state_mako)
-  if not file_exists(state_mako) then
-    return
-  end
-  local mako_dir = xdg_config .. "/mako"
-  os.execute(string.format("mkdir -p %q", mako_dir))
-  os.execute(string.format("ln -sf %q %q", state_mako, mako_dir .. "/config"))
 end
 
 local function ensure_btop_theme(state_btop)
@@ -527,7 +518,6 @@ local function apply_theme(theme_name)
   ensure_fcitx5_theme(theme_state .. "/fcitx5-theme.conf")
   ensure_neovim_theme(theme_state .. "/neovim.lua")
   ensure_gtk_theme(theme_state .. "/gtk.css", colors)
-  ensure_mako_theme(theme_state .. "/mako.conf")
   ensure_btop_theme(theme_state .. "/btop.theme")
   ensure_wayhud_theme(theme_state .. "/wayhud.css")
   assemble_herdr_theme(colors, theme_state)

@@ -44,6 +44,9 @@
 # Font state parsing and selection
 "pacman:libxml2" = "latest"
 "pacman:fontconfig" = "latest"
+"pacman:glib2" = "latest"
+"pacman:dconf" = "latest"
+"pacman:gsettings-desktop-schemas" = "latest"
 
 # Interactive UI & Notifications
 "pacman:fuzzel" = "latest"

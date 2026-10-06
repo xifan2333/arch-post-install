@@ -16,7 +16,7 @@ c.url.start_pages = ["https://gemini.google.com"]
 
 # Fonts
 c.fonts.default_size = "12pt"
-c.fonts.default_family = "CaskaydiaMono Nerd Font Mono, Sarasa Mono SC"
+c.fonts.default_family = "monospace"
 
 # Prefer Chinese UI content
 c.content.headers.accept_language = "zh-CN,zh;q=0.9,en;q=0.8"

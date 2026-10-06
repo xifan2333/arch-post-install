@@ -3,7 +3,7 @@ Name=Custom
 ScaleWithDPI=True
 
 [InputPanel]
-Font=Sans 12
+Font=monospace 12
 NormalColor={{ foreground }}
 HighlightCandidateColor={{ accent }}
 HighlightColor={{ foreground }}
