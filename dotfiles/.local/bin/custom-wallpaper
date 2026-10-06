@@ -3,7 +3,7 @@
 # @name         custom-wallpaper
 # @summary      Manage, switch, or select desktop wallpapers
 # @version      1.0.0
-# @deps         swaybg, uwsm, systemctl, magick, fuzzel
+# @deps         swaybg, uwsm, systemctl, magick, fuzzel, custom-wallhaven
 #
 # @description  Universal desktop wallpaper manager for River WM.
 #               Supports random selection, local browsing, and remote search via Wallhaven.
@@ -17,7 +17,7 @@
 #   menu                    Open interactive wallpaper picker via Fuzzel (default)
 #   current | get           Print path of active wallpaper
 #   list                    List all local wallpaper image files
-#   random                  Select and apply a random wallpaper from local directory
+#   random                  Fetch and apply a random pixel-art wallpaper from Wallhaven
 #   search [query]          Search and select wallpaper via custom-wallhaven
 #   set --image-stdin      Apply raw image bytes from stdin
 #   set <path|url|-|id>     Set wallpaper from path, URL, stdin stream (-), or ID
@@ -76,6 +76,7 @@ pick() (
 )
 
 wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+random_query='id:2321' # Wallhaven's exact pixel art tag.
 startup_delay=0.2
 thumbnail_size=96x96
 
@@ -185,12 +186,11 @@ apply_target() (
 	[[ "$path" == "$tmp/image" ]] || die 1 cli_unavailable name=download
 	set_wallpaper "$path"
 )
-random_local() {
-	local files image
-	files=$(list_local)
-	[[ -n "$files" ]] || return 0
-	image=$(shuf -n 1 <<<"$files")
-	set_wallpaper "$image"
+random_wallpaper() {
+	local path
+	require custom-wallhaven
+	path=$(custom-wallhaven random "$random_query")
+	set_wallpaper "$path"
 }
 select_local() (
 	local files current file tmp i=0 prompt choice index prefix
@@ -243,7 +243,7 @@ menu() {
 	index=$((10#$choice))
 	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 	((index < ${#actions[@]})) || die 1 cli_picker_failed
-	case "${actions[$index]}" in local) select_local ;; random) random_local ;; search) search '' ;; esac
+	case "${actions[$index]}" in local) select_local ;; random) random_wallpaper ;; search) search '' ;; esac
 }
 main() {
 	local action="${1:-menu}"
@@ -259,7 +259,7 @@ main() {
 	esac
 	case "$action" in
 	-h | --help) t help_wallpaper ;; menu) menu ;; current | get) get_current ;; list) list_local ;;
-	random) random_local ;; search) search "${1:-}" ;; set) apply_target "$1" ;;
+	random) random_wallpaper ;; search) search "${1:-}" ;; set) apply_target "$1" ;;
 	esac
 }
 main "$@"

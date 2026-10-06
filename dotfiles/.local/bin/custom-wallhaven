@@ -16,13 +16,15 @@
 # @commands
 #   menu [query]            Open interactive fuzzy search and picker via Fuzzel (default)
 #   search <query>          Search Wallhaven API and print candidate IDs to stdout
+#   random <query>          Download a random matching wallpaper and print its saved path
 #   download <id|url> [-o <path|->] Download to a file or byte stream
 #
-# @stdout       Image bytes (redirected download), saved path (menu/-o), or candidate IDs
+# @stdout       Image bytes (redirected download), saved path (menu/random/-o), or candidate IDs
 # @stderr       Diagnostic errors and non-zero exit reason
 #
 # @examples
 #   custom-wallhaven search anime
+#   custom-wallhaven random 'pixel art'
 #   custom-wallhaven download 852109
 #   custom-wallhaven menu cyberpunk
 
@@ -88,7 +90,7 @@ api() {
 search_json() {
 	api search --data-urlencode "q=$1" --data-urlencode "page=$2" \
 		--data-urlencode categories=111 --data-urlencode purity=100 \
-		--data-urlencode sorting=date_added --data-urlencode order=desc --data-urlencode atleast=1920x1080 |
+		--data-urlencode "sorting=$3" --data-urlencode order=desc --data-urlencode atleast=1920x1080 |
 		jq -ce 'if (.data | type == "array") then . else error("invalid Wallhaven response") end'
 }
 resolve_url() {
@@ -125,6 +127,14 @@ download() (
 	mv -f -- "$tmp" "$output"
 	printf '%s\n' "$output"
 )
+random() {
+	local response url
+	require curl jq
+	response=$(search_json "$1" 1 random)
+	[[ $(jq '.data | length' <<<"$response") != 0 ]] || die 1 wallpaper_none_found
+	url=$(jq -er '.data[0].path | select(type == "string" and test("^https?://"))' <<<"$response")
+	download "$url" ''
+}
 menu() (
 	local query="$1" page=1 response count last index choice prompt label tmp entry id resolution thumb i
 	local -a entries=() ids=() thumbnails=()
@@ -138,7 +148,7 @@ menu() (
 	tmp=$(mktemp -d "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-wallhaven.XXXXXX")
 	trap 'rm -rf -- "$tmp"' EXIT
 	while :; do
-		response=$(search_json "$query" "$page")
+		response=$(search_json "$query" "$page" date_added)
 		count=$(jq '.data | length' <<<"$response")
 		((count)) || return 0
 		last=$(jq -er '.meta.last_page | select(type == "number" and . >= 1)' <<<"$response")
@@ -215,8 +225,12 @@ main() {
 	search)
 		(($# == 1)) && [[ -n "$1" ]] || usage_error
 		require curl jq
-		response=$(search_json "$1" 1)
+		response=$(search_json "$1" 1 date_added)
 		jq -r '.data[] | .id | if type == "string" then . else error("invalid wallpaper id") end' <<<"$response"
+		;;
+	random)
+		(($# == 1)) && [[ -n "$1" ]] || usage_error
+		random "$1"
 		;;
 	download)
 		(($# == 1 || $# == 3)) || usage_error

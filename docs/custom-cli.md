@@ -43,8 +43,11 @@ neither a dictionary nor jq.
 - Wallpapers, screenshots, and recordings are permanent user media, stored under
   XDG Pictures/Videos directories. `custom-wallpaper current` reads current-user
   swaybg arguments, preserving spaces; no running image yields empty output,
-  and conflicting images yield an error. Session startup explicitly chooses a
-  random image from the local wallpaper collection.
+  and conflicting images yield an error. `custom-wallpaper random`, the menu's
+  random action, and session startup fetch and apply a random pixel-art image
+  from Wallhaven (exact tag `id:2321`, SFW, at least 1920×1080). Network, download,
+  or empty-result failures report an error and leave the current wallpaper in
+  place; local images are not used as a fallback.
 
 Fontconfig, Fuzzel, and Waybar configuration sources are `.tera` files in the
 repository. Mise renders regular configuration files with absolute state paths.
@@ -67,9 +70,10 @@ An image sent to stdout does not also modify the clipboard or create a screensho
 directory. Saved screenshots print their path and copy the completed image.
 
 `custom-wallhaven download` streams image bytes when stdout is redirected;
-`-o <path>` explicitly saves a file and prints that path. `menu` always saves the
-selected image and prints its path. A failed download leaves an existing target
-untouched.
+`-o <path>` explicitly saves a file and prints that path. `menu` and
+`random <query>` always save the selected image and print its path, even when
+stdout is redirected. `random` uses Wallhaven's random sorting and fails when
+no images match. A failed download leaves an existing target untouched.
 
 ```bash
 custom-capture full -o - | custom-ocr -
