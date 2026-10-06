@@ -34,11 +34,8 @@ set -euo pipefail
 
 DOMAIN="record"
 
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-record"
-REC_PID_FILE="$RUNTIME_DIR/pid"
-REC_TARGET_FILE="$RUNTIME_DIR/current_file"
 REC_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
-mkdir -p "$RUNTIME_DIR" "$REC_VIDEOS_DIR"
+mkdir -p "$REC_VIDEOS_DIR"
 
 show_help() {
 	cat <<'EOF'
@@ -77,35 +74,19 @@ notify_waybar() {
 }
 
 is_recording() {
-	if [[ -f "$REC_PID_FILE" ]]; then
-		local pid
-		pid="$(cat "$REC_PID_FILE" 2>/dev/null || true)"
-		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-			return 0
-		fi
-	fi
-	return 1
+	pgrep -x gpu-screen-recorder >/dev/null 2>&1
 }
 
 rec_stop() {
 	if is_recording; then
-		local pid filepath=""
-		pid="$(cat "$REC_PID_FILE" 2>/dev/null || true)"
-		[[ -f "$REC_TARGET_FILE" ]] && filepath="$(cat "$REC_TARGET_FILE" 2>/dev/null || true)"
-		if [[ -n "$pid" ]]; then
-			kill -SIGINT "$pid" 2>/dev/null || true
-			local timeout=50
-			while kill -0 "$pid" 2>/dev/null && ((timeout > 0)); do
-				sleep 0.1
-				timeout=$((timeout - 1))
-			done
-		fi
-		rm -f "$REC_PID_FILE" "$REC_TARGET_FILE"
+		pkill -SIGINT -x gpu-screen-recorder 2>/dev/null || true
+		local timeout=50
+		while is_recording && ((timeout > 0)); do
+			sleep 0.1
+			timeout=$((timeout - 1))
+		done
 		notify_rec "$(custom-i18n get screenrecord_notify_stopped 2>/dev/null || echo "Recording stopped")"
 		notify_waybar
-		if [[ -n "$filepath" ]]; then
-			printf '%s\n' "$filepath"
-		fi
 	fi
 }
 
@@ -114,13 +95,11 @@ rec_start_full() {
 	local filename filepath
 	filename="screenrecord-$(date +%Y%m%d_%H%M%S).mp4"
 	filepath="$REC_VIDEOS_DIR/$filename"
-	printf '%s\n' "$filepath" >"$REC_TARGET_FILE"
 
 	gpu-screen-recorder -w screen -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
-	local pid=$!
-	printf '%s\n' "$pid" >"$REC_PID_FILE"
 	notify_rec "$(custom-i18n get screenrecord_notify_started_full 2>/dev/null || echo "Started full recording")"
 	notify_waybar
+	printf '%s\n' "$filepath"
 }
 
 rec_start_area() {
@@ -131,13 +110,11 @@ rec_start_area() {
 
 	filename="screenrecord-$(date +%Y%m%d_%H%M%S).mp4"
 	filepath="$REC_VIDEOS_DIR/$filename"
-	printf '%s\n' "$filepath" >"$REC_TARGET_FILE"
 
 	gpu-screen-recorder -w "$geometry" -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
-	local pid=$!
-	printf '%s\n' "$pid" >"$REC_PID_FILE"
 	notify_rec "$(custom-i18n get screenrecord_notify_started_area 2>/dev/null || echo "Started area recording")"
 	notify_waybar
+	printf '%s\n' "$filepath"
 }
 
 rec_toggle() {
@@ -152,7 +129,7 @@ rec_status() {
 	local mode="${1:-text}"
 	if is_recording; then
 		local pid dur
-		pid="$(cat "$REC_PID_FILE" 2>/dev/null || echo 0)"
+		pid="$(pgrep -x gpu-screen-recorder 2>/dev/null | head -n 1 || echo 0)"
 		dur=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]' || echo "0")
 		local mins=$((dur / 60)) secs=$((dur % 60))
 		local dur_fmt

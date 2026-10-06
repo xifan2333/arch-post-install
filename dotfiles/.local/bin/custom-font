@@ -71,16 +71,16 @@ atomic_write() {
 }
 
 get_current_mono() {
-	if [[ -f "$state_dir/mono.name" ]]; then
-		cat "$state_dir/mono.name"
+	if [[ -f "$state_dir/fonts.conf" ]]; then
+		awk -F'[<>]' '/<edit.*binding="strong">/{flag=1} flag && /<string>/{print $3; exit}' "$state_dir/fonts.conf"
 	else
 		fc-match monospace -f '%{family}\n' 2>/dev/null | head -n1 | cut -d, -f1
 	fi
 }
 
 get_current_cjk() {
-	if [[ -f "$state_dir/cjk.name" ]]; then
-		cat "$state_dir/cjk.name"
+	if [[ -f "$state_dir/fonts.conf" ]]; then
+		awk -F'[<>]' '/<prefer>/{flag=1} flag && /<family>/{print $3; exit}' "$state_dir/fonts.conf"
 	else
 		printf 'Sarasa Mono SC\n'
 	fi
@@ -201,11 +201,7 @@ EOF
 font=$cjk_font:size=13
 EOF
 
-	# 4. State: Persist font names for quick introspection
-	printf '%s\n' "$mono_font" | atomic_write "$state_dir/mono.name"
-	printf '%s\n' "$cjk_font" | atomic_write "$state_dir/cjk.name"
-
-	# 5. Broadcast live reloads
+	# 4. Broadcast live reloads
 	pkill -SIGUSR2 waybar 2>/dev/null || true
 	fc-cache 2>/dev/null || true
 

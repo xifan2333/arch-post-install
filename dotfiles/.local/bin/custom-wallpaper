@@ -36,8 +36,7 @@ set -euo pipefail
 DOMAIN="wallpaper"
 
 wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
-state_file="${XDG_STATE_HOME:-$HOME/.local/state}/custom-wallpaper/current"
-mkdir -p "$wall_dir" "$(dirname "$state_file")"
+mkdir -p "$wall_dir"
 
 show_help() {
 	cat <<'EOF'
@@ -90,7 +89,7 @@ dmenu() {
 }
 
 set_wallpaper() {
-	local img="$1" tmp old_pids
+	local img="$1" old_pids
 	[[ -f "$img" ]] || fail "$(custom-i18n get wallpaper_file_not_found "file=$img" 2>/dev/null || echo "Wallpaper file not found: $img")"
 
 	if [[ "$img" != "$wall_dir"/* ]]; then
@@ -118,18 +117,23 @@ set_wallpaper() {
 		kill "$old_pids" 2>/dev/null || true
 	fi
 
-	tmp="$state_file.tmp.$$"
-	printf '%s\n' "$img" >"$tmp"
-	mv -f "$tmp" "$state_file"
 	printf '%s\n' "$img"
 }
 
 get_current() {
-	if [[ -f "$state_file" ]]; then
-		cat "$state_file"
-	elif [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current" ]]; then
-		cat "${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
+	local pids
+	pids="$(pgrep -a swaybg 2>/dev/null || true)"
+	if [[ -n "$pids" ]]; then
+		local active
+		active="$(echo "$pids" | grep -oP '(?<=-i )[^ ]+' | head -n 1 || true)"
+		if [[ -n "$active" && -f "$active" ]]; then
+			printf '%s\n' "$active"
+			return 0
+		fi
 	fi
+	local fallback
+	fallback="$(find "$wall_dir" -maxdepth 1 -name "wallpaper.*" 2>/dev/null | head -n 1 || true)"
+	[[ -n "$fallback" ]] && printf '%s\n' "$fallback"
 }
 
 list_local() {

@@ -40,9 +40,6 @@ DOMAIN="capture"
 save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
 mkdir -p "$save_dir"
 
-runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-capture"
-mkdir -p "$runtime_dir"
-
 show_help() {
 	cat <<'EOF'
 Usage: custom-capture [options] [command] [arguments...]
@@ -159,7 +156,8 @@ cap_preview() {
 	local geometry
 	geometry="$(slurp 2>/dev/null || true)"
 	[[ -n "$geometry" ]] || exit 0
-	local preview_path="$runtime_dir/preview-$$.png"
+	local preview_path
+	preview_path="$(mktemp -t preview-XXXXXX.png)"
 	grim -g "$geometry" "$preview_path"
 	wl-copy <"$preview_path"
 	imv "$preview_path" 2>/dev/null &
