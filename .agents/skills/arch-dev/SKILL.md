@@ -29,12 +29,9 @@ All engineering, architecture, and code decisions MUST strictly adhere to the Su
 3. **Engineering & Delivery Standards**:
    - **Absolute Self-Containment**: Zero external framework lock-in. No non-standard proprietary directories.
    - **100% Declarative & Idempotent**: Pure `mise bootstrap` convergence; re-running is safe and deterministic.
-   - **Pure Script First-Class Citizens (Language Priority: `bash` > `lua` > `python`)**:
-     - Priority 1: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`) for all system control, collectors, and CLI glue (instant startup < 2ms, zero cache files).
-     - Priority 2: Pure Lua (`luajit` / `lua`) for complex IPC (D-Bus in `x-blue`/`x-wifi`), real-time data structures, or palette rendering (`x-theme`) (native performance, < 2MB RAM, zero disk bytecode cache).
-     - Priority 3: Pure Python 3 (`python3`) for complex GUI windows, audio/video inferencing, or daemons. **Strict constraints**:
-       * Standard library only (zero `pip` dependencies).
-       * Zero bytecode cache: Always enforce `PYTHONDONTWRITEBYTECODE=1` via environment and shebang (`#!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3`).
+   - **Pure Script First-Class Citizens (Language Hierarchy: `bash` > `python`)**:
+     - Priority 1: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`) for all system control, collectors, hardware, and CLI glue (instant startup < 2ms, zero dependencies, zero cache files).
+     - Priority 2: Pure Python 3 (`python3`) strictly for complex GUI windows, audio/video inferencing, or daemons. Standard library only (zero `pip` dependencies), zero bytecode cache.
    - **Custom Script Architecture & Invariants (`custom-<domain>`)**:
      - All user-facing tools follow the unified namespace `custom-<domain>` directly accessible via `$PATH` with standard ShellDoc metadata (`@summary`, `@usage`, `@deps`, `@examples`).
      - **Design Criteria**: Clear value, single responsibility, composition over monolithic, separation of mechanism & policy, transparent & predictable, holistic simplicity.

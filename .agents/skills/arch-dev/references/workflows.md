@@ -15,15 +15,13 @@ command with `HK=0 git commit`.
 
 Coverage:
 
-| File type                  | Tools (hk Builtins where available) |
-| -------------------------- | ----------------------------------- |
-| `*.py`                     | Builtins.ruff + Builtins.ruff_format |
-| `*.{sh,bash}` + shebang   | Builtins.shellcheck + Builtins.shfmt |
-| `*.lua`                    | Builtins.stylua + luac (CommandSpec) |
-| `*.toml`                   | Builtins.taplo (--no-schema) + Builtins.taplo_format |
-| `*.{json,jsonc,yaml,yml}`  | Builtins.prettier |
-| `*.zsh`                    | zsh -n + shfmt (CommandSpec)        |
-| `*.js`                     | oxlint (CommandSpec) |
+| File type                 | Tools (hk Builtins where available)                 |
+| ------------------------- | --------------------------------------------------- |
+| `*.py`                    | Builtins.ruff + Builtins.ruff_format                |
+| `*.{sh,bash}` + shebang   | Builtins.shellcheck + Builtins.shfmt                |
+| `*.lua`                   | Builtins.stylua (Neovim configs)                    |
+| `*.toml`                  | Builtins.taplo (--no-schema) + Builtins.taplo_format |
+| `*.{json,jsonc,yaml,yml}` | Builtins.prettier                                   |
 
 Shellcheck and shfmt match shell scripts via shebang detection (`types: sh, bash`).
 Indentation is governed by `.editorconfig` (indent_size = 4 for `*.sh`); no `-i`
