@@ -1,4 +1,4 @@
-{% if env.XDG_STATE_HOME is defined and env.XDG_STATE_HOME != "" %}{% set state = env.XDG_STATE_HOME %}{% else %}{% set state = env.HOME ~ "/.local/state" %}{% endif %}
+{% if env.XDG_STATE_HOME is defined and env.XDG_STATE_HOME != "" %}{% set state = env.XDG_STATE_HOME %}{% else %}{% set state = env.HOME ~ "/.local/state" %}{% endif -%}
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
@@ -29,8 +29,6 @@
   </match>
 
   <!-- Default Alias Preferences -->
-
-
   <alias>
     <family>sans-serif</family>
     <prefer>

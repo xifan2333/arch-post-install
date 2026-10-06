@@ -100,7 +100,7 @@ main() {
 	command -v jq >/dev/null || fail 127 'missing dependency: jq'
 	dict="${XDG_CONFIG_HOME:-$HOME/.config}/i18n/$lang.json"
 	[[ -r "$dict" ]] || fail 1 "dictionary not readable: $dict"
-	jq -e 'type == "object" and all(.[]; type == "string")' "$dict" >/dev/null
+	jq -e 'if type == "object" and all(.[]; type == "string") then true else error("dictionary must map keys to strings") end' "$dict" >/dev/null
 	case "$command" in
 	get)
 		key="$1"

@@ -22,3 +22,9 @@ jobs:
 
       - name: Run linters
         run: mise run lint
+
+      - name: Install CLI test dependencies
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils jq
+
+      - name: Run CLI regressions
+        run: mise run test:cli

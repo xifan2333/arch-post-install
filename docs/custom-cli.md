@@ -1,0 +1,118 @@
+# Desktop custom commands
+
+The public desktop commands are `custom-audio`, `custom-capture`,
+`custom-clipboard`, `custom-font`, `custom-hardware`, `custom-i18n`,
+`custom-keystrokes`, `custom-ocr`, `custom-power`, `custom-record`,
+`custom-stream-title`, `custom-wallhaven`, and `custom-wallpaper`.
+Use `--help` for their command syntax. Legacy command symlinks have been removed.
+Independent programs such as `x-blue`, `x-wifi`, `x-theme`, and `x-live` retain
+those names.
+
+Commands use their declared tools. They do not try alternative executables,
+state directories, translation dictionaries, privilege helpers, or fabricated
+values when an operation fails. Standard XDG defaults and font glyph matching
+remain supported.
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | Success, user cancellation, or a genuinely empty list |
+| 1 | Operational failure |
+| 2 | Invalid arguments |
+| 127 | Missing dependency |
+| 130 | Interrupted by SIGINT |
+
+Diagnostics go to stderr; stdout contains results. Fuzzel cancellation does
+not execute the first row or create persistent directories. `--help` needs the
+translation client and jq, but no desktop backend. `custom-i18n --help` needs
+neither a dictionary nor jq.
+
+## State and configuration
+
+- Title history: `${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title/history.txt`.
+  `get` is empty when history is absent; `start` then fails. Only `edit` opens
+  the title editor. `clear` hides the overlay and keeps its history.
+- Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
+  `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
+  missing state, preserves an existing selected pair, and regenerates
+  `fuzzel.ini` and `waybar.css`. Malformed authority is an error. Bootstrap calls
+  `init`; `set` changes the pair and reloads Waybar. Omitting CJK in `set` keeps
+  the stored CJK selection.
+- I18n dictionaries: `${XDG_CONFIG_HOME:-$HOME/.config}/i18n/{en-us,zh-cn}.json`.
+  Chinese locales use zh-cn, English/C/POSIX use en-us. Other locales and missing
+  dictionaries or keys are errors.
+- Wallpapers, screenshots, and recordings are permanent user media, stored under
+  XDG Pictures/Videos directories. `custom-wallpaper current` reads current-user
+  swaybg arguments, preserving spaces; no running image yields empty output,
+  and conflicting images yield an error. Session startup explicitly chooses a
+  random image from the local wallpaper collection.
+
+Fontconfig, Fuzzel, and Waybar configuration sources are `.tera` files in the
+repository. Mise renders regular configuration files with absolute state paths.
+After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
+than the rendered target. The whole-tree mapping excludes template sources.
+
+For an existing installation, run the explicit one-time migration before applying:
+
+```bash
+bash scripts/migrations/336-title-state.sh
+mise bootstrap dotfiles apply --yes
+custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"
+```
+
+The migration merges the canonical history, the former data-directory history,
+and the old Wayhud history in that order, retaining the first occurrence of each
+line. It atomically writes the merged history before removing the old files;
+repeating it is safe. Runtime commands never consult those old locations.
+Mise removes only obsolete links recorded as managed by its whole-tree mapping.
+
+## Image streams
+
+Screenshot commands accept `-o <path>`, `-o -`, or the shorthand `-`.
+An image sent to stdout does not also modify the clipboard or create a screenshot
+directory. Saved screenshots print their path and copy the completed image.
+
+`custom-wallhaven download` streams image bytes when stdout is redirected;
+`-o <path>` explicitly saves a file and prints that path. `menu` always saves the
+selected image and prints its path. A failed download leaves an existing target
+untouched.
+
+```bash
+custom-capture full -o - | custom-ocr -
+custom-wallhaven download 852109 -o "$XDG_PICTURES_DIR/wallpapers/example.jpg"
+custom-wallhaven download 852109 -o - | custom-wallpaper set --image-stdin
+printf '%s\n' /path/to/image.png | custom-wallpaper set -
+```
+
+`custom-wallpaper set -` consumes path/URL lines;
+`set --image-stdin` consumes image bytes. Wallpaper launch uses UWSM. Image
+validation and a successful new launch precede stopping the previous swaybg.
+
+## Recording
+
+`custom-record` defaults to `status`. The menu is explicit: `custom-record menu`.
+A single transient user unit, `custom-record.service`, owns each recording.
+`Type=exec` checks executable startup; duplicate starts are refused. The service
+uses SIGINT for stop so the encoder can finalize the video, and no automatic
+SIGKILL is configured. Status and duration use the unit's state and main PID;
+other recorder processes, including livestreams, are not discovered or signaled.
+
+Failed units remain failed and are visible in text/Waybar output (exit 1).
+Inspect `journalctl --user -u custom-record.service`. An explicit `full` or `area`
+start can reset a previous failure; `toggle` does not hide it. Cancelling area
+selection preserves the previous service state.
+
+## Verification
+
+```bash
+mise run check:plan
+mise run check:changed
+mise run test:cli
+mise run lint
+```
+
+The CLI suite uses temporary XDG directories and fake desktop/network backends.
+It covers arguments, missing dependencies, failure propagation, cancellation,
+image streams, device names, state migration, font initialization, hardware
+permissions, recording concurrency, and actual mise template rendering.
+It requires Python 3, Bash, jq, xmllint, mise, and standard Unix utilities.
+CI installs xmllint and runs both lint and the regression suite.

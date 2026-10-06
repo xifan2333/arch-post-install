@@ -3,7 +3,7 @@
 # @name         custom-wallpaper
 # @summary      Manage, switch, or select desktop wallpapers
 # @version      1.0.0
-# @deps         swaybg, fuzzel
+# @deps         swaybg, uwsm, systemctl, magick, fuzzel
 #
 # @description  Universal desktop wallpaper manager for River WM.
 #               Supports random selection, local browsing, and remote search via Wallhaven.
@@ -19,6 +19,7 @@
 #   list                    List all local wallpaper image files
 #   random                  Select and apply a random wallpaper from local directory
 #   search [query]          Search and select wallpaper via custom-wallhaven
+#   set --image-stdin      Apply raw image bytes from stdin
 #   set <path|url|-|id>     Set wallpaper from path, URL, stdin stream (-), or ID
 #
 # @stdin        Accepts file path or URL stream when using 'set -'
@@ -210,6 +211,7 @@ select_local() (
 	[[ -n "$choice" ]] || return 0
 	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
 	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 	((index < ${#paths[@]})) || die 1 cli_picker_failed
 	set_wallpaper "${paths[$index]}"
 )
@@ -233,6 +235,7 @@ menu() {
 	[[ -n "$choice" ]] || return 0
 	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
 	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 	((index < ${#actions[@]})) || die 1 cli_picker_failed
 	case "${actions[$index]}" in local) select_local ;; random) random_local ;; search) search '' ;; esac
 }
@@ -242,7 +245,10 @@ main() {
 	case "$action" in
 	-h | --help | menu | current | get | list | random) (($# == 0)) || usage_error ;;
 	search) (($# <= 1)) || usage_error ;;
-	set) (($# == 1)) && [[ -n "$1" ]] || usage_error ;;
+	set)
+		(($# == 1)) && [[ -n "$1" ]] || usage_error
+		[[ -f "$1" || "$1" == - || "$1" == --image-stdin || "$1" =~ ^https?:// || "$1" =~ ^[A-Za-z0-9]+$ ]] || usage_error
+		;;
 	*) usage_error ;;
 	esac
 	case "$action" in

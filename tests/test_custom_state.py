@@ -71,3 +71,28 @@ class StateTest(CliTest):
         self.fake("fc-list", "exit 0")
         self.assertEqual(self.run_cli("font", "list").stdout, "")
         self.assertFalse((self.base / "state").exists())
+
+    def test_font_names_keep_xml_and_css_special_characters(self):
+        self.fake("fc-list", "printf '%s\\n' 'Mono/\"One\" & Two' 'CJK'")
+        self.run_cli("font", "init", 'Mono/"One" & Two', "CJK")
+        self.assertEqual(
+            self.run_cli("font", "current", "mono").stdout, 'Mono/"One" & Two\n'
+        )
+        css = (self.base / "state/font/waybar.css").read_text()
+        self.assertIn(r"Mono/\"One\" & Two", css)
+
+    def test_font_second_picker_cancellation_keeps_the_selection(self):
+        self.fake("fc-list", "printf '%s\\n' Mono CJK")
+        self.run_cli("font", "init", "Mono", "CJK")
+        authority = self.base / "state/font/fonts.conf"
+        before = authority.read_bytes()
+        self.env["PICK_COUNT"] = str(self.base / "picker-count")
+        self.fake(
+            "fuzzel",
+            """cat >/dev/null
+if [[ -e "$PICK_COUNT" ]]; then exit 1; fi
+touch "$PICK_COUNT"
+printf 0""",
+        )
+        self.run_cli("font", "menu")
+        self.assertEqual(authority.read_bytes(), before)

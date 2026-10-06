@@ -133,6 +133,7 @@ menu() {
 	[[ -n "$choice" ]] || return 0
 	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
 	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 	((index < ${#ids[@]})) || die 1 cli_picker_failed
 	set_device "${ids[$index]}" "$mode"
 }

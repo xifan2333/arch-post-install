@@ -51,19 +51,6 @@ require() {
 	done
 }
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
-# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
-pick() {
-	local selection rc
-	if selection=$(fuzzel --dmenu "$@"); then
-		printf '%s' "$selection"
-	else
-		rc=$?
-		((rc == 1)) || {
-			((rc == 130)) && exit 130
-			die 1 cli_picker_failed
-		}
-	fi
-}
 
 pattern='(^|/)wayhud[[:space:]]+-n[[:space:]]+keys([[:space:]]|$)'
 startup_delay=0.1

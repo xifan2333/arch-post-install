@@ -16,9 +16,9 @@
 # @commands
 #   menu [query]            Open interactive fuzzy search and picker via Fuzzel (default)
 #   search <query>          Search Wallhaven API and print candidate IDs to stdout
-#   download <id|url>       Download wallpaper image by ID or URL and print local cached path
+#   download <id|url> [-o <path|->] Download to a file or byte stream
 #
-# @stdout       Downloaded wallpaper image path or candidate IDs
+# @stdout       Image bytes (redirected download), saved path (menu/-o), or candidate IDs
 # @stderr       Diagnostic errors and non-zero exit reason
 #
 # @examples
@@ -174,6 +174,7 @@ menu() (
 		[[ -n "$choice" ]] || return 0
 		[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
 		index=$((10#$choice))
+		[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 		((index < ${#ids[@]})) || die 1 cli_picker_failed
 		case "${ids[$index]}" in
 		back) return 0 ;;

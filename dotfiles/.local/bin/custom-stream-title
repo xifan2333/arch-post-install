@@ -138,7 +138,10 @@ main() {
 	local action="${1:-edit}" title
 	if (($#)); then shift; fi
 	case "$action" in
-	set) (($# == 1)) || usage_error ;;
+	set)
+		(($# == 1)) || usage_error
+		[[ -n "$1" && "$1" != *$'\n'* && "$1" != *$'\r'* ]] || usage_error
+		;;
 	get | edit | clear | toggle | start | stop | status | -h | --help) (($# == 0)) || usage_error ;;
 	*) usage_error ;;
 	esac

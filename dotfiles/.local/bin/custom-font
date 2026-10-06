@@ -3,7 +3,7 @@
 # @name         custom-font
 # @summary      Manage, switch, or interactively configure monospace and CJK fallback fonts
 # @version      1.0.0
-# @deps         fontconfig, fuzzel
+# @deps         fc-list, fc-cache, xmllint, fuzzel, notify-send
 #
 # @description  Universal typography manager for River WM desktop.
 #               Supports monospace/CJK font selection, atomic configuration rendering, and live reloading.
@@ -14,6 +14,7 @@
 #   -h, --help  Show this help message and exit
 #
 # @commands
+#   init <mono> <cjk>         Initialize missing state; preserve existing fonts
 #   menu                      Open interactive font picker via Fuzzel (default)
 #   current [mono|cjk|all]    Print active font names
 #   list [mono|cjk|all]       List installed candidate fonts
@@ -83,7 +84,7 @@ read_fonts() {
 validate_font() {
 	# Newlines and Fontconfig pattern delimiters cannot be represented in Fuzzel's font field.
 	[[ -n "$1" && "$1" != *[$'\n\r\t:=,\\']* ]] || usage_error
-	local installed
+	local installed family
 	installed=$(fc-list --format '%{family}\n')
 	installed=$(tr ',' '\n' <<<"$installed")
 	while IFS= read -r family; do [[ "$family" != "$1" ]] || return 0; done <<<"$installed"
@@ -98,9 +99,26 @@ xml_escape() {
 }
 css_escape() {
 	local value="$1"
-	value="${value//\/\\/}"
+	value="${value//\\/\\\\}"
 	value="${value//\"/\\\"}"
 	printf '%s' "$value"
+}
+font_argument() {
+	[[ -n "$1" && "$1" != *[$'\n\r\t:=,\\']* ]] || usage_error
+}
+reload_fonts() {
+	local rc title body
+	require pkill fc-cache notify-send
+	fc-cache
+	if pkill -u "$UID" -SIGUSR2 -x waybar; then
+		:
+	else
+		rc=$?
+		((rc == 1)) || die 1 cli_unavailable name=waybar
+	fi
+	title=$(t domain_font)
+	body=$(t font_switched "font=$1")
+	notify-send -a custom-font -h string:x-canonical-private-synchronous:font "$title" "$body"
 }
 write_fonts() (
 	local write_mono="$1" write_cjk="$2" initialize="$3" tmp mono_xml cjk_xml mono_css cjk_css
@@ -153,20 +171,37 @@ list_fonts() {
 	esac
 	tr ',' '\n' <<<"$fonts" | awk 'NF' | sort -u
 }
+select_font() {
+	local kind="$1" current="$2" fonts font prefix choice index prompt
+	local -a rows=() names=()
+	fonts=$(list_fonts "$kind")
+	[[ -n "$fonts" ]] || return 0
+	while IFS= read -r font; do
+		prefix='  '
+		if [[ "$font" == "$current" ]]; then prefix='* '; fi
+		rows+=("${prefix}$font")
+		names+=("$font")
+	done <<<"$fonts"
+	prompt=$(t "font_prompt_$kind")
+	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
+	((index < ${#names[@]})) || die 1 cli_picker_failed
+	printf '%s' "${names[$index]}"
+}
 menu() {
-	local mono cjk fonts choice prompt
+	local mono cjk selected_mono selected_cjk
 	require fuzzel
 	read_fonts mono cjk
-	fonts=$(list_fonts mono)
-	prompt=$(t font_prompt_mono)
-	choice=$(pick --prompt "$prompt" <<<"$fonts")
-	[[ -n "$choice" ]] || return 0
-	mono="$choice"
-	fonts=$(list_fonts cjk)
-	prompt=$(t font_prompt_cjk)
-	choice=$(pick --prompt "$prompt" <<<"$fonts")
-	[[ -n "$choice" ]] || return 0
-	write_fonts "$mono" "$choice" false
+	selected_mono=$(select_font mono "$mono")
+	[[ -n "$selected_mono" ]] || return 0
+	selected_cjk=$(select_font cjk "$cjk")
+	[[ -n "$selected_cjk" ]] || return 0
+	require pkill fc-cache notify-send
+	write_fonts "$selected_mono" "$selected_cjk" false
+	reload_fonts "$selected_mono"
 }
 main() {
 	local action="${1:-menu}" kind mono cjk
@@ -178,8 +213,16 @@ main() {
 		kind="${1:-all}"
 		case "$kind" in mono | cjk | all) ;; *) usage_error ;; esac
 		;;
-	set) (($# == 1 || $# == 2)) || usage_error ;;
-	init) (($# == 2)) || usage_error ;;
+	set)
+		(($# == 1 || $# == 2)) || usage_error
+		font_argument "$1"
+		if (($# == 2)); then font_argument "$2"; fi
+		;;
+	init)
+		(($# == 2)) || usage_error
+		font_argument "$1"
+		font_argument "$2"
+		;;
 	*) usage_error ;;
 	esac
 	case "$action" in
@@ -193,7 +236,9 @@ main() {
 	list) list_fonts "$kind" ;;
 	set)
 		if (($# == 1)); then read_fonts mono cjk; else cjk="$2"; fi
+		require pkill fc-cache notify-send
 		write_fonts "$1" "$cjk" false
+		reload_fonts "$1"
 		;;
 	init) write_fonts "$1" "$2" true ;;
 	esac

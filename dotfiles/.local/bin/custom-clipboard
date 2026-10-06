@@ -3,7 +3,7 @@
 # @name         custom-clipboard
 # @summary      Manage, interactively select, or clear clipboard history via cliphist
 # @version      1.0.0
-# @deps         cliphist, wl-copy
+# @deps         cliphist, wl-copy, fuzzel
 #
 # @description  Clipboard history manager for Wayland desktop.
 #               Supports fuzzy selection launcher, history listing, and history clearing.
@@ -81,6 +81,7 @@ menu() (
 	[[ -n "$choice" ]] || return 0
 	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
 	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 	((index < ${#entries[@]})) || die 1 cli_picker_failed
 	if ((index == 0)); then
 		cliphist wipe

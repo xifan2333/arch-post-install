@@ -3,7 +3,7 @@
 # @name         custom-hardware
 # @summary      Inspect or control ThinkPad ACPI fan speed and Intel GPU frequency
 # @version      1.0.0
-# @deps         awk, grep
+# @deps         awk, cat
 #
 # @description  Hardware performance and cooling controller for ThinkPad + Intel GPU.
 #               Supports status introspection, fan speed level toggling, and GPU clock limits.
@@ -50,19 +50,6 @@ require() {
 	done
 }
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
-# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
-pick() {
-	local selection rc
-	if selection=$(fuzzel --dmenu "$@"); then
-		printf '%s' "$selection"
-	else
-		rc=$?
-		((rc == 1)) || {
-			((rc == 130)) && exit 130
-			die 1 cli_picker_failed
-		}
-	fi
-}
 
 fan_proc=/proc/acpi/ibm/fan
 

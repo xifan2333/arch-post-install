@@ -3,7 +3,7 @@
 # @name         custom-record
 # @summary      Manage and control screen video recording via gpu-screen-recorder
 # @version      1.0.0
-# @deps         gpu-screen-recorder, slurp, fuzzel
+# @deps         systemctl, systemd-run, gpu-screen-recorder, slurp, fuzzel, ps
 #
 # @description  Hardware-accelerated screen video recording controller and CLI.
 #               Supports fullscreen and region recording, Waybar status formatting, and Fuzzel launcher.
@@ -21,7 +21,7 @@
 #   toggle                Toggle recording state (start full or stop)
 #   menu                  Open interactive recording launcher via Fuzzel
 #
-# @stdout       Status string, Waybar JSON, or completed video file path
+# @stdout       Status string, Waybar JSON, or started video file path
 # @stderr       Diagnostic errors and non-zero exit reason
 #
 # @examples
@@ -224,6 +224,7 @@ menu() {
 	[[ -n "$choice" ]] || return 0
 	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
 	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
 	((index < ${#actions[@]})) || die 1 cli_picker_failed
 	main "${actions[$index]}"
 }
