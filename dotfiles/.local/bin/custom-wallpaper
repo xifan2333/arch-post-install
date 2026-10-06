@@ -3,7 +3,7 @@
 # @name         custom-wallpaper
 # @summary      Manage, switch, or select desktop wallpapers
 # @version      1.0.0
-# @deps         swaybg, custom-session, systemctl, magick, fuzzel, custom-wallhaven
+# @deps         swaybg, uwsm, systemctl, magick, fuzzel, custom-wallhaven
 #
 # @description  Universal desktop wallpaper manager for River WM.
 #               Supports random selection, local browsing, and remote search via Wallhaven.
@@ -125,7 +125,7 @@ list_local() {
 set_wallpaper() (
 	local image="$1" format digest target tmp='' units old_unit unit real_wall_dir
 	local -a old_units=()
-	require swaybg custom-session systemctl magick sha256sum flock
+	require swaybg uwsm systemctl magick sha256sum flock
 	[[ -f "$image" ]] || die 1 cli_unavailable "name=$image"
 	image=$(realpath -- "$image")
 	real_wall_dir=$(realpath -m -- "$wall_dir")
@@ -147,11 +147,11 @@ set_wallpaper() (
 	units=$(wallpaper_units)
 	if [[ -n "$units" ]]; then mapfile -t old_units <<<"$units"; fi
 	unit="custom-wallpaper-${BASHPID}-${RANDOM}.service"
-	custom-session launch -s b -u "$unit" -- swaybg -i "$image" -m fill >/dev/null
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -- swaybg -i "${image//\$/\$\$}" -m fill >/dev/null
 	sleep "$startup_delay"
 	systemctl --user is-active --quiet "$unit"
 	for old_unit in "${old_units[@]}"; do
-		custom-session stop "$old_unit"
+		systemctl --user stop "$old_unit"
 	done
 	printf '%s\n' "$image"
 )

@@ -13,4 +13,4 @@
 <Ctrl+r> = exec mogrify -rotate 90 "$imv_current_file"
 
 # Edit the current image in Tensaku and quit the viewer
-<Ctrl+e> = exec custom-session launch -- tensaku-edit "$imv_current_file"; quit
+<Ctrl+e> = exec uwsm app -t service -- tensaku-edit "$imv_current_file"; quit

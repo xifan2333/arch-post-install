@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # @summary Start session-owned desktop services and fetch the login wallpaper
-# @deps uwsm, systemctl, custom-session, custom-wallpaper
+# @deps uwsm, systemctl, custom-wallpaper
 set -euo pipefail
 
 if ! command -v uwsm >/dev/null; then
@@ -11,10 +11,20 @@ fi
 # Native services retain their existing D-Bus names and reload interfaces.
 systemctl --user start waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service
 
-custom-session start custom-polkit.service -- /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
-custom-session start custom-idle.service -- swayidle -w
-custom-session start custom-clipboard-text.service -- wl-paste --type text --watch cliphist store
-custom-session start custom-clipboard-image.service -- wl-paste --type image --watch cliphist store
+if ! systemctl --user is-active --quiet custom-polkit.service; then
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-polkit.service -- /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+fi
+if ! systemctl --user is-active --quiet custom-idle.service; then
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-idle.service -- swayidle -w
+fi
+if ! systemctl --user is-active --quiet custom-clipboard-text.service; then
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-clipboard-text.service -- wl-paste --type text --watch cliphist store
+fi
+if ! systemctl --user is-active --quiet custom-clipboard-image.service; then
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-clipboard-image.service -- wl-paste --type image --watch cliphist store
+fi
 
 # The wallpaper request runs in its own unit and does not block session startup.
-custom-session start custom-wallpaper-fetch.service -- custom-wallpaper random
+if ! systemctl --user is-active --quiet custom-wallpaper-fetch.service; then
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-wallpaper-fetch.service -- custom-wallpaper random
+fi

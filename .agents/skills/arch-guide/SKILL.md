@@ -22,6 +22,7 @@ Read the matching reference before modifying system configuration:
 
 - [`references/post-install-guide.md`](references/post-install-guide.md) — complete step-by-step restoration from minimal archinstall to running desktop.
 - [`references/river-desktop.md`](references/river-desktop.md) — River 0.4+ Compositor + WM architecture, layer shell, and collector/display separation.
+- [`references/custom-cli.md`](references/custom-cli.md) — desktop command usage, font/wallpaper state, direct UWSM launch, service lifecycle, image streams, and recording diagnostics.
 - [`references/dotfiles.md`](references/dotfiles.md) — editing dotfiles safely (symlink model, source-over-target, `symlink-each`).
 - [`references/related-projects.md`](references/related-projects.md) — companion tools and boundaries (`pi-quotas`, `vcam`).
 

@@ -461,20 +461,30 @@ class CaptionsDaemon:
 
 def is_running() -> bool:
     state = subprocess.check_output(
-        ["custom-session", "state", UNIT], text=True
+        ["systemctl", "--user", "show", "--property=ActiveState", "--value", UNIT],
+        text=True,
     ).strip()
     return state in ("active", "activating")
 
 
 def cmd_start() -> int:
+    if is_running():
+        return 0
     subprocess.run(
         [
-            "custom-session",
-            "start",
+            "uwsm",
+            "app",
+            "-t",
+            "service",
+            "-s",
+            "b",
+            "-u",
             UNIT,
+            "-p",
+            "PartOf=graphical-session.target",
             "--",
             sys.executable,
-            str(Path(__file__).resolve()),
+            str(Path(__file__).resolve()).replace("$", "$$"),
             "run",
         ],
         check=True,
@@ -483,7 +493,8 @@ def cmd_start() -> int:
 
 
 def cmd_stop() -> int:
-    subprocess.run(["custom-session", "stop", UNIT], check=True)
+    if is_running():
+        subprocess.run(["systemctl", "--user", "stop", UNIT], check=True)
     return 0
 
 

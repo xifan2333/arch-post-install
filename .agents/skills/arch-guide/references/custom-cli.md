@@ -3,7 +3,7 @@
 The public desktop commands are `custom-audio`, `custom-capture`,
 `custom-clipboard`, `custom-font`, `custom-hardware`, `custom-i18n`,
 `custom-keystrokes`, `custom-ocr`, `custom-power`, `custom-record`,
-`custom-session`, `custom-stream-title`, `custom-wallhaven`, and `custom-wallpaper`.
+`custom-stream-title`, `custom-wallhaven`, and `custom-wallpaper`.
 Use `--help` for their command syntax. Legacy command symlinks have been removed.
 Independent programs such as `x-blue`, `x-wifi`, `x-theme`, and `x-live` retain
 those names.
@@ -74,22 +74,17 @@ Mise removes only obsolete links recorded as managed by its whole-tree mapping.
 
 ## Session lifecycle
 
-`custom-session launch -- command ...` launches an independent desktop application
-through UWSM as a transient user service, with `PartOf=graphical-session.target`.
-Fuzzel and xrwm bindings use this entrypoint. It accepts executable commands,
-not desktop entry IDs; Fuzzel resolves desktop entries before invoking it.
-`launch -t scope -- command ...` waits for the application and preserves its
+Desktop entrypoints call `uwsm app -t service -- command ...` directly.
+Fuzzel resolves desktop entries before invoking its UWSM launch prefix.
+Background components add `-s b`, a fixed `-u <unit>`, and
+`-p PartOf=graphical-session.target`. Existing tools query their own unit with
+`systemctl --user show` and stop it with `systemctl --user stop`.
+
+`uwsm app -t scope -- command ...` waits for the application and preserves its
 standard streams. Capture previews/editors and the lock screen use scopes so
 image cleanup and swayidle's blocking lock invocation retain their ordering.
-
-`start unit.service -- command ...` starts a named background service only when
-inactive, and resets an earlier failure on explicit start. `toggle` starts or
-stops it; `state` reads systemd and `stop` is idempotent. These exact-unit commands
-reject wildcards. `reload` and `signal` accept unit patterns but act only on
-running services; signals target the main process, never the whole cgroup.
-`signal-app` matches running app/custom service MainPID executables, including
-terminals named after Fuzzel desktop-entry metadata. Missing UWSM or an executable
-is an error (127); there is no direct-launch fallback.
+Use UWSM and systemctl at these call sites; no shared session wrapper is needed.
+See [the lifecycle rules](../../arch-dev/references/principles.md#14-desktop-application-lifecycle-uwsm--systemd).
 
 Waybar, Mako, and Fcitx5 reuse their native services. The generated
 `app-org.fcitx.Fcitx5@autostart.service` gets an `ExecReload=fcitx5-remote -r`

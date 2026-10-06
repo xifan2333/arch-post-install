@@ -28,12 +28,13 @@ herdr_api_up() {
 # The managed terminal owns the Herdr client and its shell children.
 herdr_client_up() {
 	local state
-	state=$(custom-session state custom-danmaku.service) || exit "$?"
+	state=$(systemctl --user show --property=ActiveState --value custom-danmaku.service) || exit "$?"
 	[[ "$state" == active || "$state" == activating ]]
 }
 
 launch_herdr() {
-	custom-session start custom-danmaku.service -s a -- ftty -d "$HOME" -e herdr
+	if herdr_client_up; then return 0; fi
+	uwsm app -t service -p PartOf=graphical-session.target -u custom-danmaku.service -- ftty -d "${HOME//\$/\$\$}" -e herdr
 }
 
 wait_herdr_api() {
@@ -127,7 +128,7 @@ main() {
 	case "${1:-}" in
 	start)
 		local dependency
-		for dependency in custom-session uwsm ftty herdr jq; do
+		for dependency in systemctl uwsm ftty herdr jq; do
 			if ! command -v "$dependency" >/dev/null; then
 				custom-i18n get cli_dependency "name=$dependency" >&2
 				return 127
