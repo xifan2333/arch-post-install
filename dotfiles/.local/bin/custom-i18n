@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+#
+# @name         custom-i18n
+# @summary      Query and retrieve localized UI strings based on system language
+# @version      1.0.0
+# @deps         jq
+#
+# @description  Universal internationalization query client for desktop scripts.
+#               Resolves dictionary strings from XDG config with variable interpolation.
+#
+# @usage        custom-i18n [options] <command> [arguments...]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#   -q, --quiet Suppress diagnostic logs
+#   --json      Output raw JSON dictionary or result
+#
+# @commands
+#   get <key> [var=val...]  Query localized string for key with optional variable replacements
+#   get -                   Read keys line-by-line from stdin stream
+#   current                 Print detected active language code (zh-cn | en-us)
+#   list                    Print all available key-value pairs in active dictionary
+#   env                     Generate associative array declaration for bash sourcing
+#
+# @stdin        Accepts key name or stream of key names when using 'get -'
+# @stdout       Localized string value(s) or dictionary dump
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-i18n get domain_audio
+#   custom-i18n get audio_volume_changed vol=65%
+#   echo domain_wifi | custom-i18n get -
+#   custom-i18n current
+
+set -euo pipefail
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-i18n [options] <command> [arguments...]
+
+Options:
+  -h, --help     Show this help message and exit
+  --json         Output JSON where applicable
+
+Commands:
+  get <key> [var=val...]   Query localized string for key
+  get -                    Read keys line-by-line from standard input
+  current                  Print detected active language code (zh-cn | en-us)
+  list                     Print all key-value pairs in active dictionary
+  env                      Generate associative array for bash sourcing
+
+Examples:
+  custom-i18n get domain_audio
+  custom-i18n get audio_sink_switched dev=HDMI
+  echo domain_wifi | custom-i18n get -
+EOF
+}
+
+get_i18n_dir() {
+	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/i18n"
+	if [[ -d "$cfg" ]]; then
+		printf '%s' "$cfg"
+		return 0
+	fi
+	local repo_dir
+	repo_dir="$(dirname "$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")")/.config/i18n"
+	if [[ -d "$repo_dir" ]]; then
+		printf '%s' "$repo_dir"
+		return 0
+	fi
+	printf '%s' "$cfg"
+}
+
+detect_language() {
+	local raw="${LC_ALL:-${LC_MESSAGES:-${LANG:-en_US}}}"
+	local lang="${raw%%.*}"
+	lang="${lang,,}"
+	lang="${lang/_/-}"
+	if [[ "$lang" == zh* ]]; then
+		printf 'zh-cn'
+	else
+		printf 'en-us'
+	fi
+}
+
+resolve_key() {
+	local dict="$1" key="$2"
+	shift 2
+	local val
+	val=$(jq -r --arg k "$key" '.[$k] // ("[" + $k + "]")' "$dict")
+	while [[ $# -ge 1 ]]; do
+		local k="${1%%=*}"
+		local v="${1#*=}"
+		val="${val//\{$k\}/$v}"
+		shift
+	done
+	printf '%s\n' "$val"
+}
+
+main() {
+	if [[ $# -eq 0 ]]; then
+		show_help >&2
+		exit 2
+	fi
+
+	case "${1:-}" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	esac
+
+	local lang
+	lang="$(detect_language)"
+
+	if [[ "$1" == "current" ]]; then
+		printf '%s\n' "$lang"
+		exit 0
+	fi
+
+	local i18n_dir
+	i18n_dir="$(get_i18n_dir)"
+	local dict="$i18n_dir/${lang}.json"
+	if [[ ! -f "$dict" ]]; then
+		dict="$i18n_dir/en-us.json"
+	fi
+
+	if [[ ! -f "$dict" ]]; then
+		printf 'Error: i18n dictionary not found in %s\n' "$i18n_dir" >&2
+		exit 1
+	fi
+
+	case "$1" in
+	list)
+		if [[ "${2:-}" == "--json" ]]; then
+			cat "$dict"
+		else
+			jq -r 'to_entries | .[] | "\(.key): \(.value)"' "$dict"
+		fi
+		;;
+	env)
+		printf 'declare -gA i18n\n'
+		jq -r 'to_entries | .[] | "i18n[\"\(.key)\"]=\"\(.value)\""' "$dict"
+		;;
+	get)
+		shift
+		if [[ $# -eq 0 && ! -t 0 ]]; then
+			# Read keys line-by-line from standard input pipe
+			while IFS= read -r line || [[ -n "$line" ]]; do
+				[[ -z "$line" ]] && continue
+				resolve_key "$dict" "$line"
+			done
+		elif [[ "${1:-}" == "-" ]]; then
+			shift
+			while IFS= read -r line || [[ -n "$line" ]]; do
+				[[ -z "$line" ]] && continue
+				resolve_key "$dict" "$line" "$@"
+			done
+		elif [[ $# -gt 0 ]]; then
+			local key="$1"
+			shift
+			resolve_key "$dict" "$key" "$@"
+		else
+			printf 'Error: Missing key argument for get\n' >&2
+			exit 2
+		fi
+		;;
+	*)
+		printf 'Error: Unknown command "%s" (run custom-i18n --help for usage)\n' "$1" >&2
+		exit 2
+		;;
+	esac
+}
+
+main "$@"
