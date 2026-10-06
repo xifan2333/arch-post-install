@@ -30,209 +30,140 @@
 #   custom-audio current source
 #   custom-audio set 45
 
-set -euo pipefail
-
-DOMAIN="audio"
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-audio [options] [command] [subcommand]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Commands:
-  menu [sink|source]     Open interactive device selection menu via Fuzzel (default)
-  list [sink|source]     Print all available audio nodes to stdout
-  current [sink|source]  Print active default node ID and description
-  set <id> [sink|source] Set default audio endpoint by node ID
-  sink                   Shortcut to open audio output switcher
-  source                 Shortcut to open audio input/microphone switcher
-
-Examples:
-  custom-audio
-  custom-audio list
-  custom-audio current source
-  custom-audio set 45
-EOF
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-notify() {
-	local title body
-	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Audio")"
-	body="$1"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
+pick() {
+	local selection rc
+	if selection=$(fuzzel --dmenu "$@"); then
+		printf '%s' "$selection"
+	else
+		rc=$?
+		((rc == 1)) || {
+			((rc == 130)) && exit 130
+			die 1 cli_picker_failed
+		}
 	fi
 }
 
 resolve_mode() {
-	local m="${1:-sink}"
-	if [[ "$m" == "source" || "$m" == "mic" || "$m" == "input" ]]; then
-		printf 'source'
-	else
-		printf 'sink'
-	fi
+	case "$1" in sink) mode=sink ;; source | mic | input) mode=source ;; *) usage_error ;; esac
 }
-
-get_default_target() {
-	local m="$1"
-	if [[ "$m" == "source" ]]; then
-		printf '@DEFAULT_AUDIO_SOURCE@'
-	else
-		printf '@DEFAULT_AUDIO_SINK@'
-	fi
+nodes() {
+	require pw-dump jq
+	pw-dump Node | jq -ce --arg class "Audio/${1^}" '
+        if type != "array" then error("invalid PipeWire nodes") else . end |
+        [.[] | select(.info.props["media.class"] == $class) |
+         select((.info.props["node.name"] // "" | test("\\.monitor$")) | not) |
+         {id: .id, name: (.info.props["node.description"] // .info.props["node.nick"] // .info.props["node.name"])}] |
+         if all(.[]; (.id | type == "number") and (.name | type == "string" and length > 0))
+         then . else error("invalid audio node") end'
 }
-
-get_target_class() {
-	local m="$1"
-	if [[ "$m" == "source" ]]; then
-		printf 'Audio/Source'
-	else
-		printf 'Audio/Sink'
-	fi
+default_id() {
+	local target="@DEFAULT_AUDIO_${1^^}@" inspection id
+	require wpctl
+	inspection=$(wpctl inspect "$target")
+	id=$(awk '$1=="id"{sub(/,/, "", $2); print $2}' <<<"$inspection")
+	[[ "$id" =~ ^[0-9]+$ ]] || die 1 cli_unavailable "name=$target"
+	printf '%s' "$id"
 }
-
-get_default_id() {
-	local target="$1"
-	wpctl inspect "$target" 2>/dev/null | awk '$1=="id"{sub(/,/, "", $2); print $2; exit}' || true
-}
-
 list_devices() {
-	local m
-	m="$(resolve_mode "${1:-sink}")"
-	local target_class default_target default_id
-	target_class="$(get_target_class "$m")"
-	default_target="$(get_default_target "$m")"
-	default_id="$(get_default_id "$default_target")"
-
-	pw-dump Node 2>/dev/null | jq -r \
-		--arg class "$target_class" \
-		--arg def "$default_id" '
-	.[] |
-	select(.info.props["media.class"] == $class) |
-	select((.info.props["node.name"] // "") | test("\\.monitor$") | not) |
-	[
-	  .id,
-	  (if (.id | tostring) == $def then "*" else "-" end),
-	  (.info.props["node.description"] // .info.props["node.nick"] // .info.props["node.name"])
-	] | @tsv
-	'
+	local mode="$1" data id
+	data=$(nodes "$mode")
+	[[ "$data" != '[]' ]] || return 0
+	id=$(default_id "$mode")
+	jq -r --arg id "$id" '.[] | [.id, (if (.id|tostring) == $id then "*" else "-" end), .name] | @tsv' <<<"$data"
 }
-
-show_current() {
-	local m
-	m="$(resolve_mode "${1:-sink}")"
-	local default_target default_id
-	default_target="$(get_default_target "$m")"
-	default_id="$(get_default_id "$default_target")"
-
-	if [[ -n "$default_id" ]]; then
-		local name
-		name="$(pw-dump Node 2>/dev/null | jq -r --arg id "$default_id" '.[] | select((.id | tostring) == $id) | .info.props["node.description"] // .info.props["node.name"] // empty' 2>/dev/null || true)"
-		printf '%s\t%s\n' "$default_id" "${name:-Unknown}"
-	fi
+current() {
+	local mode="$1" data id
+	data=$(nodes "$mode")
+	[[ "$data" != '[]' ]] || return 0
+	id=$(default_id "$mode")
+	jq -er --arg id "$id" '[.[] | select((.id|tostring) == $id)] |
+        if length == 1 then .[0] | [.id, .name] | @tsv else error("default node missing") end' <<<"$data"
 }
-
 set_device() {
-	local dev_id="${1:-}"
-	local m
-	m="$(resolve_mode "${2:-sink}")"
-	[[ -n "$dev_id" ]] || {
-		printf 'Error: Device ID required for set (run custom-audio --help for usage)\n' >&2
-		exit 2
-	}
-
-	wpctl set-default "$dev_id"
-	local dev_name
-	dev_name="$(pw-dump Node 2>/dev/null | jq -r --arg id "$dev_id" '.[] | select((.id | tostring) == $id) | .info.props["node.description"] // .info.props["node.name"] // empty' 2>/dev/null || echo "$dev_id")"
-
-	if [[ "$m" == "source" ]]; then
-		notify "$(custom-i18n get audio_source_switched "dev=$dev_name" 2>/dev/null || echo "Switched mic: $dev_name")"
-	else
-		notify "$(custom-i18n get audio_sink_switched "dev=$dev_name" 2>/dev/null || echo "Switched sink: $dev_name")"
-	fi
-	printf '%s\t%s\n' "$dev_id" "$dev_name"
+	local id="$1" mode="$2" data name title body
+	require wpctl notify-send
+	data=$(nodes "$mode")
+	name=$(jq -er --arg id "$id" '[.[] | select((.id|tostring) == $id)] |
+        if length == 1 then .[0].name else error("audio node missing") end' <<<"$data")
+	title=$(t domain_audio)
+	body=$(t "audio_${mode}_switched" "dev=$name")
+	wpctl set-default "$id"
+	notify-send -a custom-audio -h string:x-canonical-private-synchronous:audio "$title" "$body"
+	printf '%s\t%s\n' "$id" "$name"
 }
-
-interactive_menu() {
-	local m
-	m="$(resolve_mode "${1:-sink}")"
-	local prompt_text
-	if [[ "$m" == "source" ]]; then
-		prompt_text="$(custom-i18n get audio_source_prompt 2>/dev/null || echo "Audio Input: ")"
-	else
-		prompt_text="$(custom-i18n get audio_sink_prompt 2>/dev/null || echo "Audio Output: ")"
-	fi
-
-	local dev_lines
-	dev_lines="$(list_devices "$m")"
-	if [[ -z "$dev_lines" ]]; then
-		notify "$(custom-i18n get audio_no_devices 2>/dev/null || echo "No devices found")"
-		return 0
-	fi
-
-	local icon="󰓃"
-	[[ "$m" == "source" ]] && icon="󰍬"
-
-	local menu_items=() device_ids=()
-	while IFS=$'\t' read -r did is_def desc; do
-		[[ -n "$did" ]] || continue
-		local prefix="  "
-		[[ "$is_def" == "*" ]] && prefix="* "
-		menu_items+=("${prefix}${icon}  ${desc}  (${did})")
-		device_ids+=("$did")
-	done <<<"$dev_lines"
-
-	local chosen=""
-	if command -v fuzzel >/dev/null 2>&1; then
-		chosen="$(printf '%s\n' "${menu_items[@]}" | fuzzel --dmenu --prompt "$prompt_text" --lines 10 || true)"
-	elif command -v bemenu >/dev/null 2>&1; then
-		chosen="$(printf '%s\n' "${menu_items[@]}" | bemenu -p "$prompt_text" || true)"
-	fi
-	[[ -n "$chosen" ]] || return 0
-
-	local i
-	for i in "${!menu_items[@]}"; do
-		if [[ "$chosen" == "${menu_items[$i]}" ]]; then
-			set_device "${device_ids[$i]}" "$m"
-			return
-		fi
-	done
-	return 0
+menu() {
+	local mode="$1" devices prompt id marker description prefix choice index
+	local -a rows=() ids=()
+	require fuzzel
+	devices=$(list_devices "$mode")
+	[[ -n "$devices" ]] || return 0
+	prompt=$(t "audio_${mode}_prompt")
+	while IFS=$'\t' read -r id marker description; do
+		prefix='  '
+		if [[ "$marker" == '*' ]]; then prefix='* '; fi
+		rows+=("${prefix}󰓃  $description  ($id)")
+		ids+=("$id")
+	done <<<"$devices"
+	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	((index < ${#ids[@]})) || die 1 cli_picker_failed
+	set_device "${ids[$index]}" "$mode"
 }
-
 main() {
-	local cmd="${1:-menu}"
-	case "$cmd" in
+	local action="${1:-menu}" mode
+	if (($#)); then shift; fi
+	case "$action" in
 	-h | --help)
-		show_help
-		exit 0
-		;;
-	devices | list)
-		shift
-		list_devices "${1:-sink}"
-		;;
-	get | current)
-		shift
-		show_current "${1:-sink}"
-		;;
-	set)
-		shift
-		set_device "${1:-}" "${2:-sink}"
-		;;
-	menu)
-		shift
-		interactive_menu "${1:-sink}"
+		(($# == 0)) || usage_error
+		t help_audio
+		return
 		;;
 	sink | source | mic | input)
-		interactive_menu "$cmd"
+		(($# == 0)) || usage_error
+		resolve_mode "$action"
+		action=menu
 		;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-audio --help for usage)\n' "$cmd" >&2
-		exit 2
+	menu | list | devices | current | get)
+		(($# <= 1)) || usage_error
+		resolve_mode "${1:-sink}"
 		;;
+	set)
+		(($# == 1 || $# == 2)) || usage_error
+		[[ "$1" =~ ^[0-9]+$ ]] || usage_error
+		resolve_mode "${2:-sink}"
+		;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	menu) menu "$mode" ;; list | devices) list_devices "$mode" ;;
+	current | get) current "$mode" ;; set) set_device "$1" "$mode" ;;
 	esac
 }
-
 main "$@"

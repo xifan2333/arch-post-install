@@ -170,5 +170,14 @@
   "cli_unavailable": "Unavailable or invalid: {name}",
   "title_empty": "Set a title before starting the overlay",
   "help_stream_title": "Usage: custom-stream-title [get|set <text>|edit|clear|toggle|start|stop|status] (default: edit)",
-  "help_font": "Usage: custom-font [menu|current [mono|cjk|all]|list [mono|cjk|all]|set <mono> [cjk]|init <mono> <cjk>]"
+  "help_font": "Usage: custom-font [menu|current [mono|cjk|all]|list [mono|cjk|all]|set <mono> [cjk]|init <mono> <cjk>]",
+  "help_audio": "Usage: custom-audio [menu|list|current] [sink|source]; custom-audio set <id> [sink|source]",
+  "help_power": "Usage: custom-power [menu|lock|suspend|logout|reboot|shutdown]",
+  "help_clipboard": "Usage: custom-clipboard [menu|list|clear]",
+  "help_capture": "Usage: custom-capture [menu|area [-o <path>|-]|full [-o <path>|-]|edit|ocr|color|preview|scroll]",
+  "help_ocr": "Usage: custom-ocr [<image-path>|-] (default: stdin)",
+  "help_keystrokes": "Usage: custom-keystrokes [toggle|start|stop|status]",
+  "help_hardware": "Usage: custom-hardware [status|fan [status|auto|full|0-7|toggle]|gpu [status|cur|min|max|auto|toggle|<MHz>]]",
+  "help_wallhaven": "Usage: custom-wallhaven [menu [query]|search <query>|download <id|url> [-o <path|->]]; download streams bytes when stdout is redirected; menu prints a saved path.",
+  "help_wallpaper": "Usage: custom-wallpaper [menu|current|list|random|search [query]|set <path|url|id|->|set --image-stdin]; set - reads paths, --image-stdin reads image bytes."
 }

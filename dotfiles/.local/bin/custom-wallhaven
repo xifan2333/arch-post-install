@@ -26,298 +26,195 @@
 #   custom-wallhaven download 852109
 #   custom-wallhaven menu cyberpunk
 
-set -euo pipefail
-
-DOMAIN="wallhaven"
-
-api_base="https://wallhaven.cc/api/v1"
-max_bytes=52428800
-wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
-
-THUMB_DIR=""
-
-cleanup_thumbs() {
-	local exit_code=$?
-	trap - EXIT INT TERM HUP
-	[[ -n "${THUMB_DIR:-}" && -d "${THUMB_DIR:-}" ]] && rm -rf "$THUMB_DIR"
-	exit "$exit_code"
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-wallhaven [options] [command] [arguments...]
-
-Options:
-  -h, --help            Show this help message and exit
-
-Commands:
-  menu [query]                  Open interactive search & picker via Fuzzel (default)
-  search <query>                Search API and print matching wallpaper IDs to stdout
-  download <id|url> [-o <path>] Download wallpaper (supports -o <path>, -o -, or stdout stream)
-
-Examples:
-  custom-wallhaven search anime
-  custom-wallhaven download 852109
-  custom-wallhaven download 852109 -o - | custom-wallpaper set -
-  custom-wallhaven menu cyberpunk
-EOF
-}
-
-dmenu() {
-	local prompt="$1"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
 	shift
-	if command -v fuzzel >/dev/null 2>&1; then
-		fuzzel --dmenu --prompt "$prompt" "$@" || true
-	elif command -v bemenu >/dev/null 2>&1; then
-		bemenu -p "$prompt" || true
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
+pick() {
+	local selection rc
+	if selection=$(fuzzel --dmenu "$@"); then
+		printf '%s' "$selection"
 	else
-		head -n 1
+		rc=$?
+		((rc == 1)) || {
+			((rc == 130)) && exit 130
+			die 1 cli_picker_failed
+		}
 	fi
 }
 
-wallhaven_image_url() {
-	local id="$1" url
-	url="$api_base/w/${id}"
-	[[ -n "${WALLHAVEN_API_KEY:-}" ]] && url="$url?apikey=$WALLHAVEN_API_KEY"
-	curl -fsSL --connect-timeout 5 --max-time 15 "$url" 2>/dev/null |
-		jq -r '.data.path // empty' 2>/dev/null || true
+api_base=https://wallhaven.cc/api/v1
+wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+connect_timeout=5
+api_timeout=30
+download_timeout=300
+max_bytes=52428800
+thumbnail_size=96x96
+
+api() {
+	local endpoint="$1"
+	shift
+	local -a args=(-fsSL --connect-timeout "$connect_timeout" --max-time "$api_timeout" -G)
+	if [[ -n "${WALLHAVEN_API_KEY:-}" ]]; then args+=(--data-urlencode "apikey=$WALLHAVEN_API_KEY"); fi
+	curl "${args[@]}" "$@" "$api_base/$endpoint"
 }
-
-download_image() {
-	local url="$1" target_out="${2:-}"
-	local filename dest tmp
-	filename="$(basename "${url%%\?*}")"
-
-	if [[ "$target_out" == "-" || (-z "$target_out" && ! -t 1) ]]; then
-		# Stream raw image stream to stdout
-		curl -fsSL --max-time 300 --max-filesize "$max_bytes" "$url"
-		return 0
-	fi
-
-	if [[ -n "$target_out" ]]; then
-		dest="$target_out"
-	else
-		mkdir -p "$wall_dir"
-		dest="$wall_dir/$filename"
-	fi
-
-	if [[ -f "$dest" && -s "$dest" ]]; then
-		printf '%s\n' "$dest"
-		return 0
-	fi
-
-	mkdir -p "$(dirname "$dest")"
-	tmp="$dest.tmp.$$"
-	if ! curl -fsSL --max-time 300 --max-filesize "$max_bytes" -o "$tmp" "$url"; then
-		rm -f "$tmp"
-		printf 'Error: Failed to download %s\n' "$url" >&2
-		return 1
-	fi
-	mv -f "$tmp" "$dest"
-	printf '%s\n' "$dest"
+search_json() {
+	api search --data-urlencode "q=$1" --data-urlencode "page=$2" \
+		--data-urlencode categories=111 --data-urlencode purity=100 \
+		--data-urlencode sorting=date_added --data-urlencode order=desc --data-urlencode atleast=1920x1080 |
+		jq -ce 'if (.data | type == "array") then . else error("invalid Wallhaven response") end'
 }
-
-fetch_thumb() {
-	local id="$1" url="$2" dir="$3"
-	curl -fsSL --connect-timeout 3 --max-time 8 "$url" 2>/dev/null |
-		timeout 8 magick - -thumbnail 96x96 "$dir/$id.png" 2>/dev/null || return 1
-	printf '%s' "$dir/$id.png"
-}
-
-search_wallhaven_thumbs() {
-	local query="$1" page="${2:-1}" thumbs_dir="$3"
-
-	local curl_args=(-fsSL --max-time 30 -G)
-	[[ -n "$query" ]] && curl_args+=(--data-urlencode "q=$query")
-	curl_args+=(--data-urlencode "categories=111")
-	curl_args+=(--data-urlencode "purity=100")
-	curl_args+=(--data-urlencode "sorting=date_added")
-	curl_args+=(--data-urlencode "order=desc")
-	curl_args+=(--data-urlencode "page=$page")
-	curl_args+=(--data-urlencode "atleast=1920x1080")
-	[[ -n "${WALLHAVEN_API_KEY:-}" ]] && curl_args+=(--data-urlencode "apikey=$WALLHAVEN_API_KEY")
-
-	local resp
-	if ! resp="$(curl --connect-timeout 5 --max-time 20 "${curl_args[@]}" "$api_base/search" 2>/dev/null)"; then
-		return 1
-	fi
-
-	mkdir -p "$thumbs_dir"
-	local count
-	count="$(printf '%s' "$resp" | jq -r '(.data // []) | length' 2>/dev/null || echo 0)"
-	printf '#count %s\n' "$count"
-
-	local idx=0
-	while IFS=$'\t' read -r id resolution thumburl; do
-		[[ -n "$id" && -n "$thumburl" ]] || continue
-		(
-			if fetch_thumb "$id" "$thumburl" "$thumbs_dir" >/dev/null; then
-				printf '%s\t%s\t%s/%s.png\n' "$id" "$resolution" "$thumbs_dir" "$id"
-			fi
-		) &
-		idx=$((idx + 1))
-		while (($(jobs -rp | wc -l) >= 16)); do wait -n 2>/dev/null || break; done
-	done <<<"$(printf '%s' "$resp" | jq -r '(.data // [])[] | [.id, .resolution, .thumbs.large] | @tsv')"
-	wait
-}
-
-resolve_and_download() {
-	local target="$1" target_out="${2:-}" img=""
+resolve_url() {
+	local target="$1" id
 	if [[ "$target" =~ ^https?://(www\.)?wallhaven\.cc/w/([A-Za-z0-9]+)/?$ ]]; then
-		local id="${BASH_REMATCH[2]}"
-		img="$(wallhaven_image_url "$id")"
-		[[ -n "$img" ]] || {
-			printf 'Error: Failed to resolve Wallhaven ID: %s\n' "$id" >&2
-			exit 1
-		}
-		download_image "$img" "$target_out"
+		id="${BASH_REMATCH[2]}"
 	elif [[ "$target" =~ ^[A-Za-z0-9]+$ ]]; then
-		img="$(wallhaven_image_url "$target")"
-		[[ -n "$img" ]] || {
-			printf 'Error: Failed to resolve Wallhaven ID: %s\n' "$target" >&2
-			exit 1
-		}
-		download_image "$img" "$target_out"
+		id="$target"
 	elif [[ "$target" =~ ^https?:// ]]; then
-		download_image "$target" "$target_out"
-	else
-		printf 'Error: Invalid Wallhaven target: %s\n' "$target" >&2
-		exit 2
-	fi
+		printf '%s' "$target"
+		return
+	else usage_error; fi
+	api "w/$id" | jq -er '.data.path | select(type == "string" and test("^https?://"))'
 }
-
-search_flow() {
-	local initial_query="${1:-}"
-	local query="$initial_query" page=1 pick id back_label prev_label next_label thumb_dir use_icons=0
-	back_label="$(custom-i18n get wallpaper_back 2>/dev/null || echo "Back")"
-	prev_label="$(custom-i18n get wallpaper_prev 2>/dev/null || echo "Previous")"
-	next_label="$(custom-i18n get wallpaper_next 2>/dev/null || echo "Next")"
-
-	if command -v fuzzel >/dev/null 2>&1; then use_icons=1; fi
-
+download() (
+	local target="$1" output="$2" url filename tmp
+	require curl jq
+	url=$(resolve_url "$target")
+	if [[ "$output" == - ]]; then
+		curl -fsSL --connect-timeout "$connect_timeout" --max-time "$download_timeout" --max-filesize "$max_bytes" "$url"
+		return
+	fi
+	if [[ -z "$output" ]]; then
+		filename="${url%%\?*}"
+		filename="${filename##*/}"
+		[[ -n "$filename" && "$filename" != . && "$filename" != .. ]] || die 1 cli_unavailable name=URL
+		output="$wall_dir/$filename"
+	fi
+	mkdir -p -- "$(dirname -- "$output")"
+	tmp=$(mktemp "$(dirname -- "$output")/.wallhaven.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	curl -fsSL --connect-timeout "$connect_timeout" --max-time "$download_timeout" --max-filesize "$max_bytes" -o "$tmp" "$url"
+	[[ -s "$tmp" ]] || die 1 cli_unavailable name=download
+	mv -f -- "$tmp" "$output"
+	printf '%s\n' "$output"
+)
+menu() (
+	local query="$1" page=1 response count last index choice prompt label tmp entry id resolution thumb i
+	local -a entries=() ids=()
+	require fuzzel
 	if [[ -z "$query" ]]; then
-		query="$(dmenu "$(custom-i18n get wallpaper_search_prompt 2>/dev/null || echo "Search Wallhaven: ")" --lines 0)"
+		prompt=$(t wallpaper_search_prompt)
+		query=$(pick --prompt "$prompt" --lines 0 </dev/null)
 	fi
 	[[ -n "$query" ]] || return 0
-
-	THUMB_DIR="$(mktemp -d -t wallhaven-thumbs.XXXXXX)"
-	local thumb_dir="$THUMB_DIR"
-	trap cleanup_thumbs EXIT INT TERM HUP
-
-	while true; do
-		local items=()
-		local count=0
-
-		exec 3< <(search_wallhaven_thumbs "$query" "$page" "$thumb_dir" 2>/dev/null)
-		while IFS=$'\t' read -u 3 -r tid res iconpath; do
-			if [[ "$tid" =~ ^#count ]]; then
-				count="${tid#* }"
-				continue
-			fi
-			[[ -n "$tid" ]] || continue
-			items+=("$tid"$'\t'"$res"$'\t'"$iconpath")
-		done
-		exec 3<&-
-
-		if [[ "$count" -eq 0 && ${#items[@]} -eq 0 ]]; then
-			if command -v notify-send >/dev/null 2>&1; then
-				local title
-				title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Wallhaven")"
-				notify-send -a "custom-${DOMAIN}" "$title" "$(custom-i18n get wallpaper_none_found 2>/dev/null || echo "No wallpapers found")"
-			fi
-			break
+	require curl jq magick
+	tmp=$(mktemp -d "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-wallhaven.XXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
+	while :; do
+		response=$(search_json "$query" "$page")
+		count=$(jq '.data | length' <<<"$response")
+		((count)) || return 0
+		last=$(jq -er '.meta.last_page | select(type == "number" and . >= 1)' <<<"$response")
+		entries=()
+		ids=()
+		label=$(t wallpaper_back)
+		entries+=("↩  $label")
+		ids+=(back)
+		if ((page > 1)); then
+			label=$(t wallpaper_prev)
+			entries+=("◀  $label")
+			ids+=(prev)
 		fi
-
-		local prompt_page
-		prompt_page="$(custom-i18n get wallpaper_search_page_prompt "page=$page" 2>/dev/null || echo "Search (p.$page): ")"
-
-		pick=$(
-			{
-				[[ "$page" -gt 1 ]] && printf '◀  %s\n' "$prev_label"
-				printf '▶  %s\n' "$next_label"
-				printf '↩  %s\n' "$back_label"
-				for item in "${items[@]}"; do
-					local tid res iconpath
-					IFS=$'\t' read -r tid res iconpath <<<"$item"
-					if [[ "$use_icons" -eq 1 && -n "$iconpath" && -f "$iconpath" ]]; then
-						printf '%s  %s\0icon\x1f%s\n' "$tid" "$res" "$iconpath"
-					else
-						printf '󰋩  %s  %s\n' "$tid" "$res"
-					fi
-				done
-			} | dmenu "$prompt_page" --lines 12
+		if ((page < last)); then
+			label=$(t wallpaper_next)
+			entries+=("▶  $label")
+			ids+=(next)
+		fi
+		# Build every thumbnail successfully before opening the picker.
+		for ((i = 0; i < count; i++)); do
+			entry=$(jq -c --argjson i "$i" '.data[$i]' <<<"$response")
+			id=$(jq -er '.id | select(type == "string" and test("^[A-Za-z0-9]+$"))' <<<"$entry")
+			resolution=$(jq -er '.resolution | strings' <<<"$entry")
+			thumb=$(jq -er '.thumbs.large | select(type == "string" and test("^https?://"))' <<<"$entry")
+			curl -fsSL --connect-timeout "$connect_timeout" --max-time "$api_timeout" --max-filesize "$max_bytes" "$thumb" |
+				magick - -thumbnail "$thumbnail_size" "$tmp/$id.png"
+			entries+=("$id  $resolution")
+			ids+=("$id")
+		done
+		prompt=$(t wallpaper_search_page_prompt "page=$page")
+		choice=$(
+			for i in "${!entries[@]}"; do
+				case "${ids[$i]}" in
+				back | prev | next) printf '%s\n' "${entries[$i]}" ;;
+				*) printf '%s\0icon\x1f%s/%s.png\n' "${entries[$i]}" "$tmp" "${ids[$i]}" ;;
+				esac
+			done | pick --prompt "$prompt" --index
 		)
-		[[ -n "$pick" ]] || break
-
-		case "$pick" in
-		*"$back_label") break ;;
-		*"$prev_label")
-			[[ "$page" -gt 1 ]] && page=$((page - 1))
-			;;
-		*"$next_label")
-			page=$((page + 1))
-			;;
+		[[ -n "$choice" ]] || return 0
+		[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+		index=$((10#$choice))
+		((index < ${#ids[@]})) || die 1 cli_picker_failed
+		case "${ids[$index]}" in
+		back) return 0 ;;
+		prev) page=$((page - 1)) ;;
+		next) page=$((page + 1)) ;;
 		*)
-			id="$(echo "$pick" | sed 's/^󰋩[[:space:]]*//' | awk '{print $1}')"
-			if [[ -n "$id" ]]; then
-				resolve_and_download "$id"
-				break
-			fi
+			download "${ids[$index]}" ''
+			return
 			;;
 		esac
 	done
-
-	# In-place clean teardown
-	[[ -n "${THUMB_DIR:-}" && -d "${THUMB_DIR:-}" ]] && rm -rf "$THUMB_DIR"
-	THUMB_DIR=""
-	trap - EXIT INT TERM HUP
-}
-
+)
 main() {
-	local cmd="${1:-menu}"
-	case "$cmd" in
+	local action="${1:-menu}" output='' target response
+	if (($#)); then shift; fi
+	case "$action" in
 	-h | --help)
-		show_help
-		exit 0
-		;;
-	search)
-		shift
-		local q="${1:-}"
-		local curl_args=(-fsSL --max-time 15 -G)
-		[[ -n "$q" ]] && curl_args+=(--data-urlencode "q=$q")
-		curl "${curl_args[@]}" "$api_base/search" 2>/dev/null | jq -r '(.data // [])[] | .id' 2>/dev/null || true
-		;;
-	download)
-		shift
-		local target="" target_out=""
-		while [[ $# -gt 0 ]]; do
-			case "$1" in
-			-o | --output)
-				shift
-				target_out="${1:-}"
-				;;
-			*)
-				if [[ -z "$target" ]]; then
-					target="$1"
-				fi
-				;;
-			esac
-			shift || true
-		done
-		[[ -n "$target" ]] || {
-			printf 'Error: Missing id/url for download (run custom-wallhaven --help for usage)\n' >&2
-			exit 2
-		}
-		resolve_and_download "$target" "$target_out"
+		(($# == 0)) || usage_error
+		t help_wallhaven
 		;;
 	menu)
-		shift
-		search_flow "${1:-}"
+		(($# <= 1)) || usage_error
+		menu "${1:-}"
 		;;
-	*)
-		search_flow "$cmd"
+	search)
+		(($# == 1)) && [[ -n "$1" ]] || usage_error
+		require curl jq
+		response=$(search_json "$1" 1)
+		jq -r '.data[] | .id | if type == "string" then . else error("invalid wallpaper id") end' <<<"$response"
 		;;
+	download)
+		(($# == 1 || $# == 3)) || usage_error
+		target="$1"
+		[[ "$target" =~ ^[A-Za-z0-9]+$ || "$target" =~ ^https?:// ]] || usage_error
+		if (($# == 3)); then
+			[[ "$2" == -o || "$2" == --output ]] && [[ -n "$3" ]] || usage_error
+			output="$3"
+		elif [[ ! -t 1 ]]; then output=-; fi
+		download "$target" "$output"
+		;;
+	*) usage_error ;;
 	esac
 }
-
 main "$@"
