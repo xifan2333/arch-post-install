@@ -1,4 +1,4 @@
-timeout 300 'hyprlock'
+timeout 300 'custom-power lock'
 timeout 600 'wlopm --off \*' resume 'wlopm --on \*'
-before-sleep 'hyprlock'
-lock 'hyprlock'
+before-sleep 'custom-power lock'
+lock 'custom-power lock'

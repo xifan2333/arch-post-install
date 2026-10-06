@@ -6,9 +6,9 @@ set -euo pipefail
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/livestream"
 HISTORY_FILE="$STATE_DIR/history.tsv"
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/livestream"
-PID_FILE="$RUNTIME_DIR/pid"
-LOG_FILE="$RUNTIME_DIR/livestream.log"
+UNIT=custom-live.service
+STOP_TIMEOUT=15
+STARTUP_DELAY=0.3
 DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-danmaku"
 
 notify() {
@@ -21,7 +21,7 @@ notify() {
 }
 
 notify_waybar() {
-	pkill -RTMIN+8 waybar 2>/dev/null || true
+	custom-session signal RTMIN+8 waybar.service
 }
 
 boost_hardware() {
@@ -40,28 +40,20 @@ restore_hardware() {
 
 open_danmaku() {
 	if [[ -x "$DANMAKU" ]]; then
-		"$DANMAKU" start >/dev/null 2>&1 &
+		"$DANMAKU" start
 	fi
 }
 
 close_danmaku() {
 	if [[ -x "$DANMAKU" ]]; then
-		"$DANMAKU" stop >/dev/null 2>&1 &
+		"$DANMAKU" stop
 	fi
 }
 
 is_active() {
-	if [[ -f "$PID_FILE" ]]; then
-		local pid
-		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-			return 0
-		fi
-	fi
-	if pgrep -f "gpu-screen-recorder.*-c flv" >/dev/null 2>&1; then
-		return 0
-	fi
-	return 1
+	local state
+	state=$(custom-session state "$UNIT") || exit "$?"
+	case "$state" in active | activating | deactivating) return 0 ;; inactive | failed) return 1 ;; *) return 1 ;; esac
 }
 
 dmenu() {
@@ -332,7 +324,7 @@ cmd_start() {
 
 	if ! command -v gpu-screen-recorder >/dev/null 2>&1; then
 		notify "gpu-screen-recorder not installed" critical
-		return 1
+		return 127
 	fi
 
 	get_active_record
@@ -355,10 +347,10 @@ cmd_start() {
 		full_url="${CURRENT_SERVER}/${CURRENT_KEY}"
 	fi
 
-	mkdir -p "$RUNTIME_DIR"
 	boost_hardware
 
-	gpu-screen-recorder \
+	if custom-session start "$UNIT" -p CollectMode=inactive -p KillSignal=SIGINT \
+		-p "TimeoutStopSec=$STOP_TIMEOUT" -p SendSIGKILL=no -- gpu-screen-recorder \
 		-w portal \
 		-f 30 \
 		-fm cfr \
@@ -368,40 +360,37 @@ cmd_start() {
 		-bm cbr \
 		-q "$CURRENT_BITRATE" \
 		-a "default_output|default_input" \
-		-o "$full_url" >"$LOG_FILE" 2>&1 &
-	local pid=$!
-	printf '%s\n' "$pid" >"$PID_FILE"
+		-o "$full_url"; then
+		:
+	else
+		local rc=$?
+		restore_hardware
+		return "$rc"
+	fi
 
+	sleep "$STARTUP_DELAY"
+	if ! is_active; then
+		restore_hardware
+		custom-i18n get cli_unavailable "name=$UNIT" >&2
+		return 1
+	fi
 	notify_waybar
 	open_danmaku
 	notify "$(custom-i18n get livestream_notify_started_full 2>/dev/null || echo "Live streaming started")"
 }
 
 cmd_stop() {
-	if ! is_active; then
-		notify "$(custom-i18n get livestream_notify_not_active 2>/dev/null || echo "No active stream")"
-		return 0
-	fi
-
-	if [[ -f "$PID_FILE" ]]; then
-		local pid
-		pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-		if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-			kill -INT "$pid" 2>/dev/null || true
-			local timeout=30
-			while kill -0 "$pid" 2>/dev/null && [[ $timeout -gt 0 ]]; do
-				sleep 0.1
-				timeout=$((timeout - 1))
-			done
-		fi
-		rm -f "$PID_FILE"
-	fi
-
-	pkill -SIGINT -f "gpu-screen-recorder.*-c flv" 2>/dev/null || true
-
-	close_danmaku
+	local state
+	state=$(custom-session state "$UNIT")
+	# Preserve failed encoder state for inspection, but still release side effects.
+	if [[ "$state" != failed ]]; then custom-session stop "$UNIT"; fi
 	restore_hardware
 	notify_waybar
+	close_danmaku
+	if [[ "$state" == failed ]]; then
+		custom-i18n get cli_unavailable "name=$UNIT" >&2
+		return 1
+	fi
 	notify "$(custom-i18n get livestream_notify_stopped 2>/dev/null || echo "Live stream stopped")"
 }
 

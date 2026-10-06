@@ -163,7 +163,7 @@ xrwm map-pointer normal Super BTN_MIDDLE toggle-float
 # ===========================================================================
 
 # Screen Locker & Power Menu
-xrwm map normal Super Escape spawn custom-session launch -- hyprlock
+xrwm map normal Super Escape spawn custom-power lock
 xrwm map normal "Super+Shift" Escape spawn custom-session launch -- custom-power
 
 # Screenshots (Print family)

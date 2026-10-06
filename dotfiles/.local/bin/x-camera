@@ -6,10 +6,8 @@
 
 from __future__ import annotations
 
-import contextlib
 import os
 import re
-import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +19,7 @@ CONFIG_FILE = CONFIG_DIR / "camera.conf"
 
 MAX_PIP_W = 1280
 MAX_PIP_H = 720
+UNIT = "custom-camera.service"
 
 
 def list_v4l2_cameras() -> list[dict[str, object]]:
@@ -168,27 +167,15 @@ def prompt_camera_selection(
     return None
 
 
-def find_camera_pids() -> list[int]:
-    try:
-        out = subprocess.check_output(
-            ["pgrep", "-f", "wayland-app-id=pip-camera"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        my_pid = os.getpid()
-        return [
-            int(p.strip())
-            for p in out.splitlines()
-            if p.strip() and int(p.strip()) != my_pid
-        ]
-    except (subprocess.CalledProcessError, ValueError):
-        return []
+def camera_running() -> bool:
+    state = subprocess.check_output(
+        ["custom-session", "state", UNIT], text=True
+    ).strip()
+    return state in ("active", "activating")
 
 
 def stop_camera() -> None:
-    for pid in find_camera_pids():
-        with contextlib.suppress(OSError):
-            os.kill(pid, signal.SIGTERM)
+    subprocess.run(["custom-session", "stop", UNIT], check=True)
 
 
 def launch_camera(cam: dict[str, object]) -> None:
@@ -224,27 +211,39 @@ def launch_camera(cam: dict[str, object]) -> None:
         f"--input-conf=memory://{input_conf}",
     ]
 
-    subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    subprocess.run(["custom-session", "start", UNIT, "--", *cmd], check=True)
 
 
 def main() -> None:
     action = sys.argv[1] if len(sys.argv) > 1 else "start"
+    if len(sys.argv) > 2 or action not in (
+        "start",
+        "toggle",
+        "select",
+        "stop",
+        "kill",
+        "close",
+        "hide",
+        "status",
+        "state",
+    ):
+        subprocess.run(
+            ["custom-i18n", "get", "cli_usage", "command=x-camera"],
+            stdout=sys.stderr,
+            check=True,
+        )
+        sys.exit(2)
 
     if action in ("stop", "kill", "close", "hide"):
         stop_camera()
         return
 
     if action in ("status", "state"):
-        print("open" if find_camera_pids() else "closed")
+        print("open" if camera_running() else "closed")
         return
 
     if action == "toggle":
-        if find_camera_pids():
+        if camera_running():
             stop_camera()
             return
         action = "start"
@@ -263,4 +262,14 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileNotFoundError as exc:
+        subprocess.run(
+            ["custom-i18n", "get", "cli_dependency", f"name={exc.filename}"],
+            stdout=sys.stderr,
+            check=False,
+        )
+        sys.exit(127)
+    except subprocess.CalledProcessError as exc:
+        sys.exit(exc.returncode if exc.returncode in (127, 130) else 1)

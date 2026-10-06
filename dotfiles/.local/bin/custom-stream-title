@@ -3,7 +3,7 @@
 # @name         custom-stream-title
 # @summary      Manage or display stream title HUD overlay via wayhud
 # @version      1.0.0
-# @deps         wayhud, fuzzel
+# @deps         custom-session, wayhud, fuzzel
 #
 # @description  On-screen stream title banner HUD overlay controller.
 #               Manages display text, recent title history, and process lifecycle without PID files.
@@ -79,34 +79,30 @@ state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title"
 history_file="$state_dir/history.txt"
 history_limit=30
 startup_delay=0.1
-pattern='(^|/)wayhud[[:space:]]+-n[[:space:]]+title([[:space:]]|$)'
+unit=custom-stream-title.service
 
 running() {
-	local rc
-	require pgrep
-	if pgrep -u "$UID" -f "$pattern" >/dev/null; then return 0; else rc=$?; fi
-	((rc == 1)) || die 1 cli_unavailable name=pgrep
-	return 1
+	local state
+	require custom-session
+	state=$(custom-session state "$unit") || die 1 cli_unavailable "name=$unit"
+	case "$state" in active | activating) return 0 ;; inactive | failed) return 1 ;; *) die 1 cli_unavailable "name=$unit:$state" ;; esac
 }
 stop_title() {
-	require pkill
-	if running; then pkill -u "$UID" -f "$pattern"; fi
+	require custom-session
+	custom-session stop "$unit"
 }
 get_title() {
 	if [[ -e "$history_file" ]]; then head -n 1 -- "$history_file"; fi
 }
 start_title() {
-	local text="$1" pid
+	local text="$1" data
 	[[ -n "$text" ]] || die 1 title_empty
-	require wayhud
+	require wayhud custom-session base64
+	data=$(printf '%s\n' "$text" | base64 -w 0)
 	stop_title
-	wayhud -n title <<<"$text" >/dev/null &
-	pid=$!
+	custom-session start "$unit" -p StandardInput=data -p "StandardInputData=$data" -- wayhud -n title
 	sleep "$startup_delay"
-	if ! kill -0 "$pid" 2>/dev/null; then
-		wait "$pid"
-		die 1 cli_unavailable name=wayhud
-	fi
+	running || die 1 cli_unavailable "name=$unit"
 }
 set_title() (
 	local title="$1" tmp line
