@@ -226,7 +226,25 @@ class WayhudPresenter:
             return True
         try:
             self.proc = subprocess.Popen(
-                ["wayhud", "-n", "captions"],
+                [
+                    "wayhud",
+                    "-n",
+                    "captions",
+                    "-s",
+                    str(
+                        Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+                        / "wayhud/style.css"
+                    ),
+                    "-s",
+                    str(
+                        Path(
+                            os.environ.get(
+                                "XDG_STATE_HOME", Path.home() / ".local/state"
+                            )
+                        )
+                        / "font/wayhud.css"
+                    ),
+                ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

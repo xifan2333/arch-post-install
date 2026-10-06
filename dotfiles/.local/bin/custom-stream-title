@@ -76,6 +76,8 @@ pick() (
 )
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title"
+style_file="${XDG_CONFIG_HOME:-$HOME/.config}/wayhud/style.css"
+font_file="${XDG_STATE_HOME:-$HOME/.local/state}/font/wayhud.css"
 history_file="$state_dir/history.txt"
 history_limit=30
 startup_delay=0.1
@@ -100,7 +102,7 @@ start_title() {
 	require wayhud uwsm systemctl base64
 	data=$(printf '%s\n' "$text" | base64 -w 0)
 	stop_title
-	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -p StandardInput=data -p "StandardInputData=$data" -- wayhud -n title
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -p StandardInput=data -p "StandardInputData=$data" -- wayhud -n title -s "$style_file" -s "$font_file"
 	sleep "$startup_delay"
 	running || die 1 cli_unavailable "name=$unit"
 }

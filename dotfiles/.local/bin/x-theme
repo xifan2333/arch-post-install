@@ -342,6 +342,36 @@ local function ensure_wayhud_theme(state_wayhud)
   os.execute(string.format("rm -f %q && ln -sf %q %q", target_css, state_wayhud, target_css))
 end
 
+local function ensure_qt_theme(state_qt, qt)
+  if not file_exists(state_qt) then
+    return
+  end
+  local qt_dir = xdg_config .. "/" .. qt
+  if os.execute(string.format("mkdir -p -- %q", qt_dir)) ~= 0 then
+    error(i18n("cli_unavailable", { name = qt_dir }))
+  end
+  -- Qt configuration plugins watch this directory, not the target of its palette symlink.
+  local tmp = exec_cmd(string.format("mktemp -d %q", qt_dir .. "/.theme.XXXXXX"))
+  if tmp == "" then
+    error(i18n("cli_unavailable", { name = qt_dir }))
+  end
+  local link = tmp .. "/colors.conf"
+  local status = os.execute(
+    string.format(
+      "ln -s -- %q %q && mv -Tf -- %q %q",
+      state_qt,
+      link,
+      link,
+      qt_dir .. "/colors.conf"
+    )
+  )
+  os.remove(link)
+  os.remove(tmp)
+  if status ~= 0 then
+    error(i18n("cli_unavailable", { name = state_qt }))
+  end
+end
+
 local function assemble_herdr_theme(colors, theme_state)
   local cfg = get_config_dir()
   local base_cfg = nil
@@ -532,6 +562,9 @@ local function apply_theme(theme_name)
   ensure_gtk_theme(theme_state .. "/gtk.css", colors)
   ensure_btop_theme(theme_state .. "/btop.theme")
   ensure_wayhud_theme(theme_state .. "/wayhud.css")
+  for _, qt in ipairs({ "qt5ct", "qt6ct" }) do
+    ensure_qt_theme(theme_state .. "/qt-colors.conf", qt)
+  end
   assemble_herdr_theme(colors, theme_state)
   broadcast_reloads()
 

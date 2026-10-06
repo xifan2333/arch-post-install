@@ -53,6 +53,8 @@
 "pacman:waybar" = "latest"
 "pacman:mako" = "latest"
 "pacman:adw-gtk-theme" = "latest"
+"pacman:qt5ct" = "latest"
+"pacman:qt6ct" = "latest"
 
 # IME (Fcitx5 + Rime Xiaohe Double Pinyin)
 "pacman:fcitx5" = "latest"

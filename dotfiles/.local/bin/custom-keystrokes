@@ -55,6 +55,8 @@ require() {
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
 
 unit=custom-keystrokes.service
+style_file="${XDG_CONFIG_HOME:-$HOME/.config}/wayhud/style.css"
+font_file="${XDG_STATE_HOME:-$HOME/.local/state}/font/wayhud.css"
 startup_delay=0.1
 running() {
 	local state
@@ -69,7 +71,7 @@ stop_keys() {
 start_keys() {
 	if running; then return 0; fi
 	require wayhud uwsm systemctl
-	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -- wayhud -n keys
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -- wayhud -n keys -s "$style_file" -s "$font_file"
 	sleep "$startup_delay"
 	running || die 1 cli_unavailable "name=$unit"
 }

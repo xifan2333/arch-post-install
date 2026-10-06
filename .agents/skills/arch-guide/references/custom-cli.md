@@ -34,15 +34,20 @@ neither a dictionary nor jq.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
-  `fuzzel.ini`, `ftty.toml`, `mako.conf`, `fcitx5.conf`, and `waybar.css`. Malformed authority is
+  `fuzzel.ini`, `ftty.toml`, `mako.conf`, `fcitx5.conf`, `waybar.css`, `wayhud.css`,
+  `qt5ct.conf`, `qt6ct.conf`, and `qt.qss`. Malformed authority is
   an error. These consumers use mono first and CJK for missing glyphs. Fontconfig
   generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
   share the same selection, including the lock screen, HUDs, IME, Satty, and
-  qutebrowser UI. Both `init` and `set` synchronize GTK/Qt desktop defaults via
-  GSettings (requires a user D-Bus session). Waybar watches the generated CSS;
+  qutebrowser UI. Both `init` and `set` synchronize GTK desktop defaults via
+  GSettings (requires a user D-Bus session) and generate Qt's native configuration.
+  Waybar watches the generated CSS;
   `set` refreshes ftty, Mako, and Fcitx5 in process when running.
   Fuzzel reads the new pair when a menu opens.
-  Reopen existing windows/HUDs without font reload support. App-specific or
+  Wayhud 0.1.3+ watches separate theme and font CSS layers for keys, titles, and
+  captions, preserving its process, layer surface, current text, and display timer.
+  Instances started with older wayhud versions need a one-time reopen after upgrading.
+  App-specific or
   website-specific fonts take precedence over generic defaults. Omitting CJK
   in `set` keeps the stored CJK selection.
 - I18n dictionaries: `${XDG_CONFIG_HOME:-$HOME/.config}/i18n/{en-us,zh-cn}.json`.
@@ -62,7 +67,32 @@ repository. Mise renders regular configuration files with absolute state paths.
 After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
 than the rendered target. The whole-tree mapping excludes template sources.
 Mako includes independent font and theme fragments; switching themes preserves
-the font selection. Qt inherits the GTK font through `QT_QPA_PLATFORMTHEME=gtk3`.
+the font selection.
+
+Qt uses `QT_QPA_PLATFORMTHEME=qt5ct` (required packages: `qt5ct` and `qt6ct`).
+The Qt 6 plugin also registers this key, so both versions follow the same setting,
+including Qt 5 applications such as WPS. Both plugins have native
+configuration-directory watchers that reload settings after a three-second debounce;
+there is no font daemon or process restart. `custom-font` combines the repository's
+`qt6ct/qt6ct.conf.template` with the selected mono font and generates a QSS font
+family list for Qt Widgets' CJK fallback. QFont's INI serialization only preserves
+one family, which is why the fallback list is a separate QSS fragment. The config
+symlink is replaced atomically on each synchronization so the directory watcher
+sees the event even though the generated files live under font state.
+
+Qt's Fusion style uses the semantic desktop palette generated from
+`themed/qt-colors.conf.tpl`. `x-theme` replaces the `qt5ct/colors.conf` and `qt6ct/colors.conf` symlinks
+after rendering the palette, triggering the same watcher without changing fonts.
+Icons remain Adwaita and native dialogs use GTK. Changing the platform plugin
+requires existing Qt processes to be opened once with the new environment;
+subsequent mono-font and palette changes update them in process. Apps with their
+own explicit fonts, stylesheets, or bundled Qt plugins may override these defaults.
+
+Known Qt 6.11 limitation: changing only the CJK fallback can update the reported
+font list while retaining the old glyph engine in an existing process. This is
+tracked in [#362](https://github.com/xifan2333/arch-post-install/issues/362), separately
+from configuration delivery. Do not work around it by restarting applications
+from `custom-font`, inventing font names, or changing font sizes.
 
 Fcitx5's non-font UI settings come from `fcitx5/classicui.conf.template` in the
 repository. `custom-font init` and `set` append explicit primary/fallback font
