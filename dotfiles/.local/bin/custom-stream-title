@@ -3,7 +3,7 @@
 # @name         custom-stream-title
 # @summary      Manage or display stream title HUD overlay via wayhud
 # @version      1.0.0
-# @deps         custom-session, wayhud, fuzzel
+# @deps         systemctl, uwsm, wayhud, fuzzel
 #
 # @description  On-screen stream title banner HUD overlay controller.
 #               Manages display text, recent title history, and process lifecycle without PID files.
@@ -83,13 +83,13 @@ unit=custom-stream-title.service
 
 running() {
 	local state
-	require custom-session
-	state=$(custom-session state "$unit") || die 1 cli_unavailable "name=$unit"
+	require systemctl
+	state=$(systemctl --user show --property=ActiveState --value "$unit") || die 1 cli_unavailable "name=$unit"
 	case "$state" in active | activating) return 0 ;; inactive | failed) return 1 ;; *) die 1 cli_unavailable "name=$unit:$state" ;; esac
 }
 stop_title() {
-	require custom-session
-	custom-session stop "$unit"
+	require systemctl
+	if running; then systemctl --user stop "$unit"; fi
 }
 get_title() {
 	if [[ -e "$history_file" ]]; then head -n 1 -- "$history_file"; fi
@@ -97,10 +97,10 @@ get_title() {
 start_title() {
 	local text="$1" data
 	[[ -n "$text" ]] || die 1 title_empty
-	require wayhud custom-session base64
+	require wayhud uwsm systemctl base64
 	data=$(printf '%s\n' "$text" | base64 -w 0)
 	stop_title
-	custom-session start "$unit" -p StandardInput=data -p "StandardInputData=$data" -- wayhud -n title
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -p StandardInput=data -p "StandardInputData=$data" -- wayhud -n title
 	sleep "$startup_delay"
 	running || die 1 cli_unavailable "name=$unit"
 }

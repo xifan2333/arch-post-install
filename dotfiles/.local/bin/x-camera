@@ -169,13 +169,15 @@ def prompt_camera_selection(
 
 def camera_running() -> bool:
     state = subprocess.check_output(
-        ["custom-session", "state", UNIT], text=True
+        ["systemctl", "--user", "show", "--property=ActiveState", "--value", UNIT],
+        text=True,
     ).strip()
     return state in ("active", "activating")
 
 
 def stop_camera() -> None:
-    subprocess.run(["custom-session", "stop", UNIT], check=True)
+    if camera_running():
+        subprocess.run(["systemctl", "--user", "stop", UNIT], check=True)
 
 
 def launch_camera(cam: dict[str, object]) -> None:
@@ -211,7 +213,23 @@ def launch_camera(cam: dict[str, object]) -> None:
         f"--input-conf=memory://{input_conf}",
     ]
 
-    subprocess.run(["custom-session", "start", UNIT, "--", *cmd], check=True)
+    subprocess.run(
+        [
+            "uwsm",
+            "app",
+            "-t",
+            "service",
+            "-s",
+            "b",
+            "-u",
+            UNIT,
+            "-p",
+            "PartOf=graphical-session.target",
+            "--",
+            *(arg.replace("$", "$$") for arg in cmd),
+        ],
+        check=True,
+    )
 
 
 def main() -> None:

@@ -3,7 +3,7 @@
 # @name         custom-record
 # @summary      Manage and control screen video recording via gpu-screen-recorder
 # @version      1.0.0
-# @deps         systemctl, custom-session, gpu-screen-recorder, slurp, fuzzel, ps
+# @deps         systemctl, uwsm, gpu-screen-recorder, slurp, fuzzel, ps
 #
 # @description  Hardware-accelerated screen video recording controller and CLI.
 #               Supports fullscreen and region recording, Waybar status formatting, and Fuzzel launcher.
@@ -105,11 +105,14 @@ check_failure() {
 	if [[ "$active_state" == failed || "$result" != success ]]; then die 1 record_failed "result=$result"; fi
 }
 notify_record() {
-	local title body
+	local title body state
 	title=$(t domain_record)
 	body=$(t "$1")
 	notify-send -a custom-record -h string:x-canonical-private-synchronous:record "$title" "$body"
-	custom-session signal RTMIN+8 waybar.service
+	state=$(systemctl --user show --property=ActiveState --value waybar.service)
+	if [[ "$state" == active ]]; then
+		systemctl --user kill --kill-whom=main --signal=RTMIN+8 waybar.service
+	fi
 }
 select_area() (
 	local geometry rc errors
@@ -138,7 +141,7 @@ start_recording() {
 		[[ "$geometry" =~ ^[1-9][0-9]*x[1-9][0-9]*\+-?[0-9]+\+-?[0-9]+$ ]] || die 1 cli_unavailable name=slurp
 		capture=(-w region -region "$geometry")
 	fi
-	require custom-session gpu-screen-recorder notify-send
+	require uwsm gpu-screen-recorder notify-send
 	recorder=$(command -v gpu-screen-recorder)
 	# Explicit start is the only operation that may reset an earlier failed run.
 	if [[ "$active_state" == failed ]]; then
@@ -147,9 +150,9 @@ start_recording() {
 	else check_failure; fi
 	mkdir -p -- "$save_dir"
 	path="$save_dir/screenrecord-$(date +%Y%m%d_%H%M%S_%N).mp4"
-	custom-session launch -s b -u "$unit" -p CollectMode=inactive \
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -p CollectMode=inactive \
 		-p KillSignal=SIGINT -p "TimeoutStopSec=$stop_timeout" -p SendSIGKILL=no \
-		-- "$recorder" "${capture[@]}" -f "$frame_rate" -a default_output -c mp4 -o "$path"
+		-- "$recorder" "${capture[@]}" -f "$frame_rate" -a default_output -c mp4 -o "${path//\$/\$\$}"
 	sleep "$startup_delay"
 	read_state
 	check_failure
@@ -161,7 +164,7 @@ stop_recording() {
 	read_state
 	check_failure
 	[[ "$active_state" != inactive ]] || return 0
-	require notify-send custom-session
+	require notify-send systemctl
 	# systemctl waits for completion; KillSignal=SIGINT gives the encoder time to flush.
 	systemctl --user stop "$unit"
 	read_state

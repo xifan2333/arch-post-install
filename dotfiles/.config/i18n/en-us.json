@@ -170,7 +170,6 @@
   "cli_unavailable": "Unavailable or invalid: {name}",
   "title_empty": "Set a title before starting the overlay",
   "help_stream_title": "Usage: custom-stream-title [get|set <text>|edit|clear|toggle|start|stop|status] (default: edit)",
-  "help_session": "Usage: custom-session launch [uwsm-options] -- command [args...] | start|toggle unit.service [uwsm-options] -- command [args...] | state|stop unit.service | reload unit-pattern... | signal signal unit-pattern... | signal-app signal executable",
   "help_font": "Usage: custom-font [menu|current [mono|cjk|all]|list [mono|cjk|all]|set <mono> [cjk]|init <mono> <cjk>]",
   "help_audio": "Usage: custom-audio [menu|list|current] [sink|source]; custom-audio set <id> [sink|source]",
   "help_power": "Usage: custom-power [menu|lock|suspend|logout|reboot|shutdown]",

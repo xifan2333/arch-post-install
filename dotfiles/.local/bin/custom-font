@@ -3,7 +3,7 @@
 # @name         custom-font
 # @summary      Manage, switch, or interactively configure monospace and CJK fallback fonts
 # @version      1.0.0
-# @deps         fc-list, fc-cache, xmllint, gsettings, fuzzel, notify-send, custom-session
+# @deps         fc-list, fc-cache, xmllint, gsettings, fuzzel, notify-send, systemctl
 #
 # @description  Universal typography manager for River WM desktop.
 #               Supports monospace/CJK font selection, atomic configuration rendering, and live reloading.
@@ -123,11 +123,21 @@ sync_toolkit_fonts() {
 	gsettings set org.gnome.desktop.wm.preferences titlebar-font "$value"
 }
 reload_fonts() {
-	local title body
-	require custom-session fc-cache notify-send
+	local title body unit state pids pid path
+	require systemctl fc-cache notify-send
 	fc-cache
-	custom-session reload waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service
-	custom-session signal-app SIGUSR1 ftty
+	for unit in waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service; do
+		state=$(systemctl --user show --property=ActiveState --value "$unit")
+		if [[ "$state" == active ]]; then systemctl --user reload "$unit"; fi
+	done
+	# Query unit MainPIDs so terminal shells and jobs never receive this signal.
+	pids=$(systemctl --user show --property=MainPID --value 'app-*.service' 'custom-*.service')
+	for pid in $pids; do
+		[[ "$pid" =~ ^[0-9]+$ ]] || die 1 cli_unavailable name=MainPID
+		if path=$(readlink "/proc/$pid/exe") && [[ "${path##*/}" == ftty ]]; then
+			kill -USR1 "$pid"
+		fi
+	done
 	title=$(t domain_font)
 	body=$(t font_switched "font=$1")
 	notify-send -a custom-font -h string:x-canonical-private-synchronous:font "$title" "$body"
@@ -218,7 +228,7 @@ menu() {
 	[[ -n "$selected_mono" ]] || return 0
 	selected_cjk=$(select_font cjk "$cjk")
 	[[ -n "$selected_cjk" ]] || return 0
-	require custom-session fc-cache notify-send
+	require systemctl fc-cache notify-send
 	write_fonts "$selected_mono" "$selected_cjk" false
 	reload_fonts "$selected_mono"
 }
@@ -255,7 +265,7 @@ main() {
 	list) list_fonts "$kind" ;;
 	set)
 		if (($# == 1)); then read_fonts mono cjk; else cjk="$2"; fi
-		require custom-session fc-cache notify-send
+		require systemctl fc-cache notify-send
 		write_fonts "$1" "$cjk" false
 		reload_fonts "$1"
 		;;

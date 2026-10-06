@@ -410,18 +410,31 @@ peach = "%s"
 end
 
 local function broadcast_reloads()
-  for _, command in ipairs({
-    "custom-session reload waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service",
-    "custom-session signal-app SIGUSR1 ftty",
-    "custom-session signal-app SIGUSR2 btop",
-  }) do
-    if os.execute(command) ~= 0 then
-      error(i18n("cli_unavailable", { name = command }))
-    end
+  local command = [[
+set -e
+for unit in waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service; do
+  state=$(systemctl --user show --property=ActiveState --value "$unit")
+  if [ "$state" = active ]; then systemctl --user reload "$unit"; fi
+done
+# MainPID excludes terminal shells and their child jobs.
+pids=$(systemctl --user show --property=MainPID --value 'app-*.service' 'custom-*.service')
+for pid in $pids; do
+  case "$pid" in *[!0-9]*) exit 1 ;; esac
+  if path=$(readlink "/proc/$pid/exe"); then
+    case "${path##*/}" in
+      ftty) kill -USR1 "$pid" ;;
+      btop) kill -USR2 "$pid" ;;
+    esac
+  fi
+done
+]]
+  if os.execute(command) ~= 0 then
+    error(i18n("cli_unavailable", { name = "systemctl" }))
   end
 
   -- Herdr owns its server lifecycle and exposes a native control interface.
-  local state = io.popen("custom-session state custom-danmaku.service", "r")
+  local state =
+    io.popen("systemctl --user show --property=ActiveState --value custom-danmaku.service", "r")
   if state then
     local active = state:read("*l")
     state:close()

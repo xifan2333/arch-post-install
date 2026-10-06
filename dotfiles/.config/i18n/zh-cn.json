@@ -170,7 +170,6 @@
   "cli_unavailable": "不可用或无效：{name}",
   "title_empty": "请先设置标题再启动悬浮窗",
   "help_stream_title": "用法：custom-stream-title [get|set <文本>|edit|clear|toggle|start|stop|status]（默认：edit）",
-  "help_session": "用法：custom-session launch [uwsm选项] -- 命令 [参数...] | start|toggle 单元.service [uwsm选项] -- 命令 [参数...] | state|stop 单元.service | reload 单元模式... | signal 信号 单元模式... | signal-app 信号 可执行文件名",
   "help_font": "用法：custom-font [menu|current [mono|cjk|all]|list [mono|cjk|all]|set <西文> [中文]|init <西文> <中文>]",
   "help_audio": "用法：custom-audio [menu|list|current] [sink|source]；custom-audio set <id> [sink|source]",
   "help_power": "用法：custom-power [menu|lock|suspend|logout|reboot|shutdown]",
