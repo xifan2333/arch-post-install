@@ -51,18 +51,13 @@ repository. Mise renders regular configuration files with absolute state paths.
 After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
 than the rendered target. The whole-tree mapping excludes template sources.
 
-For an existing installation, run the explicit one-time migration before applying:
+Apply the current dotfiles and initialize missing font state:
 
 ```bash
-bash scripts/migrations/336-title-state.sh
 mise bootstrap dotfiles apply --yes
 custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"
 ```
 
-The migration merges the canonical history, the former data-directory history,
-and the old Wayhud history in that order, retaining the first occurrence of each
-line. It atomically writes the merged history before removing the old files;
-repeating it is safe. Runtime commands never consult those old locations.
 Mise removes only obsolete links recorded as managed by its whole-tree mapping.
 
 ## Image streams
@@ -106,13 +101,8 @@ selection preserves the previous service state.
 ```bash
 mise run check:plan
 mise run check:changed
-mise run test:cli
 mise run lint
 ```
 
-The CLI suite uses temporary XDG directories and fake desktop/network backends.
-It covers arguments, missing dependencies, failure propagation, cancellation,
-image streams, device names, state migration, font initialization, hardware
-permissions, recording concurrency, and actual mise template rendering.
-It requires Python 3, Bash, jq, xmllint, mise, and standard Unix utilities.
-CI installs xmllint and runs both lint and the regression suite.
+CI runs the repository linters. Validate runtime behavior with checks appropriate
+to the changed command.
