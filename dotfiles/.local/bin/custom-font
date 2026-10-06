@@ -27,294 +27,175 @@
 #   custom-font current
 #   custom-font set "JetBrainsMono Nerd Font" "Sarasa Mono SC"
 
-set -euo pipefail
-
-DOMAIN="font"
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
+pick() {
+	local selection rc
+	if selection=$(fuzzel --dmenu "$@"); then
+		printf '%s' "$selection"
+	else
+		rc=$?
+		((rc == 1)) || {
+			((rc == 130)) && exit 130
+			die 1 cli_picker_failed
+		}
+	fi
+}
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/font"
-mkdir -p "$state_dir"
+font_size=13
 
-show_help() {
-	cat <<'EOF'
-Usage: custom-font [options] [command] [arguments...]
-
-Options:
-  -h, --help                Show this help message and exit
-
-Commands:
-  menu                      Open interactive font picker via Fuzzel (default)
-  current [mono|cjk|all]    Print active font names
-  list [mono|cjk|all]       List installed candidate fonts
-  set <mono> [cjk]          Set active monospace and fallback CJK fonts atomically
-
-Examples:
-  custom-font
-  custom-font current
-  custom-font set "JetBrainsMono Nerd Font" "Sarasa Mono SC"
-EOF
+read_fonts() {
+	local -n selected_mono="$1" selected_cjk="$2"
+	require xmllint
+	[[ -f "$state_dir/fonts.conf" ]] || die 1 cli_unavailable "name=$state_dir/fonts.conf"
+	xmllint --nonet --noout "$state_dir/fonts.conf"
+	local count
+	count=$(xmllint --nonet --xpath 'count(/fontconfig/match/edit[@name="family"][@binding="strong"]/string)' "$state_dir/fonts.conf")
+	[[ "$count" == 1 ]] || die 1 cli_unavailable "name=$state_dir/fonts.conf"
+	selected_mono=$(xmllint --nonet --xpath 'string(/fontconfig/match/edit[@name="family"][@binding="strong"]/string)' "$state_dir/fonts.conf")
+	selected_cjk=$(xmllint --nonet --xpath 'string(/fontconfig/alias[family="monospace"]/prefer/family[1])' "$state_dir/fonts.conf")
+	[[ -n "$selected_mono" && -n "$selected_cjk" ]] || die 1 cli_unavailable "name=$state_dir/fonts.conf"
 }
-
-notify() {
-	local title body
-	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Typography")"
-	body="$1"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
-	fi
+validate_font() {
+	# Newlines and Fontconfig pattern delimiters cannot be represented in Fuzzel's font field.
+	[[ -n "$1" && "$1" != *[$'\n\r\t:=,\\']* ]] || usage_error
+	local installed
+	installed=$(fc-list --format '%{family}\n')
+	installed=$(tr ',' '\n' <<<"$installed")
+	while IFS= read -r family; do [[ "$family" != "$1" ]] || return 0; done <<<"$installed"
+	die 1 cli_unavailable "name=$1"
 }
-
-atomic_write() {
-	local target="$1" tmp
-	tmp="$target.tmp.$$"
-	cat >"$tmp"
-	mv -f "$tmp" "$target"
+xml_escape() {
+	local value="$1"
+	value="${value//&/\&amp;}"
+	value="${value//</\&lt;}"
+	value="${value//>/\&gt;}"
+	printf '%s' "$value"
 }
-
-get_current_mono() {
-	if [[ -f "$state_dir/fonts.conf" ]]; then
-		awk -F'[<>]' '/<edit.*binding="strong">/{flag=1} flag && /<string>/{print $3; exit}' "$state_dir/fonts.conf"
-	else
-		fc-match monospace -f '%{family}\n' 2>/dev/null | head -n1 | cut -d, -f1
-	fi
+css_escape() {
+	local value="$1"
+	value="${value//\/\\/}"
+	value="${value//\"/\\\"}"
+	printf '%s' "$value"
 }
-
-get_current_cjk() {
-	if [[ -f "$state_dir/fonts.conf" ]]; then
-		awk -F'[<>]' '/<prefer>/{flag=1} flag && /<family>/{print $3; exit}' "$state_dir/fonts.conf"
-	else
-		printf 'Sarasa Mono SC\n'
-	fi
-}
-
-is_cjk_font() {
-	local name="$1"
-	if [[ "$name" =~ (Sarasa|CJK|WenKai|Source\ Han|PingFang|Microsoft\ YaHei|SimSun|KaiTi) ]]; then
-		return 0
-	fi
-	return 1
-}
-
-get_mono_fonts() {
-	local curr_mono="$1" raw
-	raw=$(fc-list : family 2>/dev/null |
-		tr ',' '\n' |
-		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
-		grep -iE "(Nerd Font|Maple Mono|Fira Code|Hack|Iosevka|JetBrains|Source Code|Cascadia)" |
-		grep -vE "(Extra|Semi|Light|Thin|Medium|Bold|Black|Italic|NL)" |
-		grep -vE "(CJK|Chinese|SC|TC|HK|JP|KR)" |
-		sort -u || true)
-
-	if [[ -n "$curr_mono" ]] && echo "$raw" | grep -Fxq "$curr_mono"; then
-		printf '%s\n' "$curr_mono"
-		echo "$raw" | grep -vFx "$curr_mono" || true
-	else
-		echo "$raw"
-	fi
-}
-
-get_cjk_fonts() {
-	local curr_cjk="$1" raw
-	raw=$(fc-list : family 2>/dev/null |
-		tr ',' '\n' |
-		sed 's/^[[:space:]]*//;s/[[:space:]]*$//' |
-		grep -E "^(Sarasa Mono SC|Sarasa UI SC|Sarasa Gothic SC|Noto Sans Mono CJK SC|Noto Sans CJK SC|Source Han Sans CN|LXGW WenKai)" |
-		grep -vE "(Black|DemiLight|Light|Medium|Thin|SemiBold|XLight|Extra|Bold|Italic)" |
-		sort -u || true)
-
-	if [[ -n "$curr_cjk" ]] && echo "$raw" | grep -Fxq "$curr_cjk"; then
-		printf '%s\n' "$curr_cjk"
-		echo "$raw" | grep -vFx "$curr_cjk" || true
-	else
-		echo "$raw"
-	fi
-}
-
-list_fonts() {
-	case "${1:-all}" in
-	mono | -m | --mono)
-		get_mono_fonts ""
-		;;
-	cjk | -c | --cjk)
-		get_cjk_fonts ""
-		;;
-	*)
-		printf '=== Monospace Fonts ===\n'
-		get_mono_fonts ""
-		printf '\n=== CJK Fallback Fonts ===\n'
-		get_cjk_fonts ""
-		;;
-	esac
-}
-
-show_current() {
-	case "${1:-all}" in
-	mono | -m | --mono)
-		get_current_mono
-		;;
-	cjk | -c | --cjk)
-		get_current_cjk
-		;;
-	*)
-		printf 'Mono: %s\n' "$(get_current_mono)"
-		printf 'CJK : %s\n' "$(get_current_cjk)"
-		;;
-	esac
-}
-
-set_fonts() {
-	local mono_font="$1" cjk_font="$2"
-
-	# 1. State: Fontconfig monospace & CJK fallback snippet
-	atomic_write "$state_dir/fonts.conf" <<EOF
+write_fonts() (
+	local write_mono="$1" write_cjk="$2" initialize="$3" tmp mono_xml cjk_xml mono_css cjk_css
+	require fc-list xmllint flock
+	if [[ "$initialize" == true && -e "$state_dir/fonts.conf" ]]; then read_fonts write_mono write_cjk; fi
+	validate_font "$write_mono"
+	validate_font "$write_cjk"
+	mkdir -p -- "$state_dir"
+	exec {lock}<"$state_dir"
+	flock "$lock"
+	if [[ "$initialize" == true && -e "$state_dir/fonts.conf" ]]; then read_fonts write_mono write_cjk; fi
+	tmp=$(mktemp -d "$state_dir/.font.XXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
+	mono_xml=$(xml_escape "$write_mono")
+	cjk_xml=$(xml_escape "$write_cjk")
+	mono_css=$(css_escape "$write_mono")
+	cjk_css=$(css_escape "$write_cjk")
+	cat >"$tmp/fonts.conf" <<EOF
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<!-- Auto-generated by custom-font: DO NOT EDIT DIRECTLY -->
+<!-- Generated by custom-font -->
 <fontconfig>
   <match target="pattern">
     <test name="family" qual="any"><string>monospace</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>$mono_font</string>
-    </edit>
+    <edit name="family" mode="prepend" binding="strong"><string>$mono_xml</string></edit>
   </match>
   <alias>
     <family>monospace</family>
-    <prefer>
-      <family>$cjk_font</family>
-      <family>Noto Color Emoji</family>
-    </prefer>
+    <prefer><family>$cjk_xml</family><family>Noto Color Emoji</family></prefer>
   </alias>
 </fontconfig>
 EOF
-
-	# 2. State: Waybar typography snippet
-	atomic_write "$state_dir/waybar.css" <<EOF
-/* Auto-generated by custom-font: DO NOT EDIT DIRECTLY */
-* {
-    font-family: "$mono_font", "$cjk_font";
-}
-EOF
-
-	# 3. State: Fuzzel typography snippet
-	atomic_write "$state_dir/fuzzel.ini" <<EOF
-# Auto-generated by custom-font: DO NOT EDIT DIRECTLY
-[main]
-font=$cjk_font:size=13
-EOF
-
-	# 4. Broadcast live reloads
-	pkill -SIGUSR2 waybar 2>/dev/null || true
-	fc-cache 2>/dev/null || true
-
-	notify "$(custom-i18n get font_switched "font=$mono_font" 2>/dev/null || echo "Monospace font switched to: $mono_font")"
-	printf '✓ Set active fonts:\n  Mono: %s\n  CJK : %s\n' "$mono_font" "$cjk_font"
-}
-
-interactive_menu() {
-	local curr_mono curr_cjk
-	curr_mono="$(get_current_mono)"
-	curr_cjk="$(get_current_cjk)"
-
-	local dmenu_cmd="fuzzel --dmenu --prompt"
-	if ! command -v fuzzel &>/dev/null; then
-		if command -v bemenu &>/dev/null; then
-			dmenu_cmd="bemenu -p"
-		else
-			dmenu_cmd="head -1"
-		fi
+	xmllint --nonet --noout "$tmp/fonts.conf"
+	printf '* { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/waybar.css"
+	printf '[main]\nfont=%s:size=%s\n' "$write_cjk" "$font_size" >"$tmp/fuzzel.ini"
+	# On init the existing authority is preserved byte for byte; only regenerate derivatives.
+	if [[ "$initialize" != true || ! -e "$state_dir/fonts.conf" ]]; then
+		mv -f -- "$tmp/fonts.conf" "$state_dir/fonts.conf"
 	fi
-
-	# Format menu entries with active mark
-	format_menu() {
-		local curr="$1" raw_list="$2"
-		local lines=()
-		if [[ -n "$curr" ]]; then
-			lines+=("* $curr")
-		fi
-		while IFS= read -r item; do
-			[[ -n "$item" ]] || continue
-			[[ "$item" == "$curr" ]] && continue
-			lines+=("  $item")
-		done <<<"$raw_list"
-		printf '%s\n' "${lines[@]}"
-	}
-
-	# Step 1: Select Monospace Font
-	local prompt_mono prompt_cjk
-	prompt_mono="$(custom-i18n get font_prompt_mono 2>/dev/null || echo "Monospace Font: ")"
-	prompt_cjk="$(custom-i18n get font_prompt_cjk 2>/dev/null || echo "CJK Font: ")"
-
-	local mono_raw mono_menu selected_mono
-	mono_raw="$(get_mono_fonts "$curr_mono")"
-	mono_menu="$(format_menu "$curr_mono" "$mono_raw")"
-	selected_mono=$(printf '%s\n' "$mono_menu" | $dmenu_cmd "$prompt_mono")
-	[[ -n "${selected_mono:-}" ]] || return 0
-	selected_mono="${selected_mono#\* }"
-	selected_mono="${selected_mono#  }"
-
-	# Step 2: Select CJK Font
-	local cjk_raw cjk_menu selected_cjk
-	cjk_raw="$(get_cjk_fonts "$curr_cjk")"
-	cjk_menu="$(format_menu "$curr_cjk" "$cjk_raw")"
-	selected_cjk=$(printf '%s\n' "$cjk_menu" | $dmenu_cmd "$prompt_cjk")
-	if [[ -z "${selected_cjk:-}" ]]; then
-		selected_cjk="$curr_cjk"
-	else
-		selected_cjk="${selected_cjk#\* }"
-		selected_cjk="${selected_cjk#  }"
-	fi
-
-	set_fonts "$selected_mono" "$selected_cjk"
+	mv -f -- "$tmp/waybar.css" "$state_dir/waybar.css"
+	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
+)
+list_fonts() {
+	local kind="$1" fonts
+	require fc-list
+	case "$kind" in
+	mono) fonts=$(fc-list :spacing=mono --format '%{family}\n') ;;
+	cjk) fonts=$(fc-list :lang=zh-cn --format '%{family}\n') ;;
+	all) fonts=$(fc-list --format '%{family}\n') ;;
+	esac
+	tr ',' '\n' <<<"$fonts" | awk 'NF' | sort -u
 }
-
+menu() {
+	local mono cjk fonts choice prompt
+	require fuzzel
+	read_fonts mono cjk
+	fonts=$(list_fonts mono)
+	prompt=$(t font_prompt_mono)
+	choice=$(pick --prompt "$prompt" <<<"$fonts")
+	[[ -n "$choice" ]] || return 0
+	mono="$choice"
+	fonts=$(list_fonts cjk)
+	prompt=$(t font_prompt_cjk)
+	choice=$(pick --prompt "$prompt" <<<"$fonts")
+	[[ -n "$choice" ]] || return 0
+	write_fonts "$mono" "$choice" false
+}
 main() {
-	local action="${1:-menu}"
-
+	local action="${1:-menu}" kind mono cjk
+	if (($#)); then shift; fi
 	case "$action" in
-	-h | --help)
-		show_help
-		exit 0
+	-h | --help | menu) (($# == 0)) || usage_error ;;
+	current | list)
+		(($# <= 1)) || usage_error
+		kind="${1:-all}"
+		case "$kind" in mono | cjk | all) ;; *) usage_error ;; esac
 		;;
-	menu)
-		interactive_menu
-		;;
+	set) (($# == 1 || $# == 2)) || usage_error ;;
+	init) (($# == 2)) || usage_error ;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	-h | --help) t help_font ;;
+	menu) menu ;;
 	current)
-		shift
-		show_current "${1:-all}"
+		read_fonts mono cjk
+		case "$kind" in mono) printf '%s\n' "$mono" ;; cjk) printf '%s\n' "$cjk" ;;
+		all) printf 'mono\t%s\ncjk\t%s\n' "$mono" "$cjk" ;; esac
 		;;
-	list)
-		shift
-		list_fonts "${1:-all}"
-		;;
+	list) list_fonts "$kind" ;;
 	set)
-		shift
-		if [[ $# -eq 0 ]]; then
-			printf 'Error: Missing font arguments for set (run custom-font --help for usage)\n' >&2
-			exit 2
-		fi
-		local mono="$1" cjk="${2:-}"
-		if [[ -z "$cjk" ]]; then
-			if is_cjk_font "$mono"; then
-				cjk="$mono"
-				mono="$(get_current_mono)"
-			else
-				cjk="$(get_current_cjk)"
-			fi
-		fi
-		set_fonts "$mono" "$cjk"
+		if (($# == 1)); then read_fonts mono cjk; else cjk="$2"; fi
+		write_fonts "$1" "$cjk" false
 		;;
-	*)
-		local mono="$1" cjk="${2:-}"
-		if [[ -z "$cjk" ]]; then
-			if is_cjk_font "$mono"; then
-				cjk="$mono"
-				mono="$(get_current_mono)"
-			else
-				cjk="$(get_current_cjk)"
-			fi
-		fi
-		set_fonts "$mono" "$cjk"
-		;;
+	init) write_fonts "$1" "$2" true ;;
 	esac
 }
-
 main "$@"

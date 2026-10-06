@@ -1,0 +1,16 @@
+{% if env.XDG_STATE_HOME is defined and env.XDG_STATE_HOME != "" %}{% set state = env.XDG_STATE_HOME %}{% else %}{% set state = env.HOME ~ "/.local/state" %}{% endif %}
+[main]
+fields=filename,name,generic,exec,keywords,comment
+include={{ state }}/theme/fuzzel.ini
+include={{ state }}/font/fuzzel.ini
+terminal=ftty -e
+prompt="❯ "
+lines=12
+width=40
+horizontal-pad=20
+vertical-pad=12
+inner-pad=8
+
+[border]
+width=2
+radius=10

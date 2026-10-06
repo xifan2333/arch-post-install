@@ -162,5 +162,13 @@
   "net_ambiguous_ssid": "存在多个匹配的网络：{ssid}",
   "net_not_found": "未找到网络：{ssid}",
   "net_empty_passphrase": "未从标准输入读到口令",
-  "net_no_saved_network": "没有可用的已保存或开放网络，请使用 x-wifi menu"
+  "net_no_saved_network": "没有可用的已保存或开放网络，请使用 x-wifi menu",
+  "cli_failed": "{command}：第 {line} 行操作失败",
+  "cli_dependency": "缺少依赖：{name}",
+  "cli_usage": "参数无效；请查看 {command} --help",
+  "cli_picker_failed": "菜单运行失败",
+  "cli_unavailable": "不可用或无效：{name}",
+  "title_empty": "请先设置标题再启动悬浮窗",
+  "help_stream_title": "用法：custom-stream-title [get|set <文本>|edit|clear|toggle|start|stop|status]（默认：edit）",
+  "help_font": "用法：custom-font [menu|current [mono|cjk|all]|list [mono|cjk|all]|set <西文> [中文]|init <西文> <中文>]"
 }

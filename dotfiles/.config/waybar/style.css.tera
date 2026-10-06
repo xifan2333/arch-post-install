@@ -1,6 +1,7 @@
+{% if env.XDG_STATE_HOME is defined and env.XDG_STATE_HOME != "" %}{% set state = env.XDG_STATE_HOME %}{% else %}{% set state = env.HOME ~ "/.local/state" %}{% endif %}
 /* Waybar style with dynamic theme and font state imports */
-@import url("../../.local/state/theme/waybar.css");
-@import url("../../.local/state/font/waybar.css");
+@import url({{ (state ~ "/theme/waybar.css") | json_encode() }});
+@import url({{ (state ~ "/font/waybar.css") | json_encode() }});
 
 * {
     border: none;

@@ -162,5 +162,13 @@
   "net_ambiguous_ssid": "More than one network matches {ssid}",
   "net_not_found": "Network not found: {ssid}",
   "net_empty_passphrase": "No passphrase received on stdin",
-  "net_no_saved_network": "No saved or open network available; use x-wifi menu"
+  "net_no_saved_network": "No saved or open network available; use x-wifi menu",
+  "cli_failed": "{command}: operation failed at line {line}",
+  "cli_dependency": "Missing dependency: {name}",
+  "cli_usage": "Invalid arguments; see {command} --help",
+  "cli_picker_failed": "Menu failed",
+  "cli_unavailable": "Unavailable or invalid: {name}",
+  "title_empty": "Set a title before starting the overlay",
+  "help_stream_title": "Usage: custom-stream-title [get|set <text>|edit|clear|toggle|start|stop|status] (default: edit)",
+  "help_font": "Usage: custom-font [menu|current [mono|cjk|all]|list [mono|cjk|all]|set <mono> [cjk]|init <mono> <cjk>]"
 }

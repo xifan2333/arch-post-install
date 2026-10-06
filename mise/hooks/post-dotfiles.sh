@@ -32,8 +32,6 @@ if [[ -x "dotfiles/.local/bin/arch-theme" ]]; then
     dotfiles/.local/bin/arch-theme refresh 2>/dev/null || dotfiles/.local/bin/arch-theme tokyo-night
 fi
 
-# Seed initial desktop monospace font configuration for Waybar and terminal UI
-if [[ -x "dotfiles/.local/bin/arch-font" ]]; then
-    printf 'post-dotfiles: initializing desktop monospace font...\n'
-    dotfiles/.local/bin/arch-font "JetBrainsMono Nerd Font" "Sarasa Mono SC" 2>/dev/null || true
-fi
+# Seed once, preserving the selected font pair and regenerating derived fragments.
+printf 'post-dotfiles: initializing desktop fonts...\n'
+custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"
