@@ -1,0 +1,332 @@
+#!/usr/bin/env bash
+#
+# @name         custom-wallpaper
+# @summary      Manage, switch, or select desktop wallpapers
+# @version      1.0.0
+# @deps         swaybg, fuzzel
+#
+# @description  Universal desktop wallpaper manager for River WM.
+#               Supports random selection, local browsing, and remote search via Wallhaven.
+#
+# @usage        custom-wallpaper [options] [command] [arguments...]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @commands
+#   menu                    Open interactive wallpaper picker via Fuzzel (default)
+#   current | get           Print path of active wallpaper
+#   list                    List all local wallpaper image files
+#   random                  Select and apply a random wallpaper from local directory
+#   search [query]          Search and select wallpaper via custom-wallhaven
+#   set <path|url|-|id>     Set wallpaper from path, URL, stdin stream (-), or ID
+#
+# @stdin        Accepts file path or URL stream when using 'set -'
+# @stdout       Path of selected or active wallpaper
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-wallpaper current
+#   custom-wallpaper random
+#   custom-wallpaper set ~/Pictures/wallpapers/a.jpg
+#   find ~/Pictures -name '*.png' | custom-wallpaper set -
+
+set -euo pipefail
+
+DOMAIN="wallpaper"
+
+wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/custom-wallpaper/current"
+mkdir -p "$wall_dir" "$(dirname "$state_file")"
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-wallpaper [options] [command] [arguments...]
+
+Options:
+  -h, --help  Show this help message and exit
+
+Commands:
+  menu                    Open interactive wallpaper picker via Fuzzel (default)
+  current | get           Print path of active wallpaper
+  list                    List all local wallpaper image files
+  random                  Select and apply a random wallpaper from local directory
+  search [query]          Search and select wallpaper via custom-wallhaven
+  set <path|url|-|id>     Set wallpaper from path, URL, stdin (-), or ID
+
+Examples:
+  custom-wallpaper current
+  custom-wallpaper random
+  custom-wallpaper set ~/Pictures/wallpaper.jpg
+  echo ~/Pictures/wallpaper.jpg | custom-wallpaper set -
+EOF
+}
+
+notify() {
+	local title body
+	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Wallpaper")"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+	fi
+}
+
+fail() {
+	notify "$(custom-i18n get wallpaper_failed 2>/dev/null || echo "Wallpaper failed")"
+	printf 'Error: %s\n' "$1" >&2
+	exit 1
+}
+
+dmenu() {
+	local prompt="$1"
+	shift
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt" "$@" || true
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt" || true
+	else
+		head -n 1
+	fi
+}
+
+set_wallpaper() {
+	local img="$1" tmp old_pids
+	[[ -f "$img" ]] || fail "$(custom-i18n get wallpaper_file_not_found "file=$img" 2>/dev/null || echo "Wallpaper file not found: $img")"
+
+	if [[ "$img" != "$wall_dir"/* ]]; then
+		local ext="${img##*.}"
+		case "$ext" in
+		jpg | jpeg | png | webp) ;;
+		*) ext="jpg" ;;
+		esac
+		local target_img="$wall_dir/wallpaper.$ext"
+		rm -f "$wall_dir"/wallpaper.*
+		cp -f "$img" "$target_img"
+		img="$target_img"
+	fi
+
+	old_pids=$(pgrep -x swaybg || true)
+
+	if command -v uwsm >/dev/null 2>&1; then
+		uwsm app -s b -S both -- swaybg -i "$img" -m fill >/dev/null 2>&1 &
+	else
+		swaybg -i "$img" -m fill >/dev/null 2>&1 &
+	fi
+
+	sleep 0.2
+	if [[ -n "$old_pids" ]]; then
+		kill "$old_pids" 2>/dev/null || true
+	fi
+
+	tmp="$state_file.tmp.$$"
+	printf '%s\n' "$img" >"$tmp"
+	mv -f "$tmp" "$state_file"
+	printf '%s\n' "$img"
+}
+
+get_current() {
+	if [[ -f "$state_file" ]]; then
+		cat "$state_file"
+	elif [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current" ]]; then
+		cat "${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
+	fi
+}
+
+list_local() {
+	find "$wall_dir" -maxdepth 2 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) 2>/dev/null | sort || true
+}
+
+apply_target() {
+	local arg="$1"
+	if [[ "$arg" == "-" ]]; then
+		while IFS= read -r line || [[ -n "$line" ]]; do
+			[[ -n "$line" ]] && apply_target "$line"
+		done
+		return 0
+	fi
+
+	arg="${arg/#\~\//$HOME/}"
+
+	if [[ -f "$arg" ]]; then
+		set_wallpaper "$arg"
+		return 0
+	fi
+
+	local wallhaven_cmd="custom-wallhaven"
+	command -v "$wallhaven_cmd" >/dev/null 2>&1 || wallhaven_cmd="x-wallhaven"
+	if command -v "$wallhaven_cmd" >/dev/null 2>&1; then
+		local downloaded
+		downloaded="$("$wallhaven_cmd" download "$arg" 2>/dev/null || true)"
+		if [[ -n "$downloaded" && -f "$downloaded" ]]; then
+			set_wallpaper "$downloaded"
+			return 0
+		fi
+	fi
+
+	fail "$(custom-i18n get wallpaper_invalid_target 2>/dev/null || echo "Invalid wallpaper target")"
+}
+
+random_local() {
+	local img
+	img="$(list_local | shuf -n 1)"
+	[[ -n "$img" ]] || fail "$(custom-i18n get wallpaper_none_found "dir=$wall_dir" 2>/dev/null || echo "No wallpapers found in $wall_dir")"
+	set_wallpaper "$img"
+}
+
+select_local_menu() {
+	local current files
+	current="$(get_current)"
+	files="$(list_local)"
+	[[ -n "$files" ]] || fail "$(custom-i18n get wallpaper_none_found "dir=$wall_dir" 2>/dev/null || echo "No wallpapers found in $wall_dir")"
+
+	local use_icons=0
+	if command -v fuzzel >/dev/null 2>&1; then
+		use_icons=1
+	fi
+
+	local thumb_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-wallpaper/thumbs"
+	if [[ "$use_icons" -eq 1 ]] && command -v magick >/dev/null 2>&1; then
+		mkdir -p "$thumb_dir"
+		local gen_jobs=0
+		while IFS= read -r f; do
+			[[ -n "$f" ]] || continue
+			local th_name th_file
+			th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
+			th_file="$thumb_dir/$th_name"
+			if [[ ! -f "$th_file" || "$f" -nt "$th_file" ]]; then
+				(magick "$f" -thumbnail 96x96 "$th_file" 2>/dev/null || rm -f "$th_file") &
+				gen_jobs=$((gen_jobs + 1))
+				if ((gen_jobs >= 8)); then
+					wait -n 2>/dev/null || true
+					gen_jobs=$((gen_jobs - 1))
+				fi
+			fi
+		done <<<"$files"
+		wait 2>/dev/null || true
+	fi
+
+	local max_name_len=0
+	while IFS= read -r f; do
+		[[ -n "$f" ]] || continue
+		local b="${f##*/}"
+		local stem="${b%.*}"
+		((${#stem} > max_name_len)) && max_name_len=${#stem}
+	done <<<"$files"
+	((max_name_len < 10)) && max_name_len=10
+	((max_name_len > 40)) && max_name_len=40
+
+	local chosen
+	chosen=$(
+		while IFS= read -r f; do
+			[[ -n "$f" ]] || continue
+			local b="${f##*/}"
+			local stem="${b%.*}"
+			local ext="${b##*.}"
+			local prefix="  "
+			[[ "$f" == "$current" ]] && prefix="* "
+
+			local name_col
+			name_col=$(printf "%-${max_name_len}s" "$stem")
+			local ext_col
+			ext_col=$(printf "%-4s" "$ext")
+
+			local th_name th_file
+			th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
+			th_file="$thumb_dir/$th_name"
+
+			local label="${prefix}󰋩  ${name_col}  │  ${ext_col}"
+			if [[ "$use_icons" -eq 1 && -f "$th_file" ]]; then
+				printf '%s\0icon\x1f%s\n' "$label" "$th_file"
+			else
+				printf '%s\n' "$label"
+			fi
+		done <<<"$files" | dmenu "$(custom-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15
+	)
+
+	[[ -n "$chosen" ]] || return 0
+
+	local chosen_name
+	chosen_name="$(echo "$chosen" | sed -E 's/^[* ] 󰋩  //' | awk -F'  │  ' '{print $1}' | sed 's/[[:space:]]*$//')"
+
+	local match=""
+	while IFS= read -r f; do
+		local b="${f##*/}"
+		local stem="${b%.*}"
+		if [[ "$stem" == "$chosen_name" ]]; then
+			match="$f"
+			break
+		fi
+	done <<<"$files"
+
+	if [[ -n "$match" && -f "$match" ]]; then
+		set_wallpaper "$match"
+	fi
+}
+
+interactive_menu() {
+	local rand_label local_label search_label
+	rand_label="$(custom-i18n get wallpaper_mode_random 2>/dev/null || echo "Random")"
+	local_label="$(custom-i18n get wallpaper_mode_local 2>/dev/null || echo "Local")"
+	search_label="$(custom-i18n get wallpaper_mode_search 2>/dev/null || echo "Search")"
+
+	local choices=(
+		"󰋩  $local_label"
+		"󰒝  $rand_label"
+		"󰍉  $search_label"
+	)
+
+	local choice
+	choice="$(printf '%s\n' "${choices[@]}" | dmenu "$(custom-i18n get wallpaper_mode_prompt 2>/dev/null || echo "Wallpaper Mode: ")" --lines 5)"
+	[[ -n "$choice" ]] || return 0
+
+	case "$choice" in
+	*"$local_label") select_local_menu ;;
+	*"$rand_label") random_local ;;
+	*"$search_label")
+		local wallhaven_cmd="custom-wallhaven"
+		command -v "$wallhaven_cmd" >/dev/null 2>&1 || wallhaven_cmd="x-wallhaven"
+		local dl=""
+		if command -v "$wallhaven_cmd" >/dev/null 2>&1; then
+			dl="$("$wallhaven_cmd" menu || true)"
+		fi
+		[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
+		;;
+	esac
+}
+
+main() {
+	local cmd="${1:-menu}"
+	case "$cmd" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	menu) interactive_menu ;;
+	current | get) get_current ;;
+	list) list_local ;;
+	random) random_local ;;
+	search)
+		shift
+		local wallhaven_cmd="custom-wallhaven"
+		command -v "$wallhaven_cmd" >/dev/null 2>&1 || wallhaven_cmd="x-wallhaven"
+		local dl=""
+		if command -v "$wallhaven_cmd" >/dev/null 2>&1; then
+			dl="$("$wallhaven_cmd" menu "${1:-}" || true)"
+		fi
+		[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
+		;;
+	set)
+		shift
+		[[ $# -ge 1 ]] || {
+			printf 'Error: Missing path/url for set (run custom-wallpaper --help for usage)\n' >&2
+			exit 2
+		}
+		apply_target "$1"
+		;;
+	*)
+		apply_target "$cmd"
+		;;
+	esac
+}
+
+main "$@"

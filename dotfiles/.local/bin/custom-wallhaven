@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+#
+# @name         custom-wallhaven
+# @summary      Search and download wallpapers from Wallhaven API
+# @version      1.0.0
+# @deps         curl, jq, magick, fuzzel
+#
+# @description  Wallhaven.cc client for searching, previewing, and downloading desktop wallpapers.
+#               Supports CLI ID/URL resolution, keyword searching, and interactive paginated picker.
+#
+# @usage        custom-wallhaven [options] [command] [arguments...]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @commands
+#   menu [query]            Open interactive fuzzy search and picker via Fuzzel (default)
+#   search <query>          Search Wallhaven API and print candidate IDs to stdout
+#   download <id|url>       Download wallpaper image by ID or URL and print local cached path
+#
+# @stdout       Downloaded wallpaper image path or candidate IDs
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-wallhaven search anime
+#   custom-wallhaven download 852109
+#   custom-wallhaven menu cyberpunk
+
+set -euo pipefail
+
+DOMAIN="wallhaven"
+
+wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/custom-wallhaven"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-wallhaven"
+api_base="https://wallhaven.cc/api/v1"
+max_bytes=52428800
+
+mkdir -p "$cache_dir" "$runtime_dir"
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-wallhaven [options] [command] [arguments...]
+
+Options:
+  -h, --help            Show this help message and exit
+
+Commands:
+  menu [query]          Open interactive search & picker via Fuzzel (default)
+  search <query>        Search API and print matching wallpaper IDs to stdout
+  download <id|url>     Download wallpaper and print local cached file path
+
+Examples:
+  custom-wallhaven search anime
+  custom-wallhaven download 852109
+  custom-wallhaven menu cyberpunk
+EOF
+}
+
+cfgval() {
+	local key="$1" default="$2" val=""
+	if [[ -f "$wallhaven_cfg" ]] && command -v jq >/dev/null 2>&1; then
+		val="$(jq -r --arg k "$key" '.[$k] // empty' "$wallhaven_cfg" 2>/dev/null || true)"
+	fi
+	if [[ -n "$val" ]]; then
+		printf '%s' "$val"
+	else
+		printf '%s' "$default"
+	fi
+}
+
+dmenu() {
+	local prompt="$1"
+	shift
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt" "$@" || true
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt" || true
+	else
+		head -n 1
+	fi
+}
+
+wallhaven_image_url() {
+	local id="$1" key url
+	key="$(cfgval apiKey "")"
+	url="$api_base/w/${id}"
+	[[ -n "$key" ]] && url="$url?apikey=$key"
+	curl -fsSL --connect-timeout 5 --max-time 15 "$url" 2>/dev/null |
+		jq -r '.data.path // empty' 2>/dev/null || true
+}
+
+download_image() {
+	local url="$1" filename dest tmp
+	filename="$(basename "${url%%\?*}")"
+	dest="$cache_dir/$filename"
+	if [[ -f "$dest" && -s "$dest" ]]; then
+		printf '%s\n' "$dest"
+		return 0
+	fi
+
+	tmp="$dest.tmp.$$"
+	if ! curl -fsSL --max-time 300 --max-filesize "$max_bytes" -o "$tmp" "$url"; then
+		rm -f "$tmp"
+		printf 'Error: Failed to download %s\n' "$url" >&2
+		return 1
+	fi
+	mv -f "$tmp" "$dest"
+	printf '%s\n' "$dest"
+}
+
+fetch_thumb() {
+	local id="$1" url="$2" dir="$3"
+	curl -fsSL --connect-timeout 3 --max-time 8 "$url" 2>/dev/null |
+		timeout 8 magick - -thumbnail 96x96 "$dir/$id.png" 2>/dev/null || return 1
+	printf '%s' "$dir/$id.png"
+}
+
+search_wallhaven_thumbs() {
+	local query="$1" page="${2:-1}" thumbs_dir="$3"
+	local key
+	key="$(cfgval apiKey "")"
+
+	local curl_args=(-fsSL --max-time 30 -G)
+	[[ -n "$query" ]] && curl_args+=(--data-urlencode "q=$query")
+	curl_args+=(--data-urlencode "categories=$(cfgval categories 111)")
+	curl_args+=(--data-urlencode "purity=$(cfgval purity 110)")
+	curl_args+=(--data-urlencode "sorting=$(cfgval sorting date_added)")
+	curl_args+=(--data-urlencode "order=$(cfgval order desc)")
+	curl_args+=(--data-urlencode "page=$page")
+	curl_args+=(--data-urlencode "atleast=$(cfgval atleast 1920x1080)")
+	[[ -n "$key" ]] && curl_args+=(--data-urlencode "apikey=$key")
+
+	local resp
+	if ! resp="$(curl --connect-timeout 5 --max-time 20 "${curl_args[@]}" "$api_base/search" 2>/dev/null)"; then
+		return 1
+	fi
+
+	mkdir -p "$thumbs_dir"
+	local count
+	count="$(printf '%s' "$resp" | jq -r '(.data // []) | length' 2>/dev/null || echo 0)"
+	printf '#count %s\n' "$count"
+
+	local idx=0
+	while IFS=$'\t' read -r id resolution thumburl; do
+		[[ -n "$id" && -n "$thumburl" ]] || continue
+		(
+			if fetch_thumb "$id" "$thumburl" "$thumbs_dir" >/dev/null; then
+				printf '%s\t%s\t%s/%s.png\n' "$id" "$resolution" "$thumbs_dir" "$id"
+			fi
+		) &
+		idx=$((idx + 1))
+		while (($(jobs -rp | wc -l) >= 16)); do wait -n 2>/dev/null || break; done
+	done <<<"$(printf '%s' "$resp" | jq -r '(.data // [])[] | [.id, .resolution, .thumbs.large] | @tsv')"
+	wait
+}
+
+resolve_and_download() {
+	local target="$1" img=""
+	if [[ "$target" =~ ^https?://(www\.)?wallhaven\.cc/w/([A-Za-z0-9]+)/?$ ]]; then
+		local id="${BASH_REMATCH[2]}"
+		img="$(wallhaven_image_url "$id")"
+		[[ -n "$img" ]] || {
+			printf 'Error: Failed to resolve Wallhaven ID: %s\n' "$id" >&2
+			exit 1
+		}
+		download_image "$img"
+	elif [[ "$target" =~ ^[A-Za-z0-9]+$ ]]; then
+		img="$(wallhaven_image_url "$target")"
+		[[ -n "$img" ]] || {
+			printf 'Error: Failed to resolve Wallhaven ID: %s\n' "$target" >&2
+			exit 1
+		}
+		download_image "$img"
+	elif [[ "$target" =~ ^https?:// ]]; then
+		download_image "$target"
+	else
+		printf 'Error: Invalid Wallhaven target: %s\n' "$target" >&2
+		exit 2
+	fi
+}
+
+search_flow() {
+	local initial_query="${1:-}"
+	local query="$initial_query" page=1 pick id back_label prev_label next_label thumb_dir use_icons=0
+	back_label="$(custom-i18n get wallpaper_back 2>/dev/null || echo "Back")"
+	prev_label="$(custom-i18n get wallpaper_prev 2>/dev/null || echo "Previous")"
+	next_label="$(custom-i18n get wallpaper_next 2>/dev/null || echo "Next")"
+
+	if command -v fuzzel >/dev/null 2>&1; then use_icons=1; fi
+
+	if [[ -z "$query" ]]; then
+		query="$(dmenu "$(custom-i18n get wallpaper_search_prompt 2>/dev/null || echo "Search Wallhaven: ")" --lines 0)"
+	fi
+	[[ -n "$query" ]] || return 0
+
+	thumb_dir="$(mktemp -d -p "$runtime_dir" thumbs-XXXXXX)"
+	cleanup_thumbs() { rm -rf "$thumb_dir"; }
+	trap cleanup_thumbs EXIT INT TERM HUP
+
+	while true; do
+		local menu_items=()
+		local count=0
+		local thumb_map_file="$thumb_dir/map.p$page"
+
+		exec 3< <(search_wallhaven_thumbs "$query" "$page" "$thumb_dir" 2>/dev/null)
+		while IFS=$'\t' read -u 3 -r tid res iconpath; do
+			if [[ "$tid" =~ ^#count ]]; then
+				count="${tid#* }"
+				continue
+			fi
+			[[ -n "$tid" ]] || continue
+			printf '%s\t%s\n' "$tid" "$iconpath" >>"$thumb_map_file"
+			if [[ "$use_icons" -eq 1 ]]; then
+				menu_items+=("$tid  ($res)\0icon\x1f$iconpath")
+			else
+				menu_items+=("$tid  ($res)")
+			fi
+		done
+		exec 3<&-
+
+		if [[ "$count" -eq 0 && ${#menu_items[@]} -eq 0 ]]; then
+			if command -v notify-send >/dev/null 2>&1; then
+				local title
+				title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Wallhaven")"
+				notify-send -a "custom-${DOMAIN}" "$title" "$(custom-i18n get wallpaper_none_found "dir=Wallhaven" 2>/dev/null || echo "No wallpapers found")"
+			fi
+			return 0
+		fi
+
+		local prompt_page
+		prompt_page="$(custom-i18n get wallpaper_search_page_prompt "page=$page" 2>/dev/null || echo "Wallhaven (p.$page): ")"
+
+		local nav_items=()
+		[[ "$page" -gt 1 ]] && nav_items+=("◀  $prev_label")
+		nav_items+=("▶  $next_label" "↩  $back_label")
+
+		local all_items=("${nav_items[@]}" "${menu_items[@]}")
+
+		pick="$(printf '%s\n' "${all_items[@]}" | dmenu "$prompt_page" --lines 12)"
+		[[ -n "$pick" ]] || return 0
+
+		case "$pick" in
+		*"$back_label") return 0 ;;
+		*"$prev_label")
+			[[ "$page" -gt 1 ]] && page=$((page - 1))
+			;;
+		*"$next_label")
+			page=$((page + 1))
+			;;
+		*)
+			id="$(echo "$pick" | awk '{print $1}')"
+			if [[ -n "$id" ]]; then
+				resolve_and_download "$id"
+				return 0
+			fi
+			;;
+		esac
+	done
+}
+
+main() {
+	local cmd="${1:-menu}"
+	case "$cmd" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	search)
+		shift
+		local q="${1:-}"
+		local curl_args=(-fsSL --max-time 15 -G)
+		[[ -n "$q" ]] && curl_args+=(--data-urlencode "q=$q")
+		curl "${curl_args[@]}" "$api_base/search" 2>/dev/null | jq -r '(.data // [])[] | .id' 2>/dev/null || true
+		;;
+	download)
+		shift
+		[[ $# -ge 1 ]] || {
+			printf 'Error: Missing id/url for download (run custom-wallhaven --help for usage)\n' >&2
+			exit 2
+		}
+		resolve_and_download "$1"
+		;;
+	menu)
+		shift
+		search_flow "${1:-}"
+		;;
+	*)
+		search_flow "$cmd"
+		;;
+	esac
+}
+
+main "$@"
