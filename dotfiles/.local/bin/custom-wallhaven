@@ -32,11 +32,19 @@ DOMAIN="wallhaven"
 
 wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/custom-wallhaven"
-runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-wallhaven"
 api_base="https://wallhaven.cc/api/v1"
 max_bytes=52428800
 
-mkdir -p "$cache_dir" "$runtime_dir"
+mkdir -p "$cache_dir"
+
+THUMB_DIR=""
+
+cleanup_thumbs() {
+	local exit_code=$?
+	trap - EXIT INT TERM HUP
+	[[ -n "${THUMB_DIR:-}" && -d "${THUMB_DIR:-}" ]] && rm -rf "$THUMB_DIR"
+	exit "$exit_code"
+}
 
 show_help() {
 	cat <<'EOF'
@@ -194,8 +202,8 @@ search_flow() {
 	fi
 	[[ -n "$query" ]] || return 0
 
-	thumb_dir="$(mktemp -d -p "$runtime_dir" thumbs-XXXXXX)"
-	cleanup_thumbs() { rm -rf "$thumb_dir"; }
+	THUMB_DIR="$(mktemp -d -t wallhaven-thumbs.XXXXXX)"
+	local thumb_dir="$THUMB_DIR"
 	trap cleanup_thumbs EXIT INT TERM HUP
 
 	while true; do
@@ -225,7 +233,7 @@ search_flow() {
 				title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Wallhaven")"
 				notify-send -a "custom-${DOMAIN}" "$title" "$(custom-i18n get wallpaper_none_found "dir=Wallhaven" 2>/dev/null || echo "No wallpapers found")"
 			fi
-			return 0
+			break
 		fi
 
 		local prompt_page
@@ -238,10 +246,10 @@ search_flow() {
 		local all_items=("${nav_items[@]}" "${menu_items[@]}")
 
 		pick="$(printf '%s\n' "${all_items[@]}" | dmenu "$prompt_page" --lines 12)"
-		[[ -n "$pick" ]] || return 0
+		[[ -n "$pick" ]] || break
 
 		case "$pick" in
-		*"$back_label") return 0 ;;
+		*"$back_label") break ;;
 		*"$prev_label")
 			[[ "$page" -gt 1 ]] && page=$((page - 1))
 			;;
@@ -252,11 +260,16 @@ search_flow() {
 			id="$(echo "$pick" | awk '{print $1}')"
 			if [[ -n "$id" ]]; then
 				resolve_and_download "$id"
-				return 0
+				break
 			fi
 			;;
 		esac
 	done
+
+	# In-place clean teardown
+	[[ -n "${THUMB_DIR:-}" && -d "${THUMB_DIR:-}" ]] && rm -rf "$THUMB_DIR"
+	THUMB_DIR=""
+	trap - EXIT INT TERM HUP
 }
 
 main() {
