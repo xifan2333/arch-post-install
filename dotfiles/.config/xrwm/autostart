@@ -68,5 +68,5 @@ if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; t
 	fi
 fi
 
-# 7. Choose a local wallpaper after the independent services have started.
+# 7. Fetch a random Wallhaven pixel-art wallpaper after independent services start.
 custom-wallpaper random
