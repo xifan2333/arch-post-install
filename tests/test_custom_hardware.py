@@ -48,3 +48,10 @@ class HardwareTest(CliTest):
         self.run_cli("hardware", "gpu", "max", code=1)
         self.assertFalse(calls.exists())
         self.assertEqual(node.read_text(), "350")
+
+    def test_lowered_gpu_cap_is_operational_failure(self):
+        (self.gpu / "gt_max_freq_mhz").write_text("900")
+        self.run_cli("hardware", "gpu", "max", code=1)
+        self.run_cli("hardware", "gpu", "toggle", code=1)
+        self.run_cli("hardware", "gpu", "2000", code=2)
+        self.assertEqual((self.gpu / "gt_min_freq_mhz").read_text(), "350")

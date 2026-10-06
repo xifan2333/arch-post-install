@@ -50,10 +50,7 @@ fi
 # 5. Idle and power management daemon (Swayidle)
 start_daemon swayidle -w
 
-# 6. Choose a local wallpaper at session start; custom-wallpaper owns the launcher.
-custom-wallpaper random
-
-# 7. Clipboard manager (Cliphist)
+# 6. Clipboard manager (Cliphist)
 if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; then
 	if ! pgrep -f "wl-paste --watch cliphist store" >/dev/null 2>&1; then
 		if command -v uwsm >/dev/null 2>&1; then
@@ -70,3 +67,6 @@ if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; t
 		fi
 	fi
 fi
+
+# 7. Choose a local wallpaper after the independent services have started.
+custom-wallpaper random

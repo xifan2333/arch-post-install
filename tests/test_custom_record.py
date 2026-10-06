@@ -7,7 +7,6 @@ from test_custom_cli import CliTest
 class RecordTest(CliTest):
     def setUp(self):
         super().setUp()
-        (self.base / "runtime").mkdir()
         self.state = self.base / "unit-state"
         self.calls = self.base / "calls"
         self.env.update(

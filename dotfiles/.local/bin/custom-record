@@ -35,7 +35,9 @@ shopt -s inherit_errexit
 trap 'exit 130' INT
 on_error() {
 	local rc="$1" line="$2"
-	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
 	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
 	exit 1
 }
@@ -54,19 +56,22 @@ require() {
 	done
 }
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
-# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
-pick() {
-	local selection rc
-	if selection=$(fuzzel --dmenu "$@"); then
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
 		printf '%s' "$selection"
 	else
 		rc=$?
-		((rc == 1)) || {
-			((rc == 130)) && exit 130
-			die 1 cli_picker_failed
-		}
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
 	fi
-}
+)
 
 unit=custom-record.service
 save_dir="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"

@@ -32,7 +32,9 @@ shopt -s inherit_errexit
 trap 'exit 130' INT
 on_error() {
 	local rc="$1" line="$2"
-	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
 	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
 	exit 1
 }

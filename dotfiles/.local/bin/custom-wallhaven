@@ -31,7 +31,9 @@ shopt -s inherit_errexit
 trap 'exit 130' INT
 on_error() {
 	local rc="$1" line="$2"
-	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
 	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
 	exit 1
 }
@@ -50,19 +52,22 @@ require() {
 	done
 }
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
-# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
-pick() {
-	local selection rc
-	if selection=$(fuzzel --dmenu "$@"); then
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
 		printf '%s' "$selection"
 	else
 		rc=$?
-		((rc == 1)) || {
-			((rc == 130)) && exit 130
-			die 1 cli_picker_failed
-		}
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
 	fi
-}
+)
 
 api_base=https://wallhaven.cc/api/v1
 wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
@@ -71,6 +76,7 @@ api_timeout=30
 download_timeout=300
 max_bytes=52428800
 thumbnail_size=96x96
+thumbnail_jobs=8
 
 api() {
 	local endpoint="$1"
@@ -121,14 +127,14 @@ download() (
 )
 menu() (
 	local query="$1" page=1 response count last index choice prompt label tmp entry id resolution thumb i
-	local -a entries=() ids=()
+	local -a entries=() ids=() thumbnails=()
 	require fuzzel
 	if [[ -z "$query" ]]; then
 		prompt=$(t wallpaper_search_prompt)
 		query=$(pick --prompt "$prompt" --lines 0 </dev/null)
 	fi
 	[[ -n "$query" ]] || return 0
-	require curl jq magick
+	require curl jq magick xargs
 	tmp=$(mktemp -d "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-wallhaven.XXXXXX")
 	trap 'rm -rf -- "$tmp"' EXIT
 	while :; do
@@ -138,6 +144,7 @@ menu() (
 		last=$(jq -er '.meta.last_page | select(type == "number" and . >= 1)' <<<"$response")
 		entries=()
 		ids=()
+		thumbnails=()
 		label=$(t wallpaper_back)
 		entries+=("↩  $label")
 		ids+=(back)
@@ -151,17 +158,23 @@ menu() (
 			entries+=("▶  $label")
 			ids+=(next)
 		fi
-		# Build every thumbnail successfully before opening the picker.
+		# Validate the whole page before scheduling thumbnail work.
 		for ((i = 0; i < count; i++)); do
 			entry=$(jq -c --argjson i "$i" '.data[$i]' <<<"$response")
 			id=$(jq -er '.id | select(type == "string" and test("^[A-Za-z0-9]+$"))' <<<"$entry")
 			resolution=$(jq -er '.resolution | strings' <<<"$entry")
 			thumb=$(jq -er '.thumbs.large | select(type == "string" and test("^https?://"))' <<<"$entry")
-			curl -fsSL --connect-timeout "$connect_timeout" --max-time "$api_timeout" --max-filesize "$max_bytes" "$thumb" |
-				magick - -thumbnail "$thumbnail_size" "$tmp/$id.png"
+			thumbnails+=("$thumb" "$tmp/$id.png")
 			entries+=("$id  $resolution")
 			ids+=("$id")
 		done
+		# xargs bounds concurrency, waits for workers, and fails if any pipeline fails.
+		# Positional parameters expand in each worker, not in this parent shell.
+		# shellcheck disable=SC2016
+		printf '%s\0' "${thumbnails[@]}" | xargs -0 -r -n 2 -P "$thumbnail_jobs" bash -o pipefail -c '
+            curl -fsSL --connect-timeout "$1" --max-time "$2" --max-filesize "$3" "$5" |
+                magick - -thumbnail "$4" "$6"
+        ' bash "$connect_timeout" "$api_timeout" "$max_bytes" "$thumbnail_size"
 		prompt=$(t wallpaper_search_page_prompt "page=$page")
 		choice=$(
 			for i in "${!entries[@]}"; do

@@ -8,7 +8,6 @@ from test_custom_cli import CliTest
 class DomainTest(CliTest):
     def setUp(self):
         super().setUp()
-        (self.base / "runtime").mkdir()
         self.calls = self.base / "calls"
         self.env["CALLS"] = str(self.calls)
         for name in ["notify-send", "wl-copy", "hyprlock", "xrwm", "systemctl", "uwsm"]:
@@ -215,3 +214,94 @@ printf '%s\n' "$4"''',
         self.run_cli("hardware", "gpu", "100garbage", code=2)
         self.run_cli("wallhaven", "download", "abc123", "-o", code=2)
         self.assertFalse(self.calls.exists())
+
+    def test_fuzzel_exit_one_with_diagnostics_is_an_error(self):
+        self.fake("fuzzel", "echo 'cannot connect to Wayland' >&2; exit 1")
+        for domain in ["power", "capture", "wallpaper", "wallhaven", "stream-title"]:
+            result = self.run_cli(
+                domain, "menu" if domain != "stream-title" else "edit", code=1
+            )
+            self.assertIn("cannot connect to Wayland", result.stderr)
+        self.assertFalse(self.calls.exists())
+        self.assertEqual(list((self.base / "runtime").iterdir()), [])
+
+    def test_capture_preserves_existing_file_permissions(self):
+        path = self.base / "shared.png"
+        path.write_bytes(b"old")
+        path.chmod(0o640)
+        self.fake("grim", 'printf image > "${!#}"')
+        self.run_cli("capture", "full", "-o", str(path))
+        self.assertEqual(path.stat().st_mode & 0o777, 0o640)
+
+    def test_existing_wallpaper_in_symlinked_pictures_is_not_copied(self):
+        real = self.base / "real-pictures/wallpapers"
+        real.mkdir(parents=True)
+        (self.base / "pictures").symlink_to(real.parent)
+        path = real / "original image.png"
+        path.write_bytes(b"image")
+        self.fake("magick", "printf PNG")
+        self.fake("swaybg", "exit 99")
+        self.fake("pgrep", "exit 1")
+        self.run_cli(
+            "wallpaper", "set", str(self.base / "pictures/wallpapers" / path.name)
+        )
+        self.assertEqual(list(real.iterdir()), [path])
+
+    def test_wallhaven_thumbnail_workers_run_together_and_propagate_failure(self):
+        response = {
+            "data": [
+                {
+                    "id": id_,
+                    "resolution": "1920x1080",
+                    "thumbs": {"large": f"https://example.test/{id_}"},
+                }
+                for id_ in ["abc123", "def456"]
+            ],
+            "meta": {"last_page": 1},
+        }
+        self.env["THUMBNAIL_JOBS"] = str(self.base / "jobs")
+        (self.base / "jobs").mkdir()
+        self.fake(
+            "curl",
+            """
+if [[ "${!#}" == */search ]]; then
+cat <<'EOF'
+"""
+            + json.dumps(response)
+            + """
+EOF
+else
+id="${!#}"
+touch "$THUMBNAIL_JOBS/${id##*/}"
+for ((i=0; i<100; i++)); do
+    if [[ -e "$THUMBNAIL_JOBS/abc123" && -e "$THUMBNAIL_JOBS/def456" ]]; then
+        printf image
+        exit
+    fi
+    sleep 0.01
+done
+exit 88
+fi""",
+        )
+        self.fake("magick", 'cat >/dev/null; printf thumb > "${!#}"')
+        self.fake("fuzzel", 'cat >/dev/null; printf "menu\\n" >> "$CALLS"; exit 1')
+        self.run_cli("wallhaven", "menu", "test")
+        self.assertEqual(self.calls.read_text(), "menu\n")
+        self.calls.unlink()
+        self.fake("magick", "cat >/dev/null; exit 4")
+        self.run_cli("wallhaven", "menu", "test", code=1)
+        self.assertFalse(self.calls.exists())
+        self.assertEqual(list((self.base / "runtime").iterdir()), [])
+
+    def test_new_capture_respects_umask(self):
+        path = self.base / "new.png"
+        self.fake("grim", 'printf image > "${!#}"')
+        subprocess.run(
+            [str(self.bin / "custom-capture"), "full", "-o", str(path)],
+            env=self.env,
+            capture_output=True,
+            text=True,
+            check=True,
+            umask=0o027,
+        )
+        self.assertEqual(path.stat().st_mode & 0o777, 0o640)

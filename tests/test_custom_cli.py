@@ -19,6 +19,7 @@ class CliTest(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.bin = self.base / "bin"
         self.bin.mkdir()
+        (self.base / "runtime").mkdir()
         self.env = dict(os.environ)
         self.env.update(
             PATH=f"{self.bin}:/usr/bin:/bin",
