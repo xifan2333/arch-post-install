@@ -114,7 +114,7 @@ list_devices() {
 	select((.info.props["node.name"] // "") | test("\\.monitor$") | not) |
 	[
 	  .id,
-	  (if (.id | tostring) == $def then "*" else "" end),
+	  (if (.id | tostring) == $def then "*" else "-" end),
 	  (.info.props["node.description"] // .info.props["node.nick"] // .info.props["node.name"])
 	] | @tsv
 	'
@@ -172,12 +172,15 @@ interactive_menu() {
 		return 0
 	fi
 
+	local icon="󰓃"
+	[[ "$m" == "source" ]] && icon="󰍬"
+
 	local menu_items=()
 	while IFS=$'\t' read -r did is_def desc; do
 		[[ -n "$did" ]] || continue
 		local prefix="  "
 		[[ "$is_def" == "*" ]] && prefix="* "
-		menu_items+=("$prefix$desc ($did)")
+		menu_items+=("${prefix}${icon}  ${desc}  (${did})")
 	done <<<"$dev_lines"
 
 	local chosen=""
