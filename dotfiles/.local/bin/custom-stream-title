@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+#
+# @name         custom-stream-title
+# @summary      Manage or display stream title HUD overlay via wayhud
+# @version      1.0.0
+# @deps         wayhud, fuzzel
+#
+# @description  On-screen stream title banner HUD overlay controller.
+#               Manages display text, recent title history, and process lifecycle without PID files.
+#
+# @usage        custom-stream-title [options] [command] [arguments...]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @commands
+#   get         Print active stream title from history
+#   set <text>  Set stream title and display overlay
+#   edit        Open interactive title picker / editor via Fuzzel (default)
+#   clear       Clear title and hide overlay
+#   toggle      Toggle title overlay banner on or off
+#   start       Start displaying current title banner
+#   stop        Hide title banner
+#   status      Print current overlay state (open | closed)
+#
+# @stdout       Title text or status string
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-stream-title get
+#   custom-stream-title set "Live Coding Session"
+#   custom-stream-title edit
+#   custom-stream-title toggle
+
+set -euo pipefail
+
+data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/custom-stream-title"
+history_file="$data_dir/history.txt"
+legacy_history="${XDG_STATE_HOME:-$HOME/.local/state}/wayhud/title_history.txt"
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-stream-title [options] [command] [arguments...]
+
+Options:
+  -h, --help  Show this help message and exit
+
+Commands:
+  get         Print active stream title from history
+  set <text>  Set stream title and display overlay
+  edit        Open interactive title picker / editor via Fuzzel (default)
+  clear       Clear title and hide overlay
+  toggle      Toggle title overlay banner on or off
+  start       Start displaying current title banner
+  stop        Hide title banner
+  status      Print current overlay state (open | closed)
+
+Examples:
+  custom-stream-title get
+  custom-stream-title set "Live Coding Session"
+  custom-stream-title edit
+  custom-stream-title toggle
+EOF
+}
+
+is_title_running() {
+	pgrep -f "wayhud[[:space:]]+-n[[:space:]]+title\b" >/dev/null 2>&1
+}
+
+stop_title() {
+	pkill -f "wayhud[[:space:]]+-n[[:space:]]+title\b" 2>/dev/null || true
+}
+
+start_title() {
+	local text="$1"
+	[[ -n "$text" ]] || return 0
+	if ! command -v wayhud >/dev/null 2>&1; then
+		return 0
+	fi
+	stop_title
+	printf '%s\n' "$text" | nohup wayhud -n title >/dev/null 2>&1 &
+}
+
+get_history_file() {
+	if [[ -f "$history_file" ]]; then
+		printf '%s' "$history_file"
+	elif [[ -f "$legacy_history" ]]; then
+		printf '%s' "$legacy_history"
+	else
+		printf '%s' "$history_file"
+	fi
+}
+
+get_title() {
+	local hfile
+	hfile="$(get_history_file)"
+	if [[ -f "$hfile" ]]; then
+		head -n 1 "$hfile" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+	fi
+}
+
+set_title() {
+	local new_title="$1"
+	if [[ -z "$new_title" ]]; then
+		stop_title
+		return 0
+	fi
+	mkdir -p "$data_dir"
+	local hfile
+	hfile="$(get_history_file)"
+	local tmp_file="$data_dir/history.tmp.$$"
+	{
+		printf '%s\n' "$new_title"
+		if [[ -f "$hfile" ]]; then
+			grep -v -F -x "$new_title" "$hfile" 2>/dev/null || true
+		fi
+	} | head -n 30 >"$tmp_file"
+	mv -f "$tmp_file" "$history_file"
+	start_title "$new_title"
+}
+
+clear_title() {
+	set_title ""
+}
+
+edit_title() {
+	local candidates=""
+	local hfile
+	hfile="$(get_history_file)"
+	if [[ -f "$hfile" ]]; then
+		candidates="$(grep -v '^[[:space:]]*$' "$hfile" 2>/dev/null || true)"
+	fi
+
+	local prompt_text
+	prompt_text="$(custom-i18n get overlay_title_prompt 2>/dev/null || echo "Stream Title: ")"
+
+	local chosen=""
+	if command -v fuzzel >/dev/null 2>&1; then
+		chosen="$(printf '%s\n' "$candidates" | fuzzel --dmenu --prompt "$prompt_text" || true)"
+	elif command -v bemenu >/dev/null 2>&1; then
+		chosen="$(printf '%s\n' "$candidates" | bemenu -p "$prompt_text" || true)"
+	fi
+	[[ -n "$chosen" ]] || return 0
+
+	set_title "$chosen"
+}
+
+toggle_title() {
+	if is_title_running; then
+		stop_title
+	else
+		local current
+		current="$(get_title)"
+		if [[ -n "$current" ]]; then
+			start_title "$current"
+		else
+			edit_title
+		fi
+	fi
+}
+
+main() {
+	local act="${1:-edit}"
+	case "$act" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	get) get_title ;;
+	set)
+		shift
+		set_title "$*"
+		;;
+	clear) clear_title ;;
+	edit) edit_title ;;
+	toggle) toggle_title ;;
+	start)
+		local current
+		current="$(get_title)"
+		if [[ -n "$current" ]]; then
+			start_title "$current"
+		else
+			edit_title
+		fi
+		;;
+	stop) stop_title ;;
+	status)
+		if is_title_running; then
+			printf 'open\n'
+		else
+			printf 'closed\n'
+		fi
+		;;
+	*)
+		printf 'Error: Unknown command "%s" (run custom-stream-title --help for usage)\n' "$act" >&2
+		exit 2
+		;;
+	esac
+}
+
+main "$@"
