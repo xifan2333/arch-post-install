@@ -2,6 +2,7 @@
   "layer": "top",
   "position": "top",
   "height": 26,
+  "reload_style_on_change": true,
   "modules-left": [
     "custom/tag-1",
     "custom/tag-2",

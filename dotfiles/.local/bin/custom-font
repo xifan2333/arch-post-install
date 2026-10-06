@@ -126,7 +126,8 @@ reload_fonts() {
 	local title body unit state pids pid path
 	require systemctl fc-cache notify-send
 	fc-cache
-	for unit in waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service; do
+	# Waybar watches the imported font CSS without rebuilding its bars/modules.
+	for unit in mako.service app-org.fcitx.Fcitx5@autostart.service; do
 		state=$(systemctl --user show --property=ActiveState --value "$unit")
 		if [[ "$state" == active ]]; then systemctl --user reload "$unit"; fi
 	done
