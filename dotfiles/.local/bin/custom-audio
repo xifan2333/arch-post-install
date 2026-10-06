@@ -175,12 +175,13 @@ interactive_menu() {
 	local icon="󰓃"
 	[[ "$m" == "source" ]] && icon="󰍬"
 
-	local menu_items=()
+	local menu_items=() device_ids=()
 	while IFS=$'\t' read -r did is_def desc; do
 		[[ -n "$did" ]] || continue
 		local prefix="  "
 		[[ "$is_def" == "*" ]] && prefix="* "
 		menu_items+=("${prefix}${icon}  ${desc}  (${did})")
+		device_ids+=("$did")
 	done <<<"$dev_lines"
 
 	local chosen=""
@@ -191,9 +192,14 @@ interactive_menu() {
 	fi
 	[[ -n "$chosen" ]] || return 0
 
-	local chosen_id
-	chosen_id=$(grep -o -E '\([0-9]+\)' <<<"$chosen" | tr -d '()')
-	[[ -n "$chosen_id" ]] && set_device "$chosen_id" "$m"
+	local i
+	for i in "${!menu_items[@]}"; do
+		if [[ "$chosen" == "${menu_items[$i]}" ]]; then
+			set_device "${device_ids[$i]}" "$m"
+			return
+		fi
+	done
+	return 0
 }
 
 main() {
