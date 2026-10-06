@@ -193,8 +193,8 @@ All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/`
 To maintain consistent muscle memory and visual harmony across all CLI menus:
 
 1. **Level & Cognitive Load**:
-   - **Single-Level Flat Menu**: Used when options $\le 8$ and have no sub-attributes (e.g. `x-power`, `x-cap`).
-   - **Two-Level Menu**: Used when separating mode dispatch from entity browsing, or when items exceed 15 (e.g. `x-wall`: mode menu -> wallpaper picker).
+   - **Single-Level Flat Menu**: Used when options $\le 8$ and have no sub-attributes (e.g. `custom-power`, `custom-capture`).
+   - **Two-Level Menu**: Used when separating mode dispatch from entity browsing, or when items exceed 15 (e.g. `custom-wallpaper`: mode menu -> wallpaper picker).
    - **Navigation Semantics**: Submenus must provide a localized `_back` option. Esc key must always safely cancel with zero side-effects (`exit 0` / `return 0`).
 2. **Visual Format & NerdFont Glyphs**:
    - Structure: `"<status_prefix><NerdFont_glyph>  <label>"` (strictly **two spaces** separating glyph and text).
@@ -210,7 +210,7 @@ To maintain consistent muscle memory and visual harmony across all CLI menus:
 3. **Thumbnail & Icon Preview Protocol**:
    - Format: `"<label>\0icon\x1f<path>"` via Rofi extended protocol.
    - Storage: All generated thumbnails and temporary icons **MUST reside in user-private tmpfs** (`${XDG_RUNTIME_DIR:-/tmp/user-${UID:-1000}}/...`), never accumulating on persistent disk.
-   - Fallback: Gracefully fallback to the designated NerdFont glyph when icons are unavailable.
+   - Thumbnail generation failures must be reported; do not substitute a glyph and hide the error.
 4. **Instant Apply**:
    - Selecting an item applies immediately without redundant "Confirm" dialogs (except for destructive actions like reboot/poweroff).
-   - Provide immediate closure feedback via `x-i18n` localized `notify-send`.
+   - Provide immediate closure feedback via `custom-i18n` localized `notify-send`.

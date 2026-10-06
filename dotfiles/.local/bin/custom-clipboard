@@ -3,7 +3,7 @@
 # @name         custom-clipboard
 # @summary      Manage, interactively select, or clear clipboard history via cliphist
 # @version      1.0.0
-# @deps         cliphist, wl-copy
+# @deps         cliphist, wl-copy, fuzzel
 #
 # @description  Clipboard history manager for Wayland desktop.
 #               Supports fuzzy selection launcher, history listing, and history clearing.
@@ -28,96 +28,91 @@
 #   custom-clipboard list
 #   custom-clipboard clear
 
-set -euo pipefail
-
-DOMAIN="clipboard"
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-clipboard [options] [command]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Commands:
-  menu        Open interactive fuzzy clipboard launcher via Fuzzel (default)
-  list        Output raw clipboard history list to stdout
-  clear       Wipe and clear all clipboard history
-EOF
-}
-
-notify_err() {
-	local title body
-	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Clipboard")"
-	body="$1"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -u critical -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
 	fi
-	printf 'Error: %s\n' "$body" >&2
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-dmenu_exec() {
-	local prompt="$1"
-	if command -v fuzzel >/dev/null 2>&1; then
-		fuzzel --dmenu --prompt "$prompt"
-	elif command -v bemenu >/dev/null 2>&1; then
-		bemenu -p "$prompt"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
 	else
-		head -n 1
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
 	fi
-}
+)
 
-interactive_menu() {
-	local clear_option prompt selected
-	clear_option="$(custom-i18n get clip_clear_option 2>/dev/null || echo "Clear Clipboard")"
-	prompt="$(custom-i18n get clip_prompt 2>/dev/null || echo "Clipboard: ")"
-
-	selected=$(
-		{
-			printf '  %s\n' "$clear_option"
-			cliphist list 2>/dev/null || true
-		} | dmenu_exec "$prompt"
-	)
-
-	[[ -n "${selected:-}" ]] || exit 0
-
-	if [[ "$selected" == *" $clear_option" ]]; then
+menu() (
+	local history prompt clear choice index tmp
+	local -a entries=()
+	require cliphist fuzzel
+	history=$(cliphist list)
+	clear=$(t clip_clear_option)
+	prompt=$(t clip_prompt)
+	entries+=("$clear")
+	if [[ -n "$history" ]]; then
+		while IFS= read -r line; do entries+=("$line"); done <<<"$history"
+	fi
+	choice=$(printf '%s\n' "${entries[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
+	((index < ${#entries[@]})) || die 1 cli_picker_failed
+	if ((index == 0)); then
 		cliphist wipe
-		exit 0
+		return
 	fi
-
-	printf '%s' "$selected" | cliphist decode | wl-copy
-}
-
+	require wl-copy
+	tmp=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-clipboard.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	# Decode completely before changing the clipboard, including binary entries.
+	printf '%s' "${entries[$index]}" | cliphist decode >"$tmp"
+	wl-copy <"$tmp"
+)
 main() {
-	if ! command -v cliphist >/dev/null 2>&1; then
-		local err_msg
-		err_msg="$(custom-i18n get clip_not_installed 2>/dev/null || echo "cliphist is not installed")"
-		notify_err "$err_msg"
-		exit 127
-	fi
-
-	local action="${1:-menu}"
-
-	case "$action" in
-	-h | --help)
-		show_help
-		exit 0
-		;;
-	menu)
-		interactive_menu
-		;;
+	(($# <= 1)) || usage_error
+	case "${1:-menu}" in
+	-h | --help) t help_clipboard ;;
+	menu) menu ;;
 	list)
+		require cliphist
 		cliphist list
 		;;
 	clear | wipe)
+		require cliphist
 		cliphist wipe
 		;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-clipboard --help for usage)\n' "$action" >&2
-		exit 2
-		;;
+	*) usage_error ;;
 	esac
 }
-
 main "$@"

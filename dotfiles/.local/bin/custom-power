@@ -3,7 +3,7 @@
 # @name         custom-power
 # @summary      Manage session power actions or interactively select power menu options
 # @version      1.0.0
-# @deps         fuzzel, systemctl
+# @deps         fuzzel, systemctl, hyprlock, xrwm
 #
 # @description  Session power actions dispatcher for River WM desktop.
 #               Provides direct CLI actions (lock, suspend, logout, reboot, shutdown) and Fuzzel menu.
@@ -26,121 +26,93 @@
 #   custom-power lock
 #   custom-power reboot
 
-set -euo pipefail
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-power [options] [command]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Commands:
-  menu        Open interactive power actions launcher via Fuzzel (default)
-  lock        Lock session via hyprlock
-  suspend     Suspend system via systemctl
-  logout      Exit current Wayland compositor session
-  reboot      Reboot system via systemctl
-  shutdown    Power off system via systemctl
-EOF
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-dmenu_exec() {
-	local prompt="$1"
-	if command -v fuzzel >/dev/null 2>&1; then
-		fuzzel --dmenu --prompt "$prompt"
-	elif command -v bemenu >/dev/null 2>&1; then
-		bemenu -p "$prompt"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
 	else
-		head -n 1
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
 	fi
-}
+)
 
-lock_session() {
-	if command -v hyprlock >/dev/null 2>&1; then
-		hyprlock
-	fi
-}
-
-logout_session() {
-	if command -v xrwm >/dev/null 2>&1; then
-		xrwm exit
-	elif command -v riverctl >/dev/null 2>&1; then
-		riverctl exit
-	fi
-}
-
-interactive_menu() {
-	local opt_lock opt_suspend opt_logout opt_reboot opt_shutdown prompt
-	opt_lock="$(custom-i18n get power_lock 2>/dev/null || echo "Lock")"
-	opt_suspend="$(custom-i18n get power_suspend 2>/dev/null || echo "Suspend")"
-	opt_logout="$(custom-i18n get power_logout 2>/dev/null || echo "Logout")"
-	opt_reboot="$(custom-i18n get power_reboot 2>/dev/null || echo "Reboot")"
-	opt_shutdown="$(custom-i18n get power_shutdown 2>/dev/null || echo "Shutdown")"
-	prompt="$(custom-i18n get power_menu_prompt 2>/dev/null || echo "Power: ")"
-
-	local menu_items=(
-		"$opt_lock"
-		"$opt_suspend"
-		"$opt_logout"
-		"$opt_reboot"
-		"$opt_shutdown"
-	)
-
-	local choice
-	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$prompt")
-	[[ -n "${choice:-}" ]] || exit 0
-
-	case "$choice" in
-	"$opt_lock")
-		lock_session
-		;;
-	"$opt_suspend")
-		systemctl suspend
-		;;
-	"$opt_logout")
-		logout_session
-		;;
-	"$opt_reboot")
-		systemctl reboot
-		;;
-	"$opt_shutdown")
-		systemctl poweroff
-		;;
-	esac
-}
-
-main() {
-	local action="${1:-menu}"
-
-	case "$action" in
-	-h | --help)
-		show_help
-		exit 0
-		;;
-	menu)
-		interactive_menu
-		;;
+action() {
+	case "$1" in
 	lock)
-		lock_session
-		;;
-	suspend)
-		systemctl suspend
+		require hyprlock
+		hyprlock
 		;;
 	logout)
-		logout_session
+		require xrwm
+		xrwm exit
 		;;
-	reboot)
-		systemctl reboot
+	suspend | reboot)
+		require systemctl
+		systemctl "$1"
 		;;
-	off | shutdown | poweroff)
+	shutdown | off | poweroff)
+		require systemctl
 		systemctl poweroff
-		;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-power --help for usage)\n' "$action" >&2
-		exit 2
 		;;
 	esac
 }
-
+menu() {
+	local choice prompt label command index
+	local -a commands=(lock suspend logout reboot shutdown) rows=()
+	require fuzzel
+	prompt=$(t power_menu_prompt)
+	for command in "${commands[@]}"; do
+		label=$(t "power_$command")
+		rows+=("$label")
+	done
+	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
+	((index < ${#commands[@]})) || die 1 cli_picker_failed
+	action "${commands[$index]}"
+}
+main() {
+	(($# <= 1)) || usage_error
+	case "${1:-menu}" in
+	-h | --help) t help_power ;;
+	menu) menu ;;
+	lock | logout | suspend | reboot | shutdown | off | poweroff) action "$1" ;;
+	*) usage_error ;;
+	esac
+}
 main "$@"

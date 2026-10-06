@@ -3,7 +3,7 @@
 # @name         custom-wallpaper
 # @summary      Manage, switch, or select desktop wallpapers
 # @version      1.0.0
-# @deps         swaybg, fuzzel
+# @deps         swaybg, uwsm, systemctl, magick, fuzzel
 #
 # @description  Universal desktop wallpaper manager for River WM.
 #               Supports random selection, local browsing, and remote search via Wallhaven.
@@ -19,6 +19,7 @@
 #   list                    List all local wallpaper image files
 #   random                  Select and apply a random wallpaper from local directory
 #   search [query]          Search and select wallpaper via custom-wallhaven
+#   set --image-stdin      Apply raw image bytes from stdin
 #   set <path|url|-|id>     Set wallpaper from path, URL, stdin stream (-), or ID
 #
 # @stdin        Accepts file path or URL stream when using 'set -'
@@ -31,307 +32,234 @@
 #   custom-wallpaper set ~/Pictures/wallpapers/a.jpg
 #   find ~/Pictures -name '*.png' | custom-wallpaper set -
 
-set -euo pipefail
-
-DOMAIN="wallpaper"
-
-wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
-mkdir -p "$wall_dir"
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-wallpaper [options] [command] [arguments...]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Commands:
-  menu                    Open interactive wallpaper picker via Fuzzel (default)
-  current | get           Print path of active wallpaper
-  list                    List all local wallpaper image files
-  random                  Select and apply a random wallpaper from local directory
-  search [query]          Search and select wallpaper via custom-wallhaven
-  set <path|url|-|id>     Set wallpaper from path, URL, stdin (-), or ID
-
-Examples:
-  custom-wallpaper current
-  custom-wallpaper random
-  custom-wallpaper set ~/Pictures/wallpaper.jpg
-  echo ~/Pictures/wallpaper.jpg | custom-wallpaper set -
-EOF
-}
-
-notify() {
-	local title body
-	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Wallpaper")"
-	body="$1"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
 	fi
-}
-
-fail() {
-	notify "$(custom-i18n get wallpaper_failed 2>/dev/null || echo "Wallpaper failed")"
-	printf 'Error: %s\n' "$1" >&2
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
 	exit 1
 }
-
-dmenu() {
-	local prompt="$1"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
 	shift
-	if command -v fuzzel >/dev/null 2>&1; then
-		fuzzel --dmenu --prompt "$prompt" "$@" || true
-	elif command -v bemenu >/dev/null 2>&1; then
-		bemenu -p "$prompt" || true
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
 	else
-		head -n 1
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
+	fi
+)
+
+wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+startup_delay=0.2
+thumbnail_size=96x96
+
+swaybg_pids() {
+	local pids rc
+	require pgrep
+	if pids=$(pgrep -u "$UID" -x swaybg); then
+		printf '%s\n' "$pids"
+	else
+		rc=$?
+		((rc == 1)) || die 1 cli_unavailable name=pgrep
 	fi
 }
-
-set_wallpaper() {
-	local img="$1" old_pids
-	[[ -f "$img" ]] || fail "$(custom-i18n get wallpaper_file_not_found "file=$img" 2>/dev/null || echo "Wallpaper file not found: $img")"
-
-	if [[ "$img" != "$wall_dir"/* ]]; then
-		local ext="${img##*.}"
-		case "$ext" in
-		jpg | jpeg | png | webp) ;;
-		*) ext="jpg" ;;
-		esac
-		local target_img="$wall_dir/wallpaper.$ext"
-		rm -f "$wall_dir"/wallpaper.*
-		cp -f "$img" "$target_img"
-		img="$target_img"
-	fi
-
-	old_pids=$(pgrep -x swaybg || true)
-
-	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -s b -S both -- swaybg -i "$img" -m fill >/dev/null 2>&1 &
-	else
-		swaybg -i "$img" -m fill >/dev/null 2>&1 &
-	fi
-
-	sleep 0.2
-	if [[ -n "$old_pids" ]]; then
-		kill "$old_pids" 2>/dev/null || true
-	fi
-
-	printf '%s\n' "$img"
-}
-
 get_current() {
-	local pids
-	pids="$(pgrep -a swaybg 2>/dev/null || true)"
-	if [[ -n "$pids" ]]; then
-		local active
-		active="$(echo "$pids" | grep -oP '(?<=-i )[^ ]+' | head -n 1 || true)"
-		if [[ -n "$active" && -f "$active" ]]; then
-			printf '%s\n' "$active"
-			return 0
-		fi
-	fi
-	local fallback
-	fallback="$(find "$wall_dir" -maxdepth 1 -name "wallpaper.*" 2>/dev/null | head -n 1 || true)"
-	[[ -n "$fallback" ]] && printf '%s\n' "$fallback"
-}
-
-list_local() {
-	find "$wall_dir" -maxdepth 2 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" \) 2>/dev/null | sort || true
-}
-
-apply_target() {
-	local arg="$1"
-	if [[ "$arg" == "-" ]]; then
-		while IFS= read -r line || [[ -n "$line" ]]; do
-			[[ -n "$line" ]] && apply_target "$line"
+	local pids pid i arg path current=''
+	local -a argv=()
+	pids=$(swaybg_pids)
+	[[ -n "$pids" ]] || return 0
+	while IFS= read -r pid; do
+		[[ -e "/proc/$pid/cmdline" ]] || continue
+		mapfile -d '' -t argv <"/proc/$pid/cmdline"
+		for ((i = 1; i < ${#argv[@]}; i++)); do
+			arg="${argv[$i]}"
+			path=''
+			case "$arg" in
+			-i | --image)
+				i=$((i + 1))
+				((i < ${#argv[@]})) || die 1 cli_unavailable name=swaybg
+				path="${argv[$i]}"
+				;;
+			--image=*) path="${arg#--image=}" ;;
+			-i?*) path="${arg#-i}" ;;
+			esac
+			[[ -n "$path" ]] || continue
+			if [[ "$path" != /* ]]; then path=$(realpath -m -- "/proc/$pid/cwd/$path"); fi
+			[[ -z "$current" || "$current" == "$path" ]] || die 1 cli_unavailable name=multiple-wallpapers
+			current="$path"
 		done
-		return 0
-	fi
-
-	arg="${arg/#\~\//$HOME/}"
-
-	if [[ -f "$arg" ]]; then
-		set_wallpaper "$arg"
-		return 0
-	fi
-
-	local wallhaven_cmd="custom-wallhaven"
-	command -v "$wallhaven_cmd" >/dev/null 2>&1 || wallhaven_cmd="x-wallhaven"
-	if command -v "$wallhaven_cmd" >/dev/null 2>&1; then
-		local downloaded
-		downloaded="$("$wallhaven_cmd" download "$arg" 2>/dev/null || true)"
-		if [[ -n "$downloaded" && -f "$downloaded" ]]; then
-			set_wallpaper "$downloaded"
-			return 0
-		fi
-	fi
-
-	fail "$(custom-i18n get wallpaper_invalid_target 2>/dev/null || echo "Invalid wallpaper target")"
+	done <<<"$pids"
+	if [[ -n "$current" ]]; then printf '%s\n' "$current"; fi
 }
-
+list_local() {
+	if [[ -e "$wall_dir" ]]; then
+		find "$wall_dir" -maxdepth 2 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) -print | sort
+	fi
+}
+set_wallpaper() (
+	local image="$1" format digest target tmp='' pids pid unit real_wall_dir
+	local -a old_pids=()
+	require swaybg uwsm systemctl magick sha256sum
+	[[ -f "$image" ]] || die 1 cli_unavailable "name=$image"
+	image=$(realpath -- "$image")
+	real_wall_dir=$(realpath -m -- "$wall_dir")
+	format=$(magick identify -format '%m' "${image}[0]")
+	case "$format" in JPEG) format=jpg ;; PNG) format=png ;; WEBP) format=webp ;; *) die 1 cli_unavailable "name=$format" ;; esac
+	if [[ "$image" != "$real_wall_dir/"* ]]; then
+		digest=$(sha256sum -- "$image")
+		digest="${digest%% *}"
+		target="$real_wall_dir/wallpaper-$digest.$format"
+		mkdir -p -- "$wall_dir"
+		tmp=$(mktemp "$wall_dir/.wallpaper.XXXXXX")
+		trap 'if [[ -n "$tmp" ]]; then rm -f -- "$tmp"; fi' EXIT
+		cp -- "$image" "$tmp"
+		mv -f -- "$tmp" "$target"
+		image="$target"
+	fi
+	pids=$(swaybg_pids)
+	if [[ -n "$pids" ]]; then mapfile -t old_pids <<<"$pids"; fi
+	unit="custom-wallpaper-${BASHPID}-${RANDOM}.service"
+	uwsm app -s b -t service -u "$unit" -p Type=exec -- swaybg -i "$image" -m fill >/dev/null
+	sleep "$startup_delay"
+	systemctl --user is-active --quiet "$unit"
+	for pid in "${old_pids[@]}"; do
+		if [[ -d "/proc/$pid" ]]; then kill "$pid"; fi
+	done
+	printf '%s\n' "$image"
+)
+apply_target() (
+	local target="$1" tmp path
+	case "$target" in
+	-)
+		while IFS= read -r path || [[ -n "$path" ]]; do
+			[[ -n "$path" ]] || continue
+			[[ "$path" != - && "$path" != --image-stdin ]] || usage_error
+			apply_target "$path"
+		done
+		return
+		;;
+	--image-stdin)
+		tmp=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-wallpaper.XXXXXX")
+		trap 'rm -f -- "$tmp"' EXIT
+		cat >"$tmp"
+		set_wallpaper "$tmp"
+		return
+		;;
+	esac
+	if [[ -f "$target" ]]; then
+		set_wallpaper "$target"
+		return
+	fi
+	[[ "$target" =~ ^https?:// || "$target" =~ ^[A-Za-z0-9]+$ ]] || usage_error
+	require custom-wallhaven
+	tmp=$(mktemp -d "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-wallpaper.XXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
+	# Explicit file output; never interpret a redirected image byte stream as a path.
+	path=$(custom-wallhaven download "$target" -o "$tmp/image")
+	[[ "$path" == "$tmp/image" ]] || die 1 cli_unavailable name=download
+	set_wallpaper "$path"
+)
 random_local() {
-	local img
-	img="$(list_local | shuf -n 1)"
-	[[ -n "$img" ]] || fail "$(custom-i18n get wallpaper_none_found 2>/dev/null || echo "No wallpapers found")"
-	set_wallpaper "$img"
+	local files image
+	files=$(list_local)
+	[[ -n "$files" ]] || return 0
+	image=$(shuf -n 1 <<<"$files")
+	set_wallpaper "$image"
 }
-
-select_local_menu() {
-	local current files
-	current="$(get_current)"
-	files="$(list_local)"
-	[[ -n "$files" ]] || fail "$(custom-i18n get wallpaper_none_found 2>/dev/null || echo "No wallpapers found")"
-
-	local use_icons=0
-	if command -v fuzzel >/dev/null 2>&1; then
-		use_icons=1
-	fi
-
-	local thumb_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-wallpaper/thumbs"
-	if [[ "$use_icons" -eq 1 ]] && command -v magick >/dev/null 2>&1; then
-		mkdir -p "$thumb_dir"
-		local gen_jobs=0
-		while IFS= read -r f; do
-			[[ -n "$f" ]] || continue
-			local th_name th_file
-			th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
-			th_file="$thumb_dir/$th_name"
-			if [[ ! -f "$th_file" || "$f" -nt "$th_file" ]]; then
-				(magick "$f" -thumbnail 96x96 "$th_file" 2>/dev/null || rm -f "$th_file") &
-				gen_jobs=$((gen_jobs + 1))
-				if ((gen_jobs >= 8)); then
-					wait -n 2>/dev/null || true
-					gen_jobs=$((gen_jobs - 1))
-				fi
-			fi
-		done <<<"$files"
-		wait 2>/dev/null || true
-	fi
-
-	local max_name_len=0
-	while IFS= read -r f; do
-		[[ -n "$f" ]] || continue
-		local b="${f##*/}"
-		local stem="${b%.*}"
-		((${#stem} > max_name_len)) && max_name_len=${#stem}
+select_local() (
+	local files current file tmp i=0 prompt choice index prefix
+	local -a paths=() labels=()
+	require fuzzel magick
+	files=$(list_local)
+	[[ -n "$files" ]] || return 0
+	current=$(get_current)
+	tmp=$(mktemp -d "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-wallpaper.XXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
+	while IFS= read -r file; do
+		paths+=("$file")
+		prefix='  '
+		if [[ "$file" == "$current" ]]; then prefix='* '; fi
+		labels+=("${prefix}󰋩  ${file#"$wall_dir/"}")
+		magick "${file}[0]" -thumbnail "$thumbnail_size" "$tmp/$i.png"
+		i=$((i + 1))
 	done <<<"$files"
-	((max_name_len < 10)) && max_name_len=10
-	((max_name_len > 40)) && max_name_len=40
-
-	local chosen
-	chosen=$(
-		while IFS= read -r f; do
-			[[ -n "$f" ]] || continue
-			local b="${f##*/}"
-			local stem="${b%.*}"
-			local ext="${b##*.}"
-			local prefix="  "
-			[[ "$f" == "$current" ]] && prefix="* "
-
-			local name_col
-			name_col=$(printf "%-${max_name_len}s" "$stem")
-			local ext_col
-			ext_col=$(printf "%-4s" "$ext")
-
-			local th_name th_file
-			th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
-			th_file="$thumb_dir/$th_name"
-
-			if [[ "$use_icons" -eq 1 && -f "$th_file" ]]; then
-				local label="${prefix}${name_col}  ${ext_col}"
-				printf '%s\0icon\x1f%s\n' "$label" "$th_file"
-			else
-				local label="${prefix}󰋩  ${name_col}  ${ext_col}"
-				printf '%s\n' "$label"
-			fi
-		done <<<"$files" | dmenu "$(custom-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15
+	prompt=$(t wallpaper_pick_prompt)
+	choice=$(
+		for i in "${!paths[@]}"; do printf '%s\0icon\x1f%s/%s.png\n' "${labels[$i]}" "$tmp" "$i"; done |
+			pick --prompt "$prompt" --index
 	)
-
-	[[ -n "$chosen" ]] || return 0
-
-	local chosen_name
-	chosen_name="$(echo "$chosen" | sed -E 's/^[* ] +(󰋩  )?//' | awk '{print $1}')"
-
-	local match=""
-	while IFS= read -r f; do
-		local b="${f##*/}"
-		local stem="${b%.*}"
-		if [[ "$stem" == "$chosen_name" ]]; then
-			match="$f"
-			break
-		fi
-	done <<<"$files"
-
-	if [[ -n "$match" && -f "$match" ]]; then
-		set_wallpaper "$match"
-	fi
-}
-
-interactive_menu() {
-	local rand_label local_label search_label
-	rand_label="$(custom-i18n get wallpaper_mode_random 2>/dev/null || echo "Random")"
-	local_label="$(custom-i18n get wallpaper_mode_local 2>/dev/null || echo "Local")"
-	search_label="$(custom-i18n get wallpaper_mode_search 2>/dev/null || echo "Search")"
-
-	local choices=(
-		"󰋩  $local_label"
-		"󰒝  $rand_label"
-		"󰍉  $search_label"
-	)
-
-	local choice
-	choice="$(printf '%s\n' "${choices[@]}" | dmenu "$(custom-i18n get wallpaper_mode_prompt 2>/dev/null || echo "Wallpaper Mode: ")" --lines 5)"
 	[[ -n "$choice" ]] || return 0
-
-	case "$choice" in
-	*"$local_label") select_local_menu ;;
-	*"$rand_label") random_local ;;
-	*"$search_label")
-		local wallhaven_cmd="custom-wallhaven"
-		command -v "$wallhaven_cmd" >/dev/null 2>&1 || wallhaven_cmd="x-wallhaven"
-		local dl=""
-		if command -v "$wallhaven_cmd" >/dev/null 2>&1; then
-			dl="$("$wallhaven_cmd" menu || true)"
-		fi
-		[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
-		;;
-	esac
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
+	((index < ${#paths[@]})) || die 1 cli_picker_failed
+	set_wallpaper "${paths[$index]}"
+)
+search() {
+	local path
+	require custom-wallhaven
+	path=$(custom-wallhaven menu "$1")
+	[[ -n "$path" ]] || return 0
+	set_wallpaper "$path"
 }
-
+menu() {
+	local prompt label choice action index
+	local -a actions=(local random search) rows=()
+	require fuzzel
+	prompt=$(t wallpaper_mode_prompt)
+	for action in "${actions[@]}"; do
+		label=$(t "wallpaper_mode_$action")
+		rows+=("$label")
+	done
+	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
+	((index < ${#actions[@]})) || die 1 cli_picker_failed
+	case "${actions[$index]}" in local) select_local ;; random) random_local ;; search) search '' ;; esac
+}
 main() {
-	local cmd="${1:-menu}"
-	case "$cmd" in
-	-h | --help)
-		show_help
-		exit 0
-		;;
-	menu) interactive_menu ;;
-	current | get) get_current ;;
-	list) list_local ;;
-	random) random_local ;;
-	search)
-		shift
-		local wallhaven_cmd="custom-wallhaven"
-		command -v "$wallhaven_cmd" >/dev/null 2>&1 || wallhaven_cmd="x-wallhaven"
-		local dl=""
-		if command -v "$wallhaven_cmd" >/dev/null 2>&1; then
-			dl="$("$wallhaven_cmd" menu "${1:-}" || true)"
-		fi
-		[[ -n "$dl" && -f "$dl" ]] && set_wallpaper "$dl"
-		;;
+	local action="${1:-menu}"
+	if (($#)); then shift; fi
+	case "$action" in
+	-h | --help | menu | current | get | list | random) (($# == 0)) || usage_error ;;
+	search) (($# <= 1)) || usage_error ;;
 	set)
-		shift
-		[[ $# -ge 1 ]] || {
-			printf 'Error: Missing path/url for set (run custom-wallpaper --help for usage)\n' >&2
-			exit 2
-		}
-		apply_target "$1"
+		(($# == 1)) && [[ -n "$1" ]] || usage_error
+		[[ -f "$1" || "$1" == - || "$1" == --image-stdin || "$1" =~ ^https?:// || "$1" =~ ^[A-Za-z0-9]+$ ]] || usage_error
 		;;
-	*)
-		apply_target "$cmd"
-		;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	-h | --help) t help_wallpaper ;; menu) menu ;; current | get) get_current ;; list) list_local ;;
+	random) random_local ;; search) search "${1:-}" ;; set) apply_target "$1" ;;
 	esac
 }
-
 main "$@"

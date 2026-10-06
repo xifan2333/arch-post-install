@@ -21,77 +21,55 @@
 #   custom-ocr image.png
 #   grim -g "$(slurp)" - | custom-ocr - | wl-copy
 
-set -euo pipefail
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-ocr [options] [<image-path> | -]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Arguments:
-  <image-path>  Path to local image file (PNG/JPEG/WEBP)
-  -             Read raw image stream from standard input
-
-Examples:
-  custom-ocr screenshot.png
-  grim -g "$(slurp)" - | custom-ocr - | wl-copy
-EOF
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-tmp_dir=""
-
-cleanup() {
-	local exit_code=$?
-	trap - EXIT INT TERM HUP
-	[[ -n "$tmp_dir" && -d "$tmp_dir" ]] && rm -rf "$tmp_dir"
-	exit "$exit_code"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
 }
-trap cleanup EXIT INT TERM HUP
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
 
-main() {
-	case "${1:-}" in
-	-h | --help)
-		show_help
-		exit 0
+minimum_confidence=0.60
+main() (
+	(($# <= 1)) || usage_error
+	case "${1:-}" in -h | --help)
+		t help_ocr
+		return
 		;;
-	esac
-
-	local input_src="${1:--}"
-
-	tmp_dir="$(mktemp -d -t custom-ocr.XXXXXX)"
-	local img="$tmp_dir/input.png"
-	local result="$tmp_dir/result.json"
-
-	if [[ "$input_src" == "-" ]]; then
-		cat >"$img"
-	else
-		if [[ ! -f "$input_src" ]]; then
-			printf 'Error: Image file not found: %s\n' "$input_src" >&2
-			exit 2
-		fi
-		cp "$input_src" "$img"
-	fi
-
-	# Locate nbocr executable
-	local nbocr
-	nbocr="$(command -v nbocr 2>/dev/null || true)"
-	if [[ -z "$nbocr" ]] && command -v mise >/dev/null 2>&1; then
-		local nbocr_root
-		nbocr_root="$(mise where github:zibo-chen/newbee-ocr-cli 2>/dev/null || true)"
-		[[ -n "$nbocr_root" && -x "$nbocr_root/nbocr" ]] && nbocr="$nbocr_root/nbocr"
-	fi
-
-	if [[ -z "$nbocr" ]]; then
-		printf 'Error: nbocr binary not found (install newbee-ocr-cli via mise or pacman)\n' >&2
-		exit 127
-	fi
-
-	"$nbocr" recognize "$img" --language zh --format json --output "$result" >/dev/null 2>&1 || exit 1
-
-	local text
-	text="$(jq -r --argjson minimum 0.60 '
+	-*) [[ "$1" == - ]] || usage_error ;; esac
+	local source="${1:--}" tmp_dir img result text
+	if [[ "$source" == - ]]; then
+		[[ ! -t 0 ]] || usage_error
+	else [[ -f "$source" ]] || usage_error; fi
+	require nbocr jq
+	tmp_dir=$(mktemp -d "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-ocr.XXXXXX")
+	trap 'rm -rf -- "$tmp_dir"' EXIT
+	img="$tmp_dir/input.png"
+	result="$tmp_dir/result.json"
+	if [[ "$source" == - ]]; then cat >"$img"; else cp -- "$source" "$img"; fi
+	[[ -s "$img" ]] || die 1 cli_unavailable name=stdin
+	nbocr recognize "$img" --language zh --format json --output "$result" >/dev/null
+	jq -e '.results | type == "array"' "$result" >/dev/null
+	text="$(jq -r --argjson minimum "$minimum_confidence" '
 		def median: sort as $sorted
 			| $sorted[(($sorted | length) / 2 | floor)];
 		[.results[] | select(.confidence >= $minimum)] as $items
@@ -109,11 +87,8 @@ main() {
 		  | map(sort_by(.bbox.x) | map(.text) | join(" "))
 		  | join("\n")
 		  end
-	' "$result" 2>/dev/null || true)"
+	' "$result")"
 
-	if [[ -n "$text" ]]; then
-		printf '%s\n' "$text"
-	fi
-}
-
+	if [[ -n "$text" ]]; then printf '%s\n' "$text"; fi
+)
 main "$@"

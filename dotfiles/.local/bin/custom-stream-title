@@ -32,170 +32,143 @@
 #   custom-stream-title edit
 #   custom-stream-title toggle
 
-set -euo pipefail
-
-data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/custom-stream-title"
-history_file="$data_dir/history.txt"
-legacy_history="${XDG_STATE_HOME:-$HOME/.local/state}/wayhud/title_history.txt"
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-stream-title [options] [command] [arguments...]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Commands:
-  get         Print active stream title from history
-  set <text>  Set stream title and display overlay
-  edit        Open interactive title picker / editor via Fuzzel (default)
-  clear       Clear title and hide overlay
-  toggle      Toggle title overlay banner on or off
-  start       Start displaying current title banner
-  stop        Hide title banner
-  status      Print current overlay state (open | closed)
-
-Examples:
-  custom-stream-title get
-  custom-stream-title set "Live Coding Session"
-  custom-stream-title edit
-  custom-stream-title toggle
-EOF
-}
-
-is_title_running() {
-	pgrep -f "wayhud[[:space:]]+-n[[:space:]]+title\b" >/dev/null 2>&1
-}
-
-stop_title() {
-	pkill -f "wayhud[[:space:]]+-n[[:space:]]+title\b" 2>/dev/null || true
-}
-
-start_title() {
-	local text="$1"
-	[[ -n "$text" ]] || return 0
-	if ! command -v wayhud >/dev/null 2>&1; then
-		return 0
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
 	fi
-	stop_title
-	printf '%s\n' "$text" | nohup wayhud -n title >/dev/null 2>&1 &
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-get_history_file() {
-	if [[ -f "$history_file" ]]; then
-		printf '%s' "$history_file"
-	elif [[ -f "$legacy_history" ]]; then
-		printf '%s' "$legacy_history"
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
 	else
-		printf '%s' "$history_file"
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
 	fi
-}
+)
 
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title"
+history_file="$state_dir/history.txt"
+history_limit=30
+startup_delay=0.1
+pattern='(^|/)wayhud[[:space:]]+-n[[:space:]]+title([[:space:]]|$)'
+
+running() {
+	local rc
+	require pgrep
+	if pgrep -u "$UID" -f "$pattern" >/dev/null; then return 0; else rc=$?; fi
+	((rc == 1)) || die 1 cli_unavailable name=pgrep
+	return 1
+}
+stop_title() {
+	require pkill
+	if running; then pkill -u "$UID" -f "$pattern"; fi
+}
 get_title() {
-	local hfile
-	hfile="$(get_history_file)"
-	if [[ -f "$hfile" ]]; then
-		head -n 1 "$hfile" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+	if [[ -e "$history_file" ]]; then head -n 1 -- "$history_file"; fi
+}
+start_title() {
+	local text="$1" pid
+	[[ -n "$text" ]] || die 1 title_empty
+	require wayhud
+	stop_title
+	wayhud -n title <<<"$text" >/dev/null &
+	pid=$!
+	sleep "$startup_delay"
+	if ! kill -0 "$pid" 2>/dev/null; then
+		wait "$pid"
+		die 1 cli_unavailable name=wayhud
 	fi
 }
-
-set_title() {
-	local new_title="$1"
-	if [[ -z "$new_title" ]]; then
-		stop_title
-		return 0
+set_title() (
+	local title="$1" tmp line
+	local -a history=("$title")
+	[[ -n "$title" && "$title" != *$'\n'* && "$title" != *$'\r'* ]] || usage_error
+	require wayhud flock
+	mkdir -p -- "$state_dir"
+	# Lock the directory, leaving no second state file behind.
+	exec {lock}<"$state_dir"
+	flock "$lock"
+	if [[ -e "$history_file" ]]; then
+		while IFS= read -r line || [[ -n "$line" ]]; do
+			[[ -n "$line" && "$line" != "$title" ]] || continue
+			if ((${#history[@]} < history_limit)); then history+=("$line"); fi
+		done <"$history_file"
 	fi
-	mkdir -p "$data_dir"
-	local hfile
-	hfile="$(get_history_file)"
-	local tmp_file="$data_dir/history.tmp.$$"
-	{
-		printf '%s\n' "$new_title"
-		if [[ -f "$hfile" ]]; then
-			grep -v -F -x "$new_title" "$hfile" 2>/dev/null || true
-		fi
-	} | head -n 30 >"$tmp_file"
-	mv -f "$tmp_file" "$history_file"
-	start_title "$new_title"
-}
-
-clear_title() {
-	set_title ""
-}
-
+	tmp=$(mktemp "$state_dir/.history.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	printf '%s\n' "${history[@]}" >"$tmp"
+	mv -f -- "$tmp" "$history_file"
+	flock -u "$lock"
+	start_title "$title"
+)
 edit_title() {
-	local candidates=""
-	local hfile
-	hfile="$(get_history_file)"
-	if [[ -f "$hfile" ]]; then
-		candidates="$(grep -v '^[[:space:]]*$' "$hfile" 2>/dev/null || true)"
-	fi
-
-	local prompt_text
-	prompt_text="$(custom-i18n get overlay_title_prompt 2>/dev/null || echo "Stream Title: ")"
-
-	local chosen=""
-	if command -v fuzzel >/dev/null 2>&1; then
-		chosen="$(printf '%s\n' "$candidates" | fuzzel --dmenu --prompt "$prompt_text" || true)"
-	elif command -v bemenu >/dev/null 2>&1; then
-		chosen="$(printf '%s\n' "$candidates" | bemenu -p "$prompt_text" || true)"
-	fi
+	local candidates='' chosen prompt
+	require fuzzel
+	if [[ -e "$history_file" ]]; then candidates=$(cat -- "$history_file"); fi
+	prompt=$(t overlay_title_prompt)
+	chosen=$(pick --prompt "$prompt" <<<"$candidates")
 	[[ -n "$chosen" ]] || return 0
-
 	set_title "$chosen"
 }
-
-toggle_title() {
-	if is_title_running; then
-		stop_title
-	else
-		local current
-		current="$(get_title)"
-		if [[ -n "$current" ]]; then
-			start_title "$current"
-		else
-			edit_title
-		fi
-	fi
-}
-
 main() {
-	local act="${1:-edit}"
-	case "$act" in
-	-h | --help)
-		show_help
-		exit 0
-		;;
-	get) get_title ;;
+	local action="${1:-edit}" title
+	if (($#)); then shift; fi
+	case "$action" in
 	set)
-		shift
-		set_title "$*"
+		(($# == 1)) || usage_error
+		[[ -n "$1" && "$1" != *$'\n'* && "$1" != *$'\r'* ]] || usage_error
 		;;
-	clear) clear_title ;;
+	get | edit | clear | toggle | start | stop | status | -h | --help) (($# == 0)) || usage_error ;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	-h | --help) t help_stream_title ;;
+	get) get_title ;;
+	set) set_title "$1" ;;
+	clear | stop) stop_title ;;
 	edit) edit_title ;;
-	toggle) toggle_title ;;
 	start)
-		local current
-		current="$(get_title)"
-		if [[ -n "$current" ]]; then
-			start_title "$current"
+		title=$(get_title)
+		start_title "$title"
+		;;
+	toggle)
+		if running; then
+			stop_title
 		else
-			edit_title
+			title=$(get_title)
+			start_title "$title"
 		fi
 		;;
-	stop) stop_title ;;
-	status)
-		if is_title_running; then
-			printf 'open\n'
-		else
-			printf 'closed\n'
-		fi
-		;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-stream-title --help for usage)\n' "$act" >&2
-		exit 2
-		;;
+	status) if running; then printf 'open\n'; else printf 'closed\n'; fi ;;
 	esac
 }
-
 main "$@"

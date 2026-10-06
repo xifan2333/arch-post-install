@@ -153,6 +153,12 @@ Wi-Fi 已保存网络和开放网络可直接连接；新加密网络用菜单�
 
 `list` 输出 TSV，`status` 输出键值文本，连接/断开结果使用固定的英文状态标识。名称中的反斜杠、制表符、换行符和回车分别编码为 `\\`、`\t`、`\n`、`\r`。诊断写入 stderr；退出码 `0` 表示成功或菜单取消，`1` 表示操作失败，`2` 表示参数错误。
 
+## 桌面命令与状态
+
+桌面工具统一使用 `custom-<domain>` 命令，旧命令软链接已移除。缺依赖、读取失败或服务失败会直接报错。标题和字体各自只有一个 state 路径，字体通过 bootstrap 显式初始化并保留现有选择；录屏由固定的 systemd 用户服务管理。
+
+命令用法、状态迁移、图片流和录屏错误排查见 [桌面 CLI 说明](docs/custom-cli.md)。
+
 ## 代码规范与检查
 
 项目按文件类型使用对应工具：Python 用 Ruff，JavaScript 用 Oxlint，Bash 用 ShellCheck，Lua 和 Zsh 做语法检查，TOML 用 Taplo，JSON/JSONC/YAML 用 Prettier。版本统一固定在根目录的 `mise.toml`。
@@ -184,9 +190,9 @@ mise run check:changed
 
 `check:changed` 是 `check` 的别名，由 hk 原生选择暂存、未暂存和未跟踪文件。`mise run fix` 修复修改过的文件；`mise run format` 修复整个仓库。
 
-任务参数可直接传给 hk，例如 `mise run check:plan --all` 查看全量匹配范围，或 `mise run check dotfiles/.local/bin/x-cap` 检查指定文件。所有脚本和配置文件均完全由官方原生 linter 原生识别，零非标自定义检查。
+任务参数可直接传给 hk，例如 `mise run check:plan --all` 查看全量匹配范围，或 `mise run check dotfiles/.local/bin/custom-capture` 检查指定文件。所有脚本和配置文件均完全由官方原生 linter 原生识别，零非标自定义检查。
 
-GitHub Actions 对 push 和 pull request 执行 `mise run lint`。开发工具统一在根目录 `mise.toml` 声明，CI 由 `mise-action` 自动安装。静态检查不运行桌面命令，运行行为仍需按变更领域验证。
+GitHub Actions 对 push 和 pull request 执行 `mise run lint` 和 `mise run test:cli`。开发工具统一在根目录 `mise.toml` 声明，CI 由 `mise-action` 自动安装。CLI 回归测试使用隔离 XDG 目录和模拟依赖，验证运行契约；真实设备行为仍按变更领域验证。
 
 ## 配置文件是怎么连接的
 
@@ -203,6 +209,8 @@ mise 只碰本仓库列出的文件。共享目录中由其他程序创建的内
 - `~/.local/bin/mise`
 - `~/.local/bin/codex`
 - Neovim 自己生成的状态文件
+
+`*.tera` 由 mise 渲染为配置文件，源文件不建立软链接。修改 state 路径后需要重新应用 dotfiles。
 
 `*.example` 只作为仓库模板，不会软链到用户目录；首次 bootstrap 时若真实配置还不存在，会复制到对应路径（之后不再覆盖）。
 

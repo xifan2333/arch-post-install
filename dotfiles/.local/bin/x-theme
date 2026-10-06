@@ -21,7 +21,7 @@ local xdg_runtime = os.getenv("XDG_RUNTIME_DIR")
   or ("/run/user/" .. (exec_cmd("id -u"):gsub("%s+", "")))
 
 local function i18n(key, vars)
-  local cmd = { "x-i18n", "get", key }
+  local cmd = { "custom-i18n", "get", key }
   if vars then
     for k, v in pairs(vars) do
       table.insert(cmd, string.format("%s=%s", k, tostring(v)))

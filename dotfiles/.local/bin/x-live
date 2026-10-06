@@ -13,7 +13,7 @@ DANMAKU="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/x-danmaku"
 
 notify() {
 	local title body
-	title="$(x-i18n get livestream_notify_title 2>/dev/null || echo "Live Stream")"
+	title="$(custom-i18n get livestream_notify_title 2>/dev/null || echo "Live Stream")"
 	body="$1"
 	if command -v notify-send >/dev/null 2>&1; then
 		notify-send -u "${2:-normal}" "$title" "$body"
@@ -25,16 +25,16 @@ notify_waybar() {
 }
 
 boost_hardware() {
-	if command -v x-hw >/dev/null 2>&1; then
-		x-hw gpu max >/dev/null 2>&1 || true
-		x-hw fan max >/dev/null 2>&1 || true
+	if command -v custom-hardware >/dev/null 2>&1; then
+		custom-hardware gpu max >/dev/null 2>&1 || true
+		custom-hardware fan max >/dev/null 2>&1 || true
 	fi
 }
 
 restore_hardware() {
-	if command -v x-hw >/dev/null 2>&1; then
-		x-hw gpu auto >/dev/null 2>&1 || true
-		x-hw fan auto >/dev/null 2>&1 || true
+	if command -v custom-hardware >/dev/null 2>&1; then
+		custom-hardware gpu auto >/dev/null 2>&1 || true
+		custom-hardware fan auto >/dev/null 2>&1 || true
 	fi
 }
 
@@ -113,7 +113,7 @@ save_active_record() {
 
 edit_server() {
 	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): "
+	prompt="$(custom-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): "
 
 	local history_servers=()
 	if [[ -f "$HISTORY_FILE" ]]; then
@@ -148,19 +148,19 @@ edit_server() {
 
 edit_key() {
 	local prompt new_key
-	prompt="$(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): "
+	prompt="$(custom-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): "
 	new_key="$(dmenu "$prompt" --password --lines 0)"
 	[[ -n "$new_key" ]] || return 0
 
 	new_key="${new_key#"${new_key%%[![:space:]]*}"}"
 	new_key="${new_key%"${new_key##*[![:space:]]}"}"
 	save_active_record "$CURRENT_SERVER" "$new_key" "$CURRENT_BITRATE" "$CURRENT_AUDIO_BITRATE"
-	notify "$(x-i18n get livestream_key_updated 2>/dev/null || echo "Stream key updated")"
+	notify "$(custom-i18n get livestream_key_updated 2>/dev/null || echo "Stream key updated")"
 }
 
 edit_video_bitrate() {
 	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate"): "
+	prompt="$(custom-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate"): "
 	local rates=("4500" "6000" "8000" "12000")
 	local menu_items=()
 	for r in "${rates[@]}"; do
@@ -183,7 +183,7 @@ edit_video_bitrate() {
 
 edit_audio_bitrate() {
 	local prompt choice
-	prompt="$(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate"): "
+	prompt="$(custom-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate"): "
 	local rates=("128" "160" "192" "320")
 	local menu_items=()
 	for r in "${rates[@]}"; do
@@ -229,11 +229,11 @@ history_menu() {
 	fi
 
 	local opt_clr
-	opt_clr="  󰆴  $(x-i18n get livestream_action_clear_history 2>/dev/null || echo "Clear All History")"
+	opt_clr="  󰆴  $(custom-i18n get livestream_action_clear_history 2>/dev/null || echo "Clear All History")"
 	local menu_items=("${lines[@]}" "$opt_clr")
 
 	local prompt choice
-	prompt="$(x-i18n get livestream_history_title 2>/dev/null || echo "History"): "
+	prompt="$(custom-i18n get livestream_history_title 2>/dev/null || echo "History"): "
 	choice="$(printf '%s\n' "${menu_items[@]}" | dmenu "$prompt" --lines 8)"
 	[[ -n "$choice" ]] || return 0
 
@@ -242,7 +242,7 @@ history_menu() {
 		head -n 1 "$HISTORY_FILE" >"$tmp"
 		chmod 0600 "$tmp" 2>/dev/null || true
 		mv -f "$tmp" "$HISTORY_FILE"
-		notify "$(x-i18n get livestream_history_cleared 2>/dev/null || echo "History cleared")"
+		notify "$(custom-i18n get livestream_history_cleared 2>/dev/null || echo "History cleared")"
 		return 0
 	fi
 
@@ -260,7 +260,7 @@ history_menu() {
 		sed "${chosen_line}d" "$HISTORY_FILE" >>"$tmp"
 		chmod 0600 "$tmp" 2>/dev/null || true
 		mv -f "$tmp" "$HISTORY_FILE"
-		notify "$(x-i18n get livestream_switched "target=${choice#*  }" 2>/dev/null || echo "Switched target")"
+		notify "$(custom-i18n get livestream_switched "target=${choice#*  }" 2>/dev/null || echo "Switched target")"
 	fi
 }
 
@@ -274,32 +274,32 @@ cmd_config() {
 			host="${host%%/*}"
 			srv_display="${host:-$CURRENT_SERVER}"
 		else
-			srv_display="$(x-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
+			srv_display="$(custom-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
 		fi
 
 		if [[ -n "$CURRENT_KEY" ]]; then
-			key_display="$(x-i18n get state_configured 2>/dev/null || echo "configured")"
+			key_display="$(custom-i18n get state_configured 2>/dev/null || echo "configured")"
 		else
-			key_display="$(x-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
+			key_display="$(custom-i18n get state_unconfigured 2>/dev/null || echo "unconfigured")"
 		fi
 
 		local opt_server opt_key opt_vbitrate opt_abitrate opt_history
-		opt_server="  󰒓  $(x-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): $srv_display"
-		opt_key="  󰌆  $(x-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): $key_display"
-		opt_vbitrate="  󰕧  $(x-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate"): ${CURRENT_BITRATE} kbps"
-		opt_abitrate="  󰓃  $(x-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate"): ${CURRENT_AUDIO_BITRATE} kbps"
+		opt_server="  󰒓  $(custom-i18n get livestream_cfg_server 2>/dev/null || echo "Server"): $srv_display"
+		opt_key="  󰌆  $(custom-i18n get livestream_cfg_key 2>/dev/null || echo "Key"): $key_display"
+		opt_vbitrate="  󰕧  $(custom-i18n get livestream_cfg_video_kbps 2>/dev/null || echo "Video Bitrate"): ${CURRENT_BITRATE} kbps"
+		opt_abitrate="  󰓃  $(custom-i18n get livestream_cfg_audio_kbps 2>/dev/null || echo "Audio Bitrate"): ${CURRENT_AUDIO_BITRATE} kbps"
 
 		local choices=("$opt_server" "$opt_key" "$opt_vbitrate" "$opt_abitrate")
 
 		local hist_count
 		hist_count="$(wc -l <"$HISTORY_FILE" 2>/dev/null || echo 0)"
 		if [[ $hist_count -ge 2 ]]; then
-			opt_history="  󰋚  $(x-i18n get livestream_history_title 2>/dev/null || echo "History")"
+			opt_history="  󰋚  $(custom-i18n get livestream_history_title 2>/dev/null || echo "History")"
 			choices+=("$opt_history")
 		fi
 
 		local prompt_text
-		prompt_text="$(x-i18n get livestream_prompt 2>/dev/null || echo "Live Stream Config: ")"
+		prompt_text="$(custom-i18n get livestream_prompt 2>/dev/null || echo "Live Stream Config: ")"
 		local choice
 		choice="$(printf '%s\n' "${choices[@]}" | dmenu "$prompt_text" --lines 6)"
 		[[ -n "$choice" ]] || return 0
@@ -326,7 +326,7 @@ cmd_config() {
 
 cmd_start() {
 	if is_active; then
-		notify "$(x-i18n get livestream_notify_already_active 2>/dev/null || echo "Stream already active")"
+		notify "$(custom-i18n get livestream_notify_already_active 2>/dev/null || echo "Stream already active")"
 		return 0
 	fi
 
@@ -341,7 +341,7 @@ cmd_start() {
 		cmd_config
 		get_active_record
 		if [[ -z "$CURRENT_SERVER" || -z "$CURRENT_KEY" ]]; then
-			notify "$(x-i18n get livestream_notify_missing_rtmp 2>/dev/null || echo "No streaming target configured")"
+			notify "$(custom-i18n get livestream_notify_missing_rtmp 2>/dev/null || echo "No streaming target configured")"
 			return 1
 		fi
 	fi
@@ -374,12 +374,12 @@ cmd_start() {
 
 	notify_waybar
 	open_danmaku
-	notify "$(x-i18n get livestream_notify_started_full 2>/dev/null || echo "Live streaming started")"
+	notify "$(custom-i18n get livestream_notify_started_full 2>/dev/null || echo "Live streaming started")"
 }
 
 cmd_stop() {
 	if ! is_active; then
-		notify "$(x-i18n get livestream_notify_not_active 2>/dev/null || echo "No active stream")"
+		notify "$(custom-i18n get livestream_notify_not_active 2>/dev/null || echo "No active stream")"
 		return 0
 	fi
 
@@ -402,7 +402,7 @@ cmd_stop() {
 	close_danmaku
 	restore_hardware
 	notify_waybar
-	notify "$(x-i18n get livestream_notify_stopped 2>/dev/null || echo "Live stream stopped")"
+	notify "$(custom-i18n get livestream_notify_stopped 2>/dev/null || echo "Live stream stopped")"
 }
 
 cmd_toggle() {
@@ -416,7 +416,7 @@ cmd_toggle() {
 cmd_clear() {
 	ensure_state_dir
 	rm -f "$HISTORY_FILE"
-	notify "$(x-i18n get livestream_history_cleared 2>/dev/null || echo "History cleared")"
+	notify "$(custom-i18n get livestream_history_cleared 2>/dev/null || echo "History cleared")"
 }
 
 main() {

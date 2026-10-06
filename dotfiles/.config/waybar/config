@@ -101,8 +101,8 @@
   "custom/screenshot": {
     "format": "󰻿",
     "tooltip": false,
-    "on-click": "x-cap area",
-    "on-click-right": "x-cap"
+    "on-click": "custom-capture area",
+    "on-click-right": "custom-capture"
   },
   "custom/screenrecord": {
     "format": "{icon} {text}",
@@ -113,11 +113,11 @@
     },
     "tooltip": false,
     "return-type": "json",
-    "exec": "x-rec status waybar",
+    "exec": "custom-record status waybar",
     "signal": 8,
     "interval": 1,
-    "on-click": "x-rec toggle",
-    "on-click-right": "x-rec"
+    "on-click": "custom-record toggle",
+    "on-click-right": "custom-record menu"
   },
   "tray": {
     "icon-size": 16,
@@ -167,7 +167,7 @@
       ]
     },
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
-    "on-click-right": "x-audio sink",
+    "on-click-right": "custom-audio sink",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
   },
@@ -176,7 +176,7 @@
     "format-source": "󰍬  {volume}%",
     "format-source-muted": "󰍭  {volume}%",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-    "on-click-right": "x-audio source",
+    "on-click-right": "custom-audio source",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SOURCE@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
   },
@@ -216,6 +216,6 @@
     "format": "⏻",
     "tooltip": false,
     "on-click": "systemctl poweroff",
-    "on-click-right": "x-power"
+    "on-click-right": "custom-power"
   }
 }

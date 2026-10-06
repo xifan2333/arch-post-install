@@ -7,5 +7,12 @@ dotfiles.default_mode = "symlink-each"
 [dotfiles]
 "~" = { source = "../../dotfiles", mode = "symlink-each", exclude = [
   "*.example",
+  "*.tera",
   ".config/vinput/hotwords.txt",
 ] }
+
+"~/.config/fontconfig/fonts.conf" = { source = "../../dotfiles/.config/fontconfig/fonts.conf.tera", mode = "template" }
+
+"~/.config/fuzzel/fuzzel.ini" = { source = "../../dotfiles/.config/fuzzel/fuzzel.ini.tera", mode = "template" }
+
+"~/.config/waybar/style.css" = { source = "../../dotfiles/.config/waybar/style.css.tera", mode = "template" }

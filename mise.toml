@@ -34,3 +34,7 @@ run = "hk check --check --all"
 [tasks.format]
 description = "Format all Python, Shell, Lua, TOML, and JSON/YAML files across the repository"
 run = "hk fix --all"
+
+[tasks."test:cli"]
+description = "Run isolated custom CLI regression tests"
+run = "python3 -B -m unittest discover -s tests -v"

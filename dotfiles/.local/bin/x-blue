@@ -30,7 +30,7 @@ local function capture(cmd)
 end
 
 local function i18n(key, vars)
-  local cmd = command("x-i18n", "get", key)
+  local cmd = command("custom-i18n", "get", key)
   for k, v in pairs(vars or {}) do
     cmd = cmd .. " " .. quote(k .. "=" .. v)
   end

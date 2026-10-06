@@ -41,6 +41,10 @@
 "pacman:zsh-history-substring-search" = "latest"
 "pacman:zsh-syntax-highlighting" = "latest"
 
+# Font state parsing and selection
+"pacman:libxml2" = "latest"
+"pacman:fontconfig" = "latest"
+
 # Interactive UI & Notifications
 "pacman:fuzzel" = "latest"
 "pacman:waybar" = "latest"

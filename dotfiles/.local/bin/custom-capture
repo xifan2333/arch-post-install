@@ -33,229 +33,173 @@
 #   custom-capture edit
 #   custom-capture color
 
-set -euo pipefail
-
-DOMAIN="capture"
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
+	else
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
+	fi
+)
 
 save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
-mkdir -p "$save_dir"
 
-show_help() {
-	cat <<'EOF'
-Usage: custom-capture [options] [command] [arguments...]
-
-Options:
-  -h, --help  Show this help message and exit
-
-Commands:
-  menu                Open interactive fuzzy capture menu via Fuzzel (default)
-  area [-o <path>|-]  Capture selected rectangular screen area
-  full [-o <path>|-]  Capture entire screen output
-  edit                Capture screen area and open annotation editor (satty)
-  ocr                 Capture screen area, extract text, and copy to clipboard
-  color               Interactively pick a pixel color on screen (hyprpicker)
-  preview             Capture screen area and open preview floating window (imv)
-  scroll              Interactive scrolling screenshot (wayscrollshot)
-
-Examples:
-  custom-capture area
-  custom-capture area - | wl-copy
-  custom-capture edit
-  custom-capture color
-EOF
-}
-
-dmenu_exec() {
-	local prompt="$1"
-	if command -v fuzzel >/dev/null 2>&1; then
-		fuzzel --dmenu --prompt "$prompt"
-	elif command -v bemenu >/dev/null 2>&1; then
-		bemenu -p "$prompt"
+select_area() (
+	local geometry rc errors
+	require slurp
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-capture.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if geometry=$(slurp 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$geometry"
 	else
-		head -n 1
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		((rc != 130)) || exit 130
+		die 1 cli_unavailable name=slurp
 	fi
-}
-
-notify_cap() {
-	local title body
-	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Capture")"
-	body="$1"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+)
+capture() (
+	local mode="$1" target="$2" geometry='' tmp
+	local -a grim_args=()
+	require grim
+	if [[ "$mode" == area ]]; then
+		geometry=$(select_area)
+		[[ -n "$geometry" ]] || return 0
+		grim_args=(-g "$geometry")
 	fi
-}
-
-cap_area() {
-	local out_target="${1:-}"
-	local geometry
-	geometry="$(slurp 2>/dev/null || true)"
-	[[ -n "$geometry" ]] || exit 0
-
-	if [[ "$out_target" == "-" || "$out_target" == "-o -" ]]; then
-		grim -g "$geometry" -
-		return 0
+	if [[ "$target" == - ]]; then
+		grim "${grim_args[@]}" -
+		return
 	fi
-
-	local filepath
-	if [[ -n "$out_target" && "$out_target" != "-o" ]]; then
-		filepath="$out_target"
-	else
-		local filename
-		filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
-		filepath="$save_dir/$filename"
-	fi
-
-	grim -g "$geometry" "$filepath"
-	wl-copy <"$filepath"
-	printf '%s\n' "$filepath"
-}
-
-cap_full() {
-	local out_target="${1:-}"
-	if [[ "$out_target" == "-" || "$out_target" == "-o -" ]]; then
-		grim -
-		return 0
-	fi
-
-	local filepath
-	if [[ -n "$out_target" && "$out_target" != "-o" ]]; then
-		filepath="$out_target"
-	else
-		local filename
-		filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
-		filepath="$save_dir/$filename"
-	fi
-
-	grim "$filepath"
-	wl-copy <"$filepath"
-	printf '%s\n' "$filepath"
-}
-
-cap_edit() {
-	local output_path geometry
-	output_path="$save_dir/screenshot-$(date +%Y%m%d_%H%M%S).png"
-	geometry="$(slurp 2>/dev/null || true)"
-	[[ -n "$geometry" ]] || exit 0
-	grim -g "$geometry" - | satty --filename - --output-filename "$output_path" --early-exit
-}
-
-cap_color() {
-	if ! command -v hyprpicker >/dev/null 2>&1; then
-		printf 'Error: hyprpicker not found\n' >&2
-		exit 127
-	fi
-	local color
-	color="$(hyprpicker -n 2>/dev/null || true)"
-	if [[ -n "$color" ]]; then
-		printf '%s' "$color" | wl-copy
-		printf '%s\n' "$color"
-	fi
-}
-
-cap_preview() {
-	local geometry
-	geometry="$(slurp 2>/dev/null || true)"
-	[[ -n "$geometry" ]] || exit 0
-	local preview_path
-	preview_path="$(mktemp -t preview-XXXXXX.png)"
-	grim -g "$geometry" "$preview_path"
-	wl-copy <"$preview_path"
-	imv "$preview_path" 2>/dev/null &
-	(
-		sleep 60
-		rm -f "$preview_path"
-	) &
-}
-
-cap_scroll() {
-	if ! command -v wayscrollshot >/dev/null 2>&1; then
-		printf 'Error: wayscrollshot is not installed\n' >&2
-		exit 127
-	fi
-	wayscrollshot -c "$@"
-}
-
-cap_ocr() {
-	local geometry
-	geometry="$(slurp 2>/dev/null || true)"
-	[[ -n "$geometry" ]] || exit 0
-
-	local ocr_cmd="custom-ocr"
-	command -v "$ocr_cmd" >/dev/null 2>&1 || ocr_cmd="x-ocr"
-
-	local text
-	text="$(grim -g "$geometry" - | "$ocr_cmd" - 2>/dev/null || true)"
-	if [[ -n "$text" ]]; then
+	require wl-copy
+	if [[ -z "$target" ]]; then target="$save_dir/screenshot-$(date +%Y%m%d_%H%M%S_%N).png"; fi
+	mkdir -p -- "$(dirname -- "$target")"
+	tmp=$(mktemp "$(dirname -- "$target")/.capture.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	grim "${grim_args[@]}" "$tmp"
+	if [[ -e "$target" ]]; then
+		chmod --reference="$target" "$tmp"
+	else chmod '=rw' "$tmp"; fi
+	mv -f -- "$tmp" "$target"
+	wl-copy <"$target"
+	printf '%s\n' "$target"
+)
+area_action() (
+	local action="$1" geometry tmp text output
+	case "$action" in
+	ocr) require grim custom-ocr wl-copy ;;
+	edit) require grim satty ;;
+	preview) require grim imv wl-copy ;;
+	esac
+	geometry=$(select_area)
+	[[ -n "$geometry" ]] || return 0
+	tmp=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-capture.XXXXXX.png")
+	trap 'rm -f -- "$tmp"' EXIT
+	grim -g "$geometry" "$tmp"
+	case "$action" in
+	ocr)
+		text=$(custom-ocr "$tmp")
+		[[ -n "$text" ]] || return 0
 		printf '%s' "$text" | wl-copy
-		notify_cap "$text"
 		printf '%s\n' "$text"
-	fi
-}
-
-interactive_menu() {
-	local opt_area opt_full opt_edit opt_preview opt_ocr opt_color opt_scroll
-	opt_area="$(custom-i18n get cap_menu_area 2>/dev/null || echo "Area Screenshot")"
-	opt_full="$(custom-i18n get cap_menu_full 2>/dev/null || echo "Fullscreen")"
-	opt_edit="$(custom-i18n get cap_menu_edit 2>/dev/null || echo "Annotate & Edit")"
-	opt_preview="$(custom-i18n get cap_menu_preview 2>/dev/null || echo "Preview & Pin")"
-	opt_ocr="$(custom-i18n get cap_menu_ocr 2>/dev/null || echo "Extract Text (OCR)")"
-	opt_color="$(custom-i18n get cap_menu_color 2>/dev/null || echo "Pick Color")"
-	opt_scroll="$(custom-i18n get cap_menu_scroll 2>/dev/null || echo "Scroll Shot")"
-
-	local menu_items=(
-		"󰹑  $opt_area"
-		"󰍹  $opt_full"
-		"󰻿  $opt_edit"
-		"󰋩  $opt_preview"
-		"󰚥  $opt_ocr"
-		"󰈊  $opt_color"
-		"󰝹  $opt_scroll"
-	)
-
-	local choice
-	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(custom-i18n get cap_menu_prompt 2>/dev/null || echo "Screen Capture: ")")
-	[[ -n "${choice:-}" ]] || return 0
-
-	case "$choice" in
-	*"$opt_area") cap_area ;;
-	*"$opt_full") cap_full ;;
-	*"$opt_edit") cap_edit ;;
-	*"$opt_preview") cap_preview ;;
-	*"$opt_ocr") cap_ocr ;;
-	*"$opt_color") cap_color ;;
-	*"$opt_scroll") cap_scroll ;;
+		;;
+	preview)
+		wl-copy <"$tmp"
+		imv "$tmp"
+		;;
+	edit)
+		mkdir -p -- "$save_dir"
+		output="$save_dir/screenshot-$(date +%Y%m%d_%H%M%S_%N).png"
+		satty --filename "$tmp" --output-filename "$output" --early-exit
+		if [[ -f "$output" ]]; then printf '%s\n' "$output"; fi
+		;;
 	esac
+)
+color() {
+	local value
+	require hyprpicker wl-copy
+	value=$(hyprpicker -n)
+	[[ -n "$value" ]] || return 0
+	printf '%s' "$value" | wl-copy
+	printf '%s\n' "$value"
 }
-
+menu() {
+	local action label prompt choice index
+	local -a actions=(area full edit preview ocr color scroll) rows=()
+	require fuzzel
+	prompt=$(t cap_menu_prompt)
+	for action in "${actions[@]}"; do
+		label=$(t "cap_menu_$action")
+		rows+=("$label")
+	done
+	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	[[ "$index" == "$choice" ]] || die 1 cli_picker_failed
+	((index < ${#actions[@]})) || die 1 cli_picker_failed
+	main "${actions[$index]}"
+}
 main() {
-	local cmd="${1:-menu}"
-	case "$cmd" in
-	-h | --help)
-		show_help
-		exit 0
+	local action="${1:-menu}" target=''
+	if (($#)); then shift; fi
+	case "$action" in
+	area | full)
+		if (($# == 1)) && [[ "$1" == - ]]; then
+			target=-
+		elif (($# == 2)) && [[ "$1" == -o && -n "$2" ]]; then
+			target="$2"
+		elif (($# != 0)); then usage_error; fi
 		;;
-	menu) interactive_menu ;;
-	area)
-		shift
-		cap_area "$@"
-		;;
-	full)
-		shift
-		cap_full "$@"
-		;;
-	edit) cap_edit ;;
-	ocr) cap_ocr ;;
-	color) cap_color ;;
-	preview) cap_preview ;;
+	-h | --help | menu | edit | ocr | color | preview | scroll) (($# == 0)) || usage_error ;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	-h | --help) t help_capture ;;
+	menu) menu ;;
+	area | full) capture "$action" "$target" ;;
+	edit | ocr | preview) area_action "$action" ;;
+	color) color ;;
 	scroll)
-		shift
-		cap_scroll "$@"
-		;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-capture --help for usage)\n' "$cmd" >&2
-		exit 2
+		require wayscrollshot
+		wayscrollshot -c
 		;;
 	esac
 }
-
 main "$@"
