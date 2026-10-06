@@ -192,7 +192,7 @@ mise run check:changed
 
 任务参数可直接传给 hk，例如 `mise run check:plan --all` 查看全量匹配范围，或 `mise run check dotfiles/.local/bin/custom-capture` 检查指定文件。所有脚本和配置文件均完全由官方原生 linter 原生识别，零非标自定义检查。
 
-GitHub Actions 对 push 和 pull request 执行 `mise run lint` 和 `mise run test:cli`。开发工具统一在根目录 `mise.toml` 声明，CI 由 `mise-action` 自动安装。CLI 回归测试使用隔离 XDG 目录和模拟依赖，验证运行契约；真实设备行为仍按变更领域验证。
+GitHub Actions 对 push 和 pull request 执行 `mise run lint`。开发工具统一在根目录 `mise.toml` 声明，CI 由 `mise-action` 自动安装。运行行为按变更领域验证。
 
 ## 配置文件是怎么连接的
 
