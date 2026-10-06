@@ -34,7 +34,7 @@ neither a dictionary nor jq.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
-  `fuzzel.ini`, `ftty.toml`, `mako.conf`, and `waybar.css`. Malformed authority is
+  `fuzzel.ini`, `ftty.toml`, `mako.conf`, `fcitx5.conf`, and `waybar.css`. Malformed authority is
   an error. These consumers use mono first and CJK for missing glyphs. Fontconfig
   generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
   share the same selection, including the lock screen, HUDs, IME, Satty, and
@@ -63,6 +63,14 @@ After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rathe
 than the rendered target. The whole-tree mapping excludes template sources.
 Mako includes independent font and theme fragments; switching themes preserves
 the font selection. Qt inherits the GTK font through `QT_QPA_PLATFORMTHEME=gtk3`.
+
+Fcitx5's non-font UI settings come from `fcitx5/classicui.conf.template` in the
+repository. `custom-font init` and `set` append explicit primary/fallback font
+families for candidates, menus, and tray text to the generated `font/fcitx5.conf`
+and link `fcitx5/conf/classicui.conf` to it. The existing targeted D-Bus reload
+then updates classicui without relying on cached generic-family matches.
+Edit the repository template for non-font UI settings; GUI changes to the
+generated file are replaced by the next font synchronization.
 
 Apply the current dotfiles and initialize missing font state:
 

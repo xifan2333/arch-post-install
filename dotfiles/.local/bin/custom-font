@@ -72,9 +72,12 @@ pick() (
 )
 
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/font"
+fcitx_dir="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5"
 font_size=13
 ui_font_size=11
 notification_font_size=10
+candidate_font_size=12
+ime_menu_font_size=10
 
 read_fonts() {
 	local -n selected_mono="$1" selected_cjk="$2"
@@ -144,7 +147,8 @@ reload_fonts() {
 	notify-send -a custom-font -h string:x-canonical-private-synchronous:font "$title" "$body"
 }
 write_fonts() (
-	local write_mono="$1" write_cjk="$2" initialize="$3" tmp mono_xml cjk_xml mono_css cjk_css
+	local write_mono="$1" write_cjk="$2" initialize="$3" tmp link_tmp mono_xml cjk_xml mono_css cjk_css
+	local -a cleanup
 	require fc-list xmllint flock gsettings
 	if [[ "$initialize" == true && -e "$state_dir/fonts.conf" ]]; then read_fonts write_mono write_cjk; fi
 	validate_font "$write_mono"
@@ -154,7 +158,8 @@ write_fonts() (
 	flock "$lock"
 	if [[ "$initialize" == true && -e "$state_dir/fonts.conf" ]]; then read_fonts write_mono write_cjk; fi
 	tmp=$(mktemp -d "$state_dir/.font.XXXXXX")
-	trap 'rm -rf -- "$tmp"' EXIT
+	cleanup=("$tmp")
+	trap 'rm -rf -- "${cleanup[@]}"' EXIT
 	mono_xml=$(xml_escape "$write_mono")
 	cjk_xml=$(xml_escape "$write_cjk")
 	mono_css=$(css_escape "$write_mono")
@@ -181,6 +186,12 @@ EOF
 	# The validated names use the same quote escaping in CSS and TOML strings.
 	printf '[font]\nfamily = ["%s", "%s", "Noto Color Emoji"]\n' "$mono_css" "$cjk_css" >"$tmp/ftty.toml"
 	printf 'font=%s,%s %s\n' "$write_mono" "$write_cjk" "$notification_font_size" >"$tmp/mako.conf"
+	# Fcitx5 caches generic-family matches; give its UI the actual selected pair.
+	cat -- "$fcitx_dir/classicui.conf.template" >"$tmp/fcitx5.conf"
+	printf '\nFont="%s,%s %s"\nMenuFont="%s,%s %s"\nTrayFont="%s,%s Bold %s"\n' \
+		"$mono_css" "$cjk_css" "$candidate_font_size" \
+		"$mono_css" "$cjk_css" "$ime_menu_font_size" \
+		"$mono_css" "$cjk_css" "$ime_menu_font_size" >>"$tmp/fcitx5.conf"
 	# On init the existing authority is preserved byte for byte; only regenerate derivatives.
 	if [[ "$initialize" != true || ! -e "$state_dir/fonts.conf" ]]; then
 		mv -f -- "$tmp/fonts.conf" "$state_dir/fonts.conf"
@@ -189,6 +200,15 @@ EOF
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
 	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
 	mv -f -- "$tmp/mako.conf" "$state_dir/mako.conf"
+	mv -f -- "$tmp/fcitx5.conf" "$state_dir/fcitx5.conf"
+	# Bootstrap init establishes this generated-config link; set also converges it.
+	mkdir -p -- "$fcitx_dir/conf"
+	if [[ ! -L "$fcitx_dir/conf/classicui.conf" || ! "$fcitx_dir/conf/classicui.conf" -ef "$state_dir/fcitx5.conf" ]]; then
+		link_tmp=$(mktemp -d "$fcitx_dir/conf/.font.XXXXXX")
+		cleanup+=("$link_tmp")
+		ln -s -- "$state_dir/fcitx5.conf" "$link_tmp/classicui.conf"
+		mv -Tf -- "$link_tmp/classicui.conf" "$fcitx_dir/conf/classicui.conf"
+	fi
 	sync_toolkit_fonts "$write_mono" "$write_cjk"
 )
 list_fonts() {
