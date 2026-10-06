@@ -76,6 +76,8 @@ pick() (
 unit=custom-record.service
 save_dir="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
 frame_rate=60
+color_range=full
+video_qp=10
 stop_timeout=15
 startup_delay=0.2
 load_state='' active_state='' sub_state='' main_pid='' result=''
@@ -152,7 +154,8 @@ start_recording() {
 	path="$save_dir/screenrecord-$(date +%Y%m%d_%H%M%S_%N).mp4"
 	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -p CollectMode=inactive \
 		-p KillSignal=SIGINT -p "TimeoutStopSec=$stop_timeout" -p SendSIGKILL=no \
-		-- "$recorder" "${capture[@]}" -f "$frame_rate" -a default_output -c mp4 -o "${path//\$/\$\$}"
+		-- "$recorder" "${capture[@]}" -f "$frame_rate" -cr "$color_range" -ffmpeg-video-opts "qp=$video_qp" \
+		-a default_output -c mp4 -o "${path//\$/\$\$}"
 	sleep "$startup_delay"
 	read_state
 	check_failure

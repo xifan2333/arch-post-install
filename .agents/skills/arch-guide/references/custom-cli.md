@@ -137,6 +137,8 @@ validation and a successful new launch precede stopping the previous swaybg.
 ## Recording
 
 `custom-record` defaults to `status`. The menu is explicit: `custom-record menu`.
+Full and area recordings use `-cr full -ffmpeg-video-opts "qp=10"`, the
+visually verified settings for this desktop.
 A single transient user unit, `custom-record.service`, owns each recording.
 `Type=exec` checks executable startup; duplicate starts are refused. The service
 uses SIGINT for stop so the encoder can finalize the video, and no automatic
