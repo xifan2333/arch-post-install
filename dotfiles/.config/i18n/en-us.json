@@ -101,7 +101,7 @@
   "audio_source_switched": "Switched microphone input to: {dev}",
   "audio_no_devices": "No available audio devices found",
   "font_title": "Typography",
-  "font_switched": "Monospace font switched to: {font}",
+  "font_switched": "Desktop font switched to: {font}. Reopen windows that do not support live reload.",
   "font_prompt_mono": "Monospace Font: ",
   "font_prompt_cjk": "CJK Font: ",
   "theme_notify_title": "Theme",

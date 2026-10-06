@@ -1,0 +1,3 @@
+{% if env.XDG_STATE_HOME is defined and env.XDG_STATE_HOME != "" %}{% set state = env.XDG_STATE_HOME %}{% else %}{% set state = env.HOME ~ "/.local/state" %}{% endif -%}
+include={{ state }}/font/mako.conf
+include={{ state }}/theme/mako.conf

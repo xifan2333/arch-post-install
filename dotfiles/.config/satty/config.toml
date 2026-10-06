@@ -23,9 +23,8 @@ no-window-decoration = true
 initial-tool = "brush"
 
 [font]
-family = "Sarasa Mono SC"
+family = "monospace"
 style = "Regular"
-fallback = ["Noto Sans CJK SC", "Source Han Sans"]
 
 [color-palette]
 palette = ["#f0932bff", "#eb4d4bff", "#6ab04cff", "#22a6b3ff", "#130f40ff"]

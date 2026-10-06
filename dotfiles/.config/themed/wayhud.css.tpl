@@ -11,7 +11,7 @@ window {
 }
 
 label {
-    font-family: "JetBrainsMono Nerd Font";
+    font-family: monospace;
     text-shadow: none;
 }
 
