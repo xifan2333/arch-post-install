@@ -25,6 +25,17 @@
 - All internal communication, palette definitions, and configuration fragments must use human-readable formats (TOML, INI, JSON, or plain key-value text).
 - State and diagnostics must be inspectable, filterable, and replayable using standard utilities (`cat`, `grep`, `jq`).
 
+### 1.4 Desktop Application Lifecycle (UWSM + systemd)
+
+Every independent desktop application must have an explicit systemd user-unit owner. UWSM manages the graphical session environment and application launch; application-specific tools remain responsible for configuration and reload protocols. These are mandatory rules for repository-owned entrypoints:
+
+1. **Independent application launch**: Launch desktop applications through `uwsm app`, covering xrwm keybindings, application launchers, autostart, and scripts that start independently living applications. Applications must not accumulate in the compositor's unit. Integrate at the launching boundary: for example, Fuzzel's application `launch-prefix` uses `uwsm app --`; `.desktop` files can retain their normal `Exec` commands.
+2. **Graphical background components**: Use systemd user services tied to the graphical session, through UWSM-created services or declaratively managed session-bound units. Use stable service names for singletons, and appropriate graphical application/background slices. Existing native systemd or D-Bus-activated services retain their units and declared lifetimes; do not launch duplicate instances or wrap their activation in another application unit.
+3. **Helper and pipeline ownership**: Short-lived control commands, `jq`, `curl`, synchronous pickers, and pipeline workers inherit the owning application's unit and standard I/O. Do not wrap every subprocess in `uwsm app`. A process intended to outlive its caller independently needs its own managed unit; backgrounding with `&` alone does not establish ownership.
+4. **Reload and stop**: Prefer the application's native IPC/control interface. Where unit-level reload is appropriate, define `ExecReload` on a service and use `systemctl --user reload`. Scope units do not support `ExecReload`. When signals are required, identify the owning unit and deliberately select the process target; terminal font reload must reach only the terminal's main process, preserving its shell and jobs. Use unit ownership for lifecycle discovery and stopping instead of broad process-name `pgrep`/`pkill` matching. UWSM does not provide a generic application reload command.
+5. **Required dependencies**: Declare UWSM as a required dependency of launch entrypoints that use it. Missing UWSM or a failed managed launch must produce an explicit error (missing dependency: exit 127). Silent fallback to direct application launch is forbidden.
+6. **Review and verification**: For launch/lifecycle changes, inspect the launched process's cgroup and unit properties, verify the intended session lifetime, and verify that reload/stop targets the correct instance without affecting unrelated applications or terminal children. Preserve argument boundaries, cancellation, and stdout contracts when integrating launchers and scripts. Existing nonconforming entrypoints are migration work, not exceptions to this policy.
+
 ---
 
 ## 2. Suckless Philosophy in Architecture
@@ -182,7 +193,7 @@ All desktop utilities, custom commands, and scripts under `dotfiles/.local/bin/`
     - **Local Cleanup vs. Global Traps**:
       - Ephemeral, function-local temporary files (such as scratch images or menu icons inside a picker function) MUST be cleaned up locally before the function returns. **NEVER register a global process `EXIT` trap for function-local variables**, which causes unbound variable crashes under `set -u` after function return.
       - Global `trap cleanup EXIT INT TERM HUP` is strictly reserved for process-level, long-running lifecycles (e.g. background recording daemons, live streams, or single-instance lockfiles).
-    - **Single-Instance Locking**: Exclusive background actions (recording, live streaming, webcam overlay) must enforce single-instance locking via `flock` or `$XDG_RUNTIME_DIR/custom-<domain>/run.pid`, verify liveness with `kill -0`, and provide idempotent `toggle`, `start`, `stop`, and `status` actions.
+    - **Single-Instance Ownership**: Exclusive background actions (recording, live streaming, webcam overlay) must enforce one owner and provide idempotent `toggle`, `start`, `stop`, and `status` actions. For managed services, use a stable unit name and systemd unit state as the authority (§1.4), without duplicating that state in PID files. Use `flock` for any remaining shared-resource critical sections; if a PID is intrinsically required for an owned helper, verify its identity and liveness before use.
 17. **Contract Verification & Static Analysis Gate**:
     - Scripts must pass linters (`shellcheck` + `shfmt` for Bash, `ruff` for Python, `stylua` for Neovim config).
     - Must explicitly test four runtime scenarios: normal operation, invalid arguments, user cancellation, and edge-case special character inputs.
