@@ -91,6 +91,7 @@
 # Daily Applications (GUI & AUR)
 "pacman:chromium" = "latest"
 "pacman:pcmanfm" = "latest"
+"pacman:gvfs" = "latest"
 "pacman:localsend" = "latest"
 "pacman:obsidian" = "latest"
 "aur:herdr-corral-bin" = "latest"
