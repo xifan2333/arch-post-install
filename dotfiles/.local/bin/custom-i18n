@@ -32,144 +32,101 @@
 #   echo domain_wifi | custom-i18n get -
 #   custom-i18n current
 
-set -euo pipefail
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1"
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?"' ERR
 
 show_help() {
-	cat <<'EOF'
-Usage: custom-i18n [options] <command> [arguments...]
-
-Options:
-  -h, --help     Show this help message and exit
-  --json         Output JSON where applicable
-
-Commands:
-  get <key> [var=val...]   Query localized string for key
-  get -                    Read keys line-by-line from standard input
-  current                  Print detected active language code (zh-cn | en-us)
-  list                     Print all key-value pairs in active dictionary
-  env                      Generate associative array for bash sourcing
-
-Examples:
-  custom-i18n get domain_audio
-  custom-i18n get audio_sink_switched dev=HDMI
-  echo domain_wifi | custom-i18n get -
-EOF
+	printf '%s\n' 'Usage: custom-i18n {get <key|-> [name=value...]|current|list [--json]|env}'
 }
 
-get_i18n_dir() {
-	local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/i18n"
-	if [[ -d "$cfg" ]]; then
-		printf '%s' "$cfg"
-		return 0
-	fi
-	local repo_dir
-	repo_dir="$(dirname "$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")")/.config/i18n"
-	if [[ -d "$repo_dir" ]]; then
-		printf '%s' "$repo_dir"
-		return 0
-	fi
-	printf '%s' "$cfg"
+fail() {
+	printf 'custom-i18n: %s\n' "$2" >&2
+	exit "$1"
 }
 
 detect_language() {
-	local raw="${LC_ALL:-${LC_MESSAGES:-${LANG:-en_US}}}"
-	local lang="${raw%%.*}"
-	lang="${lang,,}"
-	lang="${lang/_/-}"
-	if [[ "$lang" == zh* ]]; then
-		printf 'zh-cn'
-	else
-		printf 'en-us'
-	fi
+	local raw="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
+	case "${raw,,}" in
+	zh | zh_* | zh-*) printf '%s\n' zh-cn ;;
+	en | en_* | en-* | c | c.* | posix) printf '%s\n' en-us ;;
+	*) fail 1 "unsupported locale: $raw" ;;
+	esac
 }
 
 resolve_key() {
-	local dict="$1" key="$2"
-	shift 2
-	local val
-	val=$(jq -r --arg k "$key" '.[$k] // ("[" + $k + "]")' "$dict")
-	while [[ $# -ge 1 ]]; do
-		local k="${1%%=*}"
-		local v="${1#*=}"
-		val="${val//\{$k\}/$v}"
-		shift
+	local key="$1" value pair name replacement
+	shift
+	value=$(jq -er --arg key "$key" '.[$key] | if type == "string" then . else error("missing translation: " + $key) end' "$dict")
+	for pair in "$@"; do
+		name="${pair%%=*}"
+		replacement="${pair#*=}"
+		value="${value//\{$name\}/"$replacement"}"
 	done
-	printf '%s\n' "$val"
+	printf '%s\n' "$value"
 }
 
 main() {
-	if [[ $# -eq 0 ]]; then
-		show_help >&2
-		exit 2
-	fi
-
-	case "${1:-}" in
+	(($#)) || fail 2 'missing command (see --help)'
+	local command="$1" pair lang dict entries entry key value
+	shift
+	case "$command" in
 	-h | --help)
+		(($# == 0)) || fail 2 'unexpected arguments'
 		show_help
-		exit 0
+		return
 		;;
+	current | env) (($# == 0)) || fail 2 'unexpected arguments' ;;
+	list) (($# == 0)) || { (($# == 1)) && [[ "$1" == --json ]]; } || fail 2 'expected list [--json]' ;;
+	get)
+		(($#)) || fail 2 'missing key (use get - for stdin)'
+		for pair in "${@:2}"; do
+			[[ "$pair" =~ ^[a-zA-Z_][a-zA-Z_0-9]*= ]] || fail 2 "invalid replacement: $pair"
+		done
+		;;
+	*) fail 2 "unknown command: $command" ;;
 	esac
-
-	local lang
-	lang="$(detect_language)"
-
-	if [[ "$1" == "current" ]]; then
+	lang=$(detect_language)
+	if [[ "$command" == current ]]; then
 		printf '%s\n' "$lang"
-		exit 0
+		return
 	fi
-
-	local i18n_dir
-	i18n_dir="$(get_i18n_dir)"
-	local dict="$i18n_dir/${lang}.json"
-	if [[ ! -f "$dict" ]]; then
-		dict="$i18n_dir/en-us.json"
-	fi
-
-	if [[ ! -f "$dict" ]]; then
-		printf 'Error: i18n dictionary not found in %s\n' "$i18n_dir" >&2
-		exit 1
-	fi
-
-	case "$1" in
+	command -v jq >/dev/null || fail 127 'missing dependency: jq'
+	dict="${XDG_CONFIG_HOME:-$HOME/.config}/i18n/$lang.json"
+	[[ -r "$dict" ]] || fail 1 "dictionary not readable: $dict"
+	jq -e 'type == "object" and all(.[]; type == "string")' "$dict" >/dev/null
+	case "$command" in
+	get)
+		key="$1"
+		shift
+		if [[ "$key" == - ]]; then
+			while IFS= read -r key || [[ -n "$key" ]]; do
+				[[ -n "$key" ]] || continue
+				resolve_key "$key" "$@"
+			done
+		else resolve_key "$key" "$@"; fi
+		;;
 	list)
-		if [[ "${2:-}" == "--json" ]]; then
-			cat "$dict"
-		else
-			jq -r 'to_entries | .[] | "\(.key): \(.value)"' "$dict"
-		fi
+		if (($#)); then
+			cat -- "$dict"
+		else jq -r 'to_entries[] | "\(.key): \(.value)"' "$dict"; fi
 		;;
 	env)
+		entries=$(jq -c 'to_entries[]' "$dict")
 		printf 'declare -gA i18n\n'
-		jq -r 'to_entries | .[] | "i18n[\"\(.key)\"]=\"\(.value)\""' "$dict"
-		;;
-	get)
-		shift
-		if [[ $# -eq 0 && ! -t 0 ]]; then
-			# Read keys line-by-line from standard input pipe
-			while IFS= read -r line || [[ -n "$line" ]]; do
-				[[ -z "$line" ]] && continue
-				resolve_key "$dict" "$line"
-			done
-		elif [[ "${1:-}" == "-" ]]; then
-			shift
-			while IFS= read -r line || [[ -n "$line" ]]; do
-				[[ -z "$line" ]] && continue
-				resolve_key "$dict" "$line" "$@"
-			done
-		elif [[ $# -gt 0 ]]; then
-			local key="$1"
-			shift
-			resolve_key "$dict" "$key" "$@"
-		else
-			printf 'Error: Missing key argument for get\n' >&2
-			exit 2
-		fi
-		;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-i18n --help for usage)\n' "$1" >&2
-		exit 2
+		while IFS= read -r entry; do
+			[[ -n "$entry" ]] || continue
+			key=$(jq -r '.key' <<<"$entry")
+			value=$(jq -r '.value' <<<"$entry")
+			printf 'i18n[%q]=%q\n' "$key" "$value"
+		done <<<"$entries"
 		;;
 	esac
 }
-
 main "$@"
