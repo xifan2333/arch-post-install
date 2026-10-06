@@ -9,7 +9,7 @@
 #               custom-session reload unit-pattern...
 #               custom-session signal signal unit-pattern...
 #               custom-session signal-app signal executable
-# @stdout       Unit state for state; otherwise no output
+# @stdout       Unit state for state; scope applications retain their stdout
 # @stderr       Launch and lifecycle errors
 # @examples     custom-session launch -- ftty
 #               custom-session signal SIGUSR1 'app-*-ftty@*.service'

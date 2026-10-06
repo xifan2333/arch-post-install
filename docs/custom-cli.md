@@ -3,7 +3,7 @@
 The public desktop commands are `custom-audio`, `custom-capture`,
 `custom-clipboard`, `custom-font`, `custom-hardware`, `custom-i18n`,
 `custom-keystrokes`, `custom-ocr`, `custom-power`, `custom-record`,
-`custom-stream-title`, `custom-wallhaven`, and `custom-wallpaper`.
+`custom-session`, `custom-stream-title`, `custom-wallhaven`, and `custom-wallpaper`.
 Use `--help` for their command syntax. Legacy command symlinks have been removed.
 Independent programs such as `x-blue`, `x-wifi`, `x-theme`, and `x-live` retain
 those names.
@@ -48,9 +48,9 @@ neither a dictionary nor jq.
   Chinese locales use zh-cn, English/C/POSIX use en-us. Other locales and missing
   dictionaries or keys are errors.
 - Wallpapers, screenshots, and recordings are permanent user media, stored under
-  XDG Pictures/Videos directories. `custom-wallpaper current` reads current-user
-  swaybg arguments, preserving spaces; no running image yields empty output,
-  and conflicting images yield an error. `custom-wallpaper random`, the menu's
+  XDG Pictures/Videos directories. `custom-wallpaper current` reads the managed
+  wallpaper service's MainPID arguments, preserving spaces; no running image
+  yields empty output, and conflicting images yield an error. `custom-wallpaper random`, the menu's
   random action, and session startup fetch and apply a random pixel-art image
   from Wallhaven (exact tag `id:2321`, SFW, at least 1920×1080). Network, download,
   or empty-result failures report an error and leave the current wallpaper in
@@ -71,6 +71,50 @@ custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"
 ```
 
 Mise removes only obsolete links recorded as managed by its whole-tree mapping.
+
+## Session lifecycle
+
+`custom-session launch -- command ...` launches an independent desktop application
+through UWSM as a transient user service, with `PartOf=graphical-session.target`.
+Fuzzel and xrwm bindings use this entrypoint. It accepts executable commands,
+not desktop entry IDs; Fuzzel resolves desktop entries before invoking it.
+`launch -t scope -- command ...` waits for the application and preserves its
+standard streams. Capture previews/editors and the lock screen use scopes so
+image cleanup and swayidle's blocking lock invocation retain their ordering.
+
+`start unit.service -- command ...` starts a named background service only when
+inactive, and resets an earlier failure on explicit start. `toggle` starts or
+stops it; `state` reads systemd and `stop` is idempotent. These exact-unit commands
+reject wildcards. `reload` and `signal` accept unit patterns but act only on
+running services; signals target the main process, never the whole cgroup.
+`signal-app` matches running app/custom service MainPID executables, including
+terminals named after Fuzzel desktop-entry metadata. Missing UWSM or an executable
+is an error (127); there is no direct-launch fallback.
+
+Waybar, Mako, and Fcitx5 reuse their native services. The generated
+`app-org.fcitx.Fcitx5@autostart.service` gets an `ExecReload=fcitx5-remote -r`
+drop-in. Font/theme refresh invokes those reloads and signals managed ftty main
+processes, preserving terminal shells and jobs. Existing terminals launched
+before migration retain their original ownership until closed; open a new
+terminal to use managed font reload.
+
+| Component | User service |
+| --- | --- |
+| Launcher | `custom-launcher.service` |
+| Polkit / idle | `custom-polkit.service` / `custom-idle.service` |
+| Clipboard watchers | `custom-clipboard-text.service` / `custom-clipboard-image.service` |
+| Keys / title HUD | `custom-keystrokes.service` / `custom-stream-title.service` |
+| Camera / captions | `custom-camera.service` / `custom-captions.service` |
+| Recording / live stream | `custom-record.service` / `custom-live.service` |
+| Herdr terminal | `custom-danmaku.service` |
+| Wallpaper request / renderer | `custom-wallpaper-fetch.service` / `custom-wallpaper-<number>-<number>.service` |
+
+Caption workers and Herdr pane commands inherit their parent's unit. Status,
+stop, and reload use service state, with no PID files or process-name discovery.
+Inspect logs with `journalctl --user -u <unit>`. Streaming uses SIGINT on stop,
+retains failed units, and restores hardware settings on explicit stop even after
+encoder failure. Wallpaper replacement serializes launches and stops only old
+renderer services after the new renderer starts. Session logout uses `uwsm stop`.
 
 ## Image streams
 
