@@ -50,30 +50,8 @@ fi
 # 5. Idle and power management daemon (Swayidle)
 start_daemon swayidle -w
 
-# 6. Wallpaper daemon (Swaybg)
-if command -v swaybg >/dev/null 2>&1; then
-	wallpaper_state="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current"
-	wallpaper_img=""
-	if [[ -s "$wallpaper_state" ]]; then
-		wallpaper_img="$(<"$wallpaper_state")"
-	fi
-
-	pkill -x swaybg 2>/dev/null || true
-	sleep 0.1
-	if [[ -n "$wallpaper_img" && -f "$wallpaper_img" ]]; then
-		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -s b -S both -- swaybg -i "$wallpaper_img" -m fill >/dev/null 2>&1 &
-		else
-			swaybg -i "$wallpaper_img" -m fill >/dev/null 2>&1 &
-		fi
-	else
-		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -s b -S both -- swaybg -c "#1a1b26" >/dev/null 2>&1 &
-		else
-			swaybg -c "#1a1b26" >/dev/null 2>&1 &
-		fi
-	fi
-fi
+# 6. Choose a local wallpaper at session start; custom-wallpaper owns the launcher.
+custom-wallpaper random
 
 # 7. Clipboard manager (Cliphist)
 if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; then

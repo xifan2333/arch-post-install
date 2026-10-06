@@ -115,10 +115,10 @@ Non-root write permissions are granted via `/etc/tmpfiles.d/`:
 
 All desktop utilities can be invoked directly as `x-<tool>`:
 - `x-theme set <name>` / `x-theme menu`: switch desktop themes.
-- `x-hw fan` / `x-hw gpu`: inspect/control hardware.
-- `x-cap ocr` / `x-ocr`: capture screen region and copy recognized text.
-- `x-i18n get <key>`: query localized strings.
-- `x-font sync`: sync pixel fonts from GitHub releases.
+- `custom-hardware fan` / `custom-hardware gpu`: inspect/control hardware.
+- `custom-capture ocr` / `custom-ocr`: capture screen region and copy recognized text.
+- `custom-i18n get <key>`: query localized strings.
+- `custom-font menu` / `custom-font current`: select or inspect desktop fonts.
 - `x-live start` / `x-live stop`: control live streaming pipeline.
 - `x-camera toggle`: webcam PIP floating player.
 - `x-captions toggle`: real-time live captions overlay.
