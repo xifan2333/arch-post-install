@@ -124,8 +124,8 @@ area_action() (
 	local action="$1" geometry tmp text output
 	case "$action" in
 	ocr) require grim custom-ocr wl-copy ;;
-	edit) require grim satty ;;
-	preview) require grim imv wl-copy ;;
+	edit) require grim satty custom-session ;;
+	preview) require grim imv wl-copy custom-session ;;
 	esac
 	geometry=$(select_area)
 	[[ -n "$geometry" ]] || return 0
@@ -141,12 +141,12 @@ area_action() (
 		;;
 	preview)
 		wl-copy <"$tmp"
-		imv "$tmp"
+		custom-session launch -t scope -- imv "$tmp"
 		;;
 	edit)
 		mkdir -p -- "$save_dir"
 		output="$save_dir/screenshot-$(date +%Y%m%d_%H%M%S_%N).png"
-		satty --filename "$tmp" --output-filename "$output" --early-exit
+		custom-session launch -t scope -- satty --filename "$tmp" --output-filename "$output" --early-exit
 		if [[ -f "$output" ]]; then printf '%s\n' "$output"; fi
 		;;
 	esac

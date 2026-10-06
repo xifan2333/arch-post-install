@@ -8,26 +8,26 @@ set -euo pipefail
 # ===========================================================================
 
 # Terminal (Return)
-xrwm map normal Super Return spawn ftty
+xrwm map normal Super Return spawn custom-session launch -- ftty
 xrwm map normal "Super+Shift" Return zoom
 
 # Application Launcher (Space) & Floating / Scratchpad Controls
-xrwm map normal Super Space spawn sh -c "pkill -x fuzzel || fuzzel"
+xrwm map normal Super Space spawn custom-session toggle custom-launcher.service -s a -- fuzzel
 xrwm map normal "Super+Alt" Space toggle-focused-tags 2147483648
 xrwm map normal Alt Space toggle-floating-views
 
 # Browser (B)
-xrwm map normal Super B spawn "${BROWSER:-chromium}"
+xrwm map normal Super B spawn custom-session launch -- "${BROWSER:-chromium}"
 
 # File Manager (E)
-xrwm map normal Super E spawn pcmanfm
-xrwm map normal "Super+Shift" E spawn ftty -e yazi
+xrwm map normal Super E spawn custom-session launch -- pcmanfm
+xrwm map normal "Super+Shift" E spawn custom-session launch -- ftty -e yazi
 
 # Clipboard (V)
-xrwm map normal Super V spawn custom-clipboard
+xrwm map normal Super V spawn custom-session launch -- custom-clipboard
 
 # Network (N)
-xrwm map normal Super N spawn x-wifi
+xrwm map normal Super N spawn custom-session launch -- x-wifi
 
 # ===========================================================================
 # 2. Window Lifecycle & Layout Management
@@ -36,7 +36,7 @@ xrwm map normal Super N spawn x-wifi
 # Window Close (Q / W) & Session Exit
 xrwm map normal Super Q close
 xrwm map normal Super W close
-xrwm map normal "Super+Shift" Q exit
+xrwm map normal "Super+Shift" Q spawn uwsm stop
 
 # Fullscreen & Floating (F = Fullscreen, P = Pin / Float)
 xrwm map normal Super F toggle-fullscreen
@@ -91,40 +91,40 @@ xrwm map normal "Super+Shift" Comma send-to-output previous
 # ===========================================================================
 
 # Recording Options Menu
-xrwm map normal "Super+Control" G spawn custom-record menu
+xrwm map normal "Super+Control" G spawn custom-session launch -- custom-record menu
 
 # ===========================================================================
 # 5. On-Screen Overlay HUD Suite (Super + Alt + Key)
 # ===========================================================================
 
 # Keys Overlay (K = Keystrokes)
-xrwm map normal "Super+Alt" K spawn custom-keystrokes toggle
+xrwm map normal "Super+Alt" K spawn custom-session launch -- custom-keystrokes toggle
 
 # Camera PIP Overlay (V = Video / Camera)
-xrwm map normal "Super+Alt" V spawn x-camera toggle
+xrwm map normal "Super+Alt" V spawn custom-session launch -- x-camera toggle
 
 # Captions Overlay (C = Captions)
-xrwm map normal "Super+Alt" C spawn x-captions toggle
+xrwm map normal "Super+Alt" C spawn custom-session launch -- x-captions toggle
 
 # Title Overlay (T = Title)
-xrwm map normal "Super+Alt" T spawn custom-stream-title toggle
+xrwm map normal "Super+Alt" T spawn custom-session launch -- custom-stream-title toggle
 
 # ===========================================================================
 # 6. Screen Recording & Live Streaming (G = Grab / Record / Stream)
 # ===========================================================================
 
 # Screen Recording via Portal
-xrwm map normal Super G spawn custom-record toggle
+xrwm map normal Super G spawn custom-session launch -- custom-record toggle
 
 # Live Stream Push via Portal
-xrwm map normal "Super+Shift" G spawn x-live toggle
+xrwm map normal "Super+Shift" G spawn custom-session launch -- x-live toggle
 
 # ===========================================================================
 # 7. Title HUD Direct Actions (T)
 # ===========================================================================
 
-xrwm map normal Super T spawn custom-stream-title edit
-xrwm map normal "Super+Shift" T spawn custom-stream-title clear
+xrwm map normal Super T spawn custom-session launch -- custom-stream-title edit
+xrwm map normal "Super+Shift" T spawn custom-session launch -- custom-stream-title clear
 
 # ===========================================================================
 # 8. Workspace Tags (1 - 9, 0, Tab)
@@ -163,16 +163,16 @@ xrwm map-pointer normal Super BTN_MIDDLE toggle-float
 # ===========================================================================
 
 # Screen Locker & Power Menu
-xrwm map normal Super Escape spawn hyprlock
-xrwm map normal "Super+Shift" Escape spawn custom-power
+xrwm map normal Super Escape spawn custom-power lock
+xrwm map normal "Super+Shift" Escape spawn custom-session launch -- custom-power
 
 # Screenshots (Print family)
-xrwm map normal None Print spawn custom-capture area
-xrwm map normal Shift Print spawn custom-capture full
-xrwm map normal Super Print spawn custom-capture
-xrwm map normal "Super+Shift" S spawn custom-capture edit
-xrwm map normal "Super+Shift" Print spawn custom-capture color
-xrwm map normal Control Print spawn custom-capture preview
+xrwm map normal None Print spawn custom-session launch -- custom-capture area
+xrwm map normal Shift Print spawn custom-session launch -- custom-capture full
+xrwm map normal Super Print spawn custom-session launch -- custom-capture
+xrwm map normal "Super+Shift" S spawn custom-session launch -- custom-capture edit
+xrwm map normal "Super+Shift" Print spawn custom-session launch -- custom-capture color
+xrwm map normal Control Print spawn custom-session launch -- custom-capture preview
 
 # Volume Controls via PipeWire
 xrwm map normal None XF86AudioRaiseVolume spawn wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+

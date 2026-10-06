@@ -3,7 +3,7 @@
 # @name         custom-wallpaper
 # @summary      Manage, switch, or select desktop wallpapers
 # @version      1.0.0
-# @deps         swaybg, uwsm, systemctl, magick, fuzzel, custom-wallhaven
+# @deps         swaybg, custom-session, systemctl, magick, fuzzel, custom-wallhaven
 #
 # @description  Universal desktop wallpaper manager for River WM.
 #               Supports random selection, local browsing, and remote search via Wallhaven.
@@ -80,22 +80,21 @@ random_query='id:2321' # Wallhaven's exact pixel art tag.
 startup_delay=0.2
 thumbnail_size=96x96
 
-swaybg_pids() {
-	local pids rc
-	require pgrep
-	if pids=$(pgrep -u "$UID" -x swaybg); then
-		printf '%s\n' "$pids"
-	else
-		rc=$?
-		((rc == 1)) || die 1 cli_unavailable name=pgrep
-	fi
+wallpaper_units() {
+	local rows
+	require systemctl
+	rows=$(systemctl --user list-units --type=service --state=running --plain --no-legend --no-pager 'custom-wallpaper-[0-9]*.service')
+	awk '{print $1}' <<<"$rows"
 }
+
 get_current() {
-	local pids pid i arg path current=''
+	local units unit pid i arg path current=''
 	local -a argv=()
-	pids=$(swaybg_pids)
-	[[ -n "$pids" ]] || return 0
-	while IFS= read -r pid; do
+	units=$(wallpaper_units)
+	[[ -n "$units" ]] || return 0
+	while IFS= read -r unit; do
+		pid=$(systemctl --user show --property=MainPID --value -- "$unit")
+		[[ "$pid" =~ ^[0-9]+$ ]] || die 1 cli_unavailable "name=$unit"
 		[[ -e "/proc/$pid/cmdline" ]] || continue
 		mapfile -d '' -t argv <"/proc/$pid/cmdline"
 		for ((i = 1; i < ${#argv[@]}; i++)); do
@@ -115,7 +114,7 @@ get_current() {
 			[[ -z "$current" || "$current" == "$path" ]] || die 1 cli_unavailable name=multiple-wallpapers
 			current="$path"
 		done
-	done <<<"$pids"
+	done <<<"$units"
 	if [[ -n "$current" ]]; then printf '%s\n' "$current"; fi
 }
 list_local() {
@@ -124,9 +123,9 @@ list_local() {
 	fi
 }
 set_wallpaper() (
-	local image="$1" format digest target tmp='' pids pid unit real_wall_dir
-	local -a old_pids=()
-	require swaybg uwsm systemctl magick sha256sum
+	local image="$1" format digest target tmp='' units old_unit unit real_wall_dir
+	local -a old_units=()
+	require swaybg custom-session systemctl magick sha256sum flock
 	[[ -f "$image" ]] || die 1 cli_unavailable "name=$image"
 	image=$(realpath -- "$image")
 	real_wall_dir=$(realpath -m -- "$wall_dir")
@@ -143,14 +142,16 @@ set_wallpaper() (
 		mv -f -- "$tmp" "$target"
 		image="$target"
 	fi
-	pids=$(swaybg_pids)
-	if [[ -n "$pids" ]]; then mapfile -t old_pids <<<"$pids"; fi
+	exec {lock}<"$wall_dir"
+	flock "$lock"
+	units=$(wallpaper_units)
+	if [[ -n "$units" ]]; then mapfile -t old_units <<<"$units"; fi
 	unit="custom-wallpaper-${BASHPID}-${RANDOM}.service"
-	uwsm app -s b -t service -u "$unit" -p Type=exec -- swaybg -i "$image" -m fill >/dev/null
+	custom-session launch -s b -u "$unit" -- swaybg -i "$image" -m fill >/dev/null
 	sleep "$startup_delay"
 	systemctl --user is-active --quiet "$unit"
-	for pid in "${old_pids[@]}"; do
-		if [[ -d "/proc/$pid" ]]; then kill "$pid"; fi
+	for old_unit in "${old_units[@]}"; do
+		custom-session stop "$old_unit"
 	done
 	printf '%s\n' "$image"
 )

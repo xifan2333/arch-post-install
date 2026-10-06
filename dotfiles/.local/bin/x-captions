@@ -36,9 +36,7 @@ VINPUT_BUS_NAME = "org.fcitx.Vinput"
 VINPUT_OBJECT_PATH = "/org/fcitx/Vinput"
 VINPUT_INTERFACE = "org.fcitx.Vinput.Service"
 
-RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "wayhud"
-PID_FILE = RUNTIME_DIR / "captions.pid"
-LOG_FILE = RUNTIME_DIR / "captions.log"
+UNIT = "custom-captions.service"
 
 try:
     from gi.repository import Gio, GLib
@@ -462,53 +460,30 @@ class CaptionsDaemon:
 
 
 def is_running() -> bool:
-    if PID_FILE.is_file():
-        with contextlib.suppress(ValueError, OSError):
-            pid = int(PID_FILE.read_text(encoding="utf-8").strip())
-            os.kill(pid, 0)
-            return True
-    return False
+    state = subprocess.check_output(
+        ["custom-session", "state", UNIT], text=True
+    ).strip()
+    return state in ("active", "activating")
 
 
 def cmd_start() -> int:
-    if is_running():
-        return 0
-
-    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-    script_path = Path(__file__).resolve()
-
-    with open(LOG_FILE, "a", encoding="utf-8") as log:
-        proc = subprocess.Popen(
-            [sys.executable, str(script_path), "run"],
-            stdout=log,
-            stderr=log,
-            start_new_session=True,
-        )
-    PID_FILE.write_text(str(proc.pid), encoding="utf-8")
+    subprocess.run(
+        [
+            "custom-session",
+            "start",
+            UNIT,
+            "--",
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "run",
+        ],
+        check=True,
+    )
     return 0
 
 
 def cmd_stop() -> int:
-    if PID_FILE.is_file():
-        with contextlib.suppress(ValueError, OSError):
-            pid = int(PID_FILE.read_text(encoding="utf-8").strip())
-            os.kill(pid, signal.SIGTERM)
-            deadline = time.monotonic() + 2.0
-            while time.monotonic() < deadline:
-                try:
-                    os.kill(pid, 0)
-                    time.sleep(0.1)
-                except OSError:
-                    break
-        PID_FILE.unlink(missing_ok=True)
-
-    # Clean up wayhud captions if left orphaned
-    subprocess.run(
-        ["pkill", "-f", "wayhud[[:space:]]+-n[[:space:]]+captions\\b"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    subprocess.run(["custom-session", "stop", UNIT], check=True)
     return 0
 
 
@@ -540,6 +515,23 @@ def cmd_run() -> int:
 
 def main() -> int:
     action = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if len(sys.argv) > 2 or action not in (
+        "start",
+        "stop",
+        "close",
+        "hide",
+        "kill",
+        "toggle",
+        "status",
+        "state",
+        "run",
+    ):
+        subprocess.run(
+            ["custom-i18n", "get", "cli_usage", "command=x-captions"],
+            stdout=sys.stderr,
+            check=True,
+        )
+        return 2
     if action == "start":
         return cmd_start()
     if action in ("stop", "close", "hide", "kill"):
@@ -551,12 +543,18 @@ def main() -> int:
     if action == "run":
         return cmd_run()
 
-    print(
-        "Usage: x-captions [toggle | start | stop | status | run]",
-        file=sys.stderr,
-    )
-    return 1
+    return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except FileNotFoundError as exc:
+        subprocess.run(
+            ["custom-i18n", "get", "cli_dependency", f"name={exc.filename}"],
+            stdout=sys.stderr,
+            check=False,
+        )
+        sys.exit(127)
+    except subprocess.CalledProcessError as exc:
+        sys.exit(exc.returncode if exc.returncode in (127, 130) else 1)

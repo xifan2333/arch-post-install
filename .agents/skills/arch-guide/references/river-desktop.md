@@ -58,6 +58,15 @@ Helpers inherit the application unit. Reload and stop operations use the native
 application interface or the correct unit and process target. Missing required
 UWSM is an error; direct-launch fallback is forbidden.
 
-This is the required architecture. Existing direct-launch entrypoints must be
-migrated when their lifecycle is changed; the policy does not imply that all
-legacy entrypoints already conform.
+The xrwm bindings, Fuzzel launch prefix, desktop overlays, and media tools now
+use `custom-session`, which delegates launch to UWSM and lifecycle control to
+systemd. Autostart reuses native Waybar, Mako, and Fcitx5 services and names the
+clipboard, idle, and authentication-agent services explicitly. Font/theme
+refresh uses native reloads or signals only a service's main process.
+
+See [`docs/custom-cli.md`](../../../../docs/custom-cli.md#session-lifecycle)
+for service names, scope usage, diagnostics, and the ownership limitation for
+terminals opened before migration. A running session can apply dotfiles and
+reload bindings without restarting the compositor. When migrating a legacy
+process, verify its exact unit/PID first; never stop `wayland-wm@river.service`
+to replace one child application.

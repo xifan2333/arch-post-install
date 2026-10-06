@@ -2,9 +2,9 @@
 # arch:summary=Live stream danmaku and chat listener sidecar
 # Herdr live danmaku desk: unibarrage | dmnotifier
 # Usage: livestream-danmaku start|stop
-# Intended to be fully silent when called from livestream hooks.
+# Lifecycle errors propagate to the caller.
 
-set -u
+set -euo pipefail
 
 LABEL="${LIVESTREAM_DANMAKU_LABEL:-live}"
 WAIT_SECS="${LIVESTREAM_DANMAKU_WAIT_SECS:-8}"
@@ -25,25 +25,15 @@ herdr_api_up() {
 	log_null herdr workspace list
 }
 
-# Client attach process (argv is bare `herdr`, not `herdr server`).
+# The managed terminal owns the Herdr client and its shell children.
 herdr_client_up() {
-	pgrep -u "$(id -u)" -af '(^|/)herdr([[:space:]]|$)' 2>/dev/null |
-		grep -v 'herdr[[:space:]]\+server' |
-		grep -q .
+	local state
+	state=$(custom-session state custom-danmaku.service) || exit "$?"
+	[[ "$state" == active || "$state" == activating ]]
 }
 
 launch_herdr() {
-	local cwd="${HOME:-/}"
-	if command -v uwsm-app >/dev/null 2>&1 && command -v ftty >/dev/null 2>&1; then
-		log_null setsid uwsm-app -- ftty -d "$cwd" -e herdr &
-		return 0
-	fi
-	if command -v ftty >/dev/null 2>&1; then
-		log_null setsid ftty -d "$cwd" -e herdr &
-		return 0
-	fi
-	# Last resort: headless-ish server+client in background.
-	log_null setsid herdr &
+	custom-session start custom-danmaku.service -s a -- ftty -d "$HOME" -e herdr
 }
 
 wait_herdr_api() {
@@ -62,11 +52,11 @@ ensure_herdr() {
 		return 0
 	fi
 
-	# API up but no client window, or nothing running — open Herdr like the Hypr bind.
+	# API up but no client window, or nothing running — open Herdr through UWSM.
 	if ! herdr_client_up; then
-		launch_herdr
+		launch_herdr || return $?
 	elif ! herdr_api_up; then
-		launch_herdr
+		launch_herdr || return $?
 	fi
 
 	wait_herdr_api
@@ -92,7 +82,7 @@ json_get() {
 start_desk() {
 	local ws_json root right ws_id split_json
 
-	ensure_herdr || return 0
+	ensure_herdr || return $?
 
 	if ws_id=$(workspace_id_by_label); then
 		log_null herdr workspace focus "$ws_id" || true
@@ -135,11 +125,19 @@ stop_desk() {
 
 main() {
 	case "${1:-}" in
-	start) start_desk ;;
+	start)
+		local dependency
+		for dependency in custom-session uwsm ftty herdr jq; do
+			if ! command -v "$dependency" >/dev/null; then
+				custom-i18n get cli_dependency "name=$dependency" >&2
+				return 127
+			fi
+		done
+		start_desk
+		;;
 	stop) stop_desk ;;
 	*) return 2 ;;
 	esac
 }
 
 main "$@"
-exit 0

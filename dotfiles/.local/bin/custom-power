@@ -3,7 +3,7 @@
 # @name         custom-power
 # @summary      Manage session power actions or interactively select power menu options
 # @version      1.0.0
-# @deps         fuzzel, systemctl, hyprlock, xrwm
+# @deps         fuzzel, systemctl, hyprlock, custom-session, uwsm
 #
 # @description  Session power actions dispatcher for River WM desktop.
 #               Provides direct CLI actions (lock, suspend, logout, reboot, shutdown) and Fuzzel menu.
@@ -72,12 +72,12 @@ pick() (
 action() {
 	case "$1" in
 	lock)
-		require hyprlock
-		hyprlock
+		require custom-session hyprlock
+		custom-session launch -t scope -- hyprlock
 		;;
 	logout)
-		require xrwm
-		xrwm exit
+		require uwsm
+		uwsm stop
 		;;
 	suspend | reboot)
 		require systemctl

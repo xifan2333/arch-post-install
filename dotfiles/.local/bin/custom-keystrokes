@@ -3,10 +3,10 @@
 # @name         custom-keystrokes
 # @summary      Toggle or control keystroke HUD overlay via wayhud
 # @version      1.0.0
-# @deps         wayhud
+# @deps         custom-session, wayhud
 #
 # @description  On-screen keystroke visualizer HUD overlay controller.
-#               Inspects wayhud processes dynamically without persistent state files.
+#               Uses a session-bound systemd service without PID files.
 #
 # @usage        custom-keystrokes [options] [command]
 #
@@ -54,30 +54,23 @@ require() {
 }
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
 
-pattern='(^|/)wayhud[[:space:]]+-n[[:space:]]+keys([[:space:]]|$)'
+unit=custom-keystrokes.service
 startup_delay=0.1
 running() {
-	local rc
-	require pgrep
-	if pgrep -u "$UID" -f "$pattern" >/dev/null; then return 0; else rc=$?; fi
-	((rc == 1)) || die 1 cli_unavailable name=pgrep
-	return 1
+	local state
+	require custom-session
+	state=$(custom-session state "$unit") || die 1 cli_unavailable "name=$unit"
+	case "$state" in active | activating) return 0 ;; inactive | failed) return 1 ;; *) die 1 cli_unavailable "name=$unit:$state" ;; esac
 }
 stop_keys() {
-	require pkill
-	if running; then pkill -u "$UID" -f "$pattern"; fi
+	require custom-session
+	custom-session stop "$unit"
 }
 start_keys() {
-	local pid
-	require wayhud
-	if running; then return 0; fi
-	wayhud -n keys >/dev/null &
-	pid=$!
+	require wayhud custom-session
+	custom-session start "$unit" -- wayhud -n keys
 	sleep "$startup_delay"
-	if ! kill -0 "$pid" 2>/dev/null; then
-		wait "$pid"
-		die 1 cli_unavailable name=wayhud
-	fi
+	running || die 1 cli_unavailable "name=$unit"
 }
 main() {
 	(($# <= 1)) || usage_error
