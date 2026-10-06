@@ -179,5 +179,11 @@
   "help_keystrokes": "Usage: custom-keystrokes [toggle|start|stop|status]",
   "help_hardware": "Usage: custom-hardware [status|fan [status|auto|full|0-7|toggle]|gpu [status|cur|min|max|auto|toggle|<MHz>]]",
   "help_wallhaven": "Usage: custom-wallhaven [menu [query]|search <query>|download <id|url> [-o <path|->]]; download streams bytes when stdout is redirected; menu prints a saved path.",
-  "help_wallpaper": "Usage: custom-wallpaper [menu|current|list|random|search [query]|set <path|url|id|->|set --image-stdin]; set - reads paths, --image-stdin reads image bytes."
+  "help_wallpaper": "Usage: custom-wallpaper [menu|current|list|random|search [query]|set <path|url|id|->|set --image-stdin]; set - reads paths, --image-stdin reads image bytes.",
+  "help_record": "Usage: custom-record [status [text|waybar]|full|area|stop|toggle|menu] (default: status)",
+  "record_busy": "Recording is already active or changing state",
+  "record_failed": "Recording service failed ({result}); inspect journalctl --user -u custom-record.service",
+  "record_idle": "Recording idle",
+  "record_running": "Screen recording: {duration}",
+  "record_stopping": "Recording is stopping"
 }

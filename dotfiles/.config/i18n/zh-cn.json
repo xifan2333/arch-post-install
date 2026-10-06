@@ -179,5 +179,11 @@
   "help_keystrokes": "用法：custom-keystrokes [toggle|start|stop|status]",
   "help_hardware": "用法：custom-hardware [status|fan [status|auto|full|0-7|toggle]|gpu [status|cur|min|max|auto|toggle|<MHz>]]",
   "help_wallhaven": "用法：custom-wallhaven [menu [关键词]|search <关键词>|download <id|url> [-o <路径|->]]；download 重定向时输出图片字节，menu 输出保存路径。",
-  "help_wallpaper": "用法：custom-wallpaper [menu|current|list|random|search [关键词]|set <路径|url|id|->|set --image-stdin]；set - 读取路径行，--image-stdin 读取图片字节。"
+  "help_wallpaper": "用法：custom-wallpaper [menu|current|list|random|search [关键词]|set <路径|url|id|->|set --image-stdin]；set - 读取路径行，--image-stdin 读取图片字节。",
+  "help_record": "用法：custom-record [status [text|waybar]|full|area|stop|toggle|menu]（默认：status）",
+  "record_busy": "录屏已在运行或正在切换状态",
+  "record_failed": "录屏服务失败（{result}）；请查看 journalctl --user -u custom-record.service",
+  "record_idle": "录屏空闲",
+  "record_running": "正在录屏：{duration}",
+  "record_stopping": "正在停止录屏"
 }

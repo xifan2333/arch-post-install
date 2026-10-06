@@ -30,180 +30,222 @@
 #   custom-record status waybar
 #   custom-record stop
 
-set -euo pipefail
-
-DOMAIN="record"
-
-REC_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
-mkdir -p "$REC_VIDEOS_DIR"
-
-show_help() {
-	cat <<'EOF'
-Usage: custom-record [options] [command] [arguments...]
-
-Options:
-  -h, --help            Show this help message and exit
-
-Commands:
-  status [text|waybar]  Print current recording status (default: text)
-  full                  Start fullscreen recording session
-  area                  Select rectangular region and start recording
-  stop                  Stop active recording session
-  toggle                Toggle recording state (start full or stop)
-  menu                  Open interactive recording launcher via Fuzzel
-
-Examples:
-  custom-record
-  custom-record toggle
-  custom-record status waybar
-  custom-record stop
-EOF
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
 }
-
-notify_rec() {
-	local title body
-	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Screen Recording")"
-	body="$1"
-	if command -v notify-send >/dev/null 2>&1; then
-		notify-send -u "${2:-normal}" -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
-	fi
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
 }
-
-notify_waybar() {
-	pkill -RTMIN+8 waybar 2>/dev/null || true
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
 }
-
-is_recording() {
-	pgrep -x gpu-screen-recorder >/dev/null 2>&1
-}
-
-rec_stop() {
-	if is_recording; then
-		pkill -SIGINT -x gpu-screen-recorder 2>/dev/null || true
-		local timeout=50
-		while is_recording && ((timeout > 0)); do
-			sleep 0.1
-			timeout=$((timeout - 1))
-		done
-		notify_rec "$(custom-i18n get screenrecord_notify_stopped 2>/dev/null || echo "Recording stopped")"
-		notify_waybar
-	fi
-}
-
-rec_start_full() {
-	rec_stop >/dev/null 2>&1 || true
-	local filename filepath
-	filename="screenrecord-$(date +%Y%m%d_%H%M%S).mp4"
-	filepath="$REC_VIDEOS_DIR/$filename"
-
-	gpu-screen-recorder -w screen -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
-	notify_rec "$(custom-i18n get screenrecord_notify_started_full 2>/dev/null || echo "Started full recording")"
-	notify_waybar
-	printf '%s\n' "$filepath"
-}
-
-rec_start_area() {
-	rec_stop >/dev/null 2>&1 || true
-	local geometry filename filepath
-	geometry="$(slurp 2>/dev/null || true)"
-	[[ -n "$geometry" ]] || exit 0
-
-	filename="screenrecord-$(date +%Y%m%d_%H%M%S).mp4"
-	filepath="$REC_VIDEOS_DIR/$filename"
-
-	gpu-screen-recorder -w "$geometry" -f 60 -a default_output -c mp4 -o "$filepath" >/dev/null 2>&1 &
-	notify_rec "$(custom-i18n get screenrecord_notify_started_area 2>/dev/null || echo "Started area recording")"
-	notify_waybar
-	printf '%s\n' "$filepath"
-}
-
-rec_toggle() {
-	if is_recording; then
-		rec_stop
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel reports Esc as 1; every other unsuccessful exit is an error.
+pick() {
+	local selection rc
+	if selection=$(fuzzel --dmenu "$@"); then
+		printf '%s' "$selection"
 	else
-		rec_start_full
+		rc=$?
+		((rc == 1)) || {
+			((rc == 130)) && exit 130
+			die 1 cli_picker_failed
+		}
 	fi
 }
 
-rec_status() {
-	local mode="${1:-text}"
-	if is_recording; then
-		local pid dur
-		pid="$(pgrep -x gpu-screen-recorder 2>/dev/null | head -n 1 || echo 0)"
-		dur=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d '[:space:]' || echo "0")
-		local mins=$((dur / 60)) secs=$((dur % 60))
-		local dur_fmt
-		dur_fmt=$(printf "%02d:%02d" "$mins" "$secs")
-		if [[ "$mode" == "waybar" || "$mode" == "--waybar" ]]; then
-			printf '{"text":"%s","alt":"recording","class":"recording","tooltip":"Screen Recording: %s"}\n' "$dur_fmt" "$dur_fmt"
-		else
-			printf 'recording (%s)\n' "$dur_fmt"
-		fi
-	else
-		if [[ "$mode" == "waybar" || "$mode" == "--waybar" ]]; then
-			printf '{"text":"","alt":"idle","class":"idle","tooltip":"Recording Idle"}\n'
-		else
-			printf 'idle\n'
-		fi
-	fi
-}
+unit=custom-record.service
+save_dir="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
+frame_rate=60
+stop_timeout=15
+startup_delay=0.2
+load_state='' active_state='' sub_state='' main_pid='' result=''
 
-dmenu_exec() {
-	local prompt="$1"
-	if command -v fuzzel >/dev/null 2>&1; then
-		fuzzel --dmenu --prompt "$prompt"
-	elif command -v bemenu >/dev/null 2>&1; then
-		bemenu -p "$prompt"
-	else
-		head -n 1
-	fi
-}
-
-rec_menu() {
-	local opt_full opt_area opt_stop
-	opt_full="$(custom-i18n get rec_menu_full 2>/dev/null || echo "Record Fullscreen")"
-	opt_area="$(custom-i18n get rec_menu_area 2>/dev/null || echo "Record Area")"
-	opt_stop="$(custom-i18n get rec_menu_stop 2>/dev/null || echo "Stop Recording")"
-
-	local menu_items=()
-	if is_recording; then
-		menu_items+=("$opt_stop")
-	else
-		menu_items+=("$opt_full" "$opt_area")
-	fi
-
-	local choice
-	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(custom-i18n get rec_menu_prompt 2>/dev/null || echo "Recording: ")")
-	[[ -n "${choice:-}" ]] || exit 0
-
-	case "$choice" in
-	"$opt_full") rec_start_full ;;
-	"$opt_area") rec_start_area ;;
-	"$opt_stop") rec_stop ;;
+read_state() {
+	local properties key value
+	require systemctl
+	properties=$(systemctl --user show "$unit" --property=LoadState,ActiveState,SubState,MainPID,Result)
+	load_state=''
+	active_state=''
+	sub_state=''
+	main_pid=''
+	result=''
+	while IFS='=' read -r key value; do
+		case "$key" in
+		LoadState) load_state="$value" ;; ActiveState) active_state="$value" ;;
+		SubState) sub_state="$value" ;; MainPID) main_pid="$value" ;; Result) result="$value" ;;
+		esac
+	done <<<"$properties"
+	[[ "$main_pid" =~ ^[0-9]+$ && -n "$sub_state" && -n "$result" ]] || die 1 cli_unavailable "name=$unit"
+	case "$load_state:$active_state" in
+	not-found:inactive | loaded:inactive | loaded:failed | loaded:active | loaded:activating | loaded:deactivating) ;;
+	*) die 1 cli_unavailable "name=$unit:$load_state:$active_state" ;;
 	esac
 }
-
+check_failure() {
+	if [[ "$active_state" == failed || "$result" != success ]]; then die 1 record_failed "result=$result"; fi
+}
+notify_record() {
+	local title body rc
+	title=$(t domain_record)
+	body=$(t "$1")
+	notify-send -a custom-record -h string:x-canonical-private-synchronous:record "$title" "$body"
+	# An absent Waybar is normal, but signaling errors are not.
+	if pkill -u "$UID" -RTMIN+8 -x waybar; then return; else rc=$?; fi
+	((rc == 1)) || die 1 cli_unavailable name=waybar
+}
+select_area() (
+	local geometry rc errors
+	require slurp
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-record.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if geometry=$(slurp -f '%wx%h+%x+%y' 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$geometry"
+	else
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		((rc != 130)) || exit 130
+		die 1 cli_unavailable name=slurp
+	fi
+)
+start_recording() {
+	local mode="$1" geometry path recorder
+	local -a capture=(-w screen)
+	read_state
+	case "$active_state" in active | activating | deactivating) die 1 record_busy ;; esac
+	if [[ "$mode" == area ]]; then
+		geometry=$(select_area)
+		[[ -n "$geometry" ]] || return 0
+		[[ "$geometry" =~ ^[1-9][0-9]*x[1-9][0-9]*\+-?[0-9]+\+-?[0-9]+$ ]] || die 1 cli_unavailable name=slurp
+		capture=(-w region -region "$geometry")
+	fi
+	require systemd-run gpu-screen-recorder notify-send pkill
+	recorder=$(command -v gpu-screen-recorder)
+	# Explicit start is the only operation that may reset an earlier failed run.
+	if [[ "$active_state" == failed ]]; then
+		((main_pid == 0)) || die 1 record_busy
+		systemctl --user reset-failed "$unit"
+	else check_failure; fi
+	mkdir -p -- "$save_dir"
+	path="$save_dir/screenrecord-$(date +%Y%m%d_%H%M%S_%N).mp4"
+	systemd-run --user --unit="$unit" --service-type=exec --expand-environment=no \
+		--property=KillSignal=SIGINT --property="TimeoutStopSec=$stop_timeout" --property=SendSIGKILL=no \
+		-- "$recorder" "${capture[@]}" -f "$frame_rate" -a default_output -c mp4 -o "$path"
+	sleep "$startup_delay"
+	read_state
+	check_failure
+	[[ "$active_state" == active && "$sub_state" == running && "$main_pid" -gt 0 ]] || die 1 cli_unavailable "name=$unit"
+	notify_record "screenrecord_notify_started_$mode"
+	printf '%s\n' "$path"
+}
+stop_recording() {
+	read_state
+	check_failure
+	[[ "$active_state" != inactive ]] || return 0
+	require notify-send pkill
+	# systemctl waits for completion; KillSignal=SIGINT gives the encoder time to flush.
+	systemctl --user stop "$unit"
+	read_state
+	check_failure
+	[[ "$active_state" == inactive ]] || die 1 record_busy
+	notify_record screenrecord_notify_stopped
+}
+status() {
+	local mode="$1" state text='' tooltip elapsed duration
+	read_state
+	if [[ "$active_state" == failed || "$result" != success ]]; then
+		state=failed
+		text='!'
+		tooltip=$(t record_failed "result=$result")
+	else
+		case "$active_state" in
+		active)
+			[[ "$sub_state" == running && "$main_pid" -gt 0 ]] || die 1 cli_unavailable "name=$unit"
+			require ps
+			elapsed=$(ps -o etimes= -p "$main_pid")
+			elapsed="${elapsed//[[:space:]]/}"
+			[[ "$elapsed" =~ ^[0-9]+$ ]] || die 1 cli_unavailable "name=$unit:duration"
+			duration=$(printf '%02d:%02d' "$((elapsed / 60))" "$((elapsed % 60))")
+			state=recording
+			text="$duration"
+			tooltip=$(t record_running "duration=$duration")
+			;;
+		inactive)
+			state=idle
+			tooltip=$(t record_idle)
+			;;
+		activating | deactivating)
+			state="$active_state"
+			tooltip=$(t record_stopping)
+			;;
+		esac
+	fi
+	if [[ "$mode" == waybar || "$mode" == --waybar ]]; then
+		require jq
+		jq -cn --arg text "$text" --arg state "$state" --arg tooltip "$tooltip" \
+			'{text:$text,alt:$state,class:$state,tooltip:$tooltip}'
+	elif [[ "$state" == recording ]]; then
+		printf 'recording (%s)\n' "$duration"
+	else printf '%s\n' "$state"; fi
+	check_failure
+}
+menu() {
+	local action label prompt choice index
+	local -a actions=() rows=()
+	require fuzzel
+	read_state
+	case "$active_state" in
+	active) actions=(stop) ;;
+	inactive | failed) actions=(full area) ;;
+	*) die 1 record_busy ;;
+	esac
+	prompt=$(t rec_menu_prompt)
+	for action in "${actions[@]}"; do
+		label=$(t "rec_menu_$action")
+		rows+=("$label")
+	done
+	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
+	index=$((10#$choice))
+	((index < ${#actions[@]})) || die 1 cli_picker_failed
+	main "${actions[$index]}"
+}
 main() {
-	local act="${1:-status}"
-	case "$act" in
-	-h | --help)
-		show_help
-		exit 0
-		;;
-	full) rec_start_full ;;
-	area) rec_start_area ;;
-	stop) rec_stop ;;
-	toggle) rec_toggle ;;
+	local action="${1:-status}"
+	if (($#)); then shift; fi
+	case "$action" in
 	status)
-		shift
-		rec_status "${1:-text}"
+		(($# <= 1)) || usage_error
+		case "${1:-text}" in text | waybar | --waybar) ;; *) usage_error ;; esac
 		;;
-	menu) rec_menu ;;
-	*)
-		printf 'Error: Unknown command "%s" (run custom-record --help for usage)\n' "$act" >&2
-		exit 2
+	-h | --help | full | area | stop | toggle | menu) (($# == 0)) || usage_error ;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	-h | --help) t help_record ;; status) status "${1:-text}" ;;
+	full | area) start_recording "$action" ;; stop) stop_recording ;; menu) menu ;;
+	toggle)
+		read_state
+		check_failure
+		case "$active_state" in active) stop_recording ;; inactive) start_recording full ;; *) die 1 record_busy ;; esac
 		;;
 	esac
 }
-
 main "$@"
