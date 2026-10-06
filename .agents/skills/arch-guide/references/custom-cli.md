@@ -34,7 +34,7 @@ neither a dictionary nor jq.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
-  `fuzzel.ini`, `ftty.toml`, `mako.conf`, `fcitx5.conf`, and `waybar.css`. Malformed authority is
+  `fuzzel.ini`, `ftty.toml`, `mako.conf`, `fcitx5.conf`, `waybar.css`, and `wayhud.css`. Malformed authority is
   an error. These consumers use mono first and CJK for missing glyphs. Fontconfig
   generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
   share the same selection, including the lock screen, HUDs, IME, Satty, and
@@ -42,7 +42,10 @@ neither a dictionary nor jq.
   GSettings (requires a user D-Bus session). Waybar watches the generated CSS;
   `set` refreshes ftty, Mako, and Fcitx5 in process when running.
   Fuzzel reads the new pair when a menu opens.
-  Reopen existing windows/HUDs without font reload support. App-specific or
+  Wayhud 0.1.3+ watches separate theme and font CSS layers for keys, titles, and
+  captions, preserving its process, layer surface, current text, and display timer.
+  Instances started with older wayhud versions need a one-time reopen after upgrading.
+  App-specific or
   website-specific fonts take precedence over generic defaults. Omitting CJK
   in `set` keeps the stored CJK selection.
 - I18n dictionaries: `${XDG_CONFIG_HOME:-$HOME/.config}/i18n/{en-us,zh-cn}.json`.

@@ -181,6 +181,7 @@ write_fonts() (
 EOF
 	xmllint --nonet --noout "$tmp/fonts.conf"
 	printf '* { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/waybar.css"
+	printf 'label { font-family: "%s", "%s"; }\n' "$mono_css" "$cjk_css" >"$tmp/wayhud.css"
 	# Escape Fontconfig's family/point-size separator in literal family names.
 	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
 	# The validated names use the same quote escaping in CSS and TOML strings.
@@ -197,6 +198,7 @@ EOF
 		mv -f -- "$tmp/fonts.conf" "$state_dir/fonts.conf"
 	fi
 	mv -f -- "$tmp/waybar.css" "$state_dir/waybar.css"
+	mv -f -- "$tmp/wayhud.css" "$state_dir/wayhud.css"
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
 	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
 	mv -f -- "$tmp/mako.conf" "$state_dir/mako.conf"
