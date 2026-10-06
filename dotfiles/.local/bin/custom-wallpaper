@@ -234,10 +234,11 @@ select_local_menu() {
 			th_name="$(printf '%s' "$f" | md5sum | awk '{print $1}').png"
 			th_file="$thumb_dir/$th_name"
 
-			local label="${prefix}󰋩  ${name_col}  │  ${ext_col}"
 			if [[ "$use_icons" -eq 1 && -f "$th_file" ]]; then
+				local label="${prefix}${name_col}  ${ext_col}"
 				printf '%s\0icon\x1f%s\n' "$label" "$th_file"
 			else
+				local label="${prefix}󰋩  ${name_col}  ${ext_col}"
 				printf '%s\n' "$label"
 			fi
 		done <<<"$files" | dmenu "$(custom-i18n get wallpaper_pick_prompt 2>/dev/null || echo "Select Wallpaper: ")" --lines 15
@@ -246,7 +247,7 @@ select_local_menu() {
 	[[ -n "$chosen" ]] || return 0
 
 	local chosen_name
-	chosen_name="$(echo "$chosen" | sed -E 's/^[* ] 󰋩  //' | awk -F'  │  ' '{print $1}' | sed 's/[[:space:]]*$//')"
+	chosen_name="$(echo "$chosen" | sed -E 's/^[* ] +(󰋩  )?//' | awk '{print $1}')"
 
 	local match=""
 	while IFS= read -r f; do
