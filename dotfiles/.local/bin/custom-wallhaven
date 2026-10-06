@@ -241,7 +241,7 @@ search_flow() {
 				for item in "${items[@]}"; do
 					local tid res iconpath label
 					IFS=$'\t' read -r tid res iconpath <<<"$item"
-					label="󰋩  ${tid}  │  ${res}"
+					label="󰋩  ${tid}  ${res}"
 					if [[ "$use_icons" -eq 1 && -n "$iconpath" && -f "$iconpath" ]]; then
 						printf '%s\0icon\x1f%s\n' "$label" "$iconpath"
 					else
