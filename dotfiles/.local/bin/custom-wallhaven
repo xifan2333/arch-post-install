@@ -207,9 +207,8 @@ search_flow() {
 	trap cleanup_thumbs EXIT INT TERM HUP
 
 	while true; do
-		local menu_items=()
+		local items=()
 		local count=0
-		local thumb_map_file="$thumb_dir/map.p$page"
 
 		exec 3< <(search_wallhaven_thumbs "$query" "$page" "$thumb_dir" 2>/dev/null)
 		while IFS=$'\t' read -u 3 -r tid res iconpath; do
@@ -218,34 +217,39 @@ search_flow() {
 				continue
 			fi
 			[[ -n "$tid" ]] || continue
-			printf '%s\t%s\n' "$tid" "$iconpath" >>"$thumb_map_file"
-			if [[ "$use_icons" -eq 1 ]]; then
-				menu_items+=("$tid  ($res)\0icon\x1f$iconpath")
-			else
-				menu_items+=("$tid  ($res)")
-			fi
+			items+=("$tid"$'\t'"$res"$'\t'"$iconpath")
 		done
 		exec 3<&-
 
-		if [[ "$count" -eq 0 && ${#menu_items[@]} -eq 0 ]]; then
+		if [[ "$count" -eq 0 && ${#items[@]} -eq 0 ]]; then
 			if command -v notify-send >/dev/null 2>&1; then
 				local title
 				title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Wallhaven")"
-				notify-send -a "custom-${DOMAIN}" "$title" "$(custom-i18n get wallpaper_none_found "dir=Wallhaven" 2>/dev/null || echo "No wallpapers found")"
+				notify-send -a "custom-${DOMAIN}" "$title" "$(custom-i18n get wallpaper_none_found 2>/dev/null || echo "No wallpapers found")"
 			fi
 			break
 		fi
 
 		local prompt_page
-		prompt_page="$(custom-i18n get wallpaper_search_page_prompt "page=$page" 2>/dev/null || echo "Wallhaven (p.$page): ")"
+		prompt_page="$(custom-i18n get wallpaper_search_page_prompt "page=$page" 2>/dev/null || echo "Search (p.$page): ")"
 
-		local nav_items=()
-		[[ "$page" -gt 1 ]] && nav_items+=("◀  $prev_label")
-		nav_items+=("▶  $next_label" "↩  $back_label")
-
-		local all_items=("${nav_items[@]}" "${menu_items[@]}")
-
-		pick="$(printf '%s\n' "${all_items[@]}" | dmenu "$prompt_page" --lines 12)"
+		pick=$(
+			{
+				[[ "$page" -gt 1 ]] && printf '◀  %s\n' "$prev_label"
+				printf '▶  %s\n' "$next_label"
+				printf '↩  %s\n' "$back_label"
+				for item in "${items[@]}"; do
+					local tid res iconpath label
+					IFS=$'\t' read -r tid res iconpath <<<"$item"
+					label="󰋩  ${tid}  │  ${res}"
+					if [[ "$use_icons" -eq 1 && -n "$iconpath" && -f "$iconpath" ]]; then
+						printf '%s\0icon\x1f%s\n' "$label" "$iconpath"
+					else
+						printf '%s\n' "$label"
+					fi
+				done
+			} | dmenu "$prompt_page" --lines 12
+		)
 		[[ -n "$pick" ]] || break
 
 		case "$pick" in
@@ -257,7 +261,7 @@ search_flow() {
 			page=$((page + 1))
 			;;
 		*)
-			id="$(echo "$pick" | awk '{print $1}')"
+			id="$(echo "$pick" | awk '{print $2}')"
 			if [[ -n "$id" ]]; then
 				resolve_and_download "$id"
 				break
