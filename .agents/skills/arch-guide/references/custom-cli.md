@@ -39,8 +39,9 @@ neither a dictionary nor jq.
   generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
   share the same selection, including the lock screen, HUDs, IME, Satty, and
   qutebrowser UI. Both `init` and `set` synchronize GTK/Qt desktop defaults via
-  GSettings (requires a user D-Bus session); `set` reloads Waybar, ftty, Mako,
-  and Fcitx5 when running. Fuzzel reads the new pair when a menu opens.
+  GSettings (requires a user D-Bus session). Waybar watches the generated CSS;
+  `set` refreshes ftty, Mako, and Fcitx5 in process when running.
+  Fuzzel reads the new pair when a menu opens.
   Reopen existing windows/HUDs without font reload support. App-specific or
   website-specific fonts take precedence over generic defaults. Omitting CJK
   in `set` keeps the stored CJK selection.
@@ -86,12 +87,22 @@ image cleanup and swayidle's blocking lock invocation retain their ordering.
 Use UWSM and systemctl at these call sites; no shared session wrapper is needed.
 See [the lifecycle rules](../../arch-dev/references/principles.md#14-desktop-application-lifecycle-uwsm--systemd).
 
-Waybar, Mako, and Fcitx5 reuse their native services. The generated
-`app-org.fcitx.Fcitx5@autostart.service` gets an `ExecReload=fcitx5-remote -r`
-drop-in. Font/theme refresh invokes those reloads and signals managed ftty main
-processes, preserving terminal shells and jobs. Existing terminals launched
-before migration retain their original ownership until closed; open a new
-terminal to use managed font reload.
+Waybar, Mako, and Fcitx5 reuse their native services. Font/theme changes use
+Waybar's `reload_style_on_change` to watch imported CSS, preserving bars and
+module processes. Mako's native `ExecReload` runs `makoctl reload` over D-Bus.
+The generated `app-org.fcitx.Fcitx5@autostart.service` gets an `ExecReload`
+drop-in calling D-Bus `ReloadAddonConfig("classicui")` with service activation
+disabled. Fcitx5's global `ReloadConfig` does not reload classicui appearance;
+its D-Bus `Restart` restarts the process and must not be used for appearance
+changes. Font/theme refresh invokes the Mako/Fcitx5 reloads and signals managed
+ftty main processes, preserving terminal shells and jobs. Existing terminals
+launched before migration retain their original ownership until closed; open a
+new terminal to use managed font reload.
+
+When adopting this configuration in a running session, run
+`systemctl --user daemon-reload` to load the Fcitx5 drop-in and reload Waybar's
+configuration once with `systemctl --user reload waybar.service` to enable CSS
+watching. Subsequent font/theme changes only update its styles.
 
 | Component | User service |
 | --- | --- |
