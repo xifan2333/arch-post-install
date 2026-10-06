@@ -157,7 +157,7 @@ Wi-Fi 已保存网络和开放网络可直接连接；新加密网络用菜单�
 
 桌面工具统一使用 `custom-<domain>` 命令，旧命令软链接已移除。缺依赖、读取失败或服务失败会直接报错。标题和字体各自只有一个 state 路径，字体通过 bootstrap 显式初始化并保留现有选择；录屏由固定的 systemd 用户服务管理。
 
-命令用法、状态迁移、图片流和录屏错误排查见 [桌面 CLI 说明](docs/custom-cli.md)。
+命令用法、状态迁移、图片流和录屏错误排查见 [桌面 CLI 说明](.agents/skills/arch-guide/references/custom-cli.md)。
 
 ## 代码规范与检查
 
