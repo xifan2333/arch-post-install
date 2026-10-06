@@ -30,12 +30,9 @@ set -euo pipefail
 
 DOMAIN="wallhaven"
 
-wallhaven_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/wallhaven.json"
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/custom-wallhaven"
 api_base="https://wallhaven.cc/api/v1"
 max_bytes=52428800
-
-mkdir -p "$cache_dir"
+wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
 
 THUMB_DIR=""
 
@@ -54,27 +51,16 @@ Options:
   -h, --help            Show this help message and exit
 
 Commands:
-  menu [query]          Open interactive search & picker via Fuzzel (default)
-  search <query>        Search API and print matching wallpaper IDs to stdout
-  download <id|url>     Download wallpaper and print local cached file path
+  menu [query]                  Open interactive search & picker via Fuzzel (default)
+  search <query>                Search API and print matching wallpaper IDs to stdout
+  download <id|url> [-o <path>] Download wallpaper (supports -o <path>, -o -, or stdout stream)
 
 Examples:
   custom-wallhaven search anime
   custom-wallhaven download 852109
+  custom-wallhaven download 852109 -o - | custom-wallpaper set -
   custom-wallhaven menu cyberpunk
 EOF
-}
-
-cfgval() {
-	local key="$1" default="$2" val=""
-	if [[ -f "$wallhaven_cfg" ]] && command -v jq >/dev/null 2>&1; then
-		val="$(jq -r --arg k "$key" '.[$k] // empty' "$wallhaven_cfg" 2>/dev/null || true)"
-	fi
-	if [[ -n "$val" ]]; then
-		printf '%s' "$val"
-	else
-		printf '%s' "$default"
-	fi
 }
 
 dmenu() {
@@ -90,23 +76,37 @@ dmenu() {
 }
 
 wallhaven_image_url() {
-	local id="$1" key url
-	key="$(cfgval apiKey "")"
+	local id="$1" url
 	url="$api_base/w/${id}"
-	[[ -n "$key" ]] && url="$url?apikey=$key"
+	[[ -n "${WALLHAVEN_API_KEY:-}" ]] && url="$url?apikey=$WALLHAVEN_API_KEY"
 	curl -fsSL --connect-timeout 5 --max-time 15 "$url" 2>/dev/null |
 		jq -r '.data.path // empty' 2>/dev/null || true
 }
 
 download_image() {
-	local url="$1" filename dest tmp
+	local url="$1" target_out="${2:-}"
+	local filename dest tmp
 	filename="$(basename "${url%%\?*}")"
-	dest="$cache_dir/$filename"
+
+	if [[ "$target_out" == "-" || (-z "$target_out" && ! -t 1) ]]; then
+		# Stream raw image stream to stdout
+		curl -fsSL --max-time 300 --max-filesize "$max_bytes" "$url"
+		return 0
+	fi
+
+	if [[ -n "$target_out" ]]; then
+		dest="$target_out"
+	else
+		mkdir -p "$wall_dir"
+		dest="$wall_dir/$filename"
+	fi
+
 	if [[ -f "$dest" && -s "$dest" ]]; then
 		printf '%s\n' "$dest"
 		return 0
 	fi
 
+	mkdir -p "$(dirname "$dest")"
 	tmp="$dest.tmp.$$"
 	if ! curl -fsSL --max-time 300 --max-filesize "$max_bytes" -o "$tmp" "$url"; then
 		rm -f "$tmp"
@@ -126,18 +126,16 @@ fetch_thumb() {
 
 search_wallhaven_thumbs() {
 	local query="$1" page="${2:-1}" thumbs_dir="$3"
-	local key
-	key="$(cfgval apiKey "")"
 
 	local curl_args=(-fsSL --max-time 30 -G)
 	[[ -n "$query" ]] && curl_args+=(--data-urlencode "q=$query")
-	curl_args+=(--data-urlencode "categories=$(cfgval categories 111)")
-	curl_args+=(--data-urlencode "purity=$(cfgval purity 110)")
-	curl_args+=(--data-urlencode "sorting=$(cfgval sorting date_added)")
-	curl_args+=(--data-urlencode "order=$(cfgval order desc)")
+	curl_args+=(--data-urlencode "categories=111")
+	curl_args+=(--data-urlencode "purity=100")
+	curl_args+=(--data-urlencode "sorting=date_added")
+	curl_args+=(--data-urlencode "order=desc")
 	curl_args+=(--data-urlencode "page=$page")
-	curl_args+=(--data-urlencode "atleast=$(cfgval atleast 1920x1080)")
-	[[ -n "$key" ]] && curl_args+=(--data-urlencode "apikey=$key")
+	curl_args+=(--data-urlencode "atleast=1920x1080")
+	[[ -n "${WALLHAVEN_API_KEY:-}" ]] && curl_args+=(--data-urlencode "apikey=$WALLHAVEN_API_KEY")
 
 	local resp
 	if ! resp="$(curl --connect-timeout 5 --max-time 20 "${curl_args[@]}" "$api_base/search" 2>/dev/null)"; then
@@ -164,7 +162,7 @@ search_wallhaven_thumbs() {
 }
 
 resolve_and_download() {
-	local target="$1" img=""
+	local target="$1" target_out="${2:-}" img=""
 	if [[ "$target" =~ ^https?://(www\.)?wallhaven\.cc/w/([A-Za-z0-9]+)/?$ ]]; then
 		local id="${BASH_REMATCH[2]}"
 		img="$(wallhaven_image_url "$id")"
@@ -172,16 +170,16 @@ resolve_and_download() {
 			printf 'Error: Failed to resolve Wallhaven ID: %s\n' "$id" >&2
 			exit 1
 		}
-		download_image "$img"
+		download_image "$img" "$target_out"
 	elif [[ "$target" =~ ^[A-Za-z0-9]+$ ]]; then
 		img="$(wallhaven_image_url "$target")"
 		[[ -n "$img" ]] || {
 			printf 'Error: Failed to resolve Wallhaven ID: %s\n' "$target" >&2
 			exit 1
 		}
-		download_image "$img"
+		download_image "$img" "$target_out"
 	elif [[ "$target" =~ ^https?:// ]]; then
-		download_image "$target"
+		download_image "$target" "$target_out"
 	else
 		printf 'Error: Invalid Wallhaven target: %s\n' "$target" >&2
 		exit 2
@@ -291,11 +289,26 @@ main() {
 		;;
 	download)
 		shift
-		[[ $# -ge 1 ]] || {
+		local target="" target_out=""
+		while [[ $# -gt 0 ]]; do
+			case "$1" in
+			-o | --output)
+				shift
+				target_out="${1:-}"
+				;;
+			*)
+				if [[ -z "$target" ]]; then
+					target="$1"
+				fi
+				;;
+			esac
+			shift || true
+		done
+		[[ -n "$target" ]] || {
 			printf 'Error: Missing id/url for download (run custom-wallhaven --help for usage)\n' >&2
 			exit 2
 		}
-		resolve_and_download "$1"
+		resolve_and_download "$target" "$target_out"
 		;;
 	menu)
 		shift
