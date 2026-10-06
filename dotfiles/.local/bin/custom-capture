@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+#
+# @name         custom-capture
+# @summary      Capture screenshots, OCR text, or pick colors on screen
+# @version      1.0.0
+# @deps         grim, slurp, wl-copy, fuzzel
+#
+# @description  Unified screen capture utility for Wayland desktop.
+#               Supports region/fullscreen screenshots, in-place annotation, OCR, color picker, and scrolling capture.
+#
+# @usage        custom-capture [options] [command] [arguments...]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @commands
+#   menu        Open interactive fuzzy capture menu via Fuzzel (default)
+#   area [-o <path>|-]  Capture selected rectangular screen area
+#   full [-o <path>|-]  Capture entire screen output
+#   edit        Capture screen area and open interactive annotation editor (satty)
+#   ocr         Capture screen area, recognize text, and copy to clipboard
+#   color       Interactively pick a pixel color on screen (hyprpicker)
+#   preview     Capture screen area and preview floating window (imv)
+#   scroll      Interactive scrolling screenshot (wayscrollshot)
+#
+# @stdin        Piped input where applicable
+# @stdout       Captured image path, hex color, or recognized OCR text
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-capture area
+#   custom-capture area - | wl-copy
+#   custom-capture edit
+#   custom-capture color
+
+set -euo pipefail
+
+DOMAIN="capture"
+
+save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/screenshots"
+mkdir -p "$save_dir"
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/custom-capture"
+mkdir -p "$runtime_dir"
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-capture [options] [command] [arguments...]
+
+Options:
+  -h, --help  Show this help message and exit
+
+Commands:
+  menu                Open interactive fuzzy capture menu via Fuzzel (default)
+  area [-o <path>|-]  Capture selected rectangular screen area
+  full [-o <path>|-]  Capture entire screen output
+  edit                Capture screen area and open annotation editor (satty)
+  ocr                 Capture screen area, extract text, and copy to clipboard
+  color               Interactively pick a pixel color on screen (hyprpicker)
+  preview             Capture screen area and open preview floating window (imv)
+  scroll              Interactive scrolling screenshot (wayscrollshot)
+
+Examples:
+  custom-capture area
+  custom-capture area - | wl-copy
+  custom-capture edit
+  custom-capture color
+EOF
+}
+
+dmenu_exec() {
+	local prompt="$1"
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt"
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt"
+	else
+		head -n 1
+	fi
+}
+
+notify_cap() {
+	local title body
+	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Capture")"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+	fi
+}
+
+cap_area() {
+	local out_target="${1:-}"
+	local geometry
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+
+	if [[ "$out_target" == "-" || "$out_target" == "-o -" ]]; then
+		grim -g "$geometry" -
+		return 0
+	fi
+
+	local filepath
+	if [[ -n "$out_target" && "$out_target" != "-o" ]]; then
+		filepath="$out_target"
+	else
+		local filename
+		filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
+		filepath="$save_dir/$filename"
+	fi
+
+	grim -g "$geometry" "$filepath"
+	wl-copy <"$filepath"
+	printf '%s\n' "$filepath"
+}
+
+cap_full() {
+	local out_target="${1:-}"
+	if [[ "$out_target" == "-" || "$out_target" == "-o -" ]]; then
+		grim -
+		return 0
+	fi
+
+	local filepath
+	if [[ -n "$out_target" && "$out_target" != "-o" ]]; then
+		filepath="$out_target"
+	else
+		local filename
+		filename="screenshot-$(date +%Y%m%d_%H%M%S).png"
+		filepath="$save_dir/$filename"
+	fi
+
+	grim "$filepath"
+	wl-copy <"$filepath"
+	printf '%s\n' "$filepath"
+}
+
+cap_edit() {
+	local output_path geometry
+	output_path="$save_dir/screenshot-$(date +%Y%m%d_%H%M%S).png"
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+	grim -g "$geometry" - | satty --filename - --output-filename "$output_path" --early-exit
+}
+
+cap_color() {
+	if ! command -v hyprpicker >/dev/null 2>&1; then
+		printf 'Error: hyprpicker not found\n' >&2
+		exit 127
+	fi
+	local color
+	color="$(hyprpicker -n 2>/dev/null || true)"
+	if [[ -n "$color" ]]; then
+		printf '%s' "$color" | wl-copy
+		printf '%s\n' "$color"
+	fi
+}
+
+cap_preview() {
+	local geometry
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+	local preview_path="$runtime_dir/preview-$$.png"
+	grim -g "$geometry" "$preview_path"
+	wl-copy <"$preview_path"
+	imv "$preview_path" 2>/dev/null &
+	(
+		sleep 60
+		rm -f "$preview_path"
+	) &
+}
+
+cap_scroll() {
+	if ! command -v wayscrollshot >/dev/null 2>&1; then
+		printf 'Error: wayscrollshot is not installed\n' >&2
+		exit 127
+	fi
+	wayscrollshot -c "$@"
+}
+
+cap_ocr() {
+	local geometry
+	geometry="$(slurp 2>/dev/null || true)"
+	[[ -n "$geometry" ]] || exit 0
+
+	local ocr_cmd="custom-ocr"
+	command -v "$ocr_cmd" >/dev/null 2>&1 || ocr_cmd="x-ocr"
+
+	local text
+	text="$(grim -g "$geometry" - | "$ocr_cmd" - 2>/dev/null || true)"
+	if [[ -n "$text" ]]; then
+		printf '%s' "$text" | wl-copy
+		notify_cap "$text"
+		printf '%s\n' "$text"
+	fi
+}
+
+interactive_menu() {
+	local opt_area opt_full opt_edit opt_preview opt_ocr opt_color opt_scroll
+	opt_area="$(custom-i18n get cap_menu_area 2>/dev/null || echo "Area Screenshot")"
+	opt_full="$(custom-i18n get cap_menu_full 2>/dev/null || echo "Fullscreen")"
+	opt_edit="$(custom-i18n get cap_menu_edit 2>/dev/null || echo "Annotate & Edit")"
+	opt_preview="$(custom-i18n get cap_menu_preview 2>/dev/null || echo "Preview & Pin")"
+	opt_ocr="$(custom-i18n get cap_menu_ocr 2>/dev/null || echo "Extract Text (OCR)")"
+	opt_color="$(custom-i18n get cap_menu_color 2>/dev/null || echo "Pick Color")"
+	opt_scroll="$(custom-i18n get cap_menu_scroll 2>/dev/null || echo "Scroll Shot")"
+
+	local menu_items=(
+		"󰹑  $opt_area"
+		"󰍹  $opt_full"
+		"󰻿  $opt_edit"
+		"󰋩  $opt_preview"
+		"󰚥  $opt_ocr"
+		"󰈊  $opt_color"
+		"󰝹  $opt_scroll"
+	)
+
+	local choice
+	choice=$(printf '%s\n' "${menu_items[@]}" | dmenu_exec "$(custom-i18n get cap_menu_prompt 2>/dev/null || echo "Screen Capture: ")")
+	[[ -n "${choice:-}" ]] || return 0
+
+	case "$choice" in
+	*"$opt_area") cap_area ;;
+	*"$opt_full") cap_full ;;
+	*"$opt_edit") cap_edit ;;
+	*"$opt_preview") cap_preview ;;
+	*"$opt_ocr") cap_ocr ;;
+	*"$opt_color") cap_color ;;
+	*"$opt_scroll") cap_scroll ;;
+	esac
+}
+
+main() {
+	local cmd="${1:-menu}"
+	case "$cmd" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	menu) interactive_menu ;;
+	area)
+		shift
+		cap_area "$@"
+		;;
+	full)
+		shift
+		cap_full "$@"
+		;;
+	edit) cap_edit ;;
+	ocr) cap_ocr ;;
+	color) cap_color ;;
+	preview) cap_preview ;;
+	scroll)
+		shift
+		cap_scroll "$@"
+		;;
+	*)
+		printf 'Error: Unknown command "%s" (run custom-capture --help for usage)\n' "$cmd" >&2
+		exit 2
+		;;
+	esac
+}
+
+main "$@"
