@@ -1,72 +1,20 @@
 #!/usr/bin/env bash
-# arch:summary=Autostart desktop daemons and background services via uwsm
-# Modular autostart for River / xrwm session
+# @summary Start session-owned desktop services and fetch the login wallpaper
+# @deps uwsm, systemctl, custom-session, custom-wallpaper
 set -euo pipefail
 
-# Helper to launch daemons via uwsm app with single-instance check
-start_daemon() {
-	local bin="$1"
-	shift
-	command -v "$bin" >/dev/null 2>&1 || return 0
-
-	if pgrep -x "$bin" >/dev/null 2>&1; then
-		return 0
-	fi
-
-	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -s b -S both -- "$bin" "$@" >/dev/null 2>&1 &
-	else
-		"$bin" "$@" >/dev/null 2>&1 &
-	fi
-}
-
-# 1. Input method framework (Fcitx5)
-if command -v fcitx5 >/dev/null 2>&1; then
-	if ! pgrep -x fcitx5 >/dev/null 2>&1; then
-		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -s b -S both -- fcitx5 --replace >/dev/null 2>&1 &
-		else
-			fcitx5 --replace >/dev/null 2>&1 &
-		fi
-	fi
+if ! command -v uwsm >/dev/null; then
+	custom-i18n get cli_dependency name=uwsm >&2
+	exit 127
 fi
 
-# 2. Notification daemon (Mako)
-start_daemon mako
+# Native services retain their existing D-Bus names and reload interfaces.
+systemctl --user start waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service
 
-# 3. Status bar (Waybar)
-start_daemon waybar
+custom-session start custom-polkit.service -- /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+custom-session start custom-idle.service -- swayidle -w
+custom-session start custom-clipboard-text.service -- wl-paste --type text --watch cliphist store
+custom-session start custom-clipboard-image.service -- wl-paste --type image --watch cliphist store
 
-# 4. Polkit authentication agent
-polkit_agent="/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
-if [[ -x "$polkit_agent" ]] && ! pgrep -f "polkit-gnome" >/dev/null 2>&1; then
-	if command -v uwsm >/dev/null 2>&1; then
-		uwsm app -s b -S both -- "$polkit_agent" >/dev/null 2>&1 &
-	else
-		"$polkit_agent" >/dev/null 2>&1 &
-	fi
-fi
-
-# 5. Idle and power management daemon (Swayidle)
-start_daemon swayidle -w
-
-# 6. Clipboard manager (Cliphist)
-if command -v cliphist >/dev/null 2>&1 && command -v wl-paste >/dev/null 2>&1; then
-	if ! pgrep -f "wl-paste --watch cliphist store" >/dev/null 2>&1; then
-		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -s b -S both -- wl-paste --watch cliphist store >/dev/null 2>&1 &
-		else
-			wl-paste --watch cliphist store >/dev/null 2>&1 &
-		fi
-	fi
-	if ! pgrep -f "wl-paste --type image --watch cliphist store" >/dev/null 2>&1; then
-		if command -v uwsm >/dev/null 2>&1; then
-			uwsm app -s b -S both -- wl-paste --type image --watch cliphist store >/dev/null 2>&1 &
-		else
-			wl-paste --type image --watch cliphist store >/dev/null 2>&1 &
-		fi
-	fi
-fi
-
-# 7. Fetch a random Wallhaven pixel-art wallpaper after independent services start.
-custom-wallpaper random
+# The wallpaper request runs in its own unit and does not block session startup.
+custom-session start custom-wallpaper-fetch.service -- custom-wallpaper random

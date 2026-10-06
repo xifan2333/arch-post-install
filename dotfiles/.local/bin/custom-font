@@ -3,7 +3,7 @@
 # @name         custom-font
 # @summary      Manage, switch, or interactively configure monospace and CJK fallback fonts
 # @version      1.0.0
-# @deps         fc-list, fc-cache, xmllint, gsettings, fuzzel, notify-send, makoctl, fcitx5-remote
+# @deps         fc-list, fc-cache, xmllint, gsettings, fuzzel, notify-send, custom-session
 #
 # @description  Universal typography manager for River WM desktop.
 #               Supports monospace/CJK font selection, atomic configuration rendering, and live reloading.
@@ -122,35 +122,12 @@ sync_toolkit_fonts() {
 	done
 	gsettings set org.gnome.desktop.wm.preferences titlebar-font "$value"
 }
-reload_if_running() {
-	local process="$1" rc
-	shift
-	if pgrep -u "$UID" -x "$process" >/dev/null; then
-		require "$1"
-		"$@"
-	else
-		rc=$?
-		((rc == 1)) || die 1 cli_unavailable "name=$process"
-	fi
-}
 reload_fonts() {
-	local rc title body
-	require pkill pgrep fc-cache notify-send
+	local title body
+	require custom-session fc-cache notify-send
 	fc-cache
-	if pkill -u "$UID" -SIGUSR2 -x waybar; then
-		:
-	else
-		rc=$?
-		((rc == 1)) || die 1 cli_unavailable name=waybar
-	fi
-	if pkill -u "$UID" -SIGUSR1 -x ftty; then
-		:
-	else
-		rc=$?
-		((rc == 1)) || die 1 cli_unavailable name=ftty
-	fi
-	reload_if_running mako makoctl reload
-	reload_if_running fcitx5 fcitx5-remote -r
+	custom-session reload waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service
+	custom-session signal-app SIGUSR1 ftty
 	title=$(t domain_font)
 	body=$(t font_switched "font=$1")
 	notify-send -a custom-font -h string:x-canonical-private-synchronous:font "$title" "$body"
@@ -241,7 +218,7 @@ menu() {
 	[[ -n "$selected_mono" ]] || return 0
 	selected_cjk=$(select_font cjk "$cjk")
 	[[ -n "$selected_cjk" ]] || return 0
-	require pkill fc-cache notify-send
+	require custom-session fc-cache notify-send
 	write_fonts "$selected_mono" "$selected_cjk" false
 	reload_fonts "$selected_mono"
 }
@@ -278,7 +255,7 @@ main() {
 	list) list_fonts "$kind" ;;
 	set)
 		if (($# == 1)); then read_fonts mono cjk; else cjk="$2"; fi
-		require pkill fc-cache notify-send
+		require custom-session fc-cache notify-send
 		write_fonts "$1" "$cjk" false
 		reload_fonts "$1"
 		;;

@@ -42,10 +42,12 @@ if [[ -f "$XRWM_CONFIG/bindings" ]]; then
 	source "$XRWM_CONFIG/bindings"
 fi
 
-# 4. 移交 UWSM 环境变量并通知 systemd 会话就绪 (若在 uwsm 会话下运行)
-if command -v uwsm >/dev/null 2>&1; then
-	uwsm finalize 2>/dev/null || true
+# 4. Publish the compositor environment to the required UWSM session.
+if ! command -v uwsm >/dev/null; then
+	custom-i18n get cli_dependency name=uwsm >&2
+	exit 127
 fi
+uwsm finalize
 
 # 5. 模块化自启后台服务 (统一由 uwsm 管理生命周期与 cgroup)
 if [[ -f "$XRWM_CONFIG/autostart" ]]; then
