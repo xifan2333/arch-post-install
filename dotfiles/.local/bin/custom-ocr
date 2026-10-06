@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+#
+# @name         custom-ocr
+# @summary      Extract text from image file or stdin stream using newbee-ocr
+# @version      1.0.0
+# @deps         nbocr, jq
+#
+# @description  Offline OCR text extractor.
+#               Reads image path or standard input stream and outputs recognized text to stdout.
+#
+# @usage        custom-ocr [options] [<image-path> | -]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @stdin        Raw image PNG/JPEG data stream when '-' or piped input is used
+# @stdout       Extracted and reconstructed plain text
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-ocr image.png
+#   grim -g "$(slurp)" - | custom-ocr - | wl-copy
+
+set -euo pipefail
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-ocr [options] [<image-path> | -]
+
+Options:
+  -h, --help  Show this help message and exit
+
+Arguments:
+  <image-path>  Path to local image file (PNG/JPEG/WEBP)
+  -             Read raw image stream from standard input
+
+Examples:
+  custom-ocr screenshot.png
+  grim -g "$(slurp)" - | custom-ocr - | wl-copy
+EOF
+}
+
+tmp_dir=""
+
+cleanup() {
+	local exit_code=$?
+	trap - EXIT INT TERM HUP
+	[[ -n "$tmp_dir" && -d "$tmp_dir" ]] && rm -rf "$tmp_dir"
+	exit "$exit_code"
+}
+trap cleanup EXIT INT TERM HUP
+
+main() {
+	case "${1:-}" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	esac
+
+	local input_src="${1:--}"
+
+	tmp_dir="$(mktemp -d -t custom-ocr.XXXXXX)"
+	local img="$tmp_dir/input.png"
+	local result="$tmp_dir/result.json"
+
+	if [[ "$input_src" == "-" ]]; then
+		cat >"$img"
+	else
+		if [[ ! -f "$input_src" ]]; then
+			printf 'Error: Image file not found: %s\n' "$input_src" >&2
+			exit 2
+		fi
+		cp "$input_src" "$img"
+	fi
+
+	# Locate nbocr executable
+	local nbocr
+	nbocr="$(command -v nbocr 2>/dev/null || true)"
+	if [[ -z "$nbocr" ]] && command -v mise >/dev/null 2>&1; then
+		local nbocr_root
+		nbocr_root="$(mise where github:zibo-chen/newbee-ocr-cli 2>/dev/null || true)"
+		[[ -n "$nbocr_root" && -x "$nbocr_root/nbocr" ]] && nbocr="$nbocr_root/nbocr"
+	fi
+
+	if [[ -z "$nbocr" ]]; then
+		printf 'Error: nbocr binary not found (install newbee-ocr-cli via mise or pacman)\n' >&2
+		exit 127
+	fi
+
+	"$nbocr" recognize "$img" --language zh --format json --output "$result" >/dev/null 2>&1 || exit 1
+
+	local text
+	text="$(jq -r --argjson minimum 0.60 '
+		def median: sort as $sorted
+			| $sorted[(($sorted | length) / 2 | floor)];
+		[.results[] | select(.confidence >= $minimum)] as $items
+		| if ($items | length) == 0 then ""
+		  else ($items | map(.bbox.height) | median) as $height
+		  | (($height * 0.65) | if . < 8 then 8 else . end) as $row_height
+		  | ($items | sort_by(.bbox.y, .bbox.x)) as $sorted
+		  | reduce $sorted[] as $it (
+			  [];
+			  if length == 0 then [[$it]]
+			  elif ($it.bbox.y - (.[-1][0].bbox.y)) <= $row_height then .[-1] += [$it]
+			  else . + [[$it]]
+			  end
+			)
+		  | map(sort_by(.bbox.x) | map(.text) | join(" "))
+		  | join("\n")
+		  end
+	' "$result" 2>/dev/null || true)"
+
+	if [[ -n "$text" ]]; then
+		printf '%s\n' "$text"
+	fi
+}
+
+main "$@"

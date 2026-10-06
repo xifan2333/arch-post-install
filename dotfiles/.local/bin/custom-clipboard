@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# @name         custom-clipboard
+# @summary      Manage, interactively select, or clear clipboard history via cliphist
+# @version      1.0.0
+# @deps         cliphist, wl-copy
+#
+# @description  Clipboard history manager for Wayland desktop.
+#               Supports fuzzy selection launcher, history listing, and history clearing.
+#
+# @usage        custom-clipboard [options] [command]
+#
+# @options
+#   -h, --help  Show this help message and exit
+#
+# @commands
+#   menu        Open interactive fuzzy clipboard launcher via Fuzzel (default)
+#   list        Output raw clipboard history list to stdout
+#   clear       Wipe and clear all clipboard history
+#
+# @stdin        Accepts piped input where applicable
+# @stdout       Clipboard history list
+# @stderr       Diagnostic errors and non-zero exit reason
+#
+# @examples
+#   custom-clipboard
+#   custom-clipboard menu
+#   custom-clipboard list
+#   custom-clipboard clear
+
+set -euo pipefail
+
+DOMAIN="clipboard"
+
+show_help() {
+	cat <<'EOF'
+Usage: custom-clipboard [options] [command]
+
+Options:
+  -h, --help  Show this help message and exit
+
+Commands:
+  menu        Open interactive fuzzy clipboard launcher via Fuzzel (default)
+  list        Output raw clipboard history list to stdout
+  clear       Wipe and clear all clipboard history
+EOF
+}
+
+notify_err() {
+	local title body
+	title="$(custom-i18n get "domain_${DOMAIN}" 2>/dev/null || echo "Clipboard")"
+	body="$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -u critical -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+	fi
+	printf 'Error: %s\n' "$body" >&2
+}
+
+dmenu_exec() {
+	local prompt="$1"
+	if command -v fuzzel >/dev/null 2>&1; then
+		fuzzel --dmenu --prompt "$prompt"
+	elif command -v bemenu >/dev/null 2>&1; then
+		bemenu -p "$prompt"
+	else
+		head -n 1
+	fi
+}
+
+interactive_menu() {
+	local clear_option prompt selected
+	clear_option="$(custom-i18n get clip_clear_option 2>/dev/null || echo "Clear Clipboard")"
+	prompt="$(custom-i18n get clip_prompt 2>/dev/null || echo "Clipboard: ")"
+
+	selected=$(
+		{
+			printf '  %s\n' "$clear_option"
+			cliphist list 2>/dev/null || true
+		} | dmenu_exec "$prompt"
+	)
+
+	[[ -n "${selected:-}" ]] || exit 0
+
+	if [[ "$selected" == *" $clear_option" ]]; then
+		cliphist wipe
+		exit 0
+	fi
+
+	printf '%s' "$selected" | cliphist decode | wl-copy
+}
+
+main() {
+	if ! command -v cliphist >/dev/null 2>&1; then
+		local err_msg
+		err_msg="$(custom-i18n get clip_not_installed 2>/dev/null || echo "cliphist is not installed")"
+		notify_err "$err_msg"
+		exit 127
+	fi
+
+	local action="${1:-menu}"
+
+	case "$action" in
+	-h | --help)
+		show_help
+		exit 0
+		;;
+	menu)
+		interactive_menu
+		;;
+	list)
+		cliphist list
+		;;
+	clear | wipe)
+		cliphist wipe
+		;;
+	*)
+		printf 'Error: Unknown command "%s" (run custom-clipboard --help for usage)\n' "$action" >&2
+		exit 2
+		;;
+	esac
+}
+
+main "$@"
