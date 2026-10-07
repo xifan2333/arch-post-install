@@ -70,7 +70,7 @@ Every independent desktop application must have an explicit systemd user-unit ow
 
 ### 3.4 Pure Script Standards (Hierarchy: `bash` > `python`)
 - **First Priority: Pure Bash (`bash` + `awk` / `sed` / `grep` / `jq`)**: Mandatory for system glue, hardware controls, state collectors, D-Bus communication (via native CLI tools like `bluetoothctl`, `iwctl`, `busctl`), and CLI dispatchers. Instant startup (< 2ms), zero disk bytecode cache.
-- **Second Priority: Pure Python 3 (`python3`)**: Strictly constrained to audio/video inferencing (`custom-captions`), camera PIP overlays (`custom-camera`), or long-running daemons. **Strict constraints**:
+- **Second Priority: Pure Python 3 (`python3`)**: Strictly constrained to audio/video inferencing (`custom-captions`), complex GUI panels, or long-running daemons. Camera PIP control (`custom-camera`) uses Bash to orchestrate V4L2, MPV, and UWSM. **Strict constraints**:
   - Standard library or declared system packages only (zero `pip` dependencies).
   - Zero bytecode cache enforced via `sys.dont_write_bytecode = True` and runtime environment.
 
