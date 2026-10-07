@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# @name         custom-blue
+# @name         custom-bluetooth
 # @summary      Manage Bluetooth adapters and devices
 # @deps         busctl, jq; menu: fuzzel, notify-send, bluetoothctl, timeout
-# @usage        custom-blue [menu|list|status|connect <mac|name>|disconnect [mac|name]|toggle|off]
+# @usage        custom-bluetooth [menu|list|status|connect <mac|name>|disconnect [mac|name]|toggle|off]
 # @options      -h, --help  Print localized usage without contacting the backend
 # @stdin        Unused; explicit arguments select devices
 # @stdout       Escaped TSV listings, status fields, or operation results
 # @stderr       Diagnostics; exits 2 for usage, 127 for missing tools, 1 for failures
-# @examples     custom-blue list; custom-blue status; custom-blue menu
+# @examples     custom-bluetooth list; custom-bluetooth status; custom-bluetooth menu
 #
 set -Eeuo pipefail
 shopt -s inherit_errexit
@@ -64,7 +64,7 @@ check_menu() {
 	[[ -n "${WAYLAND_DISPLAY:-}" ]] || die 1 cli_unavailable name=WAYLAND_DISPLAY
 	require fuzzel notify-send
 }
-DOMAIN=blue
+DOMAIN=bluetooth
 DISCOVERY_SECS=6
 PAIR_TIMEOUT=15
 MENU_LINES=15
@@ -73,7 +73,7 @@ load_devices() {
 	local objects
 	objects=$(busctl --auto-start=no call org.bluez / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short)
 	adapter=$(jq -r '.data[0] | to_entries | map(select(.value["org.bluez.Adapter1"])) | .[0].key // empty' <<<"$objects")
-	[[ -n "$adapter" ]] || die 1 blue_no_device
+	[[ -n "$adapter" ]] || die 1 bluetooth_no_device
 	powered=$(jq -er --arg path "$adapter" '.data[0][$path]["org.bluez.Adapter1"].Powered.data | tostring' <<<"$objects")
 	devices=$(jq -ce --arg adapter "$adapter/" '[.data[0] | to_entries[] |
         select(.key | startswith($adapter)) | select(.value["org.bluez.Device1"]) |
@@ -100,8 +100,8 @@ find_device() {
 		matches=$(jq -c --arg target "$1" '[.[] | select(.name == $target)]' <<<"$devices")
 	fi
 	count=$(jq length <<<"$matches")
-	((count > 0)) || die 1 blue_device_not_found "dev=$1"
-	((count == 1)) || die 1 blue_ambiguous_device "dev=$1"
+	((count > 0)) || die 1 bluetooth_device_not_found "dev=$1"
+	((count == 1)) || die 1 bluetooth_ambiguous_device "dev=$1"
 	select_device "$(jq -c '.[0]' <<<"$matches")"
 }
 connect_device() {
@@ -109,14 +109,14 @@ connect_device() {
 	if [[ "$connected" != true ]]; then
 		device_call Connect
 		actual=$(busctl get-property org.bluez "$path" org.bluez.Device1 Connected)
-		[[ "$actual" == 'b true' ]] || die 1 blue_failed "dev=$name"
+		[[ "$actual" == 'b true' ]] || die 1 bluetooth_failed "dev=$name"
 	fi
-	notify blue_connected "dev=$name"
+	notify bluetooth_connected "dev=$name"
 	printf 'connected\t%s\n' "$mac"
 }
 disconnect_device() {
 	if [[ "$connected" == true ]]; then device_call Disconnect; fi
-	notify blue_disconnected "dev=$name"
+	notify bluetooth_disconnected "dev=$name"
 	printf 'disconnected\t%s\n' "$mac"
 }
 discover() (
@@ -134,9 +134,9 @@ menu() {
 		rows=$(jq -r '.[] | [(if .connected then "* " else "  " end) +
             ({headphones:"󰋋",headset:"󰋋",speakers:"󰓃","audio-card":"󰓃",keyboard:"󰌌",mouse:"󰍽",phone:"󰏲",computer:"󰌢"}[.icon] // "󰂯") +
             "  " + (if .paired then "󰌷" else "󰐕" end) + "  " + ([.name] | @tsv)] | .[]' <<<"$devices")
-		prompt=$(t blue_prompt)
+		prompt=$(t bluetooth_prompt)
 		choice=$({
-			printf '  󰑐  %s\n' "$(t blue_rescan)"
+			printf '  󰑐  %s\n' "$(t bluetooth_rescan)"
 			if [[ -n "$rows" ]]; then printf '%s\n' "$rows"; fi
 		} |
 			pick --index --prompt "$prompt" --lines "$MENU_LINES")
@@ -161,12 +161,12 @@ menu() {
 			property "$adapter" org.bluez.Adapter1 Pairable true
 			printf 'yes\n' | timeout "$PAIR_TIMEOUT" bluetoothctl --agent DisplayYesNo pair "$mac" >&2
 			actual=$(busctl get-property org.bluez "$path" org.bluez.Device1 Paired)
-			[[ "$actual" == 'b true' ]] || die 1 blue_failed "dev=$name"
+			[[ "$actual" == 'b true' ]] || die 1 bluetooth_failed "dev=$name"
 			property "$path" org.bluez.Device1 Trusted true
 			just_paired=true
 		fi
 		if [[ "$just_paired" == true && ("$icon" == phone || "$icon" == computer) ]]; then
-			notify blue_paired "dev=$name"
+			notify bluetooth_paired "dev=$name"
 			printf 'paired\t%s\n' "$mac"
 		else connect_device; fi
 		return
@@ -178,7 +178,7 @@ main() {
 	case "$action" in
 	-h | --help | help)
 		(($# == 0)) || usage_error
-		t blue_usage
+		t bluetooth_usage
 		return
 		;;
 	menu | list | devices | status | toggle | off | power-off) (($# == 0)) || usage_error ;;

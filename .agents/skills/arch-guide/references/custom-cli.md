@@ -1,11 +1,11 @@
 # Desktop custom commands
 
 All 20 repository-owned desktop commands use the `custom-` namespace:
-`custom-audio`, `custom-blue`, `custom-camera`, `custom-captions`,
+`custom-audio`, `custom-bluetooth`, `custom-camera`, `custom-captions`,
 `custom-capture`, `custom-clipboard`, `custom-danmaku`, `custom-font`,
-`custom-hardware`, `custom-i18n`, `custom-keystrokes`, `custom-live`,
-`custom-ocr`, `custom-power`, `custom-record`, `custom-stream-title`,
-`custom-theme`, `custom-wallhaven`, `custom-wallpaper`, and `custom-wifi`.
+`custom-hardware`, `custom-i18n`, `custom-keystrokes`, `custom-ocr`,
+`custom-power`, `custom-record`, `custom-stream`, `custom-theme`,
+`custom-title`, `custom-wallhaven`, `custom-wallpaper`, and `custom-wifi`.
 Use `--help` for their command syntax. Legacy executable and desktop-entry
 names have been removed. Captions uses Python; the other 19 commands
 use Bash.
@@ -30,7 +30,7 @@ neither a dictionary nor jq.
 
 ## Connectivity, themes, and media
 
-- `custom-blue` and `custom-wifi` default to their menus. Explicit `list` and
+- `custom-bluetooth` and `custom-wifi` default to their menus. Explicit `list` and
   `status` are read-only; device names remain escaped TSV data, and menu indices
   select backend IDs without parsing localized labels. Bluetooth discovery and
   pairing occur only after a selection; cancelling does not power the adapter.
@@ -44,7 +44,7 @@ neither a dictionary nor jq.
   signals to service main processes. WM colors refresh only when the native xrwm
   status query confirms that its IPC endpoint is available. No application is
   restarted for a theme change.
-- `custom-live` defaults to `status` and reports the actual service state, including
+- `custom-stream` defaults to `status` and reports the actual service state, including
   `failed`. `start` requires a configured target; `config` explicitly opens the
   editor. Existing `livestream/history.tsv` profiles remain in XDG state, with
   empty fields preserved and writes replaced atomically at mode 0600. Querying or
@@ -63,12 +63,17 @@ neither a dictionary nor jq.
   D-Bus, and HUD failures reach the service exit status. Existing `ARCH_CAPTIONS_*`
   tuning variables remain supported; invalid values are rejected on startup.
 
-The media service names already used `custom-` and remain unchanged. The CLI rename
-does not restart a running stream, recording, camera, or caption service.
+The stream and title services are `custom-stream.service` and
+`custom-title.service`. Before applying this rename, finish any session owned by
+`custom-live.service` or `custom-stream-title.service`; the post-dotfiles hook
+rejects active legacy units instead of restarting them. It moves existing
+`custom-stream-title` title history to `custom-title` once, refuses to overwrite
+an existing destination, and removes obsolete command/desktop links only when
+they point into this repository. Stream target history remains in `livestream`.
 
 ## State and configuration
 
-- Title history: `${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title/history.txt`.
+- Title history: `${XDG_STATE_HOME:-$HOME/.local/state}/custom-title/history.txt`.
   `get` is empty when history is absent; `start` then fails. Only `edit` opens
   the title editor. `clear` hides the overlay and keeps its history.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
@@ -187,9 +192,9 @@ watching. Subsequent font/theme changes only update its styles.
 | Launcher | `custom-launcher.service` |
 | Polkit / idle | `custom-polkit.service` / `custom-idle.service` |
 | Clipboard watchers | `custom-clipboard-text.service` / `custom-clipboard-image.service` |
-| Keys / title HUD | `custom-keystrokes.service` / `custom-stream-title.service` |
+| Keys / title HUD | `custom-keystrokes.service` / `custom-title.service` |
 | Camera / captions | `custom-camera.service` / `custom-captions.service` |
-| Recording / live stream | `custom-record.service` / `custom-live.service` |
+| Recording / live stream | `custom-record.service` / `custom-stream.service` |
 | Herdr terminal | `custom-danmaku.service` |
 | Wallpaper request / renderer | `custom-wallpaper-fetch.service` / `custom-wallpaper-<number>-<number>.service` |
 

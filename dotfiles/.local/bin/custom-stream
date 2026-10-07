@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# @name         custom-live
+# @name         custom-stream
 # @summary      Control desktop live streaming and saved target profiles
 # @deps         systemctl, uwsm, gpu-screen-recorder, custom-hardware, custom-danmaku, notify-send; config: fuzzel
-# @usage        custom-live [status|start|stop|toggle|restart|config|clear|danmaku [start|stop|status]]
+# @usage        custom-stream [status|start|stop|toggle|restart|config|clear|danmaku [start|stop|status]]
 # @options      -h, --help  Print localized usage
 # @stdin        Unused; configuration uses explicit menus
 # @stdout       Service state or workspace IDs
 # @stderr       Diagnostics; usage=2, missing dependency=127, failure=1
-# @examples     custom-live status; custom-live start; custom-live stop
+# @examples     custom-stream status; custom-stream start; custom-stream stop
 #
 set -Eeuo pipefail
 shopt -s inherit_errexit
@@ -55,7 +55,7 @@ pick() (
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/livestream"
 HISTORY_FILE="$STATE_DIR/history.tsv"
-UNIT=custom-live.service
+UNIT=custom-stream.service
 STOP_TIMEOUT=15
 STARTUP_DELAY=0.3
 DEFAULT_VIDEO_KBPS=4500
@@ -66,9 +66,9 @@ declare -ar AUDIO_RATES=(128 160 192 320)
 
 notify() {
 	local title body
-	title=$(t domain_live)
+	title=$(t domain_stream)
 	body=$(t "$@")
-	notify-send -a custom-live -h string:x-canonical-private-synchronous:live "$title" "$body"
+	notify-send -a custom-stream -h string:x-canonical-private-synchronous:stream "$title" "$body"
 }
 unit_state() {
 	local state
@@ -108,7 +108,7 @@ parse_record() {
 write_records() (
 	local tmp
 	mkdir -p -- "$STATE_DIR"
-	tmp=$(mktemp "$STATE_DIR/.custom-live.XXXXXX")
+	tmp=$(mktemp "$STATE_DIR/.custom-stream.XXXXXX")
 	trap 'rm -f -- "$tmp"' EXIT
 	if ((${#records[@]})); then printf '%s\n' "${records[@]}" >"$tmp"; fi
 	chmod 600 "$tmp"
@@ -274,7 +274,7 @@ main() {
 	case "$action" in
 	-h | --help | help)
 		(($# == 0)) || usage_error
-		t help_live
+		t help_stream
 		return
 		;;
 	status | is-active | start | stop | toggle | restart | config | menu | clear) (($# == 0)) || usage_error ;;
@@ -304,7 +304,7 @@ main() {
 	start | stop | toggle | restart)
 		# Serialize hardware changes around the singleton encoder service.
 		require flock
-		exec {lock}>"${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-live.lock"
+		exec {lock}>"${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-stream.lock"
 		flock "$lock"
 		;;
 	esac

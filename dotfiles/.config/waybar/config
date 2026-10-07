@@ -139,8 +139,8 @@
     "tooltip-format-connected": "{controller_alias}\t{controller_address}\n{num_connections} connected\n\n{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
     "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_battery_percentage}%",
-    "on-click": "custom-blue toggle",
-    "on-click-right": "custom-blue"
+    "on-click": "custom-bluetooth toggle",
+    "on-click-right": "custom-bluetooth"
   },
   "network": {
     "format-wifi": "{icon}",
