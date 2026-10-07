@@ -220,7 +220,7 @@ reload_apps() {
 		if [[ "$state" == active ]]; then
 			if [[ "$unit" == custom-danmaku.service ]]; then
 				require herdr
-				herdr server reload-config
+				herdr server reload-config >&2
 			else systemctl --user reload "$unit"; fi
 		fi
 	done
@@ -232,7 +232,9 @@ reload_apps() {
 			case "${path##*/}" in ftty) kill -USR1 "$pid" ;; btop) kill -USR2 "$pid" ;; esac
 		fi
 	done
-	find "$RUNTIME_DIR" -type s -name '*nvim*.sock' -print0 >"$stage/nvim-sockets"
+	# systemd deliberately exposes unreadable directories in the user runtime tree.
+	find "$RUNTIME_DIR" -type d \( ! -readable -o ! -executable \) -prune -o \
+		-type s -name '*nvim*.sock' -print0 >"$stage/nvim-sockets"
 	while IFS= read -r -d '' sock; do
 		require nvim
 		nvim --server "$sock" --remote-send '<Cmd>doautocmd User LazyReload<CR>' >&2
@@ -240,7 +242,7 @@ reload_apps() {
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
 		require xrwm
 		# The compositor can remain available while its independent WM is offline.
-		if xrwm status >/dev/null 2>&1; then "$STATE_DIR/xrwm.sh"; fi
+		if xrwm status >/dev/null 2>&1; then "$STATE_DIR/xrwm.sh" >&2; fi
 	fi
 }
 apply_theme() (
