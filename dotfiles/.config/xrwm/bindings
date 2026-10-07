@@ -114,10 +114,10 @@ xrwm map normal "Super+Alt" T spawn uwsm app -t service -- custom-title toggle
 # ===========================================================================
 
 # Screen Recording via Portal
-xrwm map normal Super G spawn uwsm app -t service -- custom-record toggle
+xrwm map normal Super G spawn uwsm app -t service -- custom-record toggle record
 
 # Live Stream Push via Portal
-xrwm map normal "Super+Shift" G spawn uwsm app -t service -- custom-stream toggle
+xrwm map normal "Super+Shift" G spawn uwsm app -t service -- custom-record toggle stream
 
 # ===========================================================================
 # 7. Title HUD Direct Actions (T)
