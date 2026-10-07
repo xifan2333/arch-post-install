@@ -76,7 +76,6 @@ fcitx_dir="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5"
 qt_template="${XDG_CONFIG_HOME:-$HOME/.config}/qt6ct/qt6ct.conf.template"
 font_size=13
 ui_font_size=11
-notification_font_size=10
 candidate_font_size=12
 ime_menu_font_size=10
 
@@ -131,9 +130,15 @@ reload_fonts() {
 	require systemctl fc-cache notify-send
 	fc-cache
 	# Waybar watches the imported font CSS without rebuilding its bars/modules.
-	for unit in mako.service app-org.fcitx.Fcitx5@autostart.service; do
+	for unit in fnott.service app-org.fcitx.Fcitx5@autostart.service; do
 		state=$(systemctl --user show --property=ActiveState --value "$unit")
-		if [[ "$state" == active ]]; then systemctl --user reload "$unit"; fi
+		if [[ "$state" == active ]]; then
+			if [[ "$unit" == fnott.service ]]; then
+				systemctl --user restart "$unit"
+			else
+				systemctl --user reload "$unit"
+			fi
+		fi
 	done
 	# Query unit MainPIDs so terminal shells and jobs never receive this signal.
 	pids=$(systemctl --user show --property=MainPID --value 'app-*.service' 'custom-*.service')
@@ -197,7 +202,6 @@ EOF
 	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
 	# The validated names use the same quote escaping in CSS and TOML strings.
 	printf '[font]\nfamily = ["%s", "%s", "Noto Color Emoji"]\n' "$mono_css" "$cjk_css" >"$tmp/ftty.toml"
-	printf 'font=%s,%s %s\n' "$write_mono" "$write_cjk" "$notification_font_size" >"$tmp/mako.conf"
 	# Fcitx5 caches generic-family matches; give its UI the actual selected pair.
 	cat -- "$fcitx_dir/classicui.conf.template" >"$tmp/fcitx5.conf"
 	printf '\nFont="%s,%s %s"\nMenuFont="%s,%s %s"\nTrayFont="%s,%s Bold %s"\n' \
@@ -214,7 +218,6 @@ EOF
 	for qt in qt5ct qt6ct; do mv -f -- "$tmp/$qt.conf" "$state_dir/$qt.conf"; done
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
 	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
-	mv -f -- "$tmp/mako.conf" "$state_dir/mako.conf"
 	mv -f -- "$tmp/fcitx5.conf" "$state_dir/fcitx5.conf"
 	# Bootstrap init establishes this generated-config link; set also converges it.
 	mkdir -p -- "$fcitx_dir/conf"

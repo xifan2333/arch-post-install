@@ -51,7 +51,7 @@
 # Interactive UI & Notifications
 "pacman:fuzzel" = "latest"
 "pacman:waybar" = "latest"
-"pacman:mako" = "latest"
+"pacman:fnott" = "latest"
 "pacman:adw-gtk-theme" = "latest"
 "pacman:qt5ct" = "latest"
 "pacman:qt6ct" = "latest"
