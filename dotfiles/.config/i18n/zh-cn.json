@@ -186,5 +186,7 @@
   "record_idle": "录屏空闲",
   "record_running": "正在录屏：{duration}",
   "record_stopping": "正在停止录屏",
-  "domain_blue": "蓝牙"
+  "domain_blue": "蓝牙",
+  "help_theme": "用法：custom-theme [menu|list|current|set <name>|<name>|refresh]",
+  "theme_no_current": "没有可刷新的当前主题"
 }

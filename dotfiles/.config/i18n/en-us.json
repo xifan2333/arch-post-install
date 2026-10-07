@@ -186,5 +186,7 @@
   "record_idle": "Recording idle",
   "record_running": "Screen recording: {duration}",
   "record_stopping": "Recording is stopping",
-  "domain_blue": "Bluetooth"
+  "domain_blue": "Bluetooth",
+  "help_theme": "Usage: custom-theme [menu|list|current|set <name>|<name>|refresh]",
+  "theme_no_current": "No active theme to refresh"
 }

@@ -27,9 +27,14 @@ if command -v mise &>/dev/null; then
 fi
 
 # Apply active or default desktop theme (renders templates to ~/.local/state/theme)
-if [[ -x "dotfiles/.local/bin/x-theme" ]]; then
+if [[ -x "dotfiles/.local/bin/custom-theme" ]]; then
     printf 'post-dotfiles: refreshing desktop theme...\n'
-    dotfiles/.local/bin/x-theme refresh 2>/dev/null || dotfiles/.local/bin/x-theme tokyo-night
+    current_theme=$(dotfiles/.local/bin/custom-theme current)
+    if [[ -n "$current_theme" ]]; then
+        dotfiles/.local/bin/custom-theme refresh
+    else
+        dotfiles/.local/bin/custom-theme set tokyo-night
+    fi
 fi
 
 # Seed once, preserving the selected font pair and regenerating derived fragments.
