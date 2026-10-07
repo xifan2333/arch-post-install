@@ -51,7 +51,10 @@ neither a dictionary nor jq.
   fields preserved and writes replaced atomically at mode 0600. Querying or
   cancelling an empty editor does not create this state.
 - `custom-danmaku` defaults to `status`. `start` reuses the labelled Herdr workspace
-  or creates its two panes; failed setup closes only that newly created workspace.
+  or creates its two panes. It checks the native Herdr API first, reusing an
+  existing instance even when it was opened outside `custom-danmaku.service`.
+  Only when the API is unavailable does it start or await a managed Herdr terminal.
+  Failed setup closes only that newly created workspace.
   `stop` closes the workspace, preserving unrelated workspaces and the Herdr client.
 - `custom-camera` defaults to `status`. `list` emits JSON camera records;
   `start [device]` selects the specified device or the highest-ranked supported
