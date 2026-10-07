@@ -11,7 +11,7 @@ migrate_command_names() {
     old_state="${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title"
     new_state="${XDG_STATE_HOME:-$HOME/.local/state}/custom-title"
 
-    for relative in .local/bin/custom-blue .local/bin/custom-live .local/bin/custom-stream-title .local/share/applications/custom-live-config.desktop; do
+    for relative in .local/bin/custom-stream .local/bin/custom-blue .local/bin/custom-live .local/bin/custom-stream-title .local/share/applications/custom-live-config.desktop; do
         target="$HOME/$relative"
         expected="$repo_root/dotfiles/$relative"
         if [[ -L "$target" && "$(readlink -m -- "$target")" == "$expected" ]]; then
@@ -23,7 +23,7 @@ migrate_command_names() {
     [[ "$needs_migration" == true ]] || return 0
 
     # A running transient unit cannot be renamed. Require it to finish first.
-    for unit in custom-live.service custom-stream-title.service; do
+    for unit in custom-live.service custom-stream-title.service custom-stream.service custom-record.service; do
         state=$(systemctl --user show --property=ActiveState --value "$unit")
         case "$state" in
         inactive | failed) ;;

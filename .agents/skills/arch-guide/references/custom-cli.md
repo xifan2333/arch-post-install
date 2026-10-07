@@ -1,13 +1,13 @@
 # Desktop custom commands
 
-All 20 repository-owned desktop commands use the `custom-` namespace:
+All 19 repository-owned desktop commands use the `custom-` namespace:
 `custom-audio`, `custom-bluetooth`, `custom-camera`, `custom-captions`,
 `custom-capture`, `custom-clipboard`, `custom-danmaku`, `custom-font`,
 `custom-hardware`, `custom-i18n`, `custom-keystrokes`, `custom-ocr`,
-`custom-power`, `custom-record`, `custom-stream`, `custom-theme`,
+`custom-power`, `custom-record`, `custom-theme`,
 `custom-title`, `custom-wallhaven`, `custom-wallpaper`, and `custom-wifi`.
 Use `--help` for their command syntax. Legacy executable and desktop-entry
-names have been removed. Captions uses Python; the other 19 commands
+names have been removed. Captions uses Python; the other 18 commands
 use Bash.
 
 Commands use their declared tools. They do not try alternative executables,
@@ -44,12 +44,12 @@ neither a dictionary nor jq.
   signals to service main processes. WM colors refresh only when the native xrwm
   status query confirms that its IPC endpoint is available. No application is
   restarted for a theme change.
-- `custom-stream` defaults to `status` and reports the actual service state, including
-  `failed`. `start` requires a configured target; `config` explicitly opens the
-  editor. Existing `livestream/history.tsv` profiles remain in XDG state, with
-  empty fields preserved and writes replaced atomically at mode 0600. Querying or
-  cancelling an empty editor does not create this state. Hardware changes around
-  start/stop are serialized with one session-runtime lock.
+- `custom-record` controls mutually exclusive recording and streaming modes.
+  `start record` records locally; `start stream` requires a configured target.
+  `config` opens the stream editor and `config clear` clears its history.
+  Existing `livestream/history.tsv` profiles remain in XDG state, with empty
+  fields preserved and writes replaced atomically at mode 0600. Querying or
+  cancelling an empty editor does not create this state.
 - `custom-danmaku` defaults to `status`. `start` reuses the labelled Herdr workspace
   or creates its two panes; failed setup closes only that newly created workspace.
   `stop` closes the workspace, preserving unrelated workspaces and the Herdr client.
@@ -63,10 +63,11 @@ neither a dictionary nor jq.
   D-Bus, and HUD failures reach the service exit status. Existing `ARCH_CAPTIONS_*`
   tuning variables remain supported; invalid values are rejected on startup.
 
-The stream and title services are `custom-stream.service` and
-`custom-title.service`. Before applying this rename, finish any session owned by
-`custom-live.service` or `custom-stream-title.service`; the post-dotfiles hook
-rejects active legacy units instead of restarting them. It moves existing
+Recording and streaming share `custom-record.service`; the title service is
+`custom-title.service`. Before applying the migration, stop the previous
+recording/streaming services (including `custom-stream.service`). The
+post-dotfiles hook refuses active units before retiring repository-owned
+legacy links. It also supports the earlier command rename and moves existing
 `custom-stream-title` title history to `custom-title` once, refuses to overwrite
 an existing destination, and removes obsolete command/desktop links only when
 they point into this repository. Stream target history remains in `livestream`.
@@ -194,15 +195,15 @@ watching. Subsequent font/theme changes only update its styles.
 | Clipboard watchers | `custom-clipboard-text.service` / `custom-clipboard-image.service` |
 | Keys / title HUD | `custom-keystrokes.service` / `custom-title.service` |
 | Camera / captions | `custom-camera.service` / `custom-captions.service` |
-| Recording / live stream | `custom-record.service` / `custom-stream.service` |
+| Recording or live stream | `custom-record.service` |
 | Herdr terminal | `custom-danmaku.service` |
 | Wallpaper request / renderer | `custom-wallpaper-fetch.service` / `custom-wallpaper-<number>-<number>.service` |
 
 Caption workers and Herdr pane commands inherit their parent's unit. Status,
 stop, and reload use service state, with no PID files or process-name discovery.
 Inspect logs with `journalctl --user -u <unit>`. Streaming uses SIGINT on stop,
-retains failed units, and restores hardware settings on explicit stop even after
-encoder failure. Wallpaper replacement serializes launches and stops only old
+retains failed units, and restores hardware settings through `ExecStopPost`,
+including after encoder or setup failure. Wallpaper replacement serializes launches and stops only old
 renderer services after the new renderer starts. Session logout uses `uwsm stop`.
 
 ## Image streams
@@ -230,23 +231,38 @@ validation and a successful new launch precede stopping the previous swaybg.
 
 ## Recording
 
-`custom-record` defaults to `status`. The menu is explicit: `custom-record menu`.
-Full and area recordings use `-cr full -ffmpeg-video-opts "qp=10"`, the
-visually verified settings for this desktop.
-Both modes mix system playback and the default microphone into one audio track
+`custom-record` defaults to read-only `status`. `menu` shows Start Recording,
+Start Streaming, and Stream Configuration while idle; while running it shows
+only the current mode's Stop action and Stream Configuration. Both menus use
+Nerd Font glyphs and selecting a row dispatches its numeric index.
+
+`start [record|stream]` defaults to recording. `full` remains an alias for
+`start record`; area recording has been removed. Local recordings use 60 fps,
+`-cr full -ffmpeg-video-opts "qp=10"`, and MP4 output. Streaming retains the
+portal capture, 30 fps and H264/CBR configuration, using the configured video
+and audio bitrates. Both modes mix playback and the default microphone into one track
 with `-a 'default_output|default_input'`. The current default input is used,
 including an audio-processing source such as RNNoise when selected. Muting the
 default microphone also silences its contribution to the recording.
-A single transient user unit, `custom-record.service`, owns each recording.
+A single transient user unit, `custom-record.service`, owns the encoder.
 `Type=exec` checks executable startup; duplicate starts are refused. The service
 uses SIGINT for stop so the encoder can finalize the video, and no automatic
-SIGKILL is configured. Status and duration use the unit's state and main PID;
-other recorder processes, including livestreams, are not discovered or signaled.
+SIGKILL is configured. All starts/stops share one runtime lock. An explicit
+`toggle record` or `toggle stream` refuses to interrupt the other mode; an
+unqualified `toggle` stops whichever mode is active. Stop the current job before
+switching modes. Super+G and Super+Shift+G toggle their respective modes;
+Super+Ctrl+G and Waybar right-click open the shared menu.
+
+Status and duration use the unit's state, `CUSTOM_RECORD_MODE` environment entry,
+and encoder MainPID. Waybar distinguishes `recording` from `live`. There are no
+PID/mode files or process-name searches. Stream-only native service hooks boost
+hardware, start danmaku, and restore/close them after stop or failure. These
+internal hooks reject execution outside the owning service's cgroup.
 
 Failed units remain failed and are visible in text/Waybar output (exit 1).
-Inspect `journalctl --user -u custom-record.service`. An explicit `full` or `area`
-start can reset a previous failure; `toggle` does not hide it. Cancelling area
-selection preserves the previous service state.
+Inspect `journalctl --user -u custom-record.service`. An explicit `start` or
+`full` can reset a previous failure; `toggle` does not hide it. Cancelling the
+menu preserves the service and configuration state.
 
 ## Verification
 

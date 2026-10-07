@@ -114,12 +114,12 @@ Non-root write permissions are granted via `/etc/tmpfiles.d/`:
 
 ## 5. Desktop CLI
 
-All 20 repository-owned desktop utilities use `custom-<domain>`; legacy command aliases have been removed:
+All 19 repository-owned desktop utilities use `custom-<domain>`; legacy command aliases have been removed:
 - `custom-theme set <name>` / `custom-theme menu`: switch desktop themes.
 - `custom-hardware fan` / `custom-hardware gpu`: inspect/control hardware.
 - `custom-capture ocr` / `custom-ocr`: capture screen region and copy recognized text.
 - `custom-i18n get <key>`: query localized strings.
 - `custom-font menu` / `custom-font current`: select or inspect desktop fonts.
-- `custom-stream start` / `custom-stream stop`: control live streaming pipeline.
+- `custom-record start record` / `custom-record start stream`: start mutually exclusive recording or streaming; `custom-record stop` stops either mode.
 - `custom-camera toggle`: webcam PIP floating player.
 - `custom-captions toggle`: real-time live captions overlay.
