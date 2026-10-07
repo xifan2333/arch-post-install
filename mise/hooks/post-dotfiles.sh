@@ -93,3 +93,8 @@ fi
 # Seed once, preserving the selected font pair and regenerating derived fragments.
 printf 'post-dotfiles: initializing desktop fonts...\n'
 custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"
+
+# Use the package's graphical-session-bound notification service and our drop-in.
+# Enable without starting: bootstrap may run before a Wayland session exists.
+systemctl --user daemon-reload
+systemctl --user enable fnott.service

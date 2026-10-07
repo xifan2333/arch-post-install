@@ -9,7 +9,8 @@ if ! command -v uwsm >/dev/null; then
 fi
 
 # Native services retain their existing D-Bus names and reload interfaces.
-systemctl --user start waybar.service mako.service app-org.fcitx.Fcitx5@autostart.service
+# fnott is enabled on graphical-session.target by the post-dotfiles hook.
+systemctl --user start waybar.service app-org.fcitx.Fcitx5@autostart.service
 
 if ! systemctl --user is-active --quiet custom-polkit.service; then
 	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-polkit.service -- /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
