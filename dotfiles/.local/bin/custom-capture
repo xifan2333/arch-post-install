@@ -160,13 +160,14 @@ color() {
 	printf '%s\n' "$value"
 }
 menu() {
-	local action label prompt choice index
+	local label prompt choice index
 	local -a actions=(area full edit preview ocr color scroll) rows=()
+	local -a glyphs=(󰒅 󰍹 󰏫 󰋩 󱄽 󰈋 󰁅)
 	require fuzzel
 	prompt=$(t cap_menu_prompt)
-	for action in "${actions[@]}"; do
-		label=$(t "cap_menu_$action")
-		rows+=("$label")
+	for index in "${!actions[@]}"; do
+		label=$(t "cap_menu_${actions[$index]}")
+		rows+=("  ${glyphs[$index]}  $label")
 	done
 	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
 	[[ -n "$choice" ]] || return 0
