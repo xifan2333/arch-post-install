@@ -1,7 +1,7 @@
 [Desktop Entry]
 Comment=Use WPS Writer to office work.
 Comment[zh_CN]=使用 WPS Office进行办公
-Exec=env QT_QPA_PLATFORM=xcb wps %F
+Exec=env QT_QPA_PLATFORM=xcb GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx5 XMODIFIERS=@im=fcitx wps %F
 GenericName=WPS
 GenericName[zh_CN]=WPS Office
 Name=WPS Office

@@ -76,8 +76,8 @@ alias cc='claude'
 alias cx='codex'
 alias c='corral'
 
-# wps office (wayland xcb fallback)
-alias wps='QT_QPA_PLATFORM=xcb wps'
-alias et='QT_QPA_PLATFORM=xcb et'
-alias wpp='QT_QPA_PLATFORM=xcb wpp'
-alias wpspdf='QT_QPA_PLATFORM=xcb wpspdf'
+# wps office (wayland xcb fallback + fcitx5 ime)
+alias wps='QT_QPA_PLATFORM=xcb GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx5 XMODIFIERS=@im=fcitx wps'
+alias et='QT_QPA_PLATFORM=xcb GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx5 XMODIFIERS=@im=fcitx et'
+alias wpp='QT_QPA_PLATFORM=xcb GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx5 XMODIFIERS=@im=fcitx wpp'
+alias wpspdf='QT_QPA_PLATFORM=xcb GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx5 XMODIFIERS=@im=fcitx wpspdf'
