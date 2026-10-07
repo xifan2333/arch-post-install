@@ -83,7 +83,7 @@ they point into this repository. Stream target history remains in `livestream`.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
-  `fuzzel.ini`, `ftty.toml`, `mako.conf`, `fcitx5.conf`, `waybar.css`, `wayhud.css`,
+  `fuzzel.ini`, `ftty.toml`, `fcitx5.conf`, `waybar.css`, `wayhud.css`,
   `qt5ct.conf`, `qt6ct.conf`, and `qt.qss`. Malformed authority is
   an error. These consumers use mono first and CJK for missing glyphs. Fontconfig
   generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
@@ -91,7 +91,7 @@ they point into this repository. Stream target history remains in `livestream`.
   qutebrowser UI. Both `init` and `set` synchronize GTK desktop defaults via
   GSettings (requires a user D-Bus session) and generate Qt's native configuration.
   Waybar watches the generated CSS;
-  `set` refreshes ftty, Mako, and Fcitx5 in process when running.
+  `set` refreshes ftty and Fcitx5 in process and restarts fnott when running.
   Fuzzel reads the new pair when a menu opens.
   Wayhud 0.1.3+ watches separate theme and font CSS layers for keys, titles, and
   captions, preserving its process, layer surface, current text, and display timer.
@@ -111,12 +111,12 @@ they point into this repository. Stream target history remains in `livestream`.
   or empty-result failures report an error and leave the current wallpaper in
   place; local images are not used as a fallback.
 
-Fontconfig, Fuzzel, ftty, Mako, and Waybar configuration sources are `.tera` files in the
+Fontconfig, Fuzzel, ftty, and Waybar configuration sources are `.tera` files in the
 repository. Mise renders regular configuration files with absolute state paths.
 After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
 than the rendered target. The whole-tree mapping excludes template sources.
-Mako includes independent font and theme fragments; switching themes preserves
-the font selection.
+Fnott uses the generated `theme/fnott.ini` from `themed/fnott.ini.tpl` and
+Fontconfig generic families; switching themes preserves the font selection.
 
 Qt uses `QT_QPA_PLATFORMTHEME=qt5ct` (required packages: `qt5ct` and `qt6ct`).
 The Qt 6 plugin also registers this key, so both versions follow the same setting,
@@ -174,14 +174,15 @@ image cleanup and swayidle's blocking lock invocation retain their ordering.
 Use UWSM and systemctl at these call sites; no shared session wrapper is needed.
 See [the lifecycle rules](../../arch-dev/references/principles.md#14-desktop-application-lifecycle-uwsm--systemd).
 
-Waybar, Mako, and Fcitx5 reuse their native services. Font/theme changes use
+Waybar, fnott, and Fcitx5 reuse their native services. Bootstrap enables fnott
+on `graphical-session.target`; its drop-in restarts failures after three seconds. Font/theme changes use
 Waybar's `reload_style_on_change` to watch imported CSS, preserving bars and
-module processes. Mako's native `ExecReload` runs `makoctl reload` over D-Bus.
+module processes. Fnott applies font/theme changes through a service restart.
 The generated `app-org.fcitx.Fcitx5@autostart.service` gets an `ExecReload`
 drop-in calling D-Bus `ReloadAddonConfig("classicui")` with service activation
 disabled. Fcitx5's global `ReloadConfig` does not reload classicui appearance;
 its D-Bus `Restart` restarts the process and must not be used for appearance
-changes. Font/theme refresh invokes the Mako/Fcitx5 reloads and signals managed
+changes. Font/theme refresh restarts fnott, reloads Fcitx5, and signals managed
 ftty main processes, preserving terminal shells and jobs. Existing terminals
 launched before migration retain their original ownership until closed; open a
 new terminal to use managed font reload.

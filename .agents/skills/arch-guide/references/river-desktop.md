@@ -23,7 +23,7 @@ River 0.4+ is a non-monolithic Wayland compositor:
 | **Launcher / Menu** | `fuzzel` / `bemenu` | Dynamic stdin/stdout pipe menu, instant launch |
 | **Status Bar** | `waybar` (or layer bar) | Pure presentation reading `$XDG_RUNTIME_DIR/state/*.json` |
 | **Wallpaper** | `wbg` | Single C binary, presentation-time Wayland background |
-| **Notification** | `fnott` / `mako` | Minimalist notification client |
+| **Notification** | `fnott` | Minimalist notification client |
 | **Locker / Idle** | `waylock` + `swayidle` | PAM-based lightweight locker |
 | **IME** | `fcitx5` + `rime-wanxiang` | 100% offline Xiaohe Double Pinyin, auto-deployed |
 
@@ -60,9 +60,14 @@ UWSM is an error; direct-launch fallback is forbidden.
 
 The xrwm bindings, Fuzzel launch prefix, desktop overlays, and media tools now
 call `uwsm app` directly and use native `systemctl --user` lifecycle operations.
-Autostart reuses native Waybar, Mako, and Fcitx5 services and names the
+Autostart reuses native Waybar and Fcitx5 services and names the
 clipboard, idle, and authentication-agent services explicitly. Font/theme
 refresh uses native reloads or signals only a service's main process.
+
+The post-dotfiles hook enables native `fnott.service` on `graphical-session.target`.
+Its repository-managed drop-in restarts failures after three seconds. Session
+shutdown and explicit service stops do not trigger recovery. Font/theme changes
+restart fnott to apply its configuration.
 
 See [`custom-cli.md`](custom-cli.md#session-lifecycle)
 for service names, scope usage, diagnostics, and the ownership limitation for
