@@ -1,44 +1,47 @@
 #!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Webcam PIP via mpv with multi-camera selection and best quality discovery
-# arch:args=[start | toggle | select | stop | status]
-# arch:examples=arch overlay camera | arch overlay camera select
+#
+# @name         custom-camera
+# @summary      Select and control a session-owned webcam picture-in-picture window
+# @deps         systemctl; start/select: uwsm, mpv, v4l2-ctl; select: fuzzel
+# @usage        custom-camera [status|list|start [device]|toggle|select|stop]
+# @options      -h, --help  Print localized usage
+# @stdin        Unused
+# @stdout       open/closed status or JSON camera records
+# @stderr       Diagnostics; usage=2, missing dependency=127, operation failure=1
+# @examples     custom-camera list; custom-camera start /dev/video2
+#               custom-camera select
+#
 """Webcam picture-in-picture floating player with v4l2 discovery and MPV."""
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
-from pathlib import Path
 
-CONFIG_DIR = (
-    Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "screenrecord"
-)
-CONFIG_FILE = CONFIG_DIR / "camera.conf"
+sys.dont_write_bytecode = True
 
 MAX_PIP_W = 1280
 MAX_PIP_H = 720
+MJPEG_SCORE_FACTOR = 1.05
+USB_SCORE_FACTOR = 1.25
+PIP_SIZE = "185x185"
 UNIT = "custom-camera.service"
 
 
 def list_v4l2_cameras() -> list[dict[str, object]]:
     devices: list[tuple[str, str]] = []
-    try:
-        out = subprocess.check_output(
-            ["v4l2-ctl", "--list-devices"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        cur_name = "Camera"
-        for line in out.splitlines():
-            if line and not line.startswith(("\t", " ")):
-                cur_name = line.strip().rstrip(":")
-            elif line.strip().startswith("/dev/video"):
-                dev = line.strip()
-                devices.append((dev, cur_name))
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        devices = [("/dev/video0", "Camera")]
+    out = subprocess.check_output(["v4l2-ctl", "--list-devices"], text=True)
+    cur_name = ""
+    for line in out.splitlines():
+        if line and not line.startswith(("\t", " ")):
+            cur_name = line.strip().rstrip(":")
+        elif line.strip().startswith("/dev/video"):
+            dev = line.strip()
+            devices.append((dev, cur_name or dev))
 
     cameras: list[dict[str, object]] = []
     for dev, name in devices:
@@ -46,7 +49,7 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
             out = subprocess.check_output(
                 ["v4l2-ctl", "-d", dev, "--list-formats-ext"],
                 text=True,
-                stderr=subprocess.DEVNULL,
+                stderr=None,
             )
             cur_fmt = None
             cur_w, cur_h = 0, 0
@@ -60,17 +63,22 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
                     cur_fmt = "mjpeg"
                 elif "'YUYV'" in line or "'yuv'" in line.lower():
                     cur_fmt = "yuyv422"
+                elif re.search(r"\[\d+\]:", line):
+                    cur_fmt = None
+                    cur_w, cur_h = 0, 0
                 elif "Size: Discrete" in line:
                     m = re.search(r"Size: Discrete (\d+)x(\d+)", line)
                     if m:
                         cur_w, cur_h = int(m.group(1)), int(m.group(2))
-                elif "Interval: Discrete" in line and cur_w > 0:
+                elif "Interval: Discrete" in line and cur_w > 0 and cur_fmt:
                     m = re.search(r"\((\d+(?:\.\d+)?)\s*fps\)", line)
                     if m:
                         fps = float(m.group(1))
+                        if fps <= 0:
+                            continue
                         score = float(cur_w * cur_h * fps)
                         if cur_fmt == "mjpeg":
-                            score *= 1.05
+                            score *= MJPEG_SCORE_FACTOR
                         if cur_w <= MAX_PIP_W and cur_h <= MAX_PIP_H:
                             if score > best_score:
                                 best_score = score
@@ -94,6 +102,8 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
                     fallback_fmt,
                 )
 
+                best_score = float(best_w * best_h * best_fps)
+
             if best_w > 0:
                 is_usb = "usb" in name.lower() or "external" in name.lower()
                 clean_name = name.split("(")[0].strip()
@@ -106,65 +116,70 @@ def list_v4l2_cameras() -> list[dict[str, object]]:
                         "fps": best_fps,
                         "format": best_fmt,
                         "is_usb": is_usb,
-                        "score": best_score * (1.25 if is_usb else 1.0),
+                        "score": best_score * (USB_SCORE_FACTOR if is_usb else 1.0),
                     }
                 )
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except subprocess.CalledProcessError:
+            # Some V4L2 nodes expose metadata only; diagnostics remain on stderr.
             continue
 
     cameras.sort(key=lambda c: float(c["score"]), reverse=True)
     return cameras
 
 
-def tr_msg(key: str, fallback: str) -> str:
-    try:
-        res = subprocess.run(
-            ["custom-i18n", "get", key],
-            capture_output=True,
-            text=True,
-            timeout=1,
-            check=False,
-        )
-        msg = res.stdout.strip()
-        if res.returncode == 0 and msg and msg != f"[{key}]":
-            return msg
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    return fallback
+def tr(key: str, **values: object) -> str:
+    return subprocess.check_output(
+        ["custom-i18n", "get", key, *(f"{k}={v}" for k, v in values.items())],
+        text=True,
+    ).rstrip("\n")
+
+
+def fail(code: int, key: str, **values: object) -> None:
+    print(tr(key, **values), file=sys.stderr)
+    raise SystemExit(code)
+
+
+def require(*names: str) -> None:
+    for name in names:
+        if shutil.which(name) is None:
+            fail(127, "cli_dependency", name=name)
 
 
 def prompt_camera_selection(
     cameras: list[dict[str, object]],
 ) -> dict[str, object] | None:
-    if not cameras:
+    if not os.environ.get("WAYLAND_DISPLAY"):
+        fail(1, "cli_unavailable", name="WAYLAND_DISPLAY")
+    require("fuzzel")
+    rows = [
+        f"  󰄀  {str(cam['name']).replace(chr(10), ' ')} ({cam['device']})  "
+        f"{cam['width']}x{cam['height']} @ {cam['fps']}fps"
+        for cam in cameras
+    ]
+    proc = subprocess.run(
+        [
+            "fuzzel",
+            "--dmenu",
+            "--index",
+            "--log-level=error",
+            "--prompt",
+            tr("overlay_cam_prompt"),
+        ],
+        input="\n".join(rows) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.stderr:
+        print(proc.stderr, file=sys.stderr, end="")
+    if proc.returncode == 1 and not proc.stderr:
         return None
-
-    lines: list[str] = []
-    for cam in cameras:
-        spec = f"{cam['width']}x{cam['height']} @ {cam['fps']}fps"
-        lines.append(f"{cam['name']} ({cam['device']}) - {spec}")
-
-    menu_input = "\n".join(lines)
-    prompt = tr_msg("overlay_cam_prompt", "选择摄像头: ")
-    try:
-        proc = subprocess.Popen(
-            ["fuzzel", "--dmenu", "--prompt", prompt],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        stdout, _ = proc.communicate(input=menu_input)
-        chosen = stdout.strip()
-        if not chosen:
-            return None
-
-        for cam in cameras:
-            if str(cam["device"]) in chosen:
-                return cam
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    return None
+    if proc.returncode:
+        fail(130 if proc.returncode in (130, -2) else 1, "cli_picker_failed")
+    index = proc.stdout.strip()
+    if not re.fullmatch(r"0|[1-9][0-9]{0,5}", index) or int(index) >= len(cameras):
+        fail(1, "cli_picker_failed")
+    return cameras[int(index)]
 
 
 def camera_running() -> bool:
@@ -172,7 +187,9 @@ def camera_running() -> bool:
         ["systemctl", "--user", "show", "--property=ActiveState", "--value", UNIT],
         text=True,
     ).strip()
-    return state in ("active", "activating")
+    if state not in ("active", "activating", "deactivating", "inactive", "failed"):
+        fail(1, "cli_unavailable", name=UNIT)
+    return state in ("active", "activating", "deactivating")
 
 
 def stop_camera() -> None:
@@ -205,7 +222,7 @@ def launch_camera(cam: dict[str, object]) -> None:
         "--no-osc",
         "--no-osd-bar",
         "--border=no",
-        "--autofit=185x185",
+        f"--autofit={PIP_SIZE}",
         "--keepaspect-window=no",
         "--keepaspect=yes",
         "--panscan=1.0",
@@ -233,8 +250,13 @@ def launch_camera(cam: dict[str, object]) -> None:
 
 
 def main() -> None:
-    action = sys.argv[1] if len(sys.argv) > 1 else "start"
-    if len(sys.argv) > 2 or action not in (
+    args = sys.argv[1:]
+    action = args[0] if args else "status"
+    extra = args[1:]
+    if action in ("-h", "--help", "help") and not extra:
+        print(tr("help_camera"))
+        return
+    if action not in (
         "start",
         "toggle",
         "select",
@@ -244,50 +266,68 @@ def main() -> None:
         "hide",
         "status",
         "state",
+        "list",
+    ) or (extra and (action != "start" or len(extra) != 1 or not extra[0])):
+        fail(2, "cli_usage", command="custom-camera")
+    if action in (
+        "status",
+        "state",
+        "stop",
+        "kill",
+        "close",
+        "hide",
+        "toggle",
+        "start",
     ):
-        subprocess.run(
-            ["custom-i18n", "get", "cli_usage", "command=x-camera"],
-            stdout=sys.stderr,
-            check=True,
-        )
-        sys.exit(2)
-
+        require("systemctl")
     if action in ("stop", "kill", "close", "hide"):
         stop_camera()
         return
-
     if action in ("status", "state"):
         print("open" if camera_running() else "closed")
         return
-
-    if action == "toggle":
-        if camera_running():
+    if action in ("start", "toggle") and camera_running():
+        if action == "toggle":
             stop_camera()
-            return
-        action = "start"
-
+        return
+    if action != "list":
+        require("systemctl", "uwsm", "mpv")
+    require("v4l2-ctl")
     cameras = list_v4l2_cameras()
+    if action == "list":
+        for camera in cameras:
+            print(json.dumps(camera, ensure_ascii=False))
+        return
     if not cameras:
-        sys.stderr.write(tr_msg("overlay_cam_no_device", "未检测到可用视频设备") + "\n")
-        sys.exit(1)
-
-    if action == "select" or len(cameras) > 1:
+        fail(1, "overlay_cam_no_device")
+    if action == "select":
         chosen = prompt_camera_selection(cameras)
-        if chosen:
-            launch_camera(chosen)
+    elif extra:
+        chosen = next((cam for cam in cameras if cam["device"] == extra[0]), None)
+        if chosen is None:
+            fail(1, "cli_unavailable", name=extra[0])
     else:
-        launch_camera(cameras[0])
+        chosen = cameras[0]
+    if chosen:
+        launch_camera(chosen)
+        if not camera_running():
+            fail(1, "cli_unavailable", name=UNIT)
 
 
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        sys.exit(130)
     except FileNotFoundError as exc:
-        subprocess.run(
-            ["custom-i18n", "get", "cli_dependency", f"name={exc.filename}"],
-            stdout=sys.stderr,
-            check=False,
-        )
+        if exc.filename == "custom-i18n":
+            print(exc.filename, file=sys.stderr)
+        else:
+            print(tr("cli_dependency", name=exc.filename), file=sys.stderr)
         sys.exit(127)
     except subprocess.CalledProcessError as exc:
+        print(tr("cli_unavailable", name=exc.cmd[0]), file=sys.stderr)
         sys.exit(exc.returncode if exc.returncode in (127, 130) else 1)
+    except OSError as exc:
+        print(tr("cli_unavailable", name=exc.filename), file=sys.stderr)
+        sys.exit(1)

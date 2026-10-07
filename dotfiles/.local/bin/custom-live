@@ -1,0 +1,326 @@
+#!/usr/bin/env bash
+#
+# @name         custom-live
+# @summary      Control desktop live streaming and saved target profiles
+# @deps         systemctl, uwsm, gpu-screen-recorder, custom-hardware, custom-danmaku, notify-send; config: fuzzel
+# @usage        custom-live [status|start|stop|toggle|restart|config|clear|danmaku [start|stop|status]]
+# @options      -h, --help  Print localized usage
+# @stdin        Unused; configuration uses explicit menus
+# @stdout       Service state or workspace IDs
+# @stderr       Diagnostics; usage=2, missing dependency=127, failure=1
+# @examples     custom-live status; custom-live start; custom-live stop
+#
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 2 || rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
+	else
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 2 || rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
+	fi
+)
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/livestream"
+HISTORY_FILE="$STATE_DIR/history.tsv"
+UNIT=custom-live.service
+STOP_TIMEOUT=15
+STARTUP_DELAY=0.3
+DEFAULT_VIDEO_KBPS=4500
+DEFAULT_AUDIO_KBPS=160
+MENU_LINES=8
+declare -ar VIDEO_RATES=(4500 6000 8000 12000)
+declare -ar AUDIO_RATES=(128 160 192 320)
+
+notify() {
+	local title body
+	title=$(t domain_live)
+	body=$(t "$@")
+	notify-send -a custom-live -h string:x-canonical-private-synchronous:live "$title" "$body"
+}
+unit_state() {
+	local state
+	state=$(systemctl --user show --property=ActiveState --value "$UNIT")
+	case "$state" in active | activating | deactivating | inactive | failed) printf '%s\n' "$state" ;; *) die 1 cli_unavailable "name=$UNIT" ;; esac
+}
+is_active() {
+	local state
+	state=$(unit_state) || exit 1
+	[[ "$state" == active || "$state" == activating || "$state" == deactivating ]]
+}
+notify_waybar() {
+	local state
+	state=$(systemctl --user show --property=ActiveState --value waybar.service)
+	if [[ "$state" == active ]]; then systemctl --user kill --kill-whom=main --signal=RTMIN+8 waybar.service; fi
+}
+read_records() {
+	records=()
+	if [[ -f "$HISTORY_FILE" ]]; then mapfile -t records <"$HISTORY_FILE"; fi
+	current_server=''
+	current_key=''
+	current_video="$DEFAULT_VIDEO_KBPS"
+	current_audio="$DEFAULT_AUDIO_KBPS"
+	if ((${#records[@]})); then parse_record "${records[0]}"; fi
+}
+parse_record() {
+	local rest="$1"
+	[[ "$rest" == *$'\t'*$'\t'*$'\t'* ]] || die 1 cli_unavailable name=history.tsv
+	current_server="${rest%%$'\t'*}"
+	rest="${rest#*$'\t'}"
+	current_key="${rest%%$'\t'*}"
+	rest="${rest#*$'\t'}"
+	current_video="${rest%%$'\t'*}"
+	current_audio="${rest#*$'\t'}"
+	[[ "$current_video" =~ ^[1-9][0-9]*$ && "$current_audio" =~ ^[1-9][0-9]*$ ]] || die 1 cli_unavailable name=history.tsv
+}
+write_records() (
+	local tmp
+	mkdir -p -- "$STATE_DIR"
+	tmp=$(mktemp "$STATE_DIR/.custom-live.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	if ((${#records[@]})); then printf '%s\n' "${records[@]}" >"$tmp"; fi
+	chmod 600 "$tmp"
+	mv -Tf -- "$tmp" "$HISTORY_FILE"
+)
+save_current() {
+	[[ "$current_server$current_key" != *$'\t'* && "$current_server$current_key" != *$'\n'* ]] || usage_error
+	records[0]="$current_server"$'\t'"$current_key"$'\t'"$current_video"$'\t'"$current_audio"
+	write_records
+}
+choose_index() {
+	local prompt="$1" count="$2" choice
+	choice=$(pick --index --prompt "$prompt" --lines "$MENU_LINES")
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^(0|[1-9][0-9]{0,5})$ ]] || die 1 cli_picker_failed
+	((choice < count)) || die 1 cli_picker_failed
+	printf '%s' "$choice"
+}
+edit_server() {
+	local prompt choice row
+	local -a servers=()
+	prompt=$(t livestream_cfg_server)
+	for row in "${records[@]}"; do servers+=("${row%%$'\t'*}"); done
+	choice=$(printf '%s\n' "${servers[@]}" | pick --prompt "$prompt: " --lines "$MENU_LINES")
+	[[ -n "$choice" ]] || return 0
+	current_server="$choice"
+	save_current
+}
+edit_key() {
+	local prompt choice
+	prompt=$(t livestream_cfg_key)
+	choice=$(pick --password --prompt "$prompt: " --lines 0 </dev/null)
+	[[ -n "$choice" ]] || return 0
+	current_key="$choice"
+	save_current
+	notify livestream_key_updated
+}
+edit_bitrate() {
+	local type="$1" prompt choice rate marker active
+	local -a rates rows=()
+	if [[ "$type" == video ]]; then
+		rates=("${VIDEO_RATES[@]}")
+		active="$current_video"
+	else
+		rates=("${AUDIO_RATES[@]}")
+		active="$current_audio"
+	fi
+	prompt=$(t "livestream_cfg_${type}_kbps")
+	for rate in "${rates[@]}"; do
+		marker='  '
+		if [[ "$rate" == "$active" ]]; then marker='* '; fi
+		rows+=("${marker}󰕧  $rate kbps")
+	done
+	choice=$(printf '%s\n' "${rows[@]}" | choose_index "$prompt: " "${#rates[@]}")
+	[[ -n "$choice" ]] || return 0
+	if [[ "$type" == video ]]; then current_video="${rates[$choice]}"; else current_audio="${rates[$choice]}"; fi
+	save_current
+}
+history_menu() {
+	local row host prompt choice selected i
+	local -a rows=()
+	((${#records[@]} > 1)) || return 0
+	for row in "${records[@]:1}"; do
+		parse_record "$row"
+		host="${current_server#*://}"
+		host="${host%%/*}"
+		host="${host%%\?*}"
+		rows+=("  󰒓  $host (${current_video}k/${current_audio}k)")
+	done
+	rows+=("  󰆴  $(t livestream_action_clear_history)")
+	prompt=$(t livestream_history_title)
+	choice=$(printf '%s\n' "${rows[@]}" | choose_index "$prompt: " "${#rows[@]}")
+	[[ -n "$choice" ]] || return 0
+	if ((choice == ${#rows[@]} - 1)); then
+		records=("${records[0]}")
+		write_records
+		notify livestream_history_cleared
+	else
+		i=$((choice + 1))
+		selected="${records[$i]}"
+		unset 'records[i]'
+		records=("$selected" "${records[@]}")
+		write_records
+		notify livestream_switched "target=${rows[$choice]}"
+	fi
+}
+config_menu() {
+	local prompt choice server_display key_display
+	local -a rows
+	[[ -n "${WAYLAND_DISPLAY:-}" ]] || die 1 cli_unavailable name=WAYLAND_DISPLAY
+	require fuzzel notify-send
+	while :; do
+		read_records
+		server_display=$(t state_unconfigured)
+		key_display="$server_display"
+		if [[ -n "$current_server" ]]; then
+			server_display="${current_server#*://}"
+			server_display="${server_display%%/*}"
+			server_display="${server_display%%\?*}"
+		fi
+		if [[ -n "$current_key" ]]; then key_display=$(t state_configured); fi
+		rows=("  󰒓  $(t livestream_cfg_server): $server_display"
+		"  󰌆  $(t livestream_cfg_key): $key_display"
+		"  󰕧  $(t livestream_cfg_video_kbps): $current_video kbps"
+		"  󰓃  $(t livestream_cfg_audio_kbps): $current_audio kbps")
+		if ((${#records[@]} > 1)); then rows+=("  󰋚  $(t livestream_history_title)"); fi
+		prompt=$(t livestream_prompt)
+		choice=$(printf '%s\n' "${rows[@]}" | choose_index "$prompt" "${#rows[@]}")
+		[[ -n "$choice" ]] || return 0
+		case "$choice" in 0) edit_server ;; 1) edit_key ;; 2) edit_bitrate video ;; 3) edit_bitrate audio ;; 4) history_menu ;; esac
+	done
+}
+restore_hardware() {
+	local rc=0
+	custom-hardware gpu auto >/dev/null || rc=1
+	custom-hardware fan auto >/dev/null || rc=1
+	return "$rc"
+}
+start_stream() (
+	local state full_url started=false boosted=false
+	if is_active; then return 0; fi
+	require uwsm gpu-screen-recorder custom-hardware custom-danmaku notify-send
+	read_records
+	[[ -n "$current_server" && -n "$current_key" ]] || die 1 livestream_notify_missing_rtmp
+	case "$current_server" in rtmp://* | rtmps://* | srt://*) ;; *) die 1 cli_unavailable name=server ;; esac
+	if [[ "$current_key" == \?* || "$current_server" == */ ]]; then
+		full_url="$current_server$current_key"
+	else full_url="$current_server/$current_key"; fi
+	state=$(unit_state)
+	if [[ "$state" == failed ]]; then systemctl --user reset-failed "$UNIT"; fi
+	# Restore hardware if launch fails; successful streams retain their boost until stop.
+	trap 'if [[ "$boosted" == true && "$started" != true ]]; then restore_hardware; fi' EXIT
+	boosted=true
+	custom-hardware gpu max >/dev/null
+	custom-hardware fan max >/dev/null
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$UNIT" -p CollectMode=inactive -p KillSignal=SIGINT \
+		-p "TimeoutStopSec=$STOP_TIMEOUT" -p SendSIGKILL=no -- gpu-screen-recorder \
+		-w portal -f 30 -fm cfr -c flv -k h264 -fallback-cpu-encoding yes -bm cbr \
+		-q "$current_video" -a 'default_output|default_input' -o "${full_url//\$/\$\$}"
+	sleep "$STARTUP_DELAY"
+	is_active || die 1 cli_unavailable "name=$UNIT"
+	started=true
+	notify_waybar
+	custom-danmaku start >/dev/null
+	notify livestream_notify_started_full
+)
+stop_stream() {
+	local state rc=0
+	require custom-hardware custom-danmaku notify-send
+	state=$(unit_state)
+	if [[ "$state" != failed && "$state" != inactive ]]; then systemctl --user stop "$UNIT"; fi
+	restore_hardware || rc=1
+	custom-danmaku stop || rc=1
+	notify_waybar
+	[[ "$state" != failed ]] || die 1 cli_unavailable "name=$UNIT"
+	((rc == 0)) || die 1 cli_unavailable name=cleanup
+	notify livestream_notify_stopped
+}
+main() {
+	local action="${1:-status}" state current_server current_key current_video current_audio lock
+	local -a records=()
+	if (($#)); then shift; fi
+	case "$action" in
+	-h | --help | help)
+		(($# == 0)) || usage_error
+		t help_live
+		return
+		;;
+	status | is-active | start | stop | toggle | restart | config | menu | clear) (($# == 0)) || usage_error ;;
+	danmaku)
+		(($# <= 1)) || usage_error
+		case "${1:-start}" in start | stop | status | toggle) ;; *) usage_error ;; esac
+		require custom-danmaku
+		custom-danmaku "${1:-start}"
+		return
+		;;
+	*) usage_error ;;
+	esac
+	case "$action" in
+	config | menu)
+		config_menu
+		return
+		;;
+	clear)
+		require notify-send
+		rm -f -- "$HISTORY_FILE"
+		notify livestream_history_cleared
+		return
+		;;
+	esac
+	require systemctl
+	case "$action" in
+	start | stop | toggle | restart)
+		# Serialize hardware changes around the singleton encoder service.
+		require flock
+		exec {lock}>"${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-live.lock"
+		flock "$lock"
+		;;
+	esac
+	case "$action" in
+	status)
+		state=$(unit_state)
+		printf '%s\n' "$state"
+		;;
+	is-active) if is_active; then return 0; else exit 1; fi ;;
+	start) start_stream ;;
+	stop) stop_stream ;;
+	toggle) if is_active; then stop_stream; else start_stream; fi ;;
+	restart)
+		stop_stream
+		start_stream
+		;;
+	esac
+}
+main "$@"

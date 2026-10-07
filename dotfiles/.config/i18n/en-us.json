@@ -188,5 +188,10 @@
   "record_stopping": "Recording is stopping",
   "domain_blue": "Bluetooth",
   "help_theme": "Usage: custom-theme [menu|list|current|set <name>|<name>|refresh]",
-  "theme_no_current": "No active theme to refresh"
+  "theme_no_current": "No active theme to refresh",
+  "help_live": "Usage: custom-live [status|start|stop|toggle|restart|config|clear|danmaku [start|stop|status|toggle]]",
+  "help_danmaku": "Usage: custom-danmaku [status|start|stop|toggle]",
+  "help_camera": "Usage: custom-camera [status|list|start [device]|toggle|select|stop]",
+  "help_captions": "Usage: custom-captions [status|start|stop|toggle]",
+  "domain_live": "Live stream"
 }

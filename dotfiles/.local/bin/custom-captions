@@ -1,7 +1,17 @@
 #!/usr/bin/env -S PYTHONDONTWRITEBYTECODE=1 python3
-# arch:summary=Real-time speech-to-text live subtitle overlay using vinput and wayhud
-# arch:args=[toggle | start | stop | status | run]
-# arch:examples=arch overlay captions | arch overlay captions toggle
+#
+# @name         custom-captions
+# @summary      Control live speech captions within a graphical-session user service
+# @deps         systemctl; start/run: uwsm, vinput, parec, wayhud, python-gobject
+#               The configured ASR command is also required
+# @usage        custom-captions [status|start|stop|toggle]
+# @options      -h, --help  Print localized usage
+# @commands     run  Internal service entrypoint
+# @stdin        Unused; the service captures PCM from the configured audio source
+# @stdout       open/closed service state
+# @stderr       Diagnostics; usage=2, missing dependency=127, operation failure=1
+# @examples     custom-captions status; custom-captions start; custom-captions stop
+#
 """Real-time speech-to-text live subtitle overlay using vinput and wayhud."""
 
 from __future__ import annotations
@@ -12,11 +22,13 @@ import contextlib
 import json
 import os
 import queue
+import shutil
 import signal
 import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 SAMPLE_RATE = 16000
@@ -25,10 +37,15 @@ BYTES_PER_SAMPLE = 2
 FRAME_MS = 100
 FRAME_BYTES = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE * FRAME_MS // 1000
 
-VOICE_RMS_THRESHOLD = int(os.environ.get("ARCH_CAPTIONS_RMS", "180"))
-SILENCE_FRAMES_TO_FINISH = int(os.environ.get("ARCH_CAPTIONS_SILENCE_FRAMES", "6"))
-MAX_UTTERANCE_SECONDS = int(os.environ.get("ARCH_CAPTIONS_MAX_UTTERANCE_SECS", "18"))
-MAX_CAPTION_CHARS = int(os.environ.get("ARCH_CAPTIONS_MAX_CHARS", "60"))
+VOICE_RMS_THRESHOLD = 180
+SILENCE_FRAMES_TO_FINISH = 6
+MAX_UTTERANCE_SECONDS = 18
+MAX_CAPTION_CHARS = 60
+PROVIDER_TIMEOUT = 3
+DBUS_TIMEOUT_MS = 100
+EVENT_POLL_SECONDS = 0.1
+GLIB_POLL_SECONDS = 0.05
+sys.dont_write_bytecode = True
 PROVIDER_POLL_SECONDS = 3.0
 VINPUT_STATUS_POLL_SECONDS = 0.5
 
@@ -43,6 +60,48 @@ try:
 except ImportError:
     Gio = None
     GLib = None
+
+
+def tr(key: str, **values: object) -> str:
+    return subprocess.check_output(
+        ["custom-i18n", "get", key, *(f"{k}={v}" for k, v in values.items())], text=True
+    ).rstrip("\n")
+
+
+def fail(code: int, key: str, **values: object) -> None:
+    print(tr(key, **values), file=sys.stderr)
+    raise SystemExit(code)
+
+
+def require(*names: str) -> None:
+    for name in names:
+        if shutil.which(name) is None:
+            fail(127, "cli_dependency", name=name)
+
+
+def configure_runtime() -> None:
+    global VOICE_RMS_THRESHOLD, SILENCE_FRAMES_TO_FINISH
+    global MAX_UTTERANCE_SECONDS, MAX_CAPTION_CHARS
+
+    def number(name: str, default: int, minimum: int) -> int:
+        raw = os.environ.get(name, str(default))
+        if not raw.isascii() or not raw.isdecimal() or int(raw) < minimum:
+            fail(2, "cli_unavailable", name=name)
+        return int(raw)
+
+    VOICE_RMS_THRESHOLD = number("ARCH_CAPTIONS_RMS", 180, 0)
+    SILENCE_FRAMES_TO_FINISH = number("ARCH_CAPTIONS_SILENCE_FRAMES", 6, 1)
+    MAX_UTTERANCE_SECONDS = number("ARCH_CAPTIONS_MAX_UTTERANCE_SECS", 18, 1)
+    MAX_CAPTION_CHARS = number("ARCH_CAPTIONS_MAX_CHARS", 60, 0)
+
+
+def require_runtime() -> None:
+    require("vinput", "parec", "wayhud")
+    if Gio is None or GLib is None:
+        fail(127, "cli_dependency", name="python-gobject")
+    provider = get_active_vinput_provider()
+    require(str(provider["command"]))
+    configure_runtime()
 
 
 def parse_dbus_result(payload: str) -> str:
@@ -82,44 +141,37 @@ def pcm16_rms(chunk: bytes) -> int:
     return int((total / len(samples)) ** 0.5)
 
 
-def get_active_vinput_provider() -> dict[str, object] | None:
-    try:
-        proc = subprocess.run(
-            ["vinput", "-j", "config", "get", "/asr"],
-            check=True,
-            text=True,
-            capture_output=True,
-            timeout=3,
-        )
-        data = json.loads(proc.stdout)
-        val = data.get("value")
-        if isinstance(val, str):
-            val = json.loads(val)
-        if not isinstance(val, dict):
-            return None
-        active_id = val.get("active_provider")
-        providers = val.get("providers") or []
-        for p in providers:
-            if (
-                isinstance(p, dict)
-                and p.get("id") == active_id
-                and p.get("type") == "command"
-                and p.get("command")
-            ):
-                return {
-                    "id": p.get("id", ""),
-                    "command": p.get("command"),
-                    "args": p.get("args") or [],
-                    "env": p.get("env") or {},
-                }
-    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
-        pass
-    return None
+def get_active_vinput_provider() -> dict[str, object]:
+    proc = subprocess.run(
+        ["vinput", "-j", "config", "get", "/asr"],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        timeout=PROVIDER_TIMEOUT,
+    )
+    data = json.loads(proc.stdout)
+    val = data.get("value")
+    if isinstance(val, str):
+        val = json.loads(val)
+    if not isinstance(val, dict):
+        raise RuntimeError("vinput:/asr")
+    for provider in val.get("providers") or []:
+        if (
+            isinstance(provider, dict)
+            and provider.get("id") == val.get("active_provider")
+            and provider.get("type") == "command"
+            and provider.get("command")
+        ):
+            return {
+                "id": provider["id"],
+                "command": provider["command"],
+                "args": provider.get("args") or [],
+                "env": provider.get("env") or {},
+            }
+    raise RuntimeError("vinput:/asr/active_provider")
 
 
 def is_vinput_recording_active() -> bool:
-    if Gio is None:
-        return False
     try:
         connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         proxy = Gio.DBusProxy.new_sync(
@@ -133,10 +185,12 @@ def is_vinput_recording_active() -> bool:
         )
         if proxy.get_name_owner() is None:
             return False
-        result = proxy.call_sync("GetStatus", None, Gio.DBusCallFlags.NONE, 100, None)
+        result = proxy.call_sync(
+            "GetStatus", None, Gio.DBusCallFlags.NONE, DBUS_TIMEOUT_MS, None
+        )
         return result.unpack()[0] != "idle"
-    except (GLib.Error, OSError, TypeError):
-        return False
+    except (GLib.Error, OSError, TypeError) as exc:
+        raise RuntimeError("vinput:D-Bus") from exc
 
 
 class ProviderSession:
@@ -149,6 +203,7 @@ class ProviderSession:
         self.provider = provider
         self.proc: subprocess.Popen[str] | None = None
         self.closed = False
+        self.terminating = False
         self.provider_id = str(provider.get("id", ""))
 
     def start(self) -> None:
@@ -164,7 +219,7 @@ class ProviderSession:
             [command, *args],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=None,
             text=True,
             bufsize=1,
             env=env,
@@ -194,6 +249,7 @@ class ProviderSession:
         self.closed = True
 
     def terminate(self) -> None:
+        self.terminating = True
         self.finish()
         if self.proc and self.proc.poll() is None:
             with contextlib.suppress(OSError):
@@ -202,18 +258,22 @@ class ProviderSession:
     def _read_stdout(self) -> None:
         if not self.proc or not self.proc.stdout:
             return
-        for raw_line in self.proc.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
+        try:
+            for raw_line in self.proc.stdout:
+                line = raw_line.strip()
+                if not line:
+                    continue
                 event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            typ = event.get("type")
-            text = str(event.get("text") or "").strip()
-            if typ in ("partial", "final", "final_timestamps") and text:
-                self.events.put((typ, text))
+                typ = event.get("type")
+                text = str(event.get("text") or "").strip()
+                if typ in ("partial", "final", "final_timestamps") and text:
+                    self.events.put((typ, text))
+            code = self.proc.wait()
+            if code and not self.terminating:
+                self.events.put(("error", str(self.provider["command"])))
+        except (OSError, ValueError, AttributeError):
+            if not self.terminating:
+                self.events.put(("error", str(self.provider["command"])))
 
 
 class WayhudPresenter:
@@ -222,8 +282,10 @@ class WayhudPresenter:
         self.lock = threading.Lock()
 
     def ensure_process(self) -> bool:
-        if self.proc and self.proc.poll() is None:
-            return True
+        if self.proc:
+            if self.proc.poll() is None:
+                return True
+            raise RuntimeError("wayhud")
         try:
             self.proc = subprocess.Popen(
                 [
@@ -247,13 +309,13 @@ class WayhudPresenter:
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=None,
                 text=True,
                 bufsize=1,
             )
             return True
-        except OSError:
-            return False
+        except OSError as exc:
+            raise RuntimeError("wayhud") from exc
 
     def push(self, text: str) -> None:
         with self.lock:
@@ -262,8 +324,8 @@ class WayhudPresenter:
             try:
                 self.proc.stdin.write(text + "\n")
                 self.proc.stdin.flush()
-            except (BrokenPipeError, OSError):
-                self.proc = None
+            except (BrokenPipeError, OSError) as exc:
+                raise RuntimeError("wayhud") from exc
 
     def close(self) -> None:
         with self.lock:
@@ -348,8 +410,6 @@ class CaptionsDaemon:
 
     def _listen_dbus_signals(self) -> None:
         """Subscribe to Fcitx5 VInput signals so dictation also shows on HUD."""
-        if Gio is None or GLib is None:
-            return
         try:
             conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 
@@ -383,9 +443,9 @@ class CaptionsDaemon:
             loop = GLib.MainLoop()
             while not self.stop_event.is_set():
                 loop.get_context().iteration(False)
-                time.sleep(0.05)
-        except (GLib.Error, OSError, TypeError):
-            pass
+                self.stop_event.wait(GLIB_POLL_SECONDS)
+        except (GLib.Error, OSError, TypeError) as exc:
+            raise RuntimeError("vinput:D-Bus") from exc
 
     def _run_audio_loop(self) -> None:
         device_args: list[str] = []
@@ -403,10 +463,10 @@ class CaptionsDaemon:
                     f"--channels={CHANNELS}",
                 ],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=None,
             )
-        except OSError:
-            return
+        except OSError as exc:
+            raise RuntimeError("parec") from exc
 
         silence_frames = 0
         in_speech = False
@@ -418,6 +478,8 @@ class CaptionsDaemon:
                     break
                 chunk = self.audio_proc.stdout.read(FRAME_BYTES)
                 if not chunk:
+                    if not self.stop_event.is_set():
+                        raise RuntimeError("parec")
                     break
 
                 if self.voice_input_active:
@@ -453,15 +515,32 @@ class CaptionsDaemon:
         finally:
             self.finish_session()
 
+    def worker(self, target: Callable[[], None]) -> None:
+        try:
+            target()
+        except Exception as exc:  # noqa: BLE001 - propagate every worker failure to the service
+            if isinstance(exc, subprocess.CalledProcessError):
+                name = exc.cmd[0]
+            elif isinstance(exc, OSError):
+                name = exc.filename or type(exc).__name__
+            else:
+                name = str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__
+            self.events.put(("error", name))
+
     def run(self) -> None:
         self.presenter.ensure_process()
-        threading.Thread(target=self._run_audio_loop, daemon=True).start()
-        threading.Thread(target=self._poll_vinput_loop, daemon=True).start()
-        threading.Thread(target=self._listen_dbus_signals, daemon=True).start()
-
+        for target in (
+            self._run_audio_loop,
+            self._poll_vinput_loop,
+            self._listen_dbus_signals,
+        ):
+            threading.Thread(target=self.worker, args=(target,), daemon=True).start()
         while not self.stop_event.is_set():
+            self.presenter.ensure_process()
             try:
-                _typ, text = self.events.get(timeout=0.1)
+                typ, text = self.events.get(timeout=EVENT_POLL_SECONDS)
+                if typ == "error":
+                    raise RuntimeError(text)
                 clean_text = truncate_caption(sanitize_caption(text), MAX_CAPTION_CHARS)
                 if clean_text:
                     self.presenter.push(clean_text)
@@ -482,12 +561,16 @@ def is_running() -> bool:
         ["systemctl", "--user", "show", "--property=ActiveState", "--value", UNIT],
         text=True,
     ).strip()
-    return state in ("active", "activating")
+    if state not in ("active", "activating", "deactivating", "inactive", "failed"):
+        fail(1, "cli_unavailable", name=UNIT)
+    return state in ("active", "activating", "deactivating")
 
 
 def cmd_start() -> int:
     if is_running():
         return 0
+    require("uwsm")
+    require_runtime()
     subprocess.run(
         [
             "uwsm",
@@ -502,6 +585,7 @@ def cmd_start() -> int:
             "PartOf=graphical-session.target",
             "--",
             sys.executable,
+            "-B",
             str(Path(__file__).resolve()).replace("$", "$$"),
             "run",
         ],
@@ -526,11 +610,18 @@ def cmd_status() -> int:
 
 
 def cmd_run() -> int:
+    require_runtime()
+    owner = subprocess.check_output(
+        ["systemctl", "--user", "show", "--property=MainPID", "--value", UNIT],
+        text=True,
+    ).strip()
+    if owner != str(os.getpid()):
+        fail(1, "cli_unavailable", name=UNIT)
     daemon = CaptionsDaemon()
 
     def on_sig(_s: int, _f: object) -> None:
         daemon.stop()
-        sys.exit(0)
+        sys.exit(130 if _s == signal.SIGINT else 0)
 
     signal.signal(signal.SIGINT, on_sig)
     signal.signal(signal.SIGTERM, on_sig)
@@ -544,6 +635,9 @@ def cmd_run() -> int:
 
 def main() -> int:
     action = sys.argv[1] if len(sys.argv) > 1 else "status"
+    if len(sys.argv) <= 2 and action in ("-h", "--help", "help"):
+        print(tr("help_captions"))
+        return 0
     if len(sys.argv) > 2 or action not in (
         "start",
         "stop",
@@ -556,11 +650,12 @@ def main() -> int:
         "run",
     ):
         subprocess.run(
-            ["custom-i18n", "get", "cli_usage", "command=x-captions"],
+            ["custom-i18n", "get", "cli_usage", "command=custom-captions"],
             stdout=sys.stderr,
             check=True,
         )
         return 2
+    require("systemctl")
     if action == "start":
         return cmd_start()
     if action in ("stop", "close", "hide", "kill"):
@@ -578,12 +673,18 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
     except FileNotFoundError as exc:
-        subprocess.run(
-            ["custom-i18n", "get", "cli_dependency", f"name={exc.filename}"],
-            stdout=sys.stderr,
-            check=False,
-        )
+        if exc.filename == "custom-i18n":
+            print(exc.filename, file=sys.stderr)
+        else:
+            print(tr("cli_dependency", name=exc.filename), file=sys.stderr)
         sys.exit(127)
     except subprocess.CalledProcessError as exc:
+        print(tr("cli_unavailable", name=exc.cmd[0]), file=sys.stderr)
         sys.exit(exc.returncode if exc.returncode in (127, 130) else 1)
+    except (OSError, subprocess.TimeoutExpired, ValueError, RuntimeError) as exc:
+        name = str(exc) if isinstance(exc, RuntimeError) else type(exc).__name__
+        print(tr("cli_unavailable", name=name), file=sys.stderr)
+        sys.exit(1)

@@ -188,5 +188,10 @@
   "record_stopping": "正在停止录屏",
   "domain_blue": "蓝牙",
   "help_theme": "用法：custom-theme [menu|list|current|set <name>|<name>|refresh]",
-  "theme_no_current": "没有可刷新的当前主题"
+  "theme_no_current": "没有可刷新的当前主题",
+  "help_live": "用法：custom-live [status|start|stop|toggle|restart|config|clear|danmaku [start|stop|status|toggle]]",
+  "help_danmaku": "用法：custom-danmaku [status|start|stop|toggle]",
+  "help_camera": "用法：custom-camera [status|list|start [device]|toggle|select|stop]",
+  "help_captions": "用法：custom-captions [status|start|stop|toggle]",
+  "domain_live": "直播"
 }
