@@ -65,7 +65,7 @@ clipboard, idle, and authentication-agent services explicitly. Font/theme
 refresh uses native reloads or signals only a service's main process.
 
 The post-dotfiles hook enables native `fnott.service` on `graphical-session.target`.
-Its repository-managed drop-in restarts failures after three seconds. Session
+Its repository-managed drop-in restarts failures immediately. Session
 shutdown and explicit service stops do not trigger recovery. Font/theme changes
 restart fnott to apply its configuration.
 
