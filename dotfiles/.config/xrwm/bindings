@@ -27,7 +27,7 @@ xrwm map normal "Super+Shift" E spawn uwsm app -t service -- ftty -e yazi
 xrwm map normal Super V spawn uwsm app -t service -- custom-clipboard
 
 # Network (N)
-xrwm map normal Super N spawn uwsm app -t service -- x-wifi
+xrwm map normal Super N spawn uwsm app -t service -- custom-wifi
 
 # ===========================================================================
 # 2. Window Lifecycle & Layout Management

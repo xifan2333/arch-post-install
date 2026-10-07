@@ -139,8 +139,8 @@
     "tooltip-format-connected": "{controller_alias}\t{controller_address}\n{num_connections} connected\n\n{device_enumerate}",
     "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
     "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_battery_percentage}%",
-    "on-click": "x-blue toggle",
-    "on-click-right": "x-blue"
+    "on-click": "custom-blue toggle",
+    "on-click-right": "custom-blue"
   },
   "network": {
     "format-wifi": "{icon}",
@@ -154,8 +154,8 @@
     ],
     "tooltip-format": "{ifname} via {gwaddr}\nSSID: {essid}\nIP: {ipaddr}/{cidr}\nSignal: {signalStrength}%",
     "tooltip-format-disconnected": "网络已断开",
-    "on-click": "x-wifi toggle",
-    "on-click-right": "x-wifi"
+    "on-click": "custom-wifi toggle",
+    "on-click-right": "custom-wifi"
   },
   "pulseaudio": {
     "format": "{icon}  {volume}%",
