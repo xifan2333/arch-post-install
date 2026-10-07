@@ -27,7 +27,7 @@ xrwm map normal "Super+Shift" E spawn uwsm app -t service -- ftty -e yazi
 xrwm map normal Super V spawn uwsm app -t service -- custom-clipboard
 
 # Network (N)
-xrwm map normal Super N spawn uwsm app -t service -- x-wifi
+xrwm map normal Super N spawn uwsm app -t service -- custom-wifi
 
 # ===========================================================================
 # 2. Window Lifecycle & Layout Management
@@ -101,10 +101,10 @@ xrwm map normal "Super+Control" G spawn uwsm app -t service -- custom-record men
 xrwm map normal "Super+Alt" K spawn uwsm app -t service -- custom-keystrokes toggle
 
 # Camera PIP Overlay (V = Video / Camera)
-xrwm map normal "Super+Alt" V spawn uwsm app -t service -- x-camera toggle
+xrwm map normal "Super+Alt" V spawn uwsm app -t service -- custom-camera toggle
 
 # Captions Overlay (C = Captions)
-xrwm map normal "Super+Alt" C spawn uwsm app -t service -- x-captions toggle
+xrwm map normal "Super+Alt" C spawn uwsm app -t service -- custom-captions toggle
 
 # Title Overlay (T = Title)
 xrwm map normal "Super+Alt" T spawn uwsm app -t service -- custom-stream-title toggle
@@ -117,7 +117,7 @@ xrwm map normal "Super+Alt" T spawn uwsm app -t service -- custom-stream-title t
 xrwm map normal Super G spawn uwsm app -t service -- custom-record toggle
 
 # Live Stream Push via Portal
-xrwm map normal "Super+Shift" G spawn uwsm app -t service -- x-live toggle
+xrwm map normal "Super+Shift" G spawn uwsm app -t service -- custom-live toggle
 
 # ===========================================================================
 # 7. Title HUD Direct Actions (T)

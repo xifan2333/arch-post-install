@@ -23,15 +23,15 @@ Use this index to understand architecture boundaries and locate the source of tr
 - **Role**: Android Camera2 Hook / Virtual Camera application for desktop-to-mobile live streaming (Douyin, WeChat Video Channels, Kuaishou).
 - **Integration Boundary**:
   - `vcam` on Android listens on port 9999 for SRT streams and decodes H.264 frames directly into the camera preview Surface via hardware `MediaCodec` (zero rendering overhead, transparent physical camera bypass when stopped).
-  - `arch-post-install` manages the Linux push pipeline via `x-live` (`dotfiles/.local/bin/x-live`), which captures the screen, performs hardware encoding, and pushes over RTMP or LAN SRT (`srt://<phone-ip>:9999?mode=caller&latency=200`).
-  - Stream targets and bitrates are managed interactively via `x-live`.
+  - `arch-post-install` manages the Linux push pipeline via `custom-live` (`dotfiles/.local/bin/custom-live`), which captures the screen, performs hardware encoding, and pushes over RTMP or LAN SRT (`srt://<phone-ip>:9999?mode=caller&latency=200`).
+  - Stream targets and bitrates are managed interactively via `custom-live`.
 
 ### 3. `dmnotifier` (Danmaku Desktop Notifier)
 
 - **Location**: `/home/xifan/Code/dmnotifier`
 - **Role**: Real-time live stream chat / danmaku listener and desktop notification bridge.
 - **Integration Boundary**:
-  - Spawned and stopped alongside the streaming session by `dotfiles/.local/bin/livestream-danmaku` and `dotfiles/.local/bin/livestream`.
+  - Spawned and stopped alongside the streaming session by `dotfiles/.local/bin/custom-danmaku` and `dotfiles/.local/bin/custom-live`.
 
 ### 4. `fcitx5-vinput` (Voice Input IME Integration)
 

@@ -1,12 +1,14 @@
 # Desktop custom commands
 
-The public desktop commands are `custom-audio`, `custom-capture`,
-`custom-clipboard`, `custom-font`, `custom-hardware`, `custom-i18n`,
-`custom-keystrokes`, `custom-ocr`, `custom-power`, `custom-record`,
-`custom-stream-title`, `custom-wallhaven`, and `custom-wallpaper`.
-Use `--help` for their command syntax. Legacy command symlinks have been removed.
-Independent programs such as `x-blue`, `x-wifi`, `x-theme`, and `x-live` retain
-those names.
+All 20 repository-owned desktop commands use the `custom-` namespace:
+`custom-audio`, `custom-blue`, `custom-camera`, `custom-captions`,
+`custom-capture`, `custom-clipboard`, `custom-danmaku`, `custom-font`,
+`custom-hardware`, `custom-i18n`, `custom-keystrokes`, `custom-live`,
+`custom-ocr`, `custom-power`, `custom-record`, `custom-stream-title`,
+`custom-theme`, `custom-wallhaven`, `custom-wallpaper`, and `custom-wifi`.
+Use `--help` for their command syntax. Legacy executable and desktop-entry
+names have been removed. Camera and captions use Python; the other commands
+use Bash.
 
 Commands use their declared tools. They do not try alternative executables,
 state directories, translation dictionaries, privilege helpers, or fabricated
@@ -25,6 +27,44 @@ Diagnostics go to stderr; stdout contains results. Fuzzel cancellation does
 not execute the first row or create persistent directories. `--help` needs the
 translation client and jq, but no desktop backend. `custom-i18n --help` needs
 neither a dictionary nor jq.
+
+## Connectivity, themes, and media
+
+- `custom-blue` and `custom-wifi` default to their menus. Explicit `list` and
+  `status` are read-only; device names remain escaped TSV data, and menu indices
+  select backend IDs without parsing localized labels. Bluetooth discovery and
+  pairing occur only after a selection; cancelling does not power the adapter.
+- `custom-theme list` prints unadorned theme names; `current` prints the selected
+  name or nothing when uninitialized. `set <name>` (also `<name>`) and `refresh`
+  validate all palette tokens before replacing rendered files. Selection lives
+  in `theme/current.name`, with palette outputs under the same XDG state directory.
+  If the stored theme is removed, explicitly choose a replacement with `set <name>`
+  before rerunning bootstrap; a failed refresh does not change the selection.
+  Theme refresh preserves existing GTK font settings and uses native reloads or
+  signals to service main processes. WM colors refresh only when the native xrwm
+  status query confirms that its IPC endpoint is available. No application is
+  restarted for a theme change.
+- `custom-live` defaults to `status` and reports the actual service state, including
+  `failed`. `start` requires a configured target; `config` explicitly opens the
+  editor. Existing `livestream/history.tsv` profiles remain in XDG state, with
+  empty fields preserved and writes replaced atomically at mode 0600. Querying or
+  cancelling an empty editor does not create this state. Hardware changes around
+  start/stop are serialized with one session-runtime lock.
+- `custom-danmaku` defaults to `status`. `start` reuses the labelled Herdr workspace
+  or creates its two panes; failed setup closes only that newly created workspace.
+  `stop` closes the workspace, preserving unrelated workspaces and the Herdr client.
+- `custom-camera` defaults to `status`. `list` emits JSON camera records;
+  `start [device]` selects the specified device or the highest-ranked supported
+  capture mode. Only `select` opens a picker. A repeated `start` preserves the
+  running window; cancelling `select` does too.
+- `custom-captions` defaults to `status`; `start` checks the configured command ASR
+  provider and required audio/HUD tools before launching the service. Its internal
+  `run` command requires ownership by `custom-captions.service`. Audio, provider,
+  D-Bus, and HUD failures reach the service exit status. Existing `ARCH_CAPTIONS_*`
+  tuning variables remain supported; invalid values are rejected on startup.
+
+The media service names already used `custom-` and remain unchanged. The CLI rename
+does not restart a running stream, recording, camera, or caption service.
 
 ## State and configuration
 
@@ -81,7 +121,7 @@ symlink is replaced atomically on each synchronization so the directory watcher
 sees the event even though the generated files live under font state.
 
 Qt's Fusion style uses the semantic desktop palette generated from
-`themed/qt-colors.conf.tpl`. `x-theme` replaces the `qt5ct/colors.conf` and `qt6ct/colors.conf` symlinks
+`themed/qt-colors.conf.tpl`. `custom-theme` replaces the `qt5ct/colors.conf` and `qt6ct/colors.conf` symlinks
 after rendering the palette, triggering the same watcher without changing fonts.
 Icons remain Adwaita and native dialogs use GTK. Changing the platform plugin
 requires existing Qt processes to be opened once with the new environment;

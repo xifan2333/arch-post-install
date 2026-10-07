@@ -1,0 +1,357 @@
+#!/usr/bin/env bash
+#
+# @name         custom-theme
+# @summary      Render semantic desktop colors and refresh application themes
+# @deps         awk, coreutils, flock, systemctl, gsettings, notify-send; menu: fuzzel
+# @usage        custom-theme [menu|list|current|set <name>|<name>|refresh]
+# @options      -h, --help  Print localized usage
+# @stdin        Unused
+# @stdout       Theme names, one per line
+# @stderr       Diagnostics; usage=2, missing dependency=127, operation failure=1
+# @examples     custom-theme list; custom-theme set tokyo-night; custom-theme refresh
+#
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 2 || rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local picked rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if picked=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$picked"
+	else
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 2 || rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
+	fi
+)
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/theme"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+MENU_LINES=15
+declare -Ar BLEND_RATIOS=([active_row_bg]=12 [selection_bg]=40 [surface_dim]=6 [surface0]=8 [surface1]=16 [overlay0]=88 [overlay1]=94 [subtext0]=78)
+
+current() {
+	if [[ -e "$STATE_DIR/current.name" ]]; then
+		local name
+		name=$(cat "$STATE_DIR/current.name")
+		[[ "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] || die 1 cli_unavailable "name=$STATE_DIR/current.name"
+		printf '%s\n' "$name"
+	fi
+}
+list_themes() {
+	local dir
+	[[ -d "$CONFIG_DIR/themes" ]] || die 1 cli_unavailable "name=$CONFIG_DIR/themes"
+	for dir in "$CONFIG_DIR"/themes/*; do
+		[[ -f "$dir/colors.toml" ]] || continue
+		printf '%s\n' "${dir##*/}"
+	done
+}
+blend() {
+	local base="${1#\#}" over="${2#\#}" ratio="$3" offset b o
+	printf '#'
+	for offset in 0 2 4; do
+		b=$((16#${base:offset:2}))
+		o=$((16#${over:offset:2}))
+		printf '%02x' "$(((b * (100 - ratio) + o * ratio + 50) / 100))"
+	done
+}
+load_colors() {
+	local path="$1" line key value over
+	local pattern="^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]*=[[:space:]]*[\"']([^\"']*)[\"'][[:space:]]*(#.*)?$"
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		[[ "$line" =~ ^[[:space:]]*(#.*)?$ ]] && continue
+		[[ "$line" =~ $pattern ]] || die 1 cli_unavailable "name=$path"
+		key="${BASH_REMATCH[1]}"
+		value="${BASH_REMATCH[2]}"
+		[[ ! -v colors[$key] ]] || die 1 cli_unavailable "name=$key"
+		colors[$key]="$value"
+	done <"$path"
+	[[ "${colors[mode]:-}" == dark || "${colors[mode]:-}" == light ]] || die 1 cli_unavailable name=mode
+	# Semantic aliases derive only from the selected palette, never a foreign theme.
+	colors[orange]="${colors[orange]:-${colors[yellow]:-}}"
+	colors[brown]="${colors[brown]:-${colors[muted]:-}}"
+	colors[darker_background]="${colors[darker_background]:-${colors[dark_background]:-}}"
+	colors[selection_foreground]="${colors[selection_foreground]:-${colors[bright_foreground]:-}}"
+	colors[selection_background]="${colors[selection_background]:-${colors[selection]:-${colors[accent]:-}}}"
+	for key in background foreground accent selection muted orange brown darker_background; do
+		[[ "${colors[$key]:-}" =~ ^#[[:xdigit:]]{6}$ ]] || die 1 cli_unavailable "name=$key"
+	done
+	for key in "${!BLEND_RATIOS[@]}"; do
+		over="${colors[foreground]}"
+		if [[ "$key" == selection_bg ]]; then over="${colors[selection]}"; fi
+		colors[$key]=$(blend "${colors[background]}" "$over" "${BLEND_RATIOS[$key]}")
+	done
+	colors[surface0]="${colors[lighter_background]:-${colors[surface0]}}"
+	colors[surface1]="${colors[muted]}"
+	colors[subtext0]="${colors[light_foreground]:-${colors[subtext0]}}"
+}
+render() {
+	local line token key filter value hex
+	local pattern='\{\{[[:space:]]*([a-zA-Z0-9_]+)[[:space:]]*(\|[[:space:]]*(strip|rgb)[[:space:]]*)?\}\}'
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		while [[ "$line" =~ $pattern ]]; do
+			token="${BASH_REMATCH[0]}"
+			key="${BASH_REMATCH[1]}"
+			filter="${BASH_REMATCH[3]:-}"
+			case "$key" in *_strip)
+				key="${key%_strip}"
+				filter='strip'
+				;;
+			*_rgb)
+				key="${key%_rgb}"
+				filter=rgb
+				;;
+			esac
+			[[ -v colors[$key] ]] || die 1 cli_unavailable "name=$key"
+			value="${colors[$key]}"
+			[[ "$value" =~ ^#[[:xdigit:]]{6}$ ]] || die 1 cli_unavailable "name=$key"
+			case "$filter" in
+			strip) value="${value#\#}" ;;
+			rgb)
+				hex="${value#\#}"
+				printf -v value '%d, %d, %d' "$((16#${hex:0:2}))" "$((16#${hex:2:2}))" "$((16#${hex:4:2}))"
+				;;
+			esac
+			line="${line//"$token"/"$value"}"
+		done
+		[[ "$line" != *'{{'* ]] || die 1 cli_unavailable "name=$1"
+		printf '%s\n' "$line"
+	done <"$1"
+}
+# Each helper owns its temporary directory and atomically replaces the target.
+link_atomic() (
+	local source="$1" target="$2" tmp
+	mkdir -p -- "${target%/*}"
+	tmp=$(mktemp -d "${target%/*}/.custom-theme.XXXXXX")
+	trap 'rm -rf -- "$tmp"' EXIT
+	ln -s -- "$source" "$tmp/link"
+	mv -Tf -- "$tmp/link" "$target"
+)
+gtk_settings() (
+	local dir="$1" dark=0 theme=adw-gtk3 tmp input=/dev/null
+	if [[ "${colors[mode]}" == dark ]]; then
+		dark=1
+		theme=adw-gtk3-dark
+	fi
+	mkdir -p -- "$dir"
+	tmp=$(mktemp "$dir/.custom-theme.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	if [[ -f "$dir/settings.ini" ]]; then input="$dir/settings.ini"; fi
+	# Preserve font selections and unrelated GTK settings.
+	awk -v dark="$dark" -v theme="$theme" '
+        BEGIN { print "[Settings]" }
+        /^\[Settings\]$/ { next }
+        /^gtk-(application-prefer-dark-theme|theme-name|icon-theme-name|decoration-layout)[[:space:]]*=/ { next }
+        { print }
+        END { print "gtk-application-prefer-dark-theme=" dark; print "gtk-theme-name=" theme;
+              print "gtk-icon-theme-name=Adwaita"; print "gtk-decoration-layout=" }' "$input" >"$tmp"
+	chmod 644 "$tmp"
+	mv -Tf -- "$tmp" "$dir/settings.ini"
+)
+integrate() {
+	local target source svg search_dir qt version scheme=prefer-light gtk=adw-gtk3
+	local -a data_dirs
+	link_atomic "$STATE_DIR/fcitx5-theme.conf" "$DATA_DIR/fcitx5/themes/custom/theme.conf"
+	IFS=: read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+	for svg in arrow.svg next.svg prev.svg radio.svg; do
+		target="$DATA_DIR/fcitx5/themes/custom/$svg"
+		[[ -e "$target" ]] && continue
+		for search_dir in "${data_dirs[@]}"; do
+			source="$search_dir/fcitx5/themes/default/$svg"
+			if [[ -f "$source" ]]; then
+				link_atomic "$source" "$target"
+				break
+			fi
+		done
+	done
+	link_atomic "$STATE_DIR/neovim.lua" "$CONFIG_DIR/nvim/lua/plugins/theme.lua"
+	link_atomic "$STATE_DIR/btop.theme" "$CONFIG_DIR/btop/themes/current.theme"
+	link_atomic "$STATE_DIR/wayhud.css" "$CONFIG_DIR/wayhud/style.css"
+	link_atomic "$STATE_DIR/herdr.toml" "$CONFIG_DIR/herdr/config.toml"
+	# Directory events are required by the Qt configuration watchers.
+	for qt in qt5ct qt6ct; do link_atomic "$STATE_DIR/qt-colors.conf" "$CONFIG_DIR/$qt/colors.conf"; done
+	for version in gtk-3.0 gtk-4.0; do
+		link_atomic "$STATE_DIR/gtk.css" "$CONFIG_DIR/$version/gtk.css"
+		gtk_settings "$CONFIG_DIR/$version"
+	done
+	if [[ "${colors[mode]}" == dark ]]; then
+		scheme=prefer-dark
+		gtk=adw-gtk3-dark
+	fi
+	gsettings set org.gnome.desktop.interface color-scheme "$scheme"
+	gsettings set org.gnome.desktop.interface gtk-theme "$gtk"
+	gsettings set org.gnome.desktop.interface icon-theme Adwaita
+	gsettings set org.gnome.desktop.wm.preferences button-layout ''
+}
+reload_apps() {
+	local stage="$1" unit state pids pid path sock
+	for unit in mako.service app-org.fcitx.Fcitx5@autostart.service custom-danmaku.service; do
+		state=$(systemctl --user show --property=ActiveState --value "$unit")
+		if [[ "$state" == active ]]; then
+			if [[ "$unit" == custom-danmaku.service ]]; then
+				require herdr
+				herdr server reload-config
+			else systemctl --user reload "$unit"; fi
+		fi
+	done
+	pids=$(systemctl --user show --property=MainPID --value 'app-*.service' 'custom-*.service')
+	for pid in $pids; do
+		[[ "$pid" =~ ^[0-9]+$ ]] || die 1 cli_unavailable "name=$pid"
+		if path=$(readlink "/proc/$pid/exe"); then
+			# Only service main processes; never signal terminal children.
+			case "${path##*/}" in ftty) kill -USR1 "$pid" ;; btop) kill -USR2 "$pid" ;; esac
+		fi
+	done
+	find "$RUNTIME_DIR" -type s -name '*nvim*.sock' -print0 >"$stage/nvim-sockets"
+	while IFS= read -r -d '' sock; do
+		require nvim
+		nvim --server "$sock" --remote-send '<Cmd>doautocmd User LazyReload<CR>' >&2
+	done <"$stage/nvim-sockets"
+	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+		require xrwm
+		# The compositor can remain available while its independent WM is offline.
+		if xrwm status >/dev/null 2>&1; then "$STATE_DIR/xrwm.sh"; fi
+	fi
+}
+apply_theme() (
+	local name="$1" stage tpl target title body key entry lock
+	local -A colors=()
+	[[ "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] || usage_error
+	[[ -f "$CONFIG_DIR/themes/$name/colors.toml" ]] || die 1 cli_unavailable "name=$name"
+	require awk flock mktemp chmod cp mv ln mkdir systemctl gsettings notify-send find readlink
+	title=$(t domain_theme)
+	body=$(t theme_switched "theme=$name")
+	load_colors "$CONFIG_DIR/themes/$name/colors.toml"
+	mkdir -p -- "$STATE_DIR"
+	# Lock the persistent state directory without an extra lockfile.
+	exec {lock}<"$STATE_DIR"
+	flock "$lock"
+	stage=$(mktemp -d "$STATE_DIR/.custom-theme.XXXXXX")
+	trap 'rm -rf -- "$stage"' EXIT
+	trap 'exit 130' INT
+	trap 'exit 1' TERM HUP
+	shopt -s nullglob
+	local -a templates=("$CONFIG_DIR"/themed/*.tpl)
+	((${#templates[@]} > 0)) || die 1 cli_unavailable "name=$CONFIG_DIR/themed"
+	for tpl in "${templates[@]}"; do
+		target="${tpl##*/}"
+		target="${target%.tpl}"
+		render "$tpl" >"$stage/$target"
+		chmod 644 "$stage/$target"
+		if [[ "$target" == *.sh ]]; then chmod 755 "$stage/$target"; fi
+	done
+	cat "$CONFIG_DIR/herdr/config.base.toml" >"$stage/herdr.toml"
+	printf '\n# Auto-generated by custom-theme from active theme\n[theme.custom]\n' >>"$stage/herdr.toml"
+	for entry in accent:accent panel_bg:background sidebar_bg:background active_row_bg:active_row_bg selection_bg:selection_bg surface0:surface0 surface1:surface1 surface_dim:surface_dim overlay0:overlay0 overlay1:overlay1 text:foreground subtext0:subtext0 mauve:magenta green:green yellow:yellow red:red blue:blue teal:cyan peach:orange; do
+		key="${entry#*:}"
+		[[ "${colors[$key]:-}" =~ ^#[[:xdigit:]]{6}$ ]] || die 1 cli_unavailable "name=$key"
+		printf '%s = "%s"\n' "${entry%:*}" "${colors[$key]}" >>"$stage/herdr.toml"
+	done
+	cp -- "$CONFIG_DIR/themes/$name/colors.toml" "$stage/colors.toml"
+	printf '%s\n' "$name" >"$stage/current.name"
+	# Validate every template before replacing any active rendered file.
+	for target in "$stage"/*; do mv -Tf -- "$target" "$STATE_DIR/${target##*/}"; done
+	link_atomic "$CONFIG_DIR/themes/$name" "$STATE_DIR/current"
+	integrate
+	if [[ -f "$CONFIG_DIR/btop/btop.conf" ]]; then
+		awk 'BEGIN { found=0 } /^[[:space:]]*color_theme[[:space:]]*=/ { print "color_theme = \"current\""; found=1; next }
+            { print } END { if (!found) print "color_theme = \"current\"" }' "$CONFIG_DIR/btop/btop.conf" >"$stage/btop.conf"
+		# btop config may live on another filesystem from XDG state.
+		local tmp
+		tmp=$(mktemp "$CONFIG_DIR/btop/.custom-theme.XXXXXX")
+		if ! cp -- "$stage/btop.conf" "$tmp" || ! mv -Tf -- "$tmp" "$CONFIG_DIR/btop/btop.conf"; then
+			rm -f -- "$tmp"
+			die 1 cli_unavailable name=btop.conf
+		fi
+	fi
+	reload_apps "$stage"
+	notify-send -a custom-theme -h string:x-canonical-private-synchronous:theme "$title" "$body"
+	printf '%s\n' "$name"
+)
+menu() {
+	local current names name rows='' choice prompt
+	local -a choices=()
+	[[ -n "${WAYLAND_DISPLAY:-}" ]] || die 1 cli_unavailable name=WAYLAND_DISPLAY
+	require fuzzel
+	current=$(current)
+	names=$(list_themes)
+	prompt=$(t theme_prompt)
+	while IFS= read -r name; do
+		[[ -n "$name" ]] || continue
+		choices+=("$name")
+		if [[ "$name" == "$current" ]]; then rows+="* $name"$'\n'; else rows+="  $name"$'\n'; fi
+	done <<<"$names"
+	((${#choices[@]})) || return 0
+	choice=$(printf '%s' "$rows" | pick --index --prompt "$prompt" --lines "$MENU_LINES")
+	[[ -n "$choice" ]] || return 0
+	[[ "$choice" =~ ^(0|[1-9][0-9]{0,5})$ ]] || die 1 cli_picker_failed
+	((choice < ${#choices[@]})) || die 1 cli_picker_failed
+	apply_theme "${choices[$choice]}"
+}
+main() {
+	local action="${1:-menu}" name
+	if (($#)); then shift; fi
+	case "$action" in
+	-h | --help | help)
+		(($# == 0)) || usage_error
+		t help_theme
+		;;
+	menu)
+		(($# == 0)) || usage_error
+		menu
+		;;
+	list | --list | -l)
+		(($# == 0)) || usage_error
+		list_themes
+		;;
+	current | --current | -c)
+		(($# == 0)) || usage_error
+		current
+		;;
+	refresh | --refresh | -r)
+		(($# == 0)) || usage_error
+		name=$(current)
+		[[ -n "$name" ]] || die 1 theme_no_current
+		apply_theme "$name"
+		;;
+	set)
+		(($# == 1)) || usage_error
+		apply_theme "$1"
+		;;
+	*)
+		(($# == 0)) || usage_error
+		apply_theme "$action"
+		;;
+	esac
+}
+main "$@"

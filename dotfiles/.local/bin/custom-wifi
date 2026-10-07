@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+#
+# @name         custom-wifi
+# @summary      Manage wireless connections through iwd
+# @deps         busctl, jq; menu: fuzzel, notify-send; passwords: iwctl
+# @usage        custom-wifi [menu|list|status|connect <ssid> [--passphrase-stdin]|disconnect|toggle]
+# @options      -h, --help  Print localized usage without contacting the backend
+# @stdin        One passphrase line with --passphrase-stdin
+# @stdout       Escaped TSV listings, status fields, or operation results
+# @stderr       Diagnostics; exits 2 for usage, 127 for missing tools, 1 for failures
+# @examples     custom-wifi list; custom-wifi status; custom-wifi menu
+#
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
+	else
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
+	fi
+)
+
+notify() {
+	local title body
+	[[ "$action" == menu ]] || return 0
+	title=$(t "domain_${DOMAIN}")
+	body=$(t "$@")
+	notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
+}
+check_menu() {
+	[[ -n "${WAYLAND_DISPLAY:-}" ]] || die 1 cli_unavailable name=WAYLAND_DISPLAY
+	require fuzzel notify-send
+}
+DOMAIN=wifi
+SCAN_DELAY=1.2
+MENU_LINES=15
+
+load_networks() {
+	local objects station ordered
+	objects=$(busctl --auto-start=no call net.connman.iwd / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short)
+	station=$(jq -c '.data[0] | to_entries | map(select(.value["net.connman.iwd.Station"])) | .[0] // empty' <<<"$objects")
+	[[ -n "$station" ]] || die 1 net_no_device
+	station_path=$(jq -er '.key' <<<"$station")
+	device=$(jq -er '.value["net.connman.iwd.Device"].Name.data' <<<"$station")
+	state=$(jq -er '.value["net.connman.iwd.Station"].State.data' <<<"$station")
+	connected_path=$(jq -r '.value["net.connman.iwd.Station"].ConnectedNetwork.data // ""' <<<"$station")
+	networks=$(jq -ce --arg station "$station_path/" '[.data[0] | to_entries[] |
+        select(.key | startswith($station)) | select(.value["net.connman.iwd.Network"]) |
+        .key as $path | .value["net.connman.iwd.Network"] |
+        {path: $path, name: .Name.data, type: .Type.data, connected: .Connected.data,
+         known: ((.KnownNetwork.data // "") != "")}]' <<<"$objects")
+	if [[ "$action" == status || "$action" == disconnect || ("$action" == toggle && "$state" != disconnected) ]]; then return; fi
+	ordered=$(busctl --auto-start=no call net.connman.iwd "$station_path" net.connman.iwd.Station GetOrderedNetworks --json=short)
+	networks=$(jq -ce --argjson networks "$networks" '[.data[0][] |
+        . as $ordered | $networks[] | select(.path == $ordered[0]) | . + {signal: $ordered[1]}]' <<<"$ordered")
+}
+station_call() { busctl --quiet call net.connman.iwd "$station_path" net.connman.iwd.Station "$1"; }
+disconnect_network() {
+	if [[ "$state" != disconnected ]]; then station_call Disconnect; fi
+	notify net_disconnected "ssid=$device"
+	printf 'disconnected\n'
+}
+select_network() {
+	path=$(jq -er '.path' <<<"$1")
+	name=$(jq -r '.name' <<<"$1")
+	type=$(jq -er '.type' <<<"$1")
+	connected=$(jq -r '.connected' <<<"$1")
+	known=$(jq -r '.known' <<<"$1")
+}
+find_network() {
+	local matches count
+	matches=$(jq -c --arg name "$1" '[.[] | select(.name == $name)]' <<<"$networks")
+	count=$(jq length <<<"$matches")
+	((count > 0)) || die 1 net_not_found "ssid=$1"
+	((count == 1)) || die 1 net_ambiguous_ssid "ssid=$1"
+	select_network "$(jq -c '.[0]' <<<"$matches")"
+}
+connect_network() {
+	local passphrase="${1:-}" actual
+	if [[ "$connected" != true ]]; then
+		if [[ -n "$passphrase" ]]; then
+			require iwctl
+			iwctl --dont-ask --passphrase "$passphrase" station "$device" connect "$name" >&2
+		else
+			[[ "$known" == true || "$type" == open ]] || die 1 net_credentials_required "ssid=$name"
+			busctl --quiet call net.connman.iwd "$path" net.connman.iwd.Network Connect
+		fi
+		actual=$(busctl get-property net.connman.iwd "$path" net.connman.iwd.Network Connected)
+		[[ "$actual" == 'b true' ]] || die 1 net_failed "ssid=$name"
+	fi
+	notify net_connected "ssid=$name"
+	jq -nr --arg name "$name" '["connected",$name] | @tsv'
+}
+menu() {
+	local rows prompt choice count passphrase
+	while :; do
+		load_networks
+		rows=$(jq -r '.[] | (if .connected then "* " else "  " end) +
+            (if .signal >= -5000 then "󰤨" elif .signal >= -6500 then "󰤥" elif .signal >= -7500 then "󰤢" else "󰤟" end) +
+            "  " + (if .type == "open" then "󰌿" else "󰌾" end) + "  " + ([.name] | @tsv)' <<<"$networks")
+		prompt=$(t net_prompt)
+		choice=$({
+			printf '  󰑐  %s\n' "$(t net_rescan)"
+			if [[ -n "$rows" ]]; then printf '%s\n' "$rows"; fi
+		} |
+			pick --index --prompt "$prompt" --lines "$MENU_LINES")
+		[[ -n "$choice" ]] || return 0
+		count=$(jq length <<<"$networks")
+		[[ "$choice" =~ ^(0|[1-9][0-9]{0,5})$ ]] || die 1 cli_picker_failed
+		((choice <= count)) || die 1 cli_picker_failed
+		if [[ "$choice" == 0 ]]; then
+			station_call Scan
+			sleep "$SCAN_DELAY"
+			continue
+		fi
+		select_network "$(jq -ce --argjson index "$((choice - 1))" '.[$index]' <<<"$networks")"
+		if [[ "$connected" == true ]]; then
+			disconnect_network
+			return
+		fi
+		passphrase=''
+		if [[ "$known" != true && "$type" != open ]]; then
+			prompt=$(t net_password_prompt "ssid=$name")
+			passphrase=$(pick --password --prompt "$prompt" --lines 0 </dev/null)
+			[[ -n "$passphrase" ]] || return 0
+		fi
+		connect_network "$passphrase"
+		return
+	done
+}
+main() {
+	local action="${1:-menu}" station_path device state connected_path networks path name type connected known passphrase selected
+	if (($#)); then shift; fi
+	case "$action" in
+	-h | --help | help)
+		(($# == 0)) || usage_error
+		t net_usage
+		return
+		;;
+	menu | list | scan | status | disconnect | toggle) (($# == 0)) || usage_error ;;
+	connect)
+		(($# == 1 || $# == 2)) && [[ -n "$1" ]] || usage_error
+		if (($# == 2)); then [[ "$2" == --passphrase-stdin ]] || usage_error; fi
+		;;
+	*) usage_error ;;
+	esac
+	require busctl jq
+	if [[ "$action" == menu ]]; then
+		check_menu
+		menu
+		return
+	fi
+	load_networks
+	case "$action" in
+	status)
+		jq -nr --arg device "$device" --arg state "$state" --arg path "$connected_path" --argjson networks "$networks" '
+                "device: " + ([$device] | @tsv), "state: " + $state,
+                "connected: " + ([$networks[] | select(.path == $path) | [.name] | @tsv] | .[0] // "none")'
+		;;
+	list | scan) jq -r '.[] | [.name, (((.signal / 100) | floor | tostring) + " dBm"), .type,
+            (if .connected then "connected" else "disconnected" end)] | @tsv' <<<"$networks" ;;
+	disconnect) disconnect_network ;;
+	connect)
+		find_network "$1"
+		passphrase=''
+		if (($# == 2)); then
+			IFS= read -r passphrase || [[ -n "$passphrase" ]] || die 2 net_empty_passphrase
+			[[ -n "$passphrase" ]] || die 2 net_empty_passphrase
+		fi
+		connect_network "$passphrase"
+		;;
+	toggle)
+		if [[ "$state" != disconnected ]]; then
+			disconnect_network
+			return
+		fi
+		selected=$(jq -c '[.[] | select(.known or .type == "open")] | .[0] // empty' <<<"$networks")
+		[[ -n "$selected" ]] || die 1 net_no_saved_network
+		select_network "$selected"
+		connect_network
+		;;
+	esac
+}
+main "$@"

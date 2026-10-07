@@ -104,22 +104,22 @@ mise bootstrap dotfiles apply
 
 - Schema: **Wanxiang Flypy (万象小鹤双拼)** from `archlinuxcn/rime-wanxiang-flypy`.
 - Auto-Deployment: A pacman hook (`/etc/pacman.d/hooks/rime-wanxiang-deploy.hook`) automatically redeploys Rime when dictionary or schema packages update.
-- Theme: Standalone custom theme synchronized via `arch theme sync fcitx5`.
+- Theme: Standalone custom theme synchronized via `custom-theme refresh`.
 
 ## 4. Hardware Controls (ThinkPad & Intel GPU)
 
 Non-root write permissions are granted via `/etc/tmpfiles.d/`:
-- **ThinkPad Fan**: `/proc/acpi/ibm/fan` controlled via `arch hw fan [status|auto|0-7]`.
-- **Intel GPU Frequencies**: Controlled via `arch hw gpu [status|auto|max]`.
+- **ThinkPad Fan**: `/proc/acpi/ibm/fan` controlled via `custom-hardware fan [status|auto|0-7]`.
+- **Intel GPU Frequencies**: Controlled via `custom-hardware gpu [status|auto|max]`.
 
 ## 5. Desktop CLI
 
-Standardized desktop utilities use `custom-<domain>`. Independent programs such as `x-theme`, `x-live`, and `x-camera` retain their names:
-- `x-theme set <name>` / `x-theme menu`: switch desktop themes.
+All 20 repository-owned desktop utilities use `custom-<domain>`; legacy command aliases have been removed:
+- `custom-theme set <name>` / `custom-theme menu`: switch desktop themes.
 - `custom-hardware fan` / `custom-hardware gpu`: inspect/control hardware.
 - `custom-capture ocr` / `custom-ocr`: capture screen region and copy recognized text.
 - `custom-i18n get <key>`: query localized strings.
 - `custom-font menu` / `custom-font current`: select or inspect desktop fonts.
-- `x-live start` / `x-live stop`: control live streaming pipeline.
-- `x-camera toggle`: webcam PIP floating player.
-- `x-captions toggle`: real-time live captions overlay.
+- `custom-live start` / `custom-live stop`: control live streaming pipeline.
+- `custom-camera toggle`: webcam PIP floating player.
+- `custom-captions toggle`: real-time live captions overlay.

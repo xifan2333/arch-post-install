@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+#
+# @name         custom-danmaku
+# @summary      Manage the Herdr live chat workspace
+# @deps         systemctl, herdr, jq; start: uwsm, ftty, unibarrage, dmnotifier
+# @usage        custom-danmaku [status|start|stop|toggle]
+# @options      -h, --help  Print localized usage
+# @stdin        Unused; configuration uses explicit menus
+# @stdout       Service state or workspace IDs
+# @stderr       Diagnostics; usage=2, missing dependency=127, failure=1
+# @examples     custom-danmaku status; custom-danmaku start; custom-danmaku stop
+#
+set -Eeuo pipefail
+shopt -s inherit_errexit
+trap 'exit 130' INT
+on_error() {
+	local rc="$1" line="$2"
+	if ((BASH_SUBSHELL == 0)); then
+		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
+	fi
+	if ((rc == 2 || rc == 127 || rc == 130)); then exit "$rc"; fi
+	exit 1
+}
+trap 'on_error "$?" "$LINENO"' ERR
+t() { custom-i18n get "$@"; }
+die() {
+	local rc="$1"
+	shift
+	t "$@" >&2
+	exit "$rc"
+}
+require() {
+	local dependency
+	for dependency in "$@"; do
+		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
+	done
+}
+usage_error() { die 2 cli_usage "command=${0##*/}"; }
+
+UNIT=custom-danmaku.service
+LABEL="${LIVESTREAM_DANMAKU_LABEL:-live}"
+WAIT_SECS="${LIVESTREAM_DANMAKU_WAIT_SECS:-8}"
+SPLIT_RATIO="${LIVESTREAM_DANMAKU_SPLIT_RATIO:-0.5}"
+API_POLL_DELAY=0.15
+PANE_START_DELAY=0.4
+
+api_running() {
+	local status running
+	status=$(herdr status server --json) || exit 1
+	running=$(jq -er '.running | if type == "boolean" then tostring else error("invalid server state") end' <<<"$status") || exit 1
+	[[ "$running" == true ]]
+}
+workspace_id() {
+	local data
+	if ! api_running; then return 0; fi
+	data=$(herdr workspace list)
+	jq -er --arg label "$LABEL" '.result.workspaces |
+        if type != "array" then error("invalid workspace list") else . end |
+        [.[] | select(.label == $label) | .workspace_id] |
+        if length > 1 then error("ambiguous workspace label") else .[0] // "" end' <<<"$data"
+}
+ensure_client() {
+	local state deadline
+	state=$(systemctl --user show --property=ActiveState --value "$UNIT")
+	case "$state" in
+	active | activating) ;;
+	inactive | failed)
+		uwsm app -t service -p PartOf=graphical-session.target -u "$UNIT" -- ftty -d "${HOME//\$/\$\$}" -e herdr
+		;;
+	*) die 1 cli_unavailable "name=$UNIT" ;;
+	esac
+	deadline=$((SECONDS + WAIT_SECS))
+	while ((SECONDS < deadline)); do
+		if api_running; then return 0; fi
+		sleep "$API_POLL_DELAY"
+	done
+	die 1 cli_unavailable name=herdr
+}
+start_desk() (
+	local ws_id created='' data root right
+	require systemctl uwsm ftty herdr jq unibarrage dmnotifier
+	[[ "$WAIT_SECS" =~ ^[1-9][0-9]*$ && "$SPLIT_RATIO" =~ ^0\.[0-9]+$ ]] || usage_error
+	ensure_client
+	ws_id=$(workspace_id)
+	if [[ -n "$ws_id" ]]; then
+		herdr workspace focus "$ws_id" >/dev/null
+		printf '%s\n' "$ws_id"
+		return
+	fi
+	data=$(herdr workspace create --label "$LABEL" --focus)
+	ws_id=$(jq -er '.result.workspace.workspace_id' <<<"$data")
+	created="$ws_id"
+	# Roll back only the workspace created by this invocation on setup failure.
+	trap 'if [[ -n "$created" ]]; then herdr workspace close "$created" >/dev/null; fi' EXIT
+	root=$(jq -er '.result.root_pane.pane_id' <<<"$data")
+	data=$(herdr pane split --pane "$root" --direction right --ratio "$SPLIT_RATIO" --no-focus)
+	right=$(jq -er '.result.pane.pane_id' <<<"$data")
+	herdr pane rename "$root" unibarrage >/dev/null
+	herdr pane rename "$right" dmnotifier >/dev/null
+	herdr pane run "$root" unibarrage >/dev/null
+	sleep "$PANE_START_DELAY"
+	herdr pane run "$right" dmnotifier >/dev/null
+	herdr workspace focus "$ws_id" >/dev/null
+	created=''
+	printf '%s\n' "$ws_id"
+)
+stop_desk() {
+	local ws_id
+	ws_id=$(workspace_id)
+	if [[ -n "$ws_id" ]]; then herdr workspace close "$ws_id" >/dev/null; fi
+}
+main() {
+	local action="${1:-status}" ws_id
+	(($# <= 1)) || usage_error
+	case "$action" in
+	-h | --help | help)
+		t help_danmaku
+		return
+		;;
+	start | stop | status | toggle) ;;
+	*) usage_error ;;
+	esac
+	require herdr jq
+	case "$action" in
+	start) start_desk ;;
+	stop) stop_desk ;;
+	status | toggle)
+		ws_id=$(workspace_id)
+		if [[ "$action" == status ]]; then
+			if [[ -n "$ws_id" ]]; then printf 'active\n'; else printf 'inactive\n'; fi
+		elif [[ -n "$ws_id" ]]; then
+			stop_desk
+		else start_desk; fi
+		;;
+	esac
+}
+main "$@"
