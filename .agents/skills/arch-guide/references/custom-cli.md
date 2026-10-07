@@ -175,7 +175,7 @@ Use UWSM and systemctl at these call sites; no shared session wrapper is needed.
 See [the lifecycle rules](../../arch-dev/references/principles.md#14-desktop-application-lifecycle-uwsm--systemd).
 
 Waybar, fnott, and Fcitx5 reuse their native services. Bootstrap enables fnott
-on `graphical-session.target`; its drop-in restarts failures after three seconds. Font/theme changes use
+on `graphical-session.target`; its drop-in restarts failures immediately. Font/theme changes use
 Waybar's `reload_style_on_change` to watch imported CSS, preserving bars and
 module processes. Fnott applies font/theme changes through a service restart.
 The generated `app-org.fcitx.Fcitx5@autostart.service` gets an `ExecReload`
