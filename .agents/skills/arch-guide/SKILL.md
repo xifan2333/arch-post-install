@@ -120,6 +120,6 @@ All 20 repository-owned desktop utilities use `custom-<domain>`; legacy command 
 - `custom-capture ocr` / `custom-ocr`: capture screen region and copy recognized text.
 - `custom-i18n get <key>`: query localized strings.
 - `custom-font menu` / `custom-font current`: select or inspect desktop fonts.
-- `custom-live start` / `custom-live stop`: control live streaming pipeline.
+- `custom-stream start` / `custom-stream stop`: control live streaming pipeline.
 - `custom-camera toggle`: webcam PIP floating player.
 - `custom-captions toggle`: real-time live captions overlay.

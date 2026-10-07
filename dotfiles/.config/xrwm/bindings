@@ -107,7 +107,7 @@ xrwm map normal "Super+Alt" V spawn uwsm app -t service -- custom-camera toggle
 xrwm map normal "Super+Alt" C spawn uwsm app -t service -- custom-captions toggle
 
 # Title Overlay (T = Title)
-xrwm map normal "Super+Alt" T spawn uwsm app -t service -- custom-stream-title toggle
+xrwm map normal "Super+Alt" T spawn uwsm app -t service -- custom-title toggle
 
 # ===========================================================================
 # 6. Screen Recording & Live Streaming (G = Grab / Record / Stream)
@@ -117,14 +117,14 @@ xrwm map normal "Super+Alt" T spawn uwsm app -t service -- custom-stream-title t
 xrwm map normal Super G spawn uwsm app -t service -- custom-record toggle
 
 # Live Stream Push via Portal
-xrwm map normal "Super+Shift" G spawn uwsm app -t service -- custom-live toggle
+xrwm map normal "Super+Shift" G spawn uwsm app -t service -- custom-stream toggle
 
 # ===========================================================================
 # 7. Title HUD Direct Actions (T)
 # ===========================================================================
 
-xrwm map normal Super T spawn uwsm app -t service -- custom-stream-title edit
-xrwm map normal "Super+Shift" T spawn uwsm app -t service -- custom-stream-title clear
+xrwm map normal Super T spawn uwsm app -t service -- custom-title edit
+xrwm map normal "Super+Shift" T spawn uwsm app -t service -- custom-title clear
 
 # ===========================================================================
 # 8. Workspace Tags (1 - 9, 0, Tab)

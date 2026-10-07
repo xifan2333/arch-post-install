@@ -2,6 +2,59 @@
 # Post-dotfiles hook: seed initial runtime configuration templates and sync themes
 set -euo pipefail
 
+# Retire the old command identities once, preserving user-owned files and history.
+migrate_command_names() {
+    local repo_root old_state new_state unit state relative target expected
+    local needs_migration=false
+    local -a retired_links=()
+    repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+    old_state="${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title"
+    new_state="${XDG_STATE_HOME:-$HOME/.local/state}/custom-title"
+
+    for relative in .local/bin/custom-blue .local/bin/custom-live .local/bin/custom-stream-title .local/share/applications/custom-live-config.desktop; do
+        target="$HOME/$relative"
+        expected="$repo_root/dotfiles/$relative"
+        if [[ -L "$target" && "$(readlink -m -- "$target")" == "$expected" ]]; then
+            retired_links+=("$target")
+            needs_migration=true
+        fi
+    done
+    if [[ -e "$old_state" || -L "$old_state" ]]; then needs_migration=true; fi
+    [[ "$needs_migration" == true ]] || return 0
+
+    # A running transient unit cannot be renamed. Require it to finish first.
+    for unit in custom-live.service custom-stream-title.service; do
+        state=$(systemctl --user show --property=ActiveState --value "$unit")
+        case "$state" in
+        inactive | failed) ;;
+        active | activating | deactivating | reloading)
+            custom-i18n get cli_migration_active "unit=$unit" >&2
+            return 1
+            ;;
+        *)
+            custom-i18n get cli_unavailable "name=$unit" >&2
+            return 1
+            ;;
+        esac
+    done
+    if [[ -e "$old_state" || -L "$old_state" ]]; then
+        if [[ -e "$new_state" || -L "$new_state" ]]; then
+            custom-i18n get cli_migration_conflict "old=$old_state" "new=$new_state" >&2
+            return 1
+        fi
+        [[ -d "$old_state" ]] || {
+            custom-i18n get cli_unavailable "name=$old_state" >&2
+            return 1
+        }
+        mv -T -- "$old_state" "$new_state"
+    fi
+
+    for target in "${retired_links[@]}"; do
+        rm -- "$target"
+    done
+}
+migrate_command_names
+
 if [[ $EUID -eq 0 ]]; then
     SUDO=""
 elif command -v sudo &>/dev/null; then

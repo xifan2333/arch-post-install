@@ -134,16 +134,16 @@ mise -C ~/Code/arch-post-install bootstrap --yes
 
 ## 蓝牙和 Wi-Fi 命令
 
-`custom-blue` 和 `custom-wifi` 不带参数时打开菜单；显式子命令可用于脚本，只有 `menu` 会弹出菜单和桌面通知。
+`custom-bluetooth` 和 `custom-wifi` 不带参数时打开菜单；显式子命令可用于脚本，只有 `menu` 会弹出菜单和桌面通知。
 
 | 操作 | 蓝牙 | Wi-Fi |
 | --- | --- | --- |
-| 帮助 | `custom-blue --help` | `custom-wifi --help` |
-| 只读查询 | `custom-blue status` / `custom-blue list` | `custom-wifi status` / `custom-wifi list` |
-| 连接 | `custom-blue connect <MAC或名称>` | `custom-wifi connect <SSID>` |
-| 断开 | `custom-blue disconnect [MAC或名称]` | `custom-wifi disconnect` |
-| 切换 | `custom-blue toggle` 切换适配器电源 | `custom-wifi toggle` 断开当前连接或连接信号最强的已保存/开放网络 |
-| 菜单 | `custom-blue menu` | `custom-wifi menu` |
+| 帮助 | `custom-bluetooth --help` | `custom-wifi --help` |
+| 只读查询 | `custom-bluetooth status` / `custom-bluetooth list` | `custom-wifi status` / `custom-wifi list` |
+| 连接 | `custom-bluetooth connect <MAC或名称>` | `custom-wifi connect <SSID>` |
+| 断开 | `custom-bluetooth disconnect [MAC或名称]` | `custom-wifi disconnect` |
+| 切换 | `custom-bluetooth toggle` 切换适配器电源 | `custom-wifi toggle` 断开当前连接或连接信号最强的已保存/开放网络 |
+| 菜单 | `custom-bluetooth menu` | `custom-wifi menu` |
 
 重复连接已连接的目标不会断开它。蓝牙省略断开目标时断开当前适配器的已连接设备；名称重复时使用 MAC。脚本默认使用查询到的第一个适配器/无线设备。
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# @name         custom-stream-title
+# @name         custom-title
 # @summary      Manage or display stream title HUD overlay via wayhud
 # @version      1.0.0
 # @deps         systemctl, uwsm, wayhud, fuzzel
@@ -8,7 +8,7 @@
 # @description  On-screen stream title banner HUD overlay controller.
 #               Manages display text, recent title history, and process lifecycle without PID files.
 #
-# @usage        custom-stream-title [options] [command] [arguments...]
+# @usage        custom-title [options] [command] [arguments...]
 #
 # @options
 #   -h, --help  Show this help message and exit
@@ -27,10 +27,10 @@
 # @stderr       Diagnostic errors and non-zero exit reason
 #
 # @examples
-#   custom-stream-title get
-#   custom-stream-title set "Live Coding Session"
-#   custom-stream-title edit
-#   custom-stream-title toggle
+#   custom-title get
+#   custom-title set "Live Coding Session"
+#   custom-title edit
+#   custom-title toggle
 
 set -Eeuo pipefail
 shopt -s inherit_errexit
@@ -75,13 +75,13 @@ pick() (
 	fi
 )
 
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/custom-stream-title"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/custom-title"
 style_file="${XDG_CONFIG_HOME:-$HOME/.config}/wayhud/style.css"
 font_file="${XDG_STATE_HOME:-$HOME/.local/state}/font/wayhud.css"
 history_file="$state_dir/history.txt"
 history_limit=30
 startup_delay=0.1
-unit=custom-stream-title.service
+unit=custom-title.service
 
 running() {
 	local state
@@ -149,7 +149,7 @@ main() {
 	*) usage_error ;;
 	esac
 	case "$action" in
-	-h | --help) t help_stream_title ;;
+	-h | --help) t help_title ;;
 	get) get_title ;;
 	set) set_title "$1" ;;
 	clear | stop) stop_title ;;
