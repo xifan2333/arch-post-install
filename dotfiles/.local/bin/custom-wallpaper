@@ -207,13 +207,18 @@ select_local() (
 		prefix='  '
 		if [[ "$file" == "$current" ]]; then prefix='* '; fi
 		labels+=("${prefix}󰋩  ${file#"$wall_dir/"}")
-		magick "${file}[0]" -thumbnail "$thumbnail_size" "$tmp/$i.png"
+		magick "${file}[0]" -thumbnail "$thumbnail_size" "$tmp/$i.png" 2>/dev/null || true
 		i=$((i + 1))
 	done <<<"$files"
 	prompt=$(t wallpaper_pick_prompt)
 	choice=$(
-		for i in "${!paths[@]}"; do printf '%s\0icon\x1f%s/%s.png\n' "${labels[$i]}" "$tmp" "$i"; done |
-			pick --prompt "$prompt" --index
+		for i in "${!paths[@]}"; do
+			if [[ -f "$tmp/$i.png" ]]; then
+				printf '%s\0icon\x1f%s/%s.png\n' "${labels[$i]}" "$tmp" "$i"
+			else
+				printf '%s\n' "${labels[$i]}"
+			fi
+		done | pick --prompt "$prompt" --index
 	)
 	[[ -n "$choice" ]] || return 0
 	[[ "$choice" =~ ^[0-9]+$ ]] || die 1 cli_picker_failed
