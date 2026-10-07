@@ -7,7 +7,7 @@ All 20 repository-owned desktop commands use the `custom-` namespace:
 `custom-ocr`, `custom-power`, `custom-record`, `custom-stream-title`,
 `custom-theme`, `custom-wallhaven`, `custom-wallpaper`, and `custom-wifi`.
 Use `--help` for their command syntax. Legacy executable and desktop-entry
-names have been removed. Camera and captions use Python; the other commands
+names have been removed. Captions uses Python; the other 19 commands
 use Bash.
 
 Commands use their declared tools. They do not try alternative executables,
