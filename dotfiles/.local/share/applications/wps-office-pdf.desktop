@@ -1,7 +1,7 @@
 [Desktop Entry]
 Comment=Kingsoft Pdf Reader
 Comment[zh_CN]=WPS PDF阅读器
-Exec=wpspdf %F
+Exec=env QT_QPA_PLATFORM=xcb wpspdf %F
 GenericName=Kingsoft Pdf Reader
 GenericName[zh_CN]=WPS PDF
 MimeType=application/pdf
