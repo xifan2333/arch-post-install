@@ -173,7 +173,7 @@ main() {
 	menu | list | scan | status | disconnect | toggle) (($# == 0)) || usage_error ;;
 	connect)
 		(($# == 1 || $# == 2)) && [[ -n "$1" ]] || usage_error
-		[[ "${2:---passphrase-stdin}" == --passphrase-stdin ]] || usage_error
+		if (($# == 2)); then [[ "$2" == --passphrase-stdin ]] || usage_error; fi
 		;;
 	*) usage_error ;;
 	esac
