@@ -51,7 +51,10 @@ neither a dictionary nor jq.
   fields preserved and writes replaced atomically at mode 0600. Querying or
   cancelling an empty editor does not create this state.
 - `custom-danmaku` defaults to `status`. `start` reuses the labelled Herdr workspace
-  or creates its two panes; failed setup closes only that newly created workspace.
+  or creates its two panes. It checks the native Herdr API first, reusing an
+  existing instance even when it was opened outside `custom-danmaku.service`.
+  Only when the API is unavailable does it start or await a managed Herdr terminal.
+  Failed setup closes only that newly created workspace.
   `stop` closes the workspace, preserving unrelated workspaces and the Herdr client.
 - `custom-camera` defaults to `status`. `list` emits JSON camera records;
   `start [device]` selects the specified device or the highest-ranked supported
@@ -239,7 +242,7 @@ Nerd Font glyphs and selecting a row dispatches its numeric index.
 `start [record|stream]` defaults to recording. `full` remains an alias for
 `start record`; area recording has been removed. Local recordings use 60 fps,
 `-cr full -ffmpeg-video-opts "qp=10"`, and MP4 output. Streaming retains the
-portal capture, 30 fps and H264/CBR configuration, using the configured video
+direct fullscreen capture (no portal picker), 30 fps and H264/CBR configuration, using the configured video
 and audio bitrates. Both modes mix playback and the default microphone into one track
 with `-a 'default_output|default_input'`. The current default input is used,
 including an audio-processing source such as RNNoise when selected. Muting the
