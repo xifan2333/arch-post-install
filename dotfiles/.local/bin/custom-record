@@ -297,7 +297,7 @@ start_recording() {
 		if [[ "$current_key" == \?* || "$current_server" == */ ]]; then
 			output="$current_server$current_key"
 		else output="$current_server/$current_key"; fi
-		capture=(-w portal -f "$STREAM_FRAME_RATE" -fm cfr -c flv -k h264
+		capture=(-w screen -f "$STREAM_FRAME_RATE" -fm cfr -c flv -k h264
 			-fallback-cpu-encoding yes -bm cbr -q "$current_video" -ab "$current_audio")
 		self=$(readlink -f -- "${BASH_SOURCE[0]}")
 		# ':' suppresses variable expansion in the hooks; quote the executable.

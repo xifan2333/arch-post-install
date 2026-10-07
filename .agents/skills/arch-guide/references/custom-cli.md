@@ -239,7 +239,7 @@ Nerd Font glyphs and selecting a row dispatches its numeric index.
 `start [record|stream]` defaults to recording. `full` remains an alias for
 `start record`; area recording has been removed. Local recordings use 60 fps,
 `-cr full -ffmpeg-video-opts "qp=10"`, and MP4 output. Streaming retains the
-portal capture, 30 fps and H264/CBR configuration, using the configured video
+direct fullscreen capture (no portal picker), 30 fps and H264/CBR configuration, using the configured video
 and audio bitrates. Both modes mix playback and the default microphone into one track
 with `-a 'default_output|default_input'`. The current default input is used,
 including an audio-processing source such as RNNoise when selected. Muting the
