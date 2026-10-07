@@ -31,7 +31,7 @@ Use this index to understand architecture boundaries and locate the source of tr
 - **Location**: `/home/xifan/Code/dmnotifier`
 - **Role**: Real-time live stream chat / danmaku listener and desktop notification bridge.
 - **Integration Boundary**:
-  - Spawned and stopped alongside the streaming session by `dotfiles/.local/bin/livestream-danmaku` and `dotfiles/.local/bin/livestream`.
+  - Spawned and stopped alongside the streaming session by `dotfiles/.local/bin/custom-danmaku` and `dotfiles/.local/bin/custom-live`.
 
 ### 4. `fcitx5-vinput` (Voice Input IME Integration)
 

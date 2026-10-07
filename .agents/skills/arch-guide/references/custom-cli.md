@@ -38,8 +38,12 @@ neither a dictionary nor jq.
   name or nothing when uninitialized. `set <name>` (also `<name>`) and `refresh`
   validate all palette tokens before replacing rendered files. Selection lives
   in `theme/current.name`, with palette outputs under the same XDG state directory.
+  If the stored theme is removed, explicitly choose a replacement with `set <name>`
+  before rerunning bootstrap; a failed refresh does not change the selection.
   Theme refresh preserves existing GTK font settings and uses native reloads or
-  signals to service main processes. No application is restarted for a theme change.
+  signals to service main processes. WM colors refresh only when the native xrwm
+  status query confirms that its IPC endpoint is available. No application is
+  restarted for a theme change.
 - `custom-live` defaults to `status` and reports the actual service state, including
   `failed`. `start` requires a configured target; `config` explicitly opens the
   editor. Existing `livestream/history.tsv` profiles remain in XDG state, with

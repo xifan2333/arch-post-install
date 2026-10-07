@@ -239,7 +239,8 @@ reload_apps() {
 	done <"$stage/nvim-sockets"
 	if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
 		require xrwm
-		"$STATE_DIR/xrwm.sh"
+		# The compositor can remain available while its independent WM is offline.
+		if xrwm status >/dev/null 2>&1; then "$STATE_DIR/xrwm.sh"; fi
 	fi
 }
 apply_theme() (

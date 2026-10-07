@@ -128,7 +128,7 @@ discover() (
 	sleep "$DISCOVERY_SECS"
 )
 menu() {
-	local rows prompt choice count selected actual
+	local rows prompt choice count selected actual just_paired
 	while :; do
 		load_devices
 		rows=$(jq -r '.[] | [(if .connected then "* " else "  " end) +
@@ -154,16 +154,18 @@ menu() {
 			disconnect_device
 			return
 		fi
+		if [[ "$powered" != true ]]; then property "$adapter" org.bluez.Adapter1 Powered true; fi
+		just_paired=false
 		if [[ "$paired" != true ]]; then
 			require bluetoothctl timeout
-			property "$adapter" org.bluez.Adapter1 Powered true
 			property "$adapter" org.bluez.Adapter1 Pairable true
 			printf 'yes\n' | timeout "$PAIR_TIMEOUT" bluetoothctl --agent DisplayYesNo pair "$mac" >&2
 			actual=$(busctl get-property org.bluez "$path" org.bluez.Device1 Paired)
 			[[ "$actual" == 'b true' ]] || die 1 blue_failed "dev=$name"
 			property "$path" org.bluez.Device1 Trusted true
+			just_paired=true
 		fi
-		if [[ "$icon" == phone || "$icon" == computer ]]; then
+		if [[ "$just_paired" == true && ("$icon" == phone || "$icon" == computer) ]]; then
 			notify blue_paired "dev=$name"
 			printf 'paired\t%s\n' "$mac"
 		else connect_device; fi

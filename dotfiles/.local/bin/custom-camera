@@ -134,6 +134,20 @@ def tr(key: str, **values: object) -> str:
     ).rstrip("\n")
 
 
+def report_error(key: str, **values: object) -> None:
+    """Report diagnostics without replacing the operation's exit status."""
+    try:
+        subprocess.run(
+            ["custom-i18n", "get", key, *(f"{k}={v}" for k, v in values.items())],
+            stdout=sys.stderr,
+            check=False,
+        )
+    except OSError as exc:
+        # No substitute message: report only the unavailable executable/path.
+        if exc.filename:
+            print(exc.filename, file=sys.stderr)
+
+
 def fail(code: int, key: str, **values: object) -> None:
     print(tr(key, **values), file=sys.stderr)
     raise SystemExit(code)
@@ -323,11 +337,11 @@ if __name__ == "__main__":
         if exc.filename == "custom-i18n":
             print(exc.filename, file=sys.stderr)
         else:
-            print(tr("cli_dependency", name=exc.filename), file=sys.stderr)
+            report_error("cli_dependency", name=exc.filename)
         sys.exit(127)
     except subprocess.CalledProcessError as exc:
-        print(tr("cli_unavailable", name=exc.cmd[0]), file=sys.stderr)
+        report_error("cli_unavailable", name=exc.cmd[0])
         sys.exit(exc.returncode if exc.returncode in (127, 130) else 1)
     except OSError as exc:
-        print(tr("cli_unavailable", name=exc.filename), file=sys.stderr)
+        report_error("cli_unavailable", name=exc.filename)
         sys.exit(1)
