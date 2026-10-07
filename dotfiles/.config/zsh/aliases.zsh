@@ -75,3 +75,9 @@ alias lg='lazygit'
 alias cc='claude'
 alias cx='codex'
 alias c='corral'
+
+# wps office (wayland xcb fallback)
+alias wps='QT_QPA_PLATFORM=xcb wps'
+alias et='QT_QPA_PLATFORM=xcb et'
+alias wpp='QT_QPA_PLATFORM=xcb wpp'
+alias wpspdf='QT_QPA_PLATFORM=xcb wpspdf'
