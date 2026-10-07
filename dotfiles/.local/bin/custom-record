@@ -155,7 +155,7 @@ start_recording() {
 	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$unit" -p CollectMode=inactive \
 		-p KillSignal=SIGINT -p "TimeoutStopSec=$stop_timeout" -p SendSIGKILL=no \
 		-- "$recorder" "${capture[@]}" -f "$frame_rate" -cr "$color_range" -ffmpeg-video-opts "qp=$video_qp" \
-		-a default_output -c mp4 -o "${path//\$/\$\$}"
+		-a 'default_output|default_input' -c mp4 -o "${path//\$/\$\$}"
 	sleep "$startup_delay"
 	read_state
 	check_failure
