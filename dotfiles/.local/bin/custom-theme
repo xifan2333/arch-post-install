@@ -198,6 +198,7 @@ integrate() {
 	link_atomic "$STATE_DIR/btop.theme" "$CONFIG_DIR/btop/themes/current.theme"
 	link_atomic "$STATE_DIR/wayhud.css" "$CONFIG_DIR/wayhud/style.css"
 	link_atomic "$STATE_DIR/herdr.toml" "$CONFIG_DIR/herdr/config.toml"
+	link_atomic "$STATE_DIR/fnott.ini" "$CONFIG_DIR/fnott/fnott.ini"
 	# Directory events are required by the Qt configuration watchers.
 	for qt in qt5ct qt6ct; do link_atomic "$STATE_DIR/qt-colors.conf" "$CONFIG_DIR/$qt/colors.conf"; done
 	for version in gtk-3.0 gtk-4.0; do
@@ -215,12 +216,14 @@ integrate() {
 }
 reload_apps() {
 	local stage="$1" unit state pids pid path sock
-	for unit in mako.service app-org.fcitx.Fcitx5@autostart.service custom-danmaku.service; do
+	for unit in fnott.service app-org.fcitx.Fcitx5@autostart.service custom-danmaku.service; do
 		state=$(systemctl --user show --property=ActiveState --value "$unit")
 		if [[ "$state" == active ]]; then
 			if [[ "$unit" == custom-danmaku.service ]]; then
 				require herdr
 				herdr server reload-config >&2
+			elif [[ "$unit" == fnott.service ]]; then
+				systemctl --user restart fnott.service
 			else systemctl --user reload "$unit"; fi
 		fi
 	done
@@ -266,6 +269,7 @@ apply_theme() (
 	local -a templates=("$CONFIG_DIR"/themed/*.tpl)
 	((${#templates[@]} > 0)) || die 1 cli_unavailable "name=$CONFIG_DIR/themed"
 	for tpl in "${templates[@]}"; do
+		[[ -f "$tpl" ]] || continue
 		target="${tpl##*/}"
 		target="${target%.tpl}"
 		render "$tpl" >"$stage/$target"

@@ -17,6 +17,4 @@ dotfiles.default_mode = "symlink-each"
 
 "~/.config/ftty/ftty.toml" = { source = "../../dotfiles/.config/ftty/ftty.toml.tera", mode = "template" }
 
-"~/.config/mako/config" = { source = "../../dotfiles/.config/mako/config.tera", mode = "template" }
-
 "~/.config/waybar/style.css" = { source = "../../dotfiles/.config/waybar/style.css.tera", mode = "template" }
