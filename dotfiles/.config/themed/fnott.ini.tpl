@@ -6,8 +6,8 @@
 layer=overlay
 anchor=top-right
 stacking-order=bottom-up
-min-width=300
-max-width=380
+min-width=360
+max-width=360
 max-height=150
 edge-margin-vertical=16
 edge-margin-horizontal=16
@@ -21,7 +21,7 @@ icon-theme=Adwaita
 
 # Formatting (hide process/application name, keep clean summary & body)
 title-format=
-summary-format=<b>%s</b>\n
+summary-format=<b>%s</b>
 body-format=%b
 
 # Global color scheme
