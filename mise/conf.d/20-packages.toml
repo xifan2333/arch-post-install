@@ -20,6 +20,7 @@
 "pacman:grim" = "latest"
 "pacman:slurp" = "latest"
 "pacman:gpu-screen-recorder" = "latest"
+"pacman:ffmpeg" = "latest"
 "pacman:wl-clipboard" = "latest"
 "pacman:cliphist" = "latest"
 "pacman:hyprpicker" = "latest"
