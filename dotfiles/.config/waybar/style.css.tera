@@ -190,6 +190,26 @@ window#waybar {
     color: @muted;
 }
 
+/* Privacy Indicators */
+#privacy {
+    padding: 0 4px;
+    margin: 1px 2px;
+}
+
+#privacy-item {
+    padding: 0 4px;
+}
+
+#privacy-item.audio-in {
+    color: @red;
+    animation: blink 1s linear infinite;
+}
+
+#privacy-item.screenshare {
+    color: @yellow;
+    animation: blink 1.5s linear infinite;
+}
+
 /* Backlight */
 #backlight {
     padding: 0 8px;

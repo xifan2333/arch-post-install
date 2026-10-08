@@ -24,6 +24,7 @@
     "network",
     "pulseaudio",
     "pulseaudio#microphone",
+    "privacy",
     "backlight",
     "battery",
     "clock",
@@ -180,6 +181,21 @@
     "on-click-right": "custom-audio source",
     "on-scroll-up": "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SOURCE@ 5%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-"
+  },
+  "privacy": {
+    "icon-spacing": 4,
+    "icon-size": 13,
+    "transition-duration": 250,
+    "modules": [
+      {
+        "type": "screenshare",
+        "tooltip": false
+      },
+      {
+        "type": "audio-in",
+        "tooltip": false
+      }
+    ]
   },
   "backlight": {
     "format": "{icon}  {percent}%",
