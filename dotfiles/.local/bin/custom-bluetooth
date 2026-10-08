@@ -1,228 +1,508 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 #
 # @name         custom-bluetooth
-# @summary      Manage Bluetooth adapters and devices
-# @deps         busctl, jq; menu: fuzzel, notify-send, bluetoothctl, timeout
-# @usage        custom-bluetooth [menu|list|status|connect <mac|name>|disconnect [mac|name]|toggle|off]
+# @summary      Manage Bluetooth adapters and stream discovered devices into Fuzzel
+# @deps         python3, python-gobject, custom-i18n; menu: fuzzel, notify-send
+#               pairing: bluetoothctl
+# @usage        custom-bluetooth [menu|list|status|connect <mac|name>|
+#               disconnect [mac|name]|toggle|off]
 # @options      -h, --help  Print localized usage without contacting the backend
 # @stdin        Unused; explicit arguments select devices
 # @stdout       Escaped TSV listings, status fields, or operation results
 # @stderr       Diagnostics; exits 2 for usage, 127 for missing tools, 1 for failures
 # @examples     custom-bluetooth list; custom-bluetooth status; custom-bluetooth menu
 #
-set -Eeuo pipefail
-shopt -s inherit_errexit
-trap 'exit 130' INT
-on_error() {
-	local rc="$1" line="$2"
-	if ((BASH_SUBSHELL == 0)); then
-		custom-i18n get cli_failed "command=${0##*/}" "line=$line" >&2
-	fi
-	if ((rc == 127 || rc == 130)); then exit "$rc"; fi
-	exit 1
-}
-trap 'on_error "$?" "$LINENO"' ERR
-t() { custom-i18n get "$@"; }
-die() {
-	local rc="$1"
-	shift
-	t "$@" >&2
-	exit "$rc"
-}
-require() {
-	local dependency
-	for dependency in "$@"; do
-		command -v "$dependency" >/dev/null || die 127 cli_dependency "name=$dependency"
-	done
-}
-usage_error() { die 2 cli_usage "command=${0##*/}"; }
-# Fuzzel uses 1 both for Esc and startup failure; errors distinguish the two.
-pick() (
-	local selection rc errors
-	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
-	trap 'rm -f -- "$errors"' EXIT
-	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
-		cat "$errors" >&2
-		printf '%s' "$selection"
-	else
-		rc=$?
-		cat "$errors" >&2
-		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
-		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
-		die 1 cli_picker_failed
-	fi
-)
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+from contextlib import suppress
 
-notify() {
-	local title body
-	[[ "$action" == menu ]] || return 0
-	title=$(t "domain_${DOMAIN}")
-	body=$(t "$@")
-	notify-send -a "custom-${DOMAIN}" -h "string:x-canonical-private-synchronous:${DOMAIN}" "$title" "$body"
-}
-check_menu() {
-	[[ -n "${WAYLAND_DISPLAY:-}" ]] || die 1 cli_unavailable name=WAYLAND_DISPLAY
-	require fuzzel notify-send
-}
-DOMAIN=bluetooth
-DISCOVERY_SECS=6
-PAIR_TIMEOUT=15
-MENU_LINES=15
+sys.dont_write_bytecode = True
 
-load_devices() {
-	local objects
-	objects=$(busctl --auto-start=no call org.bluez / org.freedesktop.DBus.ObjectManager GetManagedObjects --json=short)
-	adapter=$(jq -r '.data[0] | to_entries | map(select(.value["org.bluez.Adapter1"])) | .[0].key // empty' <<<"$objects")
-	[[ -n "$adapter" ]] || die 1 bluetooth_no_device
-	powered=$(jq -er --arg path "$adapter" '.data[0][$path]["org.bluez.Adapter1"].Powered.data | tostring' <<<"$objects")
-	devices=$(jq -ce --arg adapter "$adapter/" '[.data[0] | to_entries[] |
-        select(.key | startswith($adapter)) | select(.value["org.bluez.Device1"]) |
-        .key as $path | .value["org.bluez.Device1"] |
-        {path: $path, mac: .Address.data, name: (.Alias.data // .Name.data // .Address.data),
-         connected: .Connected.data, paired: .Paired.data, icon: (.Icon.data // "")}] |
-        sort_by([(.connected | not), (.paired | not), (.name | ascii_downcase)])' <<<"$objects")
+ADAPTER = "org.bluez.Adapter1"
+DEVICE = "org.bluez.Device1"
+PROPERTIES = "org.freedesktop.DBus.Properties"
+OBJECTS = "org.freedesktop.DBus.ObjectManager"
+DBUS_TIMEOUT_MS = 25_000
+SCAN_TIMEOUT_MS = 5_000
+PAIR_TIMEOUT = 15
+MENU_LINES = 15
+ICONS = {
+    "headphones": "󰋋",
+    "headset": "󰋋",
+    "speakers": "󰓃",
+    "audio-card": "󰓃",
+    "keyboard": "󰌌",
+    "mouse": "󰍽",
+    "phone": "󰏲",
+    "computer": "󰌢",
 }
-property() { busctl set-property org.bluez "$1" "$2" "$3" b "$4"; }
-device_call() { busctl --quiet call org.bluez "$path" org.bluez.Device1 "$1"; }
-select_device() {
-	path=$(jq -er '.path' <<<"$1")
-	mac=$(jq -er '.mac' <<<"$1")
-	name=$(jq -r '.name' <<<"$1")
-	connected=$(jq -r '.connected' <<<"$1")
-	paired=$(jq -r '.paired' <<<"$1")
-	icon=$(jq -r '.icon' <<<"$1")
-}
-find_device() {
-	local matches count
-	matches=$(jq -c --arg target "$1" '[.[] | select((.mac | ascii_downcase) == ($target | ascii_downcase))] |
-        if length > 0 then . else empty end' <<<"$devices")
-	if [[ -z "$matches" ]]; then
-		matches=$(jq -c --arg target "$1" '[.[] | select(.name == $target)]' <<<"$devices")
-	fi
-	count=$(jq length <<<"$matches")
-	((count > 0)) || die 1 bluetooth_device_not_found "dev=$1"
-	((count == 1)) || die 1 bluetooth_ambiguous_device "dev=$1"
-	select_device "$(jq -c '.[0]' <<<"$matches")"
-}
-connect_device() {
-	local actual
-	if [[ "$connected" != true ]]; then
-		device_call Connect
-		actual=$(busctl get-property org.bluez "$path" org.bluez.Device1 Connected)
-		[[ "$actual" == 'b true' ]] || die 1 bluetooth_failed "dev=$name"
-	fi
-	notify bluetooth_connected "dev=$name"
-	printf 'connected\t%s\n' "$mac"
-}
-disconnect_device() {
-	if [[ "$connected" == true ]]; then device_call Disconnect; fi
-	notify bluetooth_disconnected "dev=$name"
-	printf 'disconnected\t%s\n' "$mac"
-}
-discover() (
-	property "$adapter" org.bluez.Adapter1 Powered true
-	busctl --quiet call org.bluez "$adapter" org.bluez.Adapter1 StartDiscovery
-	trap 'busctl --quiet call org.bluez "$adapter" org.bluez.Adapter1 StopDiscovery' EXIT
-	trap 'exit 130' INT
-	trap 'exit 1' TERM HUP
-	sleep "$DISCOVERY_SECS"
-)
-menu() {
-	local rows prompt choice count selected actual just_paired
-	while :; do
-		load_devices
-		rows=$(jq -r '.[] | [(if .connected then "* " else "  " end) +
-            ({headphones:"󰋋",headset:"󰋋",speakers:"󰓃","audio-card":"󰓃",keyboard:"󰌌",mouse:"󰍽",phone:"󰏲",computer:"󰌢"}[.icon] // "󰂯") +
-            "  " + (if .paired then "󰌷" else "󰐕" end) + "  " + ([.name] | @tsv)] | .[]' <<<"$devices")
-		prompt=$(t bluetooth_prompt)
-		choice=$({
-			printf '  󰑐  %s\n' "$(t bluetooth_rescan)"
-			if [[ -n "$rows" ]]; then printf '%s\n' "$rows"; fi
-		} |
-			pick --index --prompt "$prompt" --lines "$MENU_LINES")
-		[[ -n "$choice" ]] || return 0
-		count=$(jq length <<<"$devices")
-		[[ "$choice" =~ ^(0|[1-9][0-9]{0,5})$ ]] || die 1 cli_picker_failed
-		((choice <= count)) || die 1 cli_picker_failed
-		if [[ "$choice" == 0 ]]; then
-			discover
-			continue
-		fi
-		selected=$(jq -ce --argjson index "$((choice - 1))" '.[$index]' <<<"$devices")
-		select_device "$selected"
-		if [[ "$connected" == true ]]; then
-			disconnect_device
-			return
-		fi
-		if [[ "$powered" != true ]]; then property "$adapter" org.bluez.Adapter1 Powered true; fi
-		just_paired=false
-		if [[ "$paired" != true ]]; then
-			require bluetoothctl timeout
-			property "$adapter" org.bluez.Adapter1 Pairable true
-			printf 'yes\n' | timeout "$PAIR_TIMEOUT" bluetoothctl --agent DisplayYesNo pair "$mac" >&2
-			actual=$(busctl get-property org.bluez "$path" org.bluez.Device1 Paired)
-			[[ "$actual" == 'b true' ]] || die 1 bluetooth_failed "dev=$name"
-			property "$path" org.bluez.Device1 Trusted true
-			just_paired=true
-		fi
-		if [[ "$just_paired" == true && ("$icon" == phone || "$icon" == computer) ]]; then
-			notify bluetooth_paired "dev=$name"
-			printf 'paired\t%s\n' "$mac"
-		else connect_device; fi
-		return
-	done
-}
-main() {
-	local action="${1:-menu}" adapter powered devices path mac name connected paired icon row rows value
-	if (($#)); then shift; fi
-	case "$action" in
-	-h | --help | help)
-		(($# == 0)) || usage_error
-		t bluetooth_usage
-		return
-		;;
-	menu | list | devices | status | toggle | off | power-off) (($# == 0)) || usage_error ;;
-	connect) (($# == 1)) && [[ -n "$1" ]] || usage_error ;;
-	disconnect) (($# <= 1)) && [[ "${1-nonempty}" != '' ]] || usage_error ;;
-	*) usage_error ;;
-	esac
-	require busctl jq
-	if [[ "$action" == menu ]]; then
-		check_menu
-		menu
-		return
-	fi
-	load_devices
-	case "$action" in
-	list | devices) jq -r '.[] | [.mac,.name,(if .connected then "connected" else "disconnected" end),(if .paired then "paired" else "unpaired" end)] | @tsv' <<<"$devices" ;;
-	status)
-		value=off
-		if [[ "$powered" == true ]]; then value=on; fi
-		printf 'powered: %s\n' "$value"
-		jq -r '[.[] | select(.connected) | [.name] | @tsv] | "connected: " + (if length == 0 then "none" else join(", ") end)' <<<"$devices"
-		;;
-	toggle | off | power-off)
-		value=false
-		if [[ "$action" == toggle && "$powered" == false ]]; then value=true; fi
-		property "$adapter" org.bluez.Adapter1 Powered "$value"
-		;;
-	connect)
-		find_device "$1"
-		connect_device
-		;;
-	disconnect)
-		if (($#)); then
-			find_device "$1"
-			disconnect_device
-		else
-			rows=$(jq -c '.[] | select(.connected)' <<<"$devices")
-			while IFS= read -r row; do
-				[[ -n "$row" ]] || continue
-				select_device "$row"
-				disconnect_device
-			done <<<"$rows"
-		fi
-		;;
-	esac
-}
-main "$@"
+
+
+def t(key, **values):
+    return subprocess.check_output(
+        ["custom-i18n", "get", key, *(f"{k}={v}" for k, v in values.items())],
+        text=True,
+    ).rstrip("\n")
+
+
+def fail(key, code=1, **values):
+    print(t(key, **values), file=sys.stderr)
+    raise SystemExit(code)
+
+
+def require(*names):
+    for name in names:
+        if not shutil.which(name):
+            fail("cli_dependency", code=127, name=name)
+
+
+def escaped(value):
+    for char, replacement in (
+        ("\\", "\\\\"),
+        ("\t", "\\t"),
+        ("\n", "\\n"),
+        ("\r", "\\r"),
+    ):
+        value = value.replace(char, replacement)
+    return value
+
+
+def device_name(device):
+    return device.get("Alias") or device.get("Name") or device["Address"]
+
+
+class Bluetooth:
+    def __init__(self):
+        self.connection = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+        self.connection.set_exit_on_close(False)
+        self.adapter = None
+        self.devices = {}
+        self.powered = False
+
+    def call(self, path, interface, method, args=None, timeout=DBUS_TIMEOUT_MS):
+        return self.connection.call_sync(
+            "org.bluez",
+            path,
+            interface,
+            method,
+            args,
+            None,
+            Gio.DBusCallFlags.NO_AUTO_START,
+            timeout,
+            None,
+        ).unpack()
+
+    def refresh(self):
+        objects = self.call("/", OBJECTS, "GetManagedObjects")[0]
+        if self.adapter is None:
+            self.adapter = next((p for p, v in objects.items() if ADAPTER in v), None)
+        if self.adapter not in objects or ADAPTER not in objects[self.adapter]:
+            fail("bluetooth_no_device")
+        self.powered = objects[self.adapter][ADAPTER]["Powered"]
+        self.devices = {
+            p: v[DEVICE]
+            for p, v in objects.items()
+            if p.startswith(self.adapter + "/") and DEVICE in v
+        }
+
+    def get(self, path, interface, prop):
+        return self.call(
+            path, PROPERTIES, "Get", GLib.Variant("(ss)", (interface, prop))
+        )[0]
+
+    def set(self, path, interface, prop, value):
+        self.call(
+            path,
+            PROPERTIES,
+            "Set",
+            GLib.Variant(
+                "(ssv)",
+                (
+                    interface,
+                    prop,
+                    GLib.Variant("b", value),
+                ),
+            ),
+        )
+
+    def ordered(self):
+        return sorted(
+            self.devices.items(),
+            key=lambda item: (
+                not item[1].get("Connected"),
+                not item[1].get("Paired"),
+                device_name(item[1]).casefold(),
+            ),
+        )
+
+    def find(self, target):
+        matches = [
+            (p, d)
+            for p, d in self.devices.items()
+            if d["Address"].lower() == target.lower()
+        ]
+        if not matches:
+            matches = [
+                (p, d) for p, d in self.devices.items() if device_name(d) == target
+            ]
+        if not matches:
+            fail("bluetooth_device_not_found", dev=target)
+        if len(matches) != 1:
+            fail("bluetooth_ambiguous_device", dev=target)
+        return matches[0]
+
+    def change_connection(self, path, device, connect, menu=False):
+        if bool(device.get("Connected")) != connect:
+            self.call(path, DEVICE, "Connect" if connect else "Disconnect")
+            if connect and not self.get(path, DEVICE, "Connected"):
+                fail("bluetooth_failed", dev=device_name(device))
+        result = "connected" if connect else "disconnected"
+        if menu:
+            notify("bluetooth_" + result, dev=device_name(device))
+        print(result, device["Address"], sep="\t")
+
+
+def notify(key, **values):
+    subprocess.run(
+        [
+            "notify-send",
+            "-a",
+            "custom-bluetooth",
+            "-h",
+            "string:x-canonical-private-synchronous:bluetooth",
+            t("domain_bluetooth"),
+            t(key, **values),
+        ],
+        check=True,
+    )
+
+
+def pick(bluetooth, scanning):
+    """The picker and its discovery session share one synchronous lifetime."""
+    loop = GLib.MainLoop()
+    paths = [None]  # Fuzzel indices remain stable as new rows are appended.
+    seen = set()
+    subscriptions = []
+    signals = []
+    outcome = {"code": None, "error": None}
+    started = False
+    process = None
+    child_watch = None
+
+    def stop(code=None, error=None):
+        outcome.update(code=code, error=error)
+        loop.quit()
+        return GLib.SOURCE_CONTINUE
+
+    def exited(_pid, status):
+        process.returncode = os.waitstatus_to_exitcode(status)
+        loop.quit()
+
+    def append(path, device):
+        if path in seen or "Address" not in device:
+            return
+        marker = "* " if device.get("Connected") else "  "
+        icon = ICONS.get(device.get("Icon"), "󰂯")
+        paired = "󰌷" if device.get("Paired") else "󰐕"
+        try:
+            process.stdin.write(
+                f"{marker}{icon}  {paired}  {escaped(device_name(device))}\n"
+            )
+            process.stdin.flush()
+        except BrokenPipeError:
+            return  # The child watch handles selection, Esc, and startup errors.
+        seen.add(path)
+        paths.append(path)
+
+    def changed(_connection, _sender, path, interface, member, parameters, _data):
+        args = parameters.unpack()
+        if interface == "org.freedesktop.DBus":
+            stop(error=t("cli_unavailable", name="org.bluez"))
+        elif member == "InterfacesRemoved":
+            removed, interfaces = args
+            if removed == bluetooth.adapter and ADAPTER in interfaces:
+                stop(error=t("bluetooth_no_device"))
+            elif DEVICE in interfaces:
+                bluetooth.devices.pop(removed, None)
+        elif member == "InterfacesAdded":
+            added, interfaces = args
+            if added.startswith(bluetooth.adapter + "/") and DEVICE in interfaces:
+                bluetooth.devices[added] = interfaces[DEVICE]
+                append(added, interfaces[DEVICE])
+        elif member == "PropertiesChanged":
+            kind, values, invalidated = args
+            if path in bluetooth.devices and kind == DEVICE:
+                device = bluetooth.devices[path]
+                for prop in invalidated:
+                    device.pop(prop, None)
+                device.update(values)
+                append(path, device)
+            elif path == bluetooth.adapter and kind == ADAPTER:
+                if values.get("Powered") is False or values.get("Discovering") is False:
+                    stop(error=t("bluetooth_operation_failed"))
+
+    def closed(_connection, _vanished, error):
+        stop(error=error.message if error else t("cli_unavailable", name="org.bluez"))
+
+    closed_handler = bluetooth.connection.connect("closed", closed)
+    with tempfile.TemporaryFile(
+        mode="w+t", dir=os.environ.get("XDG_RUNTIME_DIR")
+    ) as errors:
+        try:
+            if scanning:
+                if not bluetooth.powered:
+                    bluetooth.set(bluetooth.adapter, ADAPTER, "Powered", True)
+                for sender, interface, member, path, arg0 in (
+                    ("org.bluez", OBJECTS, "InterfacesAdded", "/", None),
+                    ("org.bluez", OBJECTS, "InterfacesRemoved", "/", None),
+                    ("org.bluez", PROPERTIES, "PropertiesChanged", None, None),
+                    (
+                        "org.freedesktop.DBus",
+                        "org.freedesktop.DBus",
+                        "NameOwnerChanged",
+                        "/org/freedesktop/DBus",
+                        "org.bluez",
+                    ),
+                ):
+                    subscriptions.append(
+                        bluetooth.connection.signal_subscribe(
+                            sender,
+                            interface,
+                            member,
+                            path,
+                            arg0,
+                            Gio.DBusSignalFlags.NONE,
+                            changed,
+                            None,
+                        )
+                    )
+                # Subscribe before the snapshot so arrivals during startup are not lost.
+                bluetooth.refresh()
+                bluetooth.call(
+                    bluetooth.adapter,
+                    ADAPTER,
+                    "StartDiscovery",
+                    timeout=SCAN_TIMEOUT_MS,
+                )
+                started = True
+            process = subprocess.Popen(
+                [
+                    "fuzzel",
+                    "--dmenu",
+                    "--index",
+                    "--log-level=error",
+                    "--prompt",
+                    t("bluetooth_scanning_prompt" if scanning else "bluetooth_prompt"),
+                    "--lines",
+                    str(MENU_LINES),
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=errors,
+                text=True,
+            )
+            child_watch = GLib.child_watch_add(process.pid, exited)
+            for sig, code in (
+                (signal.SIGINT, 130),
+                (signal.SIGTERM, 1),
+                (signal.SIGHUP, 1),
+            ):
+                signals.append(
+                    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, sig, stop, code)
+                )
+            try:
+                process.stdin.write(f"  󰑐  {t('bluetooth_rescan')}\n")
+                for path, device in bluetooth.ordered():
+                    append(path, device)
+                process.stdin.flush()
+            except BrokenPipeError:
+                pass
+            loop.run()
+        finally:
+            if child_watch and process.returncode is None:
+                GLib.source_remove(child_watch)
+                process.terminate()
+                process.wait()
+            if process is not None:
+                with suppress(BrokenPipeError):
+                    process.stdin.close()
+                selection = process.stdout.read().strip()
+                process.stdout.close()
+            for subscription in subscriptions:
+                bluetooth.connection.signal_unsubscribe(subscription)
+            for source in signals:
+                GLib.source_remove(source)
+            bluetooth.connection.disconnect(closed_handler)
+            if started and not bluetooth.connection.is_closed():
+                try:
+                    bluetooth.call(
+                        bluetooth.adapter,
+                        ADAPTER,
+                        "StopDiscovery",
+                        timeout=SCAN_TIMEOUT_MS,
+                    )
+                except GLib.Error as error:
+                    if outcome["code"] is None and not outcome["error"]:
+                        raise
+                    print(error.message, file=sys.stderr)
+        if outcome["error"]:
+            print(outcome["error"], file=sys.stderr)
+            raise SystemExit(1)
+        if outcome["code"] is not None:
+            raise SystemExit(outcome["code"])
+        errors.seek(0)
+        diagnostic = errors.read()
+        if diagnostic:
+            print(diagnostic, file=sys.stderr, end="")
+        if process.returncode == 1 and not diagnostic:
+            return None
+        if process.returncode in (-signal.SIGINT, 130):
+            raise SystemExit(130)
+        if process.returncode != 0:
+            fail("cli_picker_failed")
+        if not re.fullmatch(r"0|[1-9][0-9]{0,5}", selection) or int(selection) >= len(
+            paths
+        ):
+            fail("cli_picker_failed")
+        return "rescan" if selection == "0" else paths[int(selection)]
+
+
+def menu(bluetooth):
+    scanning = False
+    while True:
+        path = pick(bluetooth, scanning)
+        if path is None:
+            return
+        bluetooth.refresh()
+        if path == "rescan":
+            scanning = True
+            continue
+        if path not in bluetooth.devices:
+            fail("bluetooth_device_not_found", dev=path)
+        device = bluetooth.devices[path]
+        if device.get("Connected"):
+            bluetooth.change_connection(path, device, False, menu=True)
+            return
+        if not bluetooth.powered:
+            bluetooth.set(bluetooth.adapter, ADAPTER, "Powered", True)
+        just_paired = not device.get("Paired")
+        if just_paired:
+            require("bluetoothctl")
+            bluetooth.set(bluetooth.adapter, ADAPTER, "Pairable", True)
+            subprocess.run(
+                [
+                    "bluetoothctl",
+                    "--agent",
+                    "DisplayYesNo",
+                    "pair",
+                    device["Address"],
+                ],
+                input="yes\n",
+                text=True,
+                stdout=sys.stderr,
+                timeout=PAIR_TIMEOUT,
+                check=True,
+            )
+            if not bluetooth.get(path, DEVICE, "Paired"):
+                fail("bluetooth_failed", dev=device_name(device))
+            bluetooth.set(path, DEVICE, "Trusted", True)
+        if just_paired and device.get("Icon") in ("phone", "computer"):
+            notify("bluetooth_paired", dev=device_name(device))
+            print("paired", device["Address"], sep="\t")
+        else:
+            bluetooth.change_connection(path, device, True, menu=True)
+        return
+
+
+def main():
+    args = sys.argv[1:]
+    action = args.pop(0) if args else "menu"
+    if action in ("-h", "--help", "help") and not args:
+        print(t("bluetooth_usage"))
+        return
+    if not (
+        (
+            action
+            in ("menu", "list", "devices", "status", "toggle", "off", "power-off")
+            and not args
+        )
+        or (action == "connect" and len(args) == 1 and args[0])
+        or (action == "disconnect" and len(args) <= 1 and (not args or args[0]))
+    ):
+        fail("cli_usage", code=2, command="custom-bluetooth")
+    if action == "menu":
+        if not os.environ.get("WAYLAND_DISPLAY"):
+            fail("cli_unavailable", name="WAYLAND_DISPLAY")
+        require("fuzzel", "notify-send")
+    global Gio, GLib, GLibUnix
+    try:
+        from gi.repository import Gio, GLib, GLibUnix
+    except ImportError:
+        fail("cli_dependency", code=127, name="python-gobject")
+    try:
+        execute(action, args)
+    except GLib.Error as error:
+        print(error.message, file=sys.stderr)
+        sys.exit(1)
+
+
+def execute(action, args):
+    bluetooth = Bluetooth()
+    try:
+        bluetooth.refresh()
+        if action == "menu":
+            menu(bluetooth)
+        elif action in ("list", "devices"):
+            for _, device in bluetooth.ordered():
+                print(
+                    device["Address"],
+                    escaped(device_name(device)),
+                    "connected" if device.get("Connected") else "disconnected",
+                    "paired" if device.get("Paired") else "unpaired",
+                    sep="\t",
+                )
+        elif action == "status":
+            names = [
+                escaped(device_name(d))
+                for _, d in bluetooth.ordered()
+                if d.get("Connected")
+            ]
+            print("powered: " + ("on" if bluetooth.powered else "off"))
+            print("connected: " + (", ".join(names) if names else "none"))
+        elif action in ("toggle", "off", "power-off"):
+            bluetooth.set(
+                bluetooth.adapter,
+                ADAPTER,
+                "Powered",
+                action == "toggle" and not bluetooth.powered,
+            )
+        elif action == "connect":
+            bluetooth.change_connection(*bluetooth.find(args[0]), True)
+        elif args:
+            bluetooth.change_connection(*bluetooth.find(args[0]), False)
+        else:
+            for path, device in bluetooth.ordered():
+                if device.get("Connected"):
+                    bluetooth.change_connection(path, device, False)
+    finally:
+        if not bluetooth.connection.is_closed():
+            bluetooth.connection.close_sync(None)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except FileNotFoundError as error:
+        fail("cli_dependency", code=127, name=error.filename)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        fail("bluetooth_operation_failed")
+    except OSError as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
