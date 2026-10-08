@@ -3,7 +3,7 @@
 # @name         custom-record
 # @summary      Record the screen or live stream through one session-owned service
 # @deps         systemctl, uwsm, gpu-screen-recorder, flock, notify-send, ps
-#               menu/config: fuzzel; stream: custom-hardware, custom-danmaku
+#               menu/config: fuzzel; stream: ffmpeg, custom-hardware, custom-danmaku
 # @usage        custom-record [status [text|waybar]|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]]
 # @options      -h, --help  Print localized usage
 # @stdin        Unused; interactive configuration is explicit
@@ -61,15 +61,17 @@ HISTORY_FILE="$STATE_DIR/history.tsv"
 SAVE_DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/screenrecords"
 FRAME_RATE=60
 STREAM_FRAME_RATE=30
+STREAM_COLOR_RANGE=limited
+STREAM_KEY_INTERVAL=2
 COLOR_RANGE=full
 VIDEO_QP=10
 STOP_TIMEOUT=15
 STARTUP_DELAY=0.3
-DEFAULT_VIDEO_KBPS=4500
+DEFAULT_VIDEO_KBPS=3500
 DEFAULT_AUDIO_KBPS=160
 MENU_LINES=8
-declare -ar VIDEO_RATES=(4500 6000 8000 12000)
-declare -ar AUDIO_RATES=(128 160 192 320)
+declare -ar VIDEO_RATES=(2500 3000 3500 4000 4500 6000)
+declare -ar AUDIO_RATES=(128 160 192)
 load_state='' active_state='' sub_state='' main_pid='' result='' record_mode=''
 
 notify() {
@@ -252,7 +254,7 @@ check_failure() {
 	if [[ "$active_state" == failed || "$result" != success ]]; then die 1 record_failed "result=$result"; fi
 }
 
-# Native service hooks share the encoder's cgroup, but are not its MainPID.
+# Stream workers and native service hooks share the supervisor's cgroup.
 require_service_owner() {
 	local group hierarchy controllers path
 	[[ "${CUSTOM_RECORD_MODE:-}" == stream ]] || die 1 cli_unavailable "name=$UNIT:owner"
@@ -282,43 +284,75 @@ stream_cleanup() {
 	return "$rc"
 }
 
+stream_run() {
+	local video="$1" audio="$2" output="$3" fifo encoder mux finished='' rc worker
+	require_service_owner
+	require gpu-screen-recorder ffmpeg mkfifo
+	[[ -n "${RUNTIME_DIRECTORY:-}" && -d "$RUNTIME_DIRECTORY" ]] || die 1 cli_unavailable name=RUNTIME_DIRECTORY
+	fifo="$RUNTIME_DIRECTORY/stream.mkv"
+	# Exiting MainPID lets systemd stop both workers with a bounded timeout.
+	# RuntimeDirectory also removes the FIFO if this process is killed.
+	trap 'rm -f -- "$fifo"' EXIT
+	trap 'exit 0' INT TERM
+	mkfifo -m 600 -- "$fifo"
+	ffmpeg -nostdin -hide_banner -loglevel warning -i "$fifo" -map 0 -c copy \
+		-flush_packets 1 -flvflags no_duration_filesize -f flv "$output" &
+	mux=$!
+	gpu-screen-recorder -w screen -f "$STREAM_FRAME_RATE" -fm cfr -c mkv -k h264 \
+		-encoder gpu -fallback-cpu-encoding no -cr "$STREAM_COLOR_RANGE" -keyint "$STREAM_KEY_INTERVAL" \
+		-bm cbr -q "$video" -ac aac -ab "$audio" -a 'default_output|default_input' -o "$fifo" &
+	encoder=$!
+	if wait -n -p finished "$encoder" "$mux"; then rc=0; else rc=$?; fi
+	if [[ "$finished" == "$encoder" ]]; then
+		worker=gpu-screen-recorder
+	else
+		worker=ffmpeg
+	fi
+	# A live stream cannot finish successfully on its own; even EOF is a failure.
+	die 1 record_failed "result=$worker:$rc"
+}
+
 start_recording() {
-	local requested="$1" output recorder self i
+	local requested="$1" output recorder self i send_sigkill=no
 	local -a capture hooks=()
 	read_state
 	case "$active_state" in active | activating | deactivating) die 1 record_busy ;; esac
 	require uwsm gpu-screen-recorder notify-send
 	recorder=$(command -v gpu-screen-recorder)
 	if [[ "$requested" == stream ]]; then
-		require custom-hardware custom-danmaku readlink
+		require ffmpeg custom-hardware custom-danmaku readlink mkfifo
 		read_records
 		[[ -n "$current_server" && -n "$current_key" ]] || die 1 livestream_notify_missing_rtmp
 		case "$current_server" in rtmp://* | rtmps://* | srt://*) ;; *) die 1 cli_unavailable name=server ;; esac
 		if [[ "$current_key" == \?* || "$current_server" == */ ]]; then
 			output="$current_server$current_key"
 		else output="$current_server/$current_key"; fi
-		capture=(-w screen -f "$STREAM_FRAME_RATE" -fm cfr -c flv -k h264
-			-fallback-cpu-encoding yes -bm cbr -q "$current_video" -ab "$current_audio")
 		self=$(readlink -f -- "${BASH_SOURCE[0]}")
+		recorder="$self"
+		send_sigkill=yes
+		capture=(stream-run "$current_video" "$current_audio" "$output")
 		# ':' suppresses variable expansion in the hooks; quote the executable.
 		self="${self//\\/\\\\}"
 		self="${self//\"/\\\"}"
-		hooks=(-p "ExecStartPre=:\"$self\" stream-prepare"
+		# Override UWSM's ExitType=cgroup so supervisor exit also stops its peers.
+		hooks=(-p ExitType=main -p RuntimeDirectory=custom-record -p RuntimeDirectoryMode=0700
+			-p KillMode=control-group
+			-p "ExecStartPre=:\"$self\" stream-prepare"
 			-p "ExecStartPost=:\"$self\" stream-ready"
 			-p "ExecStopPost=:\"$self\" stream-cleanup")
 	else
 		output="$SAVE_DIR/screenrecord-$(date +%Y%m%d_%H%M%S_%N).mp4"
-		capture=(-w screen -f "$FRAME_RATE" -cr "$COLOR_RANGE" -ffmpeg-video-opts "qp=$VIDEO_QP" -c mp4)
+		capture=(-w screen -f "$FRAME_RATE" -cr "$COLOR_RANGE" -ffmpeg-video-opts "qp=$VIDEO_QP" -c mp4
+			-a 'default_output|default_input' -o "$output")
 	fi
 	if [[ "$active_state" == failed ]]; then
 		((main_pid == 0)) || die 1 record_busy
 		systemctl --user reset-failed "$UNIT"
 	else check_failure; fi
 	if [[ "$requested" == record ]]; then mkdir -p -- "$SAVE_DIR"; fi
-	capture+=(-a 'default_output|default_input' -o "$output")
 	for i in "${!capture[@]}"; do capture[i]="${capture[i]//\$/\$\$}"; done
 	uwsm app -t service -p PartOf=graphical-session.target -s b -u "$UNIT" -p CollectMode=inactive \
-		-p KillSignal=SIGINT -p "TimeoutStopSec=$STOP_TIMEOUT" -p SendSIGKILL=no \
+		-p KillSignal=SIGINT -p "TimeoutStopSec=$STOP_TIMEOUT" -p "SendSIGKILL=$send_sigkill" \
 		-p "Environment=CUSTOM_RECORD_MODE=$requested" "${hooks[@]}" -- "${recorder//\$/\$\$}" "${capture[@]}"
 	sleep "$STARTUP_DELAY"
 	read_state
@@ -425,6 +459,10 @@ main() {
 		(($# <= 1)) || usage_error
 		if (($#)); then [[ "$1" == clear ]] || usage_error; fi
 		;;
+	stream-run)
+		(($# == 3)) || usage_error
+		[[ "$1" =~ ^[1-9][0-9]*$ && "$2" =~ ^[1-9][0-9]*$ && -n "$3" ]] || usage_error
+		;;
 	-h | --help | full | stop | menu | stream-prepare | stream-ready | stream-cleanup) (($# == 0)) || usage_error ;;
 	*) usage_error ;;
 	esac
@@ -460,6 +498,9 @@ main() {
 	stream-cleanup)
 		stream_cleanup
 		return
+		;;
+	stream-run)
+		stream_run "$@"
 		;;
 	esac
 	require flock

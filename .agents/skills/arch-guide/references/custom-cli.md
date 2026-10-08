@@ -244,22 +244,35 @@ Nerd Font glyphs and selecting a row dispatches its numeric index.
 `start [record|stream]` defaults to recording. `full` remains an alias for
 `start record`; area recording has been removed. Local recordings use 60 fps,
 `-cr full -ffmpeg-video-opts "qp=10"`, and MP4 output. Streaming retains the
-direct fullscreen capture (no portal picker), 30 fps and H264/CBR configuration, using the configured video
-and audio bitrates. Both modes mix playback and the default microphone into one track
+direct fullscreen capture at native resolution (no portal picker), GPU H.264
+with no CPU fallback, 30 fps CFR, a two-second keyframe interval, and limited
+color range. Video defaults to 3500 kbps CBR; AAC audio defaults to 160 kbps
+(48 kHz stereo). The video menu offers 2500/3000/3500/4000/4500/6000 kbps,
+and audio offers 128/160/192 kbps. Saved profiles retain their selected rates.
+The encoder writes MKV into a private FIFO; FFmpeg copies the encoded streams
+into FLV and sends them to the configured destination without re-encoding.
+Both modes mix playback and the default microphone into one track
 with `-a 'default_output|default_input'`. The current default input is used,
 including an audio-processing source such as RNNoise when selected. Muting the
 default microphone also silences its contribution to the recording.
-A single transient user unit, `custom-record.service`, owns the encoder.
-`Type=exec` checks executable startup; duplicate starts are refused. The service
-uses SIGINT for stop so the encoder can finalize the video, and no automatic
-SIGKILL is configured. All starts/stops share one runtime lock. An explicit
+A single transient user unit, `custom-record.service`, owns either the recording
+encoder or the streaming supervisor and its two workers. `Type=exec` checks
+executable startup; duplicate starts are refused. Either stream worker exiting
+unexpectedly fails the service and stops its peer, even if it exits with code 0.
+Streaming overrides UWSM's `ExitType=cgroup` with `ExitType=main` so supervisor
+exit triggers systemd cleanup even when a worker is stuck.
+The service uses SIGINT for graceful stop. Local recordings retain their
+no-SIGKILL policy; streaming allows systemd to terminate stuck workers after
+15 seconds. The stream FIFO lives in a session-owned `RuntimeDirectory` and is
+removed on stop, including forced termination. All starts/stops share one
+runtime lock. An explicit
 `toggle record` or `toggle stream` refuses to interrupt the other mode; an
 unqualified `toggle` stops whichever mode is active. Stop the current job before
 switching modes. Super+G and Super+Shift+G toggle their respective modes;
 Super+Ctrl+G and Waybar right-click open the shared menu.
 
 Status and duration use the unit's state, `CUSTOM_RECORD_MODE` environment entry,
-and encoder MainPID. Waybar distinguishes `recording` from `live`. There are no
+and the service MainPID. Waybar distinguishes `recording` from `live`. There are no
 PID/mode files or process-name searches. Stream-only native service hooks boost
 hardware, start danmaku, and restore/close them after stop or failure. These
 internal hooks reject execution outside the owning service's cgroup.
