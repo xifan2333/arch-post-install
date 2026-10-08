@@ -259,10 +259,129 @@ def notify(key, **values):
     )
 
 
+def run_fuzzel(prompt, rows, lines=MENU_LINES):
+    with tempfile.TemporaryFile(
+        mode="w+t", dir=os.environ.get("XDG_RUNTIME_DIR")
+    ) as errors:
+        process = subprocess.Popen(
+            [
+                "fuzzel",
+                "--dmenu",
+                "--index",
+                "--log-level=error",
+                "--prompt",
+                prompt,
+                "--lines",
+                str(lines),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=errors,
+            text=True,
+        )
+        try:
+            for row in rows:
+                process.stdin.write(f"{row}\n")
+            process.stdin.flush()
+        except BrokenPipeError:
+            pass
+        out, _ = process.communicate()
+        errors.seek(0)
+        diagnostic = errors.read()
+        if diagnostic:
+            print(diagnostic, file=sys.stderr, end="")
+        if process.returncode == 1 and not diagnostic:
+            return None
+        if process.returncode in (-signal.SIGINT, 130):
+            raise SystemExit(130)
+        if process.returncode != 0:
+            fail("cli_picker_failed")
+        selection = out.strip()
+        if not re.fullmatch(r"0|[1-9][0-9]{0,5}", selection):
+            fail("cli_picker_failed")
+        index = int(selection)
+        if index >= len(rows):
+            fail("cli_picker_failed")
+        return index
+
+
+def manage_menu(bluetooth):
+    bluetooth.refresh()
+    paired = bluetooth.paired()
+    if not paired:
+        return
+    rows = [
+        f"  󰌍  {t('bluetooth_back')}",
+        f"  󰃢  {t('bluetooth_clear_paired')}",
+    ]
+    rows.extend(dev.format_manage_row() for dev in paired)
+    index = run_fuzzel(prompt=t("bluetooth_manage_prompt"), rows=rows)
+    if index is None or index == 0:
+        return
+    if index == 1:
+        removed = bluetooth.clear_paired()
+        if removed:
+            notify("bluetooth_cleared")
+            for dev in removed:
+                print("removed", dev.address, sep="\t")
+        return
+    selected_device = paired[index - 2]
+    bluetooth.remove_device(selected_device)
+    notify("bluetooth_removed", dev=selected_device.name)
+    print("removed", selected_device.address, sep="\t")
+
+
+def pair_device(bluetooth, device):
+    require("bluetoothctl")
+    bluetooth.set_adapter_pairable(True)
+    subprocess.run(
+        [
+            "bluetoothctl",
+            "--agent",
+            "DisplayYesNo",
+            "pair",
+            device.address,
+        ],
+        input="yes\n",
+        text=True,
+        stdout=sys.stderr,
+        timeout=PAIR_TIMEOUT,
+        check=True,
+    )
+    if not bluetooth.get(device.path, DEVICE, "Paired"):
+        fail("bluetooth_failed", dev=device.name)
+    bluetooth.set_device_trusted(device, True)
+
+
+def execute_device_intent(bluetooth, device):
+    if device.is_connected:
+        bluetooth.disconnect_device(device)
+        notify("bluetooth_disconnected", dev=device.name)
+        print("disconnected", device.address, sep="\t")
+        return
+
+    if not bluetooth.powered:
+        bluetooth.set_adapter_power(True)
+
+    if not device.is_paired:
+        pair_device(bluetooth, device)
+        if device.is_host:
+            notify("bluetooth_paired", dev=device.name)
+            print("paired", device.address, sep="\t")
+            return
+
+    bluetooth.connect_device(device)
+    notify("bluetooth_connected", dev=device.name)
+    print("connected", device.address, sep="\t")
+
+
 def pick(bluetooth, scanning):
     """The picker and its discovery session share one synchronous lifetime."""
     loop = GLib.MainLoop()
-    paths = [None]  # Fuzzel indices remain stable as new rows are appended.
+    actions = ["rescan"]
+    if bluetooth.paired():
+        actions.append("manage")
+    paths = actions[:]
     seen = set()
     subscriptions = []
     signals = []
@@ -291,31 +410,44 @@ def pick(bluetooth, scanning):
         seen.add(device.path)
         paths.append(device.path)
 
+    def on_dbus_signal(_path, _args):
+        stop(error=t("cli_unavailable", name="org.bluez"))
+
+    def on_interfaces_removed(_path, args):
+        removed, interfaces = args
+        if removed == bluetooth.adapter and ADAPTER in interfaces:
+            stop(error=t("bluetooth_no_device"))
+        elif DEVICE in interfaces:
+            bluetooth.devices.pop(removed, None)
+
+    def on_interfaces_added(_path, args):
+        added, interfaces = args
+        if added.startswith(bluetooth.adapter + "/") and DEVICE in interfaces:
+            device = BluetoothDevice(added, interfaces[DEVICE])
+            bluetooth.devices[added] = device
+            append(device)
+
+    def on_properties_changed(path, args):
+        kind, values, invalidated = args
+        if path in bluetooth.devices and kind == DEVICE:
+            device = bluetooth.devices[path]
+            device.update(values, invalidated)
+            append(device)
+        elif path == bluetooth.adapter and kind == ADAPTER:
+            if values.get("Powered") is False or values.get("Discovering") is False:
+                stop(error=t("bluetooth_operation_failed"))
+
+    signal_routes = {
+        ("org.freedesktop.DBus", "NameOwnerChanged"): on_dbus_signal,
+        (OBJECTS, "InterfacesRemoved"): on_interfaces_removed,
+        (OBJECTS, "InterfacesAdded"): on_interfaces_added,
+        (PROPERTIES, "PropertiesChanged"): on_properties_changed,
+    }
+
     def changed(_connection, _sender, path, interface, member, parameters, _data):
-        args = parameters.unpack()
-        if interface == "org.freedesktop.DBus":
-            stop(error=t("cli_unavailable", name="org.bluez"))
-        elif member == "InterfacesRemoved":
-            removed, interfaces = args
-            if removed == bluetooth.adapter and ADAPTER in interfaces:
-                stop(error=t("bluetooth_no_device"))
-            elif DEVICE in interfaces:
-                bluetooth.devices.pop(removed, None)
-        elif member == "InterfacesAdded":
-            added, interfaces = args
-            if added.startswith(bluetooth.adapter + "/") and DEVICE in interfaces:
-                device = BluetoothDevice(added, interfaces[DEVICE])
-                bluetooth.devices[added] = device
-                append(device)
-        elif member == "PropertiesChanged":
-            kind, values, invalidated = args
-            if path in bluetooth.devices and kind == DEVICE:
-                device = bluetooth.devices[path]
-                device.update(values, invalidated)
-                append(device)
-            elif path == bluetooth.adapter and kind == ADAPTER:
-                if values.get("Powered") is False or values.get("Discovering") is False:
-                    stop(error=t("bluetooth_operation_failed"))
+        handler = signal_routes.get((interface, member))
+        if handler:
+            handler(path, parameters.unpack())
 
     def closed(_connection, _vanished, error):
         stop(error=error.message if error else t("cli_unavailable", name="org.bluez"))
@@ -327,7 +459,7 @@ def pick(bluetooth, scanning):
         try:
             if scanning:
                 if not bluetooth.powered:
-                    bluetooth.set(bluetooth.adapter, ADAPTER, "Powered", True)
+                    bluetooth.set_adapter_power(True)
                 for sender, interface, member, path, arg0 in (
                     ("org.bluez", OBJECTS, "InterfacesAdded", "/", None),
                     ("org.bluez", OBJECTS, "InterfacesRemoved", "/", None),
@@ -368,7 +500,7 @@ def pick(bluetooth, scanning):
                     "--index",
                     "--log-level=error",
                     "--prompt",
-                    t("bluetooth_scanning_prompt" if scanning else "bluetooth_prompt"),
+                    t("bluetooth_prompt"),
                     "--lines",
                     str(MENU_LINES),
                 ],
@@ -388,6 +520,8 @@ def pick(bluetooth, scanning):
                 )
             try:
                 process.stdin.write(f"  󰑐  {t('bluetooth_rescan')}\n")
+                if "manage" in actions:
+                    process.stdin.write(f"  󰒓  {t('bluetooth_manage')}\n")
                 for device in bluetooth.ordered():
                     append(device)
                 process.stdin.flush()
@@ -436,61 +570,30 @@ def pick(bluetooth, scanning):
             raise SystemExit(130)
         if process.returncode != 0:
             fail("cli_picker_failed")
-        if not re.fullmatch(r"0|[1-9][0-9]{0,5}", selection) or int(selection) >= len(
-            paths
-        ):
+        if not re.fullmatch(r"0|[1-9][0-9]{0,5}", selection):
             fail("cli_picker_failed")
-        return "rescan" if selection == "0" else paths[int(selection)]
+        idx = int(selection)
+        if idx >= len(paths):
+            fail("cli_picker_failed")
+        return paths[idx]
 
 
 def menu(bluetooth):
     scanning = False
     while True:
-        path = pick(bluetooth, scanning)
-        if path is None:
+        target = pick(bluetooth, scanning)
+        if target is None:
             return
         bluetooth.refresh()
-        if path == "rescan":
+        if target == "rescan":
             scanning = True
             continue
-        if path not in bluetooth.devices:
-            fail("bluetooth_device_not_found", dev=path)
-        device = bluetooth.devices[path]
-        if device.is_connected:
-            bluetooth.disconnect_device(device)
-            notify("bluetooth_disconnected", dev=device.name)
-            print("disconnected", device.address, sep="\t")
-            return
-        if not bluetooth.powered:
-            bluetooth.set_adapter_power(True)
-        just_paired = not device.is_paired
-        if just_paired:
-            require("bluetoothctl")
-            bluetooth.set_adapter_pairable(True)
-            subprocess.run(
-                [
-                    "bluetoothctl",
-                    "--agent",
-                    "DisplayYesNo",
-                    "pair",
-                    device.address,
-                ],
-                input="yes\n",
-                text=True,
-                stdout=sys.stderr,
-                timeout=PAIR_TIMEOUT,
-                check=True,
-            )
-            if not bluetooth.get(device.path, DEVICE, "Paired"):
-                fail("bluetooth_failed", dev=device.name)
-            bluetooth.set_device_trusted(device, True)
-        if just_paired and device.is_host:
-            notify("bluetooth_paired", dev=device.name)
-            print("paired", device.address, sep="\t")
-        else:
-            bluetooth.connect_device(device)
-            notify("bluetooth_connected", dev=device.name)
-            print("connected", device.address, sep="\t")
+        if target == "manage":
+            manage_menu(bluetooth)
+            continue
+        if target not in bluetooth.devices:
+            fail("bluetooth_device_not_found", dev=target)
+        execute_device_intent(bluetooth, bluetooth.devices[target])
         return
 
 
