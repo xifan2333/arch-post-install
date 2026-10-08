@@ -21,7 +21,7 @@ icon-theme=Adwaita
 
 # Formatting (hide process/application name, keep clean summary & body)
 title-format=
-summary-format=<b>%s</b>
+summary-format=<b>%s</b>\n
 body-format=%b
 
 # Global color scheme
