@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # @name         custom-hardware
-# @summary      Inspect or control ThinkPad ACPI fan speed and Intel GPU frequency
+# @summary      Control power profiles, ThinkPad fan speed, and Intel GPU frequency
 # @version      1.0.0
-# @deps         awk, cat
+# @deps         awk, cat; profile: busctl, jq
 #
 # @description  Hardware performance and cooling controller for ThinkPad + Intel GPU.
 #               Supports status introspection, fan speed level toggling, and GPU clock limits.
@@ -15,6 +15,7 @@
 #
 # @commands
 #   status                             Print overview of fan, GPU, and CPU status (default)
+#   profile [status|list|set <name>]    Inspect or select a native power profile
 #   fan [status|auto|full|0-7|toggle]  Inspect or set ThinkPad ACPI fan speed
 #   gpu [status|cur|min|max|auto|toggle|<mhz>] Inspect or set Intel GPU frequency limits
 #
@@ -54,6 +55,42 @@ require() {
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
 
 fan_proc=/proc/acpi/ibm/fan
+PROFILES_BUS=org.freedesktop.UPower.PowerProfiles
+PROFILES_PATH=/org/freedesktop/UPower/PowerProfiles
+DBUS_TIMEOUT=5
+
+profile_data() {
+	require busctl jq
+	busctl --system --auto-start=no --allow-interactive-authorization=no --timeout="$DBUS_TIMEOUT" \
+		--json=short call "$PROFILES_BUS" "$PROFILES_PATH" org.freedesktop.DBus.Properties \
+		GetAll s "$PROFILES_BUS" |
+		jq -ce '.data[0] | {current: .ActiveProfile.data, profiles: [.Profiles.data[].Profile.data]} |
+            select((.profiles | length > 0) and
+                all(.profiles[]; . == "performance" or . == "balanced" or . == "power-saver")) |
+            select(.current as $current | .profiles | index($current) != null)'
+}
+profile() {
+	local action="$1" data requested actual
+	data=$(profile_data)
+	case "$action" in
+	status) jq -r '.current' <<<"$data" ;;
+	list) jq -r '.current as $current | .profiles[] | [., (if . == $current then "*" else "-" end)] | @tsv' <<<"$data" ;;
+	set)
+		requested="$2"
+		jq -e --arg name "$requested" '.profiles | index($name) != null' <<<"$data" >/dev/null ||
+			die 1 cli_unavailable "name=$requested"
+		actual=$(jq -r '.current' <<<"$data")
+		if [[ "$actual" != "$requested" ]]; then
+			busctl --system --auto-start=no --allow-interactive-authorization=no --timeout="$DBUS_TIMEOUT" \
+				set-property "$PROFILES_BUS" "$PROFILES_PATH" "$PROFILES_BUS" ActiveProfile s "$requested"
+			data=$(profile_data)
+			actual=$(jq -r '.current' <<<"$data")
+			[[ "$actual" == "$requested" ]] || die 1 cli_unavailable "name=$requested"
+		fi
+		printf '%s\n' "$actual"
+		;;
+	esac
+}
 
 gpu_dir() {
 	local node
@@ -147,6 +184,18 @@ main() {
 	if (($#)); then shift; fi
 	case "$action" in
 	-h | --help | status) (($# == 0)) || usage_error ;;
+	profile)
+		sub="${1:-status}"
+		if (($#)); then shift; fi
+		case "$sub" in
+		status | list) (($# == 0)) || usage_error ;;
+		set)
+			(($# == 1)) || usage_error
+			case "$1" in performance | balanced | power-saver) ;; *) usage_error ;; esac
+			;;
+		*) usage_error ;;
+		esac
+		;;
 	fan | gpu)
 		(($# <= 1)) || usage_error
 		sub="${1:-status}"
@@ -159,6 +208,6 @@ main() {
 		;;
 	*) usage_error ;;
 	esac
-	case "$action" in -h | --help) t help_hardware ;; status) overview ;; fan) fan "$sub" ;; gpu) gpu "$sub" ;; esac
+	case "$action" in -h | --help) t help_hardware ;; status) overview ;; profile) profile "$sub" "$@" ;; fan) fan "$sub" ;; gpu) gpu "$sub" ;; esac
 }
 main "$@"
