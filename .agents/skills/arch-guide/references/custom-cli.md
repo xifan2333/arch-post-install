@@ -116,7 +116,7 @@ repository. Mise renders regular configuration files with absolute state paths.
 After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
 than the rendered target. The whole-tree mapping excludes template sources.
 Fnott merges the generated `theme/fnott.ini` from `themed/fnott.ini.tpl` with the
-active typography fragment in `font/fnott.ini` to produce `${XDG_CONFIG_HOME:-$HOME/.config}/fnott/fnott.ini`.
+active typography fragment in `font/fnott.ini` (11pt summary and 10pt body) to produce `${XDG_CONFIG_HOME:-$HOME/.config}/fnott/fnott.ini`.
 Switching themes or fonts updates the unified configuration and restarts fnott.
 
 Qt uses `QT_QPA_PLATFORMTHEME=qt5ct` (required packages: `qt5ct` and `qt6ct`).
