@@ -77,6 +77,7 @@ qt_template="${XDG_CONFIG_HOME:-$HOME/.config}/qt6ct/qt6ct.conf.template"
 font_size=13
 ui_font_size=11
 notification_font_size=11
+notification_body_font_size=10
 candidate_font_size=12
 ime_menu_font_size=10
 
@@ -222,7 +223,7 @@ EOF
 	printf '[main]\ntitle-font=%s,%s:size=%s\nsummary-font=%s,%s:size=%s\nbody-font=%s,%s:size=%s\n' \
 		"$write_mono" "$write_cjk" "$notification_font_size" \
 		"$write_mono" "$write_cjk" "$notification_font_size" \
-		"$write_mono" "$write_cjk" "$notification_font_size" >"$tmp/fnott.ini"
+		"$write_mono" "$write_cjk" "$notification_body_font_size" >"$tmp/fnott.ini"
 	# Fcitx5 caches generic-family matches; give its UI the actual selected pair.
 	cat -- "$fcitx_dir/classicui.conf.template" >"$tmp/fcitx5.conf"
 	printf '\nFont="%s,%s %s"\nMenuFont="%s,%s %s"\nTrayFont="%s,%s Bold %s"\n' \
