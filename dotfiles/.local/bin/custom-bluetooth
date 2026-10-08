@@ -5,12 +5,13 @@
 # @deps         python3, python-gobject, custom-i18n; menu: fuzzel, notify-send
 #               pairing: bluetoothctl
 # @usage        custom-bluetooth [menu|list|status|connect <mac|name>|
-#               disconnect [mac|name]|toggle|off]
+#               disconnect [mac|name]|remove <mac|name>|clear|toggle|off]
 # @options      -h, --help  Print localized usage without contacting the backend
 # @stdin        Unused; explicit arguments select devices
 # @stdout       Escaped TSV listings, status fields, or operation results
 # @stderr       Diagnostics; exits 2 for usage, 127 for missing tools, 1 for failures
-# @examples     custom-bluetooth list; custom-bluetooth status; custom-bluetooth menu
+# @examples     custom-bluetooth list; custom-bluetooth status; custom-bluetooth menu;
+#               custom-bluetooth remove <mac|name>; custom-bluetooth clear
 #
 import os
 import re
@@ -597,21 +598,90 @@ def menu(bluetooth):
         return
 
 
+def cmd_menu(bluetooth, _args):
+    menu(bluetooth)
+
+
+def cmd_list(bluetooth, _args):
+    for device in bluetooth.ordered():
+        print(
+            device.address,
+            escaped(device.name),
+            "connected" if device.is_connected else "disconnected",
+            "paired" if device.is_paired else "unpaired",
+            sep="\t",
+        )
+
+
+def cmd_status(bluetooth, _args):
+    names = [escaped(d.name) for d in bluetooth.ordered() if d.is_connected]
+    print("powered: " + ("on" if bluetooth.powered else "off"))
+    print("connected: " + (", ".join(names) if names else "none"))
+
+
+def cmd_toggle(bluetooth, _args):
+    bluetooth.set_adapter_power(not bluetooth.powered)
+
+
+def cmd_off(bluetooth, _args):
+    bluetooth.set_adapter_power(False)
+
+
+def cmd_connect(bluetooth, args):
+    device = bluetooth.find(args[0])
+    bluetooth.connect_device(device)
+    print("connected", device.address, sep="\t")
+
+
+def cmd_disconnect(bluetooth, args):
+    if args:
+        device = bluetooth.find(args[0])
+        bluetooth.disconnect_device(device)
+        print("disconnected", device.address, sep="\t")
+    else:
+        for device in bluetooth.ordered():
+            if device.is_connected:
+                bluetooth.disconnect_device(device)
+                print("disconnected", device.address, sep="\t")
+
+
+def cmd_remove(bluetooth, args):
+    device = bluetooth.find(args[0])
+    bluetooth.remove_device(device)
+    print("removed", device.address, sep="\t")
+
+
+def cmd_clear(bluetooth, _args):
+    for device in bluetooth.clear_paired():
+        print("removed", device.address, sep="\t")
+
+
+COMMANDS = {
+    "menu": (cmd_menu, 0, 0),
+    "list": (cmd_list, 0, 0),
+    "devices": (cmd_list, 0, 0),
+    "status": (cmd_status, 0, 0),
+    "toggle": (cmd_toggle, 0, 0),
+    "off": (cmd_off, 0, 0),
+    "power-off": (cmd_off, 0, 0),
+    "connect": (cmd_connect, 1, 1),
+    "disconnect": (cmd_disconnect, 0, 1),
+    "remove": (cmd_remove, 1, 1),
+    "unpair": (cmd_remove, 1, 1),
+    "clear": (cmd_clear, 0, 0),
+}
+
+
 def main():
     args = sys.argv[1:]
     action = args.pop(0) if args else "menu"
     if action in ("-h", "--help", "help") and not args:
         print(t("bluetooth_usage"))
         return
-    if not (
-        (
-            action
-            in ("menu", "list", "devices", "status", "toggle", "off", "power-off")
-            and not args
-        )
-        or (action == "connect" and len(args) == 1 and args[0])
-        or (action == "disconnect" and len(args) <= 1 and (not args or args[0]))
-    ):
+    if action not in COMMANDS:
+        fail("cli_usage", code=2, command="custom-bluetooth")
+    handler, min_args, max_args = COMMANDS[action]
+    if not (min_args <= len(args) <= max_args):
         fail("cli_usage", code=2, command="custom-bluetooth")
     if action == "menu":
         if not os.environ.get("WAYLAND_DISPLAY"):
@@ -622,47 +692,13 @@ def main():
         from gi.repository import Gio, GLib, GLibUnix
     except ImportError:
         fail("cli_dependency", code=127, name="python-gobject")
-    try:
-        execute(action, args)
-    except GLib.Error as error:
-        print(error.message, file=sys.stderr)
-        sys.exit(1)
-
-
-def execute(action, args):
     bluetooth = Bluetooth()
     try:
         bluetooth.refresh()
-        if action == "menu":
-            menu(bluetooth)
-        elif action in ("list", "devices"):
-            for device in bluetooth.ordered():
-                print(
-                    device.address,
-                    escaped(device.name),
-                    "connected" if device.is_connected else "disconnected",
-                    "paired" if device.is_paired else "unpaired",
-                    sep="\t",
-                )
-        elif action == "status":
-            names = [escaped(d.name) for d in bluetooth.ordered() if d.is_connected]
-            print("powered: " + ("on" if bluetooth.powered else "off"))
-            print("connected: " + (", ".join(names) if names else "none"))
-        elif action in ("toggle", "off", "power-off"):
-            bluetooth.set_adapter_power(action == "toggle" and not bluetooth.powered)
-        elif action == "connect":
-            device = bluetooth.find(args[0])
-            bluetooth.connect_device(device)
-            print("connected", device.address, sep="\t")
-        elif args:
-            device = bluetooth.find(args[0])
-            bluetooth.disconnect_device(device)
-            print("disconnected", device.address, sep="\t")
-        else:
-            for device in bluetooth.ordered():
-                if device.is_connected:
-                    bluetooth.disconnect_device(device)
-                    print("disconnected", device.address, sep="\t")
+        handler(bluetooth, args)
+    except GLib.Error as error:
+        print(error.message, file=sys.stderr)
+        sys.exit(1)
     finally:
         if not bluetooth.connection.is_closed():
             bluetooth.connection.close_sync(None)
