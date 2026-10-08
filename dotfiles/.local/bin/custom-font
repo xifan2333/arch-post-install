@@ -219,10 +219,10 @@ EOF
 	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
 	# The validated names use the same quote escaping in CSS and TOML strings.
 	printf '[font]\nfamily = ["%s", "%s", "Noto Color Emoji"]\n' "$mono_css" "$cjk_css" >"$tmp/ftty.toml"
-	printf '[main]\ntitle-font=%s:size=%s,%s:size=%s\nsummary-font=%s:size=%s,%s:size=%s\nbody-font=%s:size=%s,%s:size=%s\n' \
-		"$write_mono" "$notification_font_size" "$write_cjk" "$notification_font_size" \
-		"$write_mono" "$notification_font_size" "$write_cjk" "$notification_font_size" \
-		"$write_mono" "$notification_font_size" "$write_cjk" "$notification_font_size" >"$tmp/fnott.ini"
+	printf '[main]\ntitle-font=%s,%s:size=%s\nsummary-font=%s,%s:size=%s\nbody-font=%s,%s:size=%s\n' \
+		"$write_mono" "$write_cjk" "$notification_font_size" \
+		"$write_mono" "$write_cjk" "$notification_font_size" \
+		"$write_mono" "$write_cjk" "$notification_font_size" >"$tmp/fnott.ini"
 	# Fcitx5 caches generic-family matches; give its UI the actual selected pair.
 	cat -- "$fcitx_dir/classicui.conf.template" >"$tmp/fcitx5.conf"
 	printf '\nFont="%s,%s %s"\nMenuFont="%s,%s %s"\nTrayFont="%s,%s Bold %s"\n' \

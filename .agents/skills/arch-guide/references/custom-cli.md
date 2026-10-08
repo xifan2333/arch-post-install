@@ -83,7 +83,7 @@ they point into this repository. Stream target history remains in `livestream`.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
-  `fuzzel.ini`, `ftty.toml`, `fcitx5.conf`, `waybar.css`, `wayhud.css`,
+  `fuzzel.ini`, `ftty.toml`, `fnott.ini`, `fcitx5.conf`, `waybar.css`, `wayhud.css`,
   `qt5ct.conf`, `qt6ct.conf`, and `qt.qss`. Malformed authority is
   an error. These consumers use mono first and CJK for missing glyphs. Fontconfig
   generic families (`monospace`, `sans-serif`, `serif`, `system-ui`, and `ui-*`)
@@ -115,8 +115,9 @@ Fontconfig, Fuzzel, ftty, and Waybar configuration sources are `.tera` files in 
 repository. Mise renders regular configuration files with absolute state paths.
 After changing `XDG_STATE_HOME`, reapply dotfiles. Edit the `.tera` source rather
 than the rendered target. The whole-tree mapping excludes template sources.
-Fnott uses the generated `theme/fnott.ini` from `themed/fnott.ini.tpl` and
-Fontconfig generic families; switching themes preserves the font selection.
+Fnott merges the generated `theme/fnott.ini` from `themed/fnott.ini.tpl` with the
+active typography fragment in `font/fnott.ini` to produce `${XDG_CONFIG_HOME:-$HOME/.config}/fnott/fnott.ini`.
+Switching themes or fonts updates the unified configuration and restarts fnott.
 
 Qt uses `QT_QPA_PLATFORMTHEME=qt5ct` (required packages: `qt5ct` and `qt6ct`).
 The Qt 6 plugin also registers this key, so both versions follow the same setting,
