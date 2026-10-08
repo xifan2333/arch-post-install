@@ -207,6 +207,7 @@
     "on-scroll-down": "brightnessctl set 5%-"
   },
   "battery": {
+    "on-click-right": "custom-hardware menu",
     "format": "{icon}  {capacity}%",
     "format-charging": "󰂄  {capacity}%",
     "format-plugged": "󰚥  {capacity}%",

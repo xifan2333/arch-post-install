@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # @name         custom-hardware
-# @summary      Inspect or control ThinkPad ACPI fan speed and Intel GPU frequency
+# @summary      Control power profiles, ThinkPad fan speed, and Intel GPU frequency
 # @version      1.0.0
-# @deps         awk, cat
+# @deps         awk, cat; profile: busctl, jq; menu: fuzzel, notify-send
 #
 # @description  Hardware performance and cooling controller for ThinkPad + Intel GPU.
 #               Supports status introspection, fan speed level toggling, and GPU clock limits.
@@ -15,9 +15,12 @@
 #
 # @commands
 #   status                             Print overview of fan, GPU, and CPU status (default)
-#   fan [status|auto|full|0-7|toggle]  Inspect or set ThinkPad ACPI fan speed
-#   gpu [status|cur|min|max|auto|toggle|<mhz>] Inspect or set Intel GPU frequency limits
+#   menu                               Open the performance and cooling menu
+#   profile [status|list|set <name>|menu] Inspect or select a native power profile
+#   fan [status|auto|full|0-7|toggle|menu] Inspect or set ThinkPad ACPI fan speed
+#   gpu [status|cur|min|max|auto|toggle|<mhz>|menu] Inspect or set GPU frequency limits
 #
+# @stdin        Unused; interactive menus are explicit
 # @stdout       Hardware metrics and operation confirmation
 # @stderr       Diagnostic errors and non-zero exit reason
 #
@@ -25,6 +28,7 @@
 #   custom-hardware
 #   custom-hardware fan auto
 #   custom-hardware gpu max
+#   custom-hardware menu
 
 set -Eeuo pipefail
 shopt -s inherit_errexit
@@ -54,6 +58,45 @@ require() {
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
 
 fan_proc=/proc/acpi/ibm/fan
+PROFILES_BUS=org.freedesktop.UPower.PowerProfiles
+PROFILES_PATH=/org/freedesktop/UPower/PowerProfiles
+DBUS_TIMEOUT=5
+GPU_PRESET_COUNT=5
+# Use a 50 MHz menu grid; the driver remains authoritative on applied values.
+GPU_STEP_MHZ=50
+
+profile_data() {
+	require busctl jq
+	busctl --system --auto-start=no --allow-interactive-authorization=no --timeout="$DBUS_TIMEOUT" \
+		--json=short call "$PROFILES_BUS" "$PROFILES_PATH" org.freedesktop.DBus.Properties \
+		GetAll s "$PROFILES_BUS" |
+		jq -ce '.data[0] | {current: .ActiveProfile.data, profiles: [.Profiles.data[].Profile.data]} |
+            select((.profiles | length > 0) and
+                all(.profiles[]; . == "performance" or . == "balanced" or . == "power-saver")) |
+            select(.current as $current | .profiles | index($current) != null)'
+}
+profile() {
+	local action="$1" data requested actual
+	data=$(profile_data)
+	case "$action" in
+	status) jq -r '.current' <<<"$data" ;;
+	list) jq -r '.current as $current | .profiles[] | [., (if . == $current then "*" else "-" end)] | @tsv' <<<"$data" ;;
+	set)
+		requested="$2"
+		jq -e --arg name "$requested" '.profiles | index($name) != null' <<<"$data" >/dev/null ||
+			die 1 cli_unavailable "name=$requested"
+		actual=$(jq -r '.current' <<<"$data")
+		if [[ "$actual" != "$requested" ]]; then
+			busctl --system --auto-start=no --allow-interactive-authorization=no --timeout="$DBUS_TIMEOUT" \
+				set-property "$PROFILES_BUS" "$PROFILES_PATH" "$PROFILES_BUS" ActiveProfile s "$requested"
+			data=$(profile_data)
+			actual=$(jq -r '.current' <<<"$data")
+			[[ "$actual" == "$requested" ]] || die 1 cli_unavailable "name=$requested"
+		fi
+		printf '%s\n' "$actual"
+		;;
+	esac
+}
 
 gpu_dir() {
 	local node
@@ -142,15 +185,178 @@ overview() {
 	printf '%s\n%s\n' "$fan_data" "$gpu_data"
 	if ((${#temperatures[@]})); then printf '%s\n' "${temperatures[@]}"; fi
 }
+
+# Fuzzel reports both Esc and startup errors as 1; stderr distinguishes them.
+pick() (
+	local selection rc errors
+	errors=$(mktemp "${XDG_RUNTIME_DIR:-/run/user/$UID}/custom-picker.XXXXXX")
+	trap 'rm -f -- "$errors"' EXIT
+	if selection=$(fuzzel --dmenu --log-level=error "$@" 2>"$errors"); then
+		cat "$errors" >&2
+		printf '%s' "$selection"
+	else
+		rc=$?
+		cat "$errors" >&2
+		if ((rc == 1)) && [[ ! -s "$errors" ]]; then return 0; fi
+		if ((rc == 127 || rc == 130)); then exit "$rc"; fi
+		die 1 cli_picker_failed
+	fi
+)
+fan_level() {
+	local level
+	level=$(fan status | awk '/^level:/{print $2}')
+	case "$level" in
+	auto | [0-7]) printf '%s' "$level" ;;
+	disengaged | full-speed | 64) printf '%s' full ;;
+	*) die 1 cli_unavailable "name=$fan_proc:level" ;;
+	esac
+}
+fan_label() {
+	case "$1" in
+	auto | full) t "hardware_fan_$1" ;;
+	*) t hardware_fan_level "level=$1" ;;
+	esac
+}
+gpu_presets() {
+	local directory low high limit value i previous=-1
+	directory=$(gpu_dir)
+	low=$(number "$directory/gt_RPn_freq_mhz")
+	high=$(number "$directory/gt_RP0_freq_mhz")
+	limit=$(number "$directory/gt_max_freq_mhz")
+	if ((limit < high)); then high="$limit"; fi
+	((low <= high)) || die 1 cli_unavailable "name=$directory:range"
+	for ((i = 0; i < GPU_PRESET_COUNT; i++)); do
+		value=$((low + ((high - low) * i + (GPU_PRESET_COUNT - 1) / 2) / (GPU_PRESET_COUNT - 1)))
+		value=$(((value + GPU_STEP_MHZ / 2) / GPU_STEP_MHZ * GPU_STEP_MHZ))
+		if ((i == 0 || value < low)); then value="$low"; fi
+		if ((i == GPU_PRESET_COUNT - 1 || value > high)); then value="$high"; fi
+		if ((value != previous)); then printf '%s\n' "$value"; fi
+		previous="$value"
+	done
+}
+menu() {
+	local page="${1:-main}" prompt data current label prefix choice value actual body title
+	local directory low min max presets
+	local -a values rows
+	[[ -n "${WAYLAND_DISPLAY:-}" ]] || die 1 cli_unavailable name=WAYLAND_DISPLAY
+	require fuzzel notify-send
+	while :; do
+		rows=()
+		case "$page" in
+		main)
+			current=$(profile status)
+			label=$(t "hardware_profile_${current//-/_}")
+			rows+=("  󰓅  $(t hardware_profile_state "value=$label")")
+			current=$(fan_level)
+			label=$(fan_label "$current")
+			rows+=("  󰈐  $(t hardware_fan_state "value=$label")")
+			directory=$(gpu_dir)
+			min=$(number "$directory/gt_min_freq_mhz")
+			max=$(number "$directory/gt_max_freq_mhz")
+			rows+=("  󰍛  $(t hardware_gpu_state "min=$min" "max=$max")")
+			values=(profile fan gpu)
+			prompt=$(t hardware_menu_prompt)
+			;;
+		profile)
+			data=$(profile_data)
+			current=$(jq -r '.current' <<<"$data")
+			values=()
+			for value in performance balanced power-saver; do
+				if ! jq -e --arg name "$value" '.profiles | index($name) != null' <<<"$data" >/dev/null; then continue; fi
+				prefix='  '
+				if [[ "$value" == "$current" ]]; then prefix='* '; fi
+				rows+=("${prefix}󰓅  $(t "hardware_profile_${value//-/_}")")
+				values+=("$value")
+			done
+			prompt=$(t hardware_profile_prompt)
+			;;
+		fan)
+			current=$(fan_level)
+			values=(auto {1..7} full)
+			for value in "${values[@]}"; do
+				prefix='  '
+				if [[ "$value" == "$current" ]]; then prefix='* '; fi
+				rows+=("${prefix}󰈐  $(fan_label "$value")")
+			done
+			prompt=$(t hardware_fan_prompt "value=$(fan_label "$current")")
+			;;
+		gpu)
+			current=$(gpu min)
+			presets=$(gpu_presets)
+			mapfile -t values <<<"$presets"
+			low="${values[0]}"
+			for value in "${values[@]}"; do
+				prefix='  '
+				if [[ "$value" == "$current" ]]; then prefix='* '; fi
+				if [[ "$value" == "$low" ]]; then
+					label=$(t hardware_gpu_auto "value=$value")
+				else label=$(t hardware_gpu_frequency "value=$value"); fi
+				rows+=("${prefix}󰍛  $label")
+			done
+			prompt=$(t hardware_gpu_prompt "value=$current")
+			;;
+		esac
+		if [[ "$page" != main ]]; then
+			values+=(back)
+			rows+=("  󰁍  $(t hardware_back)")
+		fi
+		choice=$(printf '%s\n' "${rows[@]}" | pick --index --prompt "$prompt" --lines "${#rows[@]}")
+		[[ -n "$choice" ]] || return 0
+		[[ "$choice" =~ ^(0|[1-9][0-9]{0,5})$ ]] || die 1 cli_picker_failed
+		((choice < ${#values[@]})) || die 1 cli_picker_failed
+		value="${values[choice]}"
+		if [[ "$value" == back ]]; then
+			page=main
+			continue
+		fi
+		if [[ "$page" == main ]]; then
+			page="$value"
+			continue
+		fi
+		case "$page" in
+		profile)
+			actual=$(profile set "$value")
+			body=$(t hardware_profile_state "value=$(t "hardware_profile_${actual//-/_}")")
+			;;
+		fan)
+			fan "$value"
+			actual=$(fan_level)
+			[[ "$actual" == "$value" ]] || die 1 cli_unavailable "name=$fan_proc:level"
+			body=$(t hardware_fan_state "value=$(fan_label "$actual")")
+			;;
+		gpu)
+			gpu "$value"
+			actual=$(gpu min)
+			body=$(t hardware_gpu_applied "value=$actual")
+			;;
+		esac
+		title=$(t domain_hardware)
+		notify-send -a custom-hardware -h string:x-canonical-private-synchronous:hardware "$title" "$body"
+		return
+	done
+}
 main() {
 	local action="${1:-status}" sub
 	if (($#)); then shift; fi
 	case "$action" in
-	-h | --help | status) (($# == 0)) || usage_error ;;
+	-h | --help | status | menu) (($# == 0)) || usage_error ;;
+	profile)
+		sub="${1:-status}"
+		if (($#)); then shift; fi
+		case "$sub" in
+		status | list | menu) (($# == 0)) || usage_error ;;
+		set)
+			(($# == 1)) || usage_error
+			case "$1" in performance | balanced | power-saver) ;; *) usage_error ;; esac
+			;;
+		*) usage_error ;;
+		esac
+		;;
 	fan | gpu)
 		(($# <= 1)) || usage_error
 		sub="${1:-status}"
 		case "$action:$sub" in
+		fan:menu | gpu:menu) ;;
 		fan:status | fan:auto | fan:full | fan:full-speed | fan:max | fan:disengaged | fan:toggle | fan:[0-7]) ;;
 		gpu:status | gpu:cur | gpu:min | gpu:max | gpu:auto | gpu:toggle) ;;
 		gpu:*) [[ "$sub" =~ ^[0-9]{1,6}$ ]] || usage_error ;;
@@ -159,6 +365,10 @@ main() {
 		;;
 	*) usage_error ;;
 	esac
-	case "$action" in -h | --help) t help_hardware ;; status) overview ;; fan) fan "$sub" ;; gpu) gpu "$sub" ;; esac
+	if [[ "${sub:-}" == menu ]]; then
+		menu "$action"
+		return
+	fi
+	case "$action" in -h | --help) t help_hardware ;; status) overview ;; menu) menu ;; profile) profile "$sub" "$@" ;; fan) fan "$sub" ;; gpu) gpu "$sub" ;; esac
 }
 main "$@"

@@ -304,3 +304,33 @@ mise run lint
 
 CI runs the repository linters. Validate runtime behavior with checks appropriate
 to the changed command.
+
+## Performance and cooling
+
+Right-click the Waybar battery to open `custom-hardware menu`. The first level
+shows the current power profile, fan setting, and GPU frequency limits. Each
+category opens an enum picker with an aligned current marker and a Back item.
+Selection applies immediately, reads back the setting, notifies, and closes the
+menu. Esc exits without changing anything. State is queried when opening a menu;
+there is no background collector or polling.
+
+- `custom-hardware profile [status|list|set <name>|menu]` uses the installed
+  power-profiles-daemon. Names are `performance`, `balanced`, and `power-saver`;
+  only supported profiles appear. Status emits the current name; list emits
+  profile/active-marker TSV (`*` or `-`); set emits the confirmed name. Queries
+  do not activate the daemon, and direct commands do not open authorization UI.
+- `custom-hardware fan menu` offers Automatic, levels 1–7, and Full speed. Full
+  speed is the ThinkPad disengaged mode, distinct from level 7. Direct fan
+  commands, including level 0, retain their existing interface.
+- `custom-hardware gpu menu` controls the minimum frequency, allowing the driver
+  to scale upward with load. Five candidates span the hardware minimum to the
+  smaller of the hardware maximum and current maximum limit, rounded to the
+  named 50 MHz menu grid. Endpoints are preserved and duplicates removed. The
+  lowest preset is Automatic. The current 650–1300 MHz range yields 650, 800,
+  1000, 1150, and 1300 MHz. The prompt and notification use actual readback values;
+  an externally selected value outside the presets has no selected row.
+
+Streaming retains its existing ownership: startup boosts fan/GPU, manual menu
+changes remain possible during streaming, and stop/failure restores auto. The
+menu stores no last-selected profile or hardware state. All existing direct
+fan/GPU commands and the default read-only hardware overview remain available.
