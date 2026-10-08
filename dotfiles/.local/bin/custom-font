@@ -76,6 +76,7 @@ fcitx_dir="${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5"
 qt_template="${XDG_CONFIG_HOME:-$HOME/.config}/qt6ct/qt6ct.conf.template"
 font_size=13
 ui_font_size=11
+notification_font_size=11
 candidate_font_size=12
 ime_menu_font_size=10
 
@@ -116,6 +117,22 @@ font_argument() {
 	# Keep names representable in the line-based config formats and Fuzzel list.
 	[[ -n "$1" && "$1" != *[[:cntrl:]:=,\\]* ]] || usage_error
 }
+sync_fnott() (
+	local fnott_dir="${XDG_CONFIG_HOME:-$HOME/.config}/fnott"
+	local theme_ini="${XDG_STATE_HOME:-$HOME/.local/state}/theme/fnott.ini"
+	local font_ini="$state_dir/fnott.ini"
+	local tmp
+	mkdir -p -- "$fnott_dir"
+	tmp=$(mktemp "$fnott_dir/.fnott.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	if [[ -f "$theme_ini" ]]; then cat -- "$theme_ini" >"$tmp"; fi
+	if [[ -f "$font_ini" ]]; then
+		printf '\n' >>"$tmp"
+		cat -- "$font_ini" >>"$tmp"
+	fi
+	chmod 644 "$tmp"
+	mv -Tf -- "$tmp" "$fnott_dir/fnott.ini"
+)
 sync_toolkit_fonts() {
 	local family="$1, $2" key value
 	# GSettings uses quoted GVariant strings, not shell quoting.
@@ -202,6 +219,10 @@ EOF
 	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
 	# The validated names use the same quote escaping in CSS and TOML strings.
 	printf '[font]\nfamily = ["%s", "%s", "Noto Color Emoji"]\n' "$mono_css" "$cjk_css" >"$tmp/ftty.toml"
+	printf '[main]\ntitle-font=%s,%s:size=%s\nsummary-font=%s,%s:size=%s\nbody-font=%s,%s:size=%s\n' \
+		"$write_mono" "$write_cjk" "$notification_font_size" \
+		"$write_mono" "$write_cjk" "$notification_font_size" \
+		"$write_mono" "$write_cjk" "$notification_font_size" >"$tmp/fnott.ini"
 	# Fcitx5 caches generic-family matches; give its UI the actual selected pair.
 	cat -- "$fcitx_dir/classicui.conf.template" >"$tmp/fcitx5.conf"
 	printf '\nFont="%s,%s %s"\nMenuFont="%s,%s %s"\nTrayFont="%s,%s Bold %s"\n' \
@@ -218,6 +239,7 @@ EOF
 	for qt in qt5ct qt6ct; do mv -f -- "$tmp/$qt.conf" "$state_dir/$qt.conf"; done
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
 	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
+	mv -f -- "$tmp/fnott.ini" "$state_dir/fnott.ini"
 	mv -f -- "$tmp/fcitx5.conf" "$state_dir/fcitx5.conf"
 	# Bootstrap init establishes this generated-config link; set also converges it.
 	mkdir -p -- "$fcitx_dir/conf"
@@ -236,6 +258,7 @@ EOF
 		ln -s -- "$state_dir/$qt.conf" "$link_tmp/$qt.conf"
 		mv -Tf -- "$link_tmp/$qt.conf" "$qt_dir/$qt.conf"
 	done
+	sync_fnott
 	sync_toolkit_fonts "$write_mono" "$write_cjk"
 )
 list_fonts() {
