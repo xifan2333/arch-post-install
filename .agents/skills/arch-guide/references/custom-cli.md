@@ -272,12 +272,24 @@ switching modes. Super+G and Super+Shift+G toggle their respective modes;
 Super+Ctrl+G and Waybar right-click open the shared menu.
 
 Status and duration use the unit's state, `CUSTOM_RECORD_MODE` environment entry,
-and the service MainPID. Waybar distinguishes `recording` from `live`. There are no
-PID/mode files or process-name searches. Stream-only native service hooks boost
-hardware, start danmaku, and restore/close them after stop or failure. These
+and the service MainPID. `custom-record watch` streams newline-delimited Waybar
+JSON, distinguishing `recording` from `live`. It subscribes to systemd D-Bus
+lifecycle events before its initial status query, including unit creation/removal,
+external stops, and failures. While either mode is running, a local monotonic
+clock updates the elapsed `MM:SS` once per second without querying systemd or
+`ps` again. Idle, transition, and failed states have no periodic timer. Starting
+Waybar during a session reads the current elapsed time instead of resetting it.
+The JSON `elapsed` field contains seconds; `status [text|waybar]` remains a
+one-shot query. The Gio helper keeps the subscription connection alive and
+inherits Waybar's unit and stdout; it adds no independent service or state file.
+Waybar restarts the helper only if it exits (for example after a bus disconnect).
+There are no PID/mode files or process-name searches. Stream-only native service
+hooks boost hardware, start danmaku, and restore/close them after stop or failure. These
 internal hooks reject execution outside the owning service's cgroup.
 
-Failed units remain failed and are visible in text/Waybar output (exit 1).
+Failed units remain failed. Text status exits 1 for a failed unit; Waybar status
+(`waybar` or `--waybar`) returns valid JSON with `class=failed` and exits 0 so
+the module stays visible. Status-query or JSON-generation errors still fail.
 Inspect `journalctl --user -u custom-record.service`. An explicit `start` or
 `full` can reset a previous failure; `toggle` does not hide it. Cancelling the
 menu preserves the service and configuration state.

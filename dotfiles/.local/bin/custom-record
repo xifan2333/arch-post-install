@@ -4,7 +4,8 @@
 # @summary      Record the screen or live stream through one session-owned service
 # @deps         systemctl, uwsm, gpu-screen-recorder, flock, notify-send, ps
 #               menu/config: fuzzel; stream: ffmpeg, custom-hardware, custom-danmaku
-# @usage        custom-record [status [text|waybar]|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]]
+#               watch: python3, python-gobject, readlink
+# @usage        custom-record [status [text|waybar]|watch|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]]
 # @options      -h, --help  Print localized usage
 # @stdin        Unused; interactive configuration is explicit
 # @stdout       Status, Waybar JSON, or the started recording file path
@@ -75,14 +76,10 @@ declare -ar AUDIO_RATES=(128 160 192)
 load_state='' active_state='' sub_state='' main_pid='' result='' record_mode=''
 
 notify() {
-	local title body state
+	local title body
 	title=$(t domain_record)
 	body=$(t "$@")
 	notify-send -a custom-record -h string:x-canonical-private-synchronous:record "$title" "$body"
-	state=$(systemctl --user show --property=ActiveState --value waybar.service)
-	if [[ "$state" == active ]]; then
-		systemctl --user kill --kill-whom=main --signal=RTMIN+8 waybar.service
-	fi
 }
 read_records() {
 	records=()
@@ -376,7 +373,7 @@ stop_recording() {
 	notify "record_stopped_$stopped_mode"
 }
 status() {
-	local format="$1" state text='' tooltip elapsed duration
+	local format="$1" state text='' tooltip elapsed=0 duration
 	read_state
 	if [[ "$active_state" == failed || "$result" != success ]]; then
 		state=failed
@@ -408,8 +405,10 @@ status() {
 	fi
 	if [[ "$format" == waybar || "$format" == --waybar ]]; then
 		require jq
-		jq -cn --arg text "$text" --arg state "$state" --arg tooltip "$tooltip" \
-			'{text:$text,alt:$state,class:$state,tooltip:$tooltip}'
+		jq -cn --arg text "$text" --arg state "$state" --arg tooltip "$tooltip" --argjson elapsed "$elapsed" \
+			'{text:$text,alt:$state,class:$state,tooltip:$tooltip,elapsed:$elapsed}'
+		# A failed recording is valid status data; Waybar hides nonzero exits.
+		return 0
 	elif [[ "$state" == recording || "$state" == live ]]; then
 		printf '%s (%s)\n' "$state" "$duration"
 	else printf '%s\n' "$state"; fi
@@ -443,7 +442,7 @@ menu() {
 	esac
 }
 main() {
-	local action="${1:-status}" requested lock current_server current_key current_video current_audio
+	local action="${1:-status}" requested lock self current_server current_key current_video current_audio
 	local -a records=()
 	if (($#)); then shift; fi
 	case "$action" in
@@ -463,7 +462,7 @@ main() {
 		(($# == 3)) || usage_error
 		[[ "$1" =~ ^[1-9][0-9]*$ && "$2" =~ ^[1-9][0-9]*$ && -n "$3" ]] || usage_error
 		;;
-	-h | --help | full | stop | menu | stream-prepare | stream-ready | stream-cleanup) (($# == 0)) || usage_error ;;
+	-h | --help | watch | full | stop | menu | stream-prepare | stream-ready | stream-cleanup) (($# == 0)) || usage_error ;;
 	*) usage_error ;;
 	esac
 	case "$action" in
@@ -474,6 +473,11 @@ main() {
 	status)
 		status "${1:-text}"
 		return
+		;;
+	watch)
+		require python3 readlink
+		self=$(readlink -f -- "${BASH_SOURCE[0]}")
+		exec python3 -B "${self%/bin/*}/share/custom-record/watch.py" "$self"
 		;;
 	menu)
 		menu

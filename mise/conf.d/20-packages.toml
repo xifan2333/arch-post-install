@@ -52,6 +52,7 @@
 # Interactive UI & Notifications
 "pacman:fuzzel" = "latest"
 "pacman:waybar" = "latest"
+"pacman:python-gobject" = "latest"
 "pacman:fnott" = "latest"
 "pacman:adw-gtk-theme" = "latest"
 "pacman:qt5ct" = "latest"

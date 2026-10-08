@@ -171,7 +171,7 @@
   "help_hardware": "Usage: custom-hardware [status|fan [status|auto|full|0-7|toggle]|gpu [status|cur|min|max|auto|toggle|<MHz>]]",
   "help_wallhaven": "Usage: custom-wallhaven [menu [query]|search <query>|random <query>|download <id|url> [-o <path|->]]; download streams bytes when stdout is redirected; menu and random print a saved path.",
   "help_wallpaper": "Usage: custom-wallpaper [menu|current|list|random|search [query]|set <path|url|id|->|set --image-stdin]; random fetches and applies pixel art from Wallhaven; set - reads paths, --image-stdin reads image bytes.",
-  "help_record": "Usage: custom-record [status [text|waybar]|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]] (default: status)",
+  "help_record": "Usage: custom-record [status [text|waybar]|watch|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]] (default: status)",
   "record_busy": "Recording or streaming is already active or changing state; stop it before starting another mode",
   "record_failed": "Recording service failed ({result}); inspect journalctl --user -u custom-record.service",
   "record_idle": "Recording and streaming idle",
