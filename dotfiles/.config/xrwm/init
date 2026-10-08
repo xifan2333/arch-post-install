@@ -28,7 +28,7 @@ xrwm default-attach-mode bottom
 xrwm border-width 2
 xrwm focus-follows-cursor normal
 xrwm set-cursor-warp on-output-change
-xrwm animation true
+xrwm animation false
 xrwm animation-duration 150
 
 # 3. 模块化加载窗口规则与快捷键全集
