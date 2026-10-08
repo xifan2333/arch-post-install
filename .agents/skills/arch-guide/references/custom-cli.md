@@ -277,7 +277,9 @@ PID/mode files or process-name searches. Stream-only native service hooks boost
 hardware, start danmaku, and restore/close them after stop or failure. These
 internal hooks reject execution outside the owning service's cgroup.
 
-Failed units remain failed and are visible in text/Waybar output (exit 1).
+Failed units remain failed. Text status exits 1 for a failed unit; Waybar status
+(`waybar` or `--waybar`) returns valid JSON with `class=failed` and exits 0 so
+the module stays visible. Status-query or JSON-generation errors still fail.
 Inspect `journalctl --user -u custom-record.service`. An explicit `start` or
 `full` can reset a previous failure; `toggle` does not hide it. Cancelling the
 menu preserves the service and configuration state.

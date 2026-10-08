@@ -410,6 +410,8 @@ status() {
 		require jq
 		jq -cn --arg text "$text" --arg state "$state" --arg tooltip "$tooltip" \
 			'{text:$text,alt:$state,class:$state,tooltip:$tooltip}'
+		# A failed recording is valid status data; Waybar hides nonzero exits.
+		return 0
 	elif [[ "$state" == recording || "$state" == live ]]; then
 		printf '%s (%s)\n' "$state" "$duration"
 	else printf '%s\n' "$state"; fi
