@@ -115,9 +115,8 @@
     },
     "tooltip": false,
     "return-type": "json",
-    "exec": "custom-record status waybar",
-    "signal": 8,
-    "interval": 1,
+    "exec": "custom-record watch",
+    "restart-interval": 2,
     "on-click": "custom-record toggle",
     "on-click-right": "custom-record menu"
   },
