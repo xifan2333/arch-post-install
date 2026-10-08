@@ -83,6 +83,7 @@
   "net_no_device": "No wireless device detected",
   "bluetooth_notify_title": "Bluetooth",
   "bluetooth_prompt": "Bluetooth: ",
+  "bluetooth_scanning_prompt": "Bluetooth (scanning): ",
   "bluetooth_power_on": "Power On",
   "bluetooth_power_off": "Power Off",
   "bluetooth_rescan": "Rescan Devices",

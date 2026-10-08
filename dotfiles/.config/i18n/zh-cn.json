@@ -83,6 +83,7 @@
   "net_no_device": "未检测到可用的无线设备",
   "bluetooth_notify_title": "蓝牙",
   "bluetooth_prompt": "蓝牙: ",
+  "bluetooth_scanning_prompt": "蓝牙（扫描中）: ",
   "bluetooth_power_on": "开启蓝牙",
   "bluetooth_power_off": "关闭蓝牙",
   "bluetooth_rescan": "重新扫描",
