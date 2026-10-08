@@ -119,14 +119,11 @@ disconnect_device() {
 	notify bluetooth_disconnected "dev=$name"
 	printf 'disconnected\t%s\n' "$mac"
 }
-discover() (
+discover() {
+	require bluetoothctl
 	property "$adapter" org.bluez.Adapter1 Powered true
-	busctl --quiet call org.bluez "$adapter" org.bluez.Adapter1 StartDiscovery
-	trap 'busctl --quiet call org.bluez "$adapter" org.bluez.Adapter1 StopDiscovery' EXIT
-	trap 'exit 130' INT
-	trap 'exit 1' TERM HUP
-	sleep "$DISCOVERY_SECS"
-)
+	bluetoothctl --timeout "$DISCOVERY_SECS" scan on >/dev/null 2>&1 || true
+}
 menu() {
 	local rows prompt choice count selected actual just_paired
 	while :; do
