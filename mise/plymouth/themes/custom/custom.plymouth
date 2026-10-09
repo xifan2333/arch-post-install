@@ -1,0 +1,11 @@
+[Plymouth Theme]
+Name=Custom
+Description=Minimalist Arch boot splash screen.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/custom
+ScriptFile=/usr/share/plymouth/themes/custom/custom.script
+ConsoleLogBackgroundColor=0x1a1b26
+MonospaceFont=Cantarell 11
+Font=Cantarell 11
