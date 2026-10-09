@@ -150,7 +150,7 @@
   "power_logout": "Logout",
   "power_reboot": "Reboot",
   "power_shutdown": "Power Off",
-  "bluetooth_usage": "Usage: custom-bluetooth [menu | list | status | connect <mac|name> | disconnect [mac|name] | remove <mac|name> | clear | toggle | off]",
+  "bluetooth_usage": "Usage: custom-bluetooth [menu | scan | list | status | connect <mac|name> | disconnect [mac|name] | remove <mac|name> | clear | toggle | off]",
   "bluetooth_operation_failed": "Bluetooth operation failed; see diagnostics above",
   "bluetooth_missing_tool": "Required command is missing: {tool}",
   "bluetooth_ambiguous_device": "More than one device is named {dev}; use its MAC address",

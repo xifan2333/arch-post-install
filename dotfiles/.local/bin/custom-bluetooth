@@ -4,7 +4,7 @@
 # @summary      Manage Bluetooth adapters and stream discovered devices into Fuzzel
 # @deps         python3, python-gobject, custom-i18n; menu: fuzzel, notify-send
 #               pairing: bluetoothctl
-# @usage        custom-bluetooth [menu|list|status|connect <mac|name>|
+# @usage        custom-bluetooth [menu|scan|list|status|connect <mac|name>|
 #               disconnect [mac|name]|remove <mac|name>|clear|toggle|off]
 # @options      -h, --help  Print localized usage without contacting the backend
 # @stdin        Unused; explicit arguments select devices
@@ -119,6 +119,9 @@ class BluetoothDevice:
 
     def format_manage_row(self):
         return f"  {self.glyph}  {escaped(self.name)}"
+
+    def format_discover_row(self):
+        return f"  {self.glyph}  󰐕  {escaped(self.name)}"
 
     def update(self, values, invalidated=()):
         for prop in invalidated:
@@ -389,244 +392,230 @@ def pair_device(bluetooth, device):
     bluetooth.set_device_trusted(device, True)
 
 
-def execute_device_intent(bluetooth, device):
-    if device.is_connected:
-        bluetooth.disconnect_device(device)
-        notify("bluetooth_disconnected", dev=device.name)
-        print("disconnected", device.address, sep="\t")
-        return
+class DiscoverySession:
+    def __init__(self, bluetooth):
+        self.bluetooth = bluetooth
+        self.loop = GLib.MainLoop()
+        self.subscriptions = []
+        self.signals = []
+        self.outcome = {"code": None, "error": None}
+        self.started = False
+        self.process = None
+        self.child_watch = None
+        self.closed_handler = None
+        self.errors_file = None
+        self.seen = set()
+        self.items = [
+            MenuItem(f"  󰌍  {t('bluetooth_back')}", lambda: False),
+            MenuItem(f"  󰑐  {t('bluetooth_scanning')}", lambda: True),
+        ]
 
-    if not bluetooth.powered:
-        bluetooth.set_adapter_power(True)
-
-    if not device.is_paired:
-        pair_device(bluetooth, device)
-        if device.is_host:
-            notify("bluetooth_paired", dev=device.name)
-            print("paired", device.address, sep="\t")
-            return
-
-    bluetooth.connect_device(device)
-    notify("bluetooth_connected", dev=device.name)
-    print("connected", device.address, sep="\t")
-
-
-def pick(bluetooth, scanning):
-    """The picker and its discovery session share one synchronous lifetime."""
-    loop = GLib.MainLoop()
-    actions = ["rescan"]
-    if bluetooth.paired():
-        actions.append("manage")
-    paths = actions[:]
-    seen = set()
-    subscriptions = []
-    signals = []
-    outcome = {"code": None, "error": None}
-    started = False
-    process = None
-    child_watch = None
-
-    def stop(code=None, error=None):
-        outcome.update(code=code, error=error)
-        loop.quit()
+    def _stop(self, code=None, error=None):
+        self.outcome.update(code=code, error=error)
+        self.loop.quit()
         return GLib.SOURCE_CONTINUE
 
-    def exited(_pid, status):
-        process.returncode = os.waitstatus_to_exitcode(status)
-        loop.quit()
+    def _on_child_exit(self, _pid, status):
+        self.process.returncode = os.waitstatus_to_exitcode(status)
+        self.loop.quit()
 
-    def append(device):
-        if device.path in seen or not device.address:
+    def append_device(self, device):
+        if device.path in self.seen or device.is_paired or not device.address:
             return
-        try:
-            process.stdin.write(f"{device.format_row()}\n")
-            process.stdin.flush()
-        except BrokenPipeError:
-            return  # The child watch handles selection, Esc, and startup errors.
-        seen.add(device.path)
-        paths.append(device.path)
+        self.seen.add(device.path)
+        item = MenuItem(
+            device.format_discover_row(),
+            lambda d=device: pair_and_connect(self.bluetooth, d),
+        )
+        self.items.append(item)
+        if self.process and self.process.stdin:
+            with suppress(BrokenPipeError):
+                self.process.stdin.write(f"{item.label}\n")
+                self.process.stdin.flush()
 
-    def on_dbus_signal(_path, _args):
-        stop(error=t("cli_unavailable", name="org.bluez"))
+    def _on_dbus_signal(
+        self, _conn, _sender, path, interface, member, parameters, _data
+    ):
+        args = parameters.unpack()
+        if interface == "org.freedesktop.DBus":
+            self._stop(error=t("cli_unavailable", name="org.bluez"))
+        elif member == "InterfacesRemoved":
+            removed, interfaces = args
+            if removed == self.bluetooth.adapter and ADAPTER in interfaces:
+                self._stop(error=t("bluetooth_no_device"))
+            elif DEVICE in interfaces:
+                self.bluetooth.devices.pop(removed, None)
+        elif member == "InterfacesAdded":
+            added, interfaces = args
+            if added.startswith(self.bluetooth.adapter + "/") and DEVICE in interfaces:
+                dev = BluetoothDevice(added, interfaces[DEVICE])
+                self.bluetooth.devices[added] = dev
+                self.append_device(dev)
+        elif member == "PropertiesChanged":
+            kind, values, invalidated = args
+            if path in self.bluetooth.devices and kind == DEVICE:
+                dev = self.bluetooth.devices[path]
+                dev.update(values, invalidated)
+                self.append_device(dev)
+            elif path == self.bluetooth.adapter and kind == ADAPTER:
+                if values.get("Powered") is False or values.get("Discovering") is False:
+                    self._stop(error=t("bluetooth_operation_failed"))
 
-    def on_interfaces_removed(_path, args):
-        removed, interfaces = args
-        if removed == bluetooth.adapter and ADAPTER in interfaces:
-            stop(error=t("bluetooth_no_device"))
-        elif DEVICE in interfaces:
-            bluetooth.devices.pop(removed, None)
+    def _on_closed(self, _connection, _vanished, error):
+        self._stop(
+            error=error.message if error else t("cli_unavailable", name="org.bluez")
+        )
 
-    def on_interfaces_added(_path, args):
-        added, interfaces = args
-        if added.startswith(bluetooth.adapter + "/") and DEVICE in interfaces:
-            device = BluetoothDevice(added, interfaces[DEVICE])
-            bluetooth.devices[added] = device
-            append(device)
-
-    def on_properties_changed(path, args):
-        kind, values, invalidated = args
-        if path in bluetooth.devices and kind == DEVICE:
-            device = bluetooth.devices[path]
-            device.update(values, invalidated)
-            append(device)
-        elif path == bluetooth.adapter and kind == ADAPTER:
-            if values.get("Powered") is False or values.get("Discovering") is False:
-                stop(error=t("bluetooth_operation_failed"))
-
-    signal_routes = {
-        ("org.freedesktop.DBus", "NameOwnerChanged"): on_dbus_signal,
-        (OBJECTS, "InterfacesRemoved"): on_interfaces_removed,
-        (OBJECTS, "InterfacesAdded"): on_interfaces_added,
-        (PROPERTIES, "PropertiesChanged"): on_properties_changed,
-    }
-
-    def changed(_connection, _sender, path, interface, member, parameters, _data):
-        handler = signal_routes.get((interface, member))
-        if handler:
-            handler(path, parameters.unpack())
-
-    def closed(_connection, _vanished, error):
-        stop(error=error.message if error else t("cli_unavailable", name="org.bluez"))
-
-    closed_handler = bluetooth.connection.connect("closed", closed)
-    with tempfile.TemporaryFile(
-        mode="w+t", dir=os.environ.get("XDG_RUNTIME_DIR")
-    ) as errors:
-        try:
-            if scanning:
-                if not bluetooth.powered:
-                    bluetooth.set_adapter_power(True)
-                for sender, interface, member, path, arg0 in (
-                    ("org.bluez", OBJECTS, "InterfacesAdded", "/", None),
-                    ("org.bluez", OBJECTS, "InterfacesRemoved", "/", None),
-                    ("org.bluez", PROPERTIES, "PropertiesChanged", None, None),
-                    (
-                        "org.freedesktop.DBus",
-                        "org.freedesktop.DBus",
-                        "NameOwnerChanged",
-                        "/org/freedesktop/DBus",
-                        "org.bluez",
-                    ),
-                ):
-                    subscriptions.append(
-                        bluetooth.connection.signal_subscribe(
-                            sender,
-                            interface,
-                            member,
-                            path,
-                            arg0,
-                            Gio.DBusSignalFlags.NONE,
-                            changed,
-                            None,
-                        )
-                    )
-                # Subscribe before the snapshot so arrivals during startup are not lost.
-                bluetooth.refresh()
-                bluetooth.call(
-                    bluetooth.adapter,
-                    ADAPTER,
-                    "StartDiscovery",
-                    timeout=SCAN_TIMEOUT_MS,
+    def __enter__(self):
+        if not self.bluetooth.powered:
+            self.bluetooth.set_adapter_power(True)
+        self.errors_file = tempfile.TemporaryFile(
+            mode="w+t", dir=os.environ.get("XDG_RUNTIME_DIR")
+        )
+        self.closed_handler = self.bluetooth.connection.connect(
+            "closed", self._on_closed
+        )
+        for sender, interface, member, path, arg0 in (
+            ("org.bluez", OBJECTS, "InterfacesAdded", "/", None),
+            ("org.bluez", OBJECTS, "InterfacesRemoved", "/", None),
+            ("org.bluez", PROPERTIES, "PropertiesChanged", None, None),
+            (
+                "org.freedesktop.DBus",
+                "org.freedesktop.DBus",
+                "NameOwnerChanged",
+                "/org/freedesktop/DBus",
+                "org.bluez",
+            ),
+        ):
+            self.subscriptions.append(
+                self.bluetooth.connection.signal_subscribe(
+                    sender,
+                    interface,
+                    member,
+                    path,
+                    arg0,
+                    Gio.DBusSignalFlags.NONE,
+                    self._on_dbus_signal,
+                    None,
                 )
-                started = True
-            process = subprocess.Popen(
-                [
-                    "fuzzel",
-                    "--dmenu",
-                    "--index",
-                    "--log-level=error",
-                    "--prompt",
-                    t("bluetooth_prompt"),
-                    "--lines",
-                    str(MENU_LINES),
-                ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=errors,
-                text=True,
             )
-            child_watch = GLib.child_watch_add(process.pid, exited)
-            for sig, code in (
-                (signal.SIGINT, 130),
-                (signal.SIGTERM, 1),
-                (signal.SIGHUP, 1),
-            ):
-                signals.append(
-                    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, sig, stop, code)
-                )
-            try:
-                process.stdin.write(f"  󰑐  {t('bluetooth_rescan')}\n")
-                if "manage" in actions:
-                    process.stdin.write(f"  󰒓  {t('bluetooth_manage')}\n")
-                for device in bluetooth.ordered():
-                    append(device)
-                process.stdin.flush()
-            except BrokenPipeError:
-                pass
-            loop.run()
-        finally:
-            if child_watch and process.returncode is None:
-                GLib.source_remove(child_watch)
-                process.terminate()
-                process.wait()
-            if process is not None:
-                with suppress(BrokenPipeError):
-                    process.stdin.close()
-                selection = process.stdout.read().strip()
-                process.stdout.close()
-            for subscription in subscriptions:
-                bluetooth.connection.signal_unsubscribe(subscription)
-            for source in signals:
-                GLib.source_remove(source)
-            bluetooth.connection.disconnect(closed_handler)
-            if started and not bluetooth.connection.is_closed():
-                try:
-                    bluetooth.call(
-                        bluetooth.adapter,
-                        ADAPTER,
-                        "StopDiscovery",
-                        timeout=SCAN_TIMEOUT_MS,
-                    )
-                except GLib.Error as error:
-                    if outcome["code"] is None and not outcome["error"]:
-                        raise
-                    print(error.message, file=sys.stderr)
-        if outcome["error"]:
-            print(outcome["error"], file=sys.stderr)
+        self.bluetooth.refresh()
+        self.bluetooth.call(
+            self.bluetooth.adapter,
+            ADAPTER,
+            "StartDiscovery",
+            timeout=SCAN_TIMEOUT_MS,
+        )
+        self.started = True
+        return self
+
+    def run_picker(self):
+        self.process = subprocess.Popen(
+            [
+                "fuzzel",
+                "--dmenu",
+                "--index",
+                "--log-level=error",
+                "--prompt",
+                t("bluetooth_scan_prompt"),
+                "--lines",
+                str(MENU_LINES),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=self.errors_file,
+            text=True,
+        )
+        self.child_watch = GLib.child_watch_add(self.process.pid, self._on_child_exit)
+        for sig, code in (
+            (signal.SIGINT, 130),
+            (signal.SIGTERM, 1),
+            (signal.SIGHUP, 1),
+        ):
+            self.signals.append(
+                GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, sig, self._stop, code)
+            )
+        try:
+            for item in self.items:
+                self.process.stdin.write(f"{item.label}\n")
+            for dev in self.bluetooth.devices.values():
+                self.append_device(dev)
+            self.process.stdin.flush()
+        except BrokenPipeError:
+            pass
+
+        self.loop.run()
+
+        if self.outcome["error"]:
+            print(self.outcome["error"], file=sys.stderr)
             raise SystemExit(1)
-        if outcome["code"] is not None:
-            raise SystemExit(outcome["code"])
-        errors.seek(0)
-        diagnostic = errors.read()
+        if self.outcome["code"] is not None:
+            raise SystemExit(self.outcome["code"])
+
+        self.errors_file.seek(0)
+        diagnostic = self.errors_file.read()
         if diagnostic:
             print(diagnostic, file=sys.stderr, end="")
-        if process.returncode == 1 and not diagnostic:
+        if self.process.returncode == 1 and not diagnostic:
             return None
-        if process.returncode in (-signal.SIGINT, 130):
+        if self.process.returncode in (-signal.SIGINT, 130):
             raise SystemExit(130)
-        if process.returncode != 0:
+        if self.process.returncode != 0:
             fail("cli_picker_failed")
+
+        with suppress(BrokenPipeError):
+            self.process.stdin.close()
+        selection = self.process.stdout.read().strip()
+        self.process.stdout.close()
+
         if not re.fullmatch(r"0|[1-9][0-9]{0,5}", selection):
             fail("cli_picker_failed")
-        idx = int(selection)
-        if idx >= len(paths):
-            fail("cli_picker_failed")
-        return paths[idx]
+        return int(selection)
+
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
+        if self.child_watch and self.process and self.process.returncode is None:
+            GLib.source_remove(self.child_watch)
+            self.process.terminate()
+            self.process.wait()
+        for sub in self.subscriptions:
+            self.bluetooth.connection.signal_unsubscribe(sub)
+        for sig in self.signals:
+            GLib.source_remove(sig)
+        if self.closed_handler:
+            self.bluetooth.connection.disconnect(self.closed_handler)
+        if self.started and not self.bluetooth.connection.is_closed():
+            with suppress(GLib.Error):
+                self.bluetooth.call(
+                    self.bluetooth.adapter,
+                    ADAPTER,
+                    "StopDiscovery",
+                    timeout=SCAN_TIMEOUT_MS,
+                )
+        if self.errors_file:
+            self.errors_file.close()
+
+
+def pair_and_connect(bluetooth, device):
+    pair_device(bluetooth, device)
+    if device.is_host:
+        notify("bluetooth_paired", dev=device.name)
+        print("paired", device.address, sep="\t")
+    else:
+        bluetooth.connect_device(device)
+        notify("bluetooth_connected", dev=device.name)
+        print("connected", device.address, sep="\t")
+    return False
 
 
 def scan_menu(bluetooth):
-    scanning = True
     while True:
-        target = pick(bluetooth, scanning)
-        if target is None:
-            return
-        bluetooth.refresh()
-        if target == "rescan":
-            continue
-        if target not in bluetooth.devices:
-            fail("bluetooth_device_not_found", dev=target)
-        execute_device_intent(bluetooth, bluetooth.devices[target])
-        return
+        with DiscoverySession(bluetooth) as session:
+            index = session.run_picker()
+            if index is None or index >= len(session.items):
+                return False
+            stay = session.items[index].action()
+            if not stay:
+                return False
 
 
 def main_menu(bluetooth):
@@ -669,6 +658,10 @@ def menu(bluetooth):
 
 def cmd_menu(bluetooth, _args):
     menu(bluetooth)
+
+
+def cmd_scan(bluetooth, _args):
+    scan_menu(bluetooth)
 
 
 def cmd_list(bluetooth, _args):
@@ -727,6 +720,7 @@ def cmd_clear(bluetooth, _args):
 
 COMMANDS = {
     "menu": (cmd_menu, 0, 0),
+    "scan": (cmd_scan, 0, 0),
     "list": (cmd_list, 0, 0),
     "devices": (cmd_list, 0, 0),
     "status": (cmd_status, 0, 0),
@@ -752,7 +746,7 @@ def main():
     handler, min_args, max_args = COMMANDS[action]
     if not (min_args <= len(args) <= max_args):
         fail("cli_usage", code=2, command="custom-bluetooth")
-    if action == "menu":
+    if action in ("menu", "scan"):
         if not os.environ.get("WAYLAND_DISPLAY"):
             fail("cli_unavailable", name="WAYLAND_DISPLAY")
         require("fuzzel", "notify-send")
