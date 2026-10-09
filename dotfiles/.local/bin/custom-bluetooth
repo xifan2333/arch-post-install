@@ -20,7 +20,9 @@ import signal
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import suppress
+from typing import NamedTuple
 
 sys.dont_write_bytecode = True
 
@@ -260,6 +262,24 @@ def notify(key, **values):
     )
 
 
+class MenuItem(NamedTuple):
+    label: str
+    action: Callable[[], None]
+
+
+def toggle_device(bluetooth, device):
+    if device.is_connected:
+        bluetooth.disconnect_device(device)
+        notify("bluetooth_disconnected", dev=device.name)
+        print("disconnected", device.address, sep="\t")
+    else:
+        if not bluetooth.powered:
+            bluetooth.set_adapter_power(True)
+        bluetooth.connect_device(device)
+        notify("bluetooth_connected", dev=device.name)
+        print("connected", device.address, sep="\t")
+
+
 def run_fuzzel(prompt, rows, lines=MENU_LINES):
     with tempfile.TemporaryFile(
         mode="w+t", dir=os.environ.get("XDG_RUNTIME_DIR")
@@ -307,29 +327,44 @@ def run_fuzzel(prompt, rows, lines=MENU_LINES):
 
 
 def manage_menu(bluetooth):
-    bluetooth.refresh()
-    paired = bluetooth.paired()
-    if not paired:
-        return
-    rows = [
-        f"  󰌍  {t('bluetooth_back')}",
-        f"  󰃢  {t('bluetooth_clear_paired')}",
-    ]
-    rows.extend(dev.format_manage_row() for dev in paired)
-    index = run_fuzzel(prompt=t("bluetooth_manage_prompt"), rows=rows)
-    if index is None or index == 0:
-        return
-    if index == 1:
-        removed = bluetooth.clear_paired()
-        if removed:
-            notify("bluetooth_cleared")
-            for dev in removed:
-                print("removed", dev.address, sep="\t")
-        return
-    selected_device = paired[index - 2]
-    bluetooth.remove_device(selected_device)
-    notify("bluetooth_removed", dev=selected_device.name)
-    print("removed", selected_device.address, sep="\t")
+    while True:
+        bluetooth.refresh()
+        paired = bluetooth.paired()
+        if not paired:
+            return
+
+        def remove_selected(device):
+            bluetooth.remove_device(device)
+            notify("bluetooth_removed", dev=device.name)
+            print("removed", device.address, sep="\t")
+            return True
+
+        def clear_all():
+            removed = bluetooth.clear_paired()
+            if removed:
+                notify("bluetooth_cleared")
+                for dev in removed:
+                    print("removed", dev.address, sep="\t")
+            return False
+
+        items = [
+            MenuItem(f"  󰌍  {t('bluetooth_back')}", lambda: False),
+            MenuItem(f"  󰃢  {t('bluetooth_clear_paired')}", clear_all),
+        ]
+        for dev in paired:
+            items.append(
+                MenuItem(dev.format_manage_row(), lambda d=dev: remove_selected(d))
+            )
+
+        index = run_fuzzel(
+            prompt=t("bluetooth_manage_prompt"),
+            rows=[item.label for item in items],
+        )
+        if index is None:
+            return
+        stay = items[index].action()
+        if not stay:
+            return
 
 
 def pair_device(bluetooth, device):
@@ -579,23 +614,57 @@ def pick(bluetooth, scanning):
         return paths[idx]
 
 
-def menu(bluetooth):
-    scanning = False
+def scan_menu(bluetooth):
+    scanning = True
     while True:
         target = pick(bluetooth, scanning)
         if target is None:
             return
         bluetooth.refresh()
         if target == "rescan":
-            scanning = True
-            continue
-        if target == "manage":
-            manage_menu(bluetooth)
             continue
         if target not in bluetooth.devices:
             fail("bluetooth_device_not_found", dev=target)
         execute_device_intent(bluetooth, bluetooth.devices[target])
         return
+
+
+def main_menu(bluetooth):
+    while True:
+        bluetooth.refresh()
+        paired = bluetooth.paired()
+
+        items = [
+            MenuItem(
+                f"  󰍉  {t('bluetooth_scan')}",
+                lambda: scan_menu(bluetooth) or True,
+            ),
+        ]
+        if paired:
+            items.append(
+                MenuItem(
+                    f"  󰒓  {t('bluetooth_manage')}",
+                    lambda: manage_menu(bluetooth) or True,
+                )
+            )
+        for dev in paired:
+            items.append(
+                MenuItem(dev.format_row(), lambda d=dev: toggle_device(bluetooth, d))
+            )
+
+        index = run_fuzzel(
+            prompt=t("bluetooth_prompt"),
+            rows=[item.label for item in items],
+        )
+        if index is None:
+            return
+        stay = items[index].action()
+        if not stay:
+            return
+
+
+def menu(bluetooth):
+    main_menu(bluetooth)
 
 
 def cmd_menu(bluetooth, _args):
