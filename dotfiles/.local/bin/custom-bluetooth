@@ -35,14 +35,23 @@ SCAN_TIMEOUT_MS = 5_000
 PAIR_TIMEOUT = 15
 MENU_LINES = 15
 ICONS = {
+    "audio-headset": "󰋋",
+    "audio-headphones": "󰋋",
+    "audio-card": "󰓃",
+    "audio-speakers": "󰓃",
     "headphones": "󰋋",
     "headset": "󰋋",
     "speakers": "󰓃",
-    "audio-card": "󰓃",
+    "multimedia-player": "󰓃",
+    "input-keyboard": "󰌌",
+    "input-mouse": "󰍽",
+    "input-gaming": "󰊴",
+    "input-tablet": "󰍽",
     "keyboard": "󰌌",
     "mouse": "󰍽",
     "phone": "󰏲",
     "computer": "󰌢",
+    "video-display": "󰍹",
 }
 
 
