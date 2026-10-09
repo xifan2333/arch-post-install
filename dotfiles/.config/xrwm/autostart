@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @summary Start session-owned desktop services and fetch the login wallpaper
+# @summary Start session-owned desktop services and initialize the session wallpaper
 # @deps uwsm, systemctl, custom-wallpaper
 set -euo pipefail
 
@@ -27,5 +27,5 @@ fi
 
 # The wallpaper request runs in its own unit and does not block session startup.
 if ! systemctl --user is-active --quiet custom-wallpaper-fetch.service; then
-	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-wallpaper-fetch.service -- custom-wallpaper random
+	uwsm app -t service -p PartOf=graphical-session.target -s b -u custom-wallpaper-fetch.service -- custom-wallpaper init
 fi
