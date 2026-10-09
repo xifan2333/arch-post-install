@@ -15,6 +15,7 @@
 #
 # @commands
 #   menu                    Open interactive wallpaper picker via Fuzzel (default)
+#   init                    Restore saved wallpaper, or initialize with random pixel art
 #   current | get           Print path of active wallpaper
 #   list                    List all local wallpaper image files
 #   random                  Fetch and apply a random pixel-art wallpaper from Wallhaven
@@ -28,6 +29,7 @@
 #
 # @examples
 #   custom-wallpaper current
+#   custom-wallpaper init
 #   custom-wallpaper random
 #   custom-wallpaper set ~/Pictures/wallpapers/a.jpg
 #   find ~/Pictures -name '*.png' | custom-wallpaper set -
@@ -76,6 +78,8 @@ pick() (
 )
 
 wall_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper"
+state_file="$state_dir/current"
 random_query='id:2321' # Wallhaven's exact pixel art tag.
 startup_delay=0.2
 thumbnail_size=96x96
@@ -123,7 +127,7 @@ list_local() {
 	fi
 }
 set_wallpaper() (
-	local image="$1" format digest target tmp='' units old_unit unit real_wall_dir
+	local image="$1" format digest target tmp='' units old_unit unit real_wall_dir state_tmp
 	local -a old_units=()
 	require swaybg uwsm systemctl magick sha256sum flock
 	[[ -f "$image" ]] || die 1 cli_unavailable "name=$image"
@@ -153,6 +157,10 @@ set_wallpaper() (
 	for old_unit in "${old_units[@]}"; do
 		systemctl --user stop "$old_unit"
 	done
+	mkdir -p -- "$state_dir"
+	state_tmp=$(mktemp "$state_dir/.current.XXXXXX")
+	printf '%s\n' "$image" >"$state_tmp"
+	mv -f -- "$state_tmp" "$state_file"
 	printf '%s\n' "$image"
 )
 apply_target() (
@@ -187,6 +195,26 @@ apply_target() (
 	[[ "$path" == "$tmp/image" ]] || die 1 cli_unavailable name=download
 	set_wallpaper "$path"
 )
+get_saved_wallpaper() {
+	local path=''
+	if [[ -L "$state_file" ]]; then
+		path=$(realpath -q -- "$state_file" 2>/dev/null || true)
+	elif [[ -f "$state_file" ]]; then
+		IFS= read -r path <"$state_file" || true
+	fi
+	if [[ -n "$path" && -f "$path" ]]; then
+		printf '%s\n' "$path"
+	fi
+}
+init_wallpaper() {
+	local saved
+	saved=$(get_saved_wallpaper)
+	if [[ -n "$saved" ]]; then
+		set_wallpaper "$saved"
+		return
+	fi
+	random_wallpaper
+}
 random_wallpaper() {
 	local path
 	require custom-wallhaven
@@ -255,7 +283,7 @@ main() {
 	local action="${1:-menu}"
 	if (($#)); then shift; fi
 	case "$action" in
-	-h | --help | menu | current | get | list | random) (($# == 0)) || usage_error ;;
+	-h | --help | menu | init | current | get | list | random) (($# == 0)) || usage_error ;;
 	search) (($# <= 1)) || usage_error ;;
 	set)
 		(($# == 1)) && [[ -n "$1" ]] || usage_error
@@ -264,7 +292,7 @@ main() {
 	*) usage_error ;;
 	esac
 	case "$action" in
-	-h | --help) t help_wallpaper ;; menu) menu ;; current | get) get_current ;; list) list_local ;;
+	-h | --help) t help_wallpaper ;; menu) menu ;; init) init_wallpaper ;; current | get) get_current ;; list) list_local ;;
 	random) random_wallpaper ;; search) search "${1:-}" ;; set) apply_target "$1" ;;
 	esac
 }
