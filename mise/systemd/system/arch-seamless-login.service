@@ -7,7 +7,7 @@ PartOf=graphical.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/uwsm start -- river -c xrwm
+ExecStart=/usr/bin/uwsm start -g -1 -- river -c xrwm
 Restart=always
 RestartSec=2
 TTYPath=/dev/tty1
