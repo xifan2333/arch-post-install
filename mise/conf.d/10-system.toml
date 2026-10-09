@@ -61,6 +61,15 @@ enabled = true
 state = "stopped"
 enabled = false
 
+# Pure suckless on-demand container runtime: socket activation for Docker
+[bootstrap.services."docker.socket"]
+state = "running"
+enabled = true
+
+[bootstrap.services.docker]
+state = "stopped"
+enabled = false
+
 # Configure iwd with built-in lightweight network/DHCP configuration
 [bootstrap.directories."/etc/iwd"]
 owner = "root"
