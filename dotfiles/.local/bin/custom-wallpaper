@@ -263,13 +263,14 @@ search() {
 	set_wallpaper "$path"
 }
 menu() {
-	local prompt label choice action index
+	local prompt label choice index
 	local -a actions=(local random search) rows=()
+	local -a glyphs=(󰋩 󰒝 󰍉)
 	require fuzzel
 	prompt=$(t wallpaper_mode_prompt)
-	for action in "${actions[@]}"; do
-		label=$(t "wallpaper_mode_$action")
-		rows+=("$label")
+	for index in "${!actions[@]}"; do
+		label=$(t "wallpaper_mode_${actions[$index]}")
+		rows+=("  ${glyphs[$index]}  $label")
 	done
 	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
 	[[ -n "$choice" ]] || return 0
