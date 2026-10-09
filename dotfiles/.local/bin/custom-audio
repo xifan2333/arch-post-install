@@ -122,16 +122,17 @@ set_device() {
 	printf '%s\t%s\n' "$id" "$name"
 }
 menu() {
-	local mode="$1" devices prompt id marker description prefix choice index
+	local mode="$1" devices prompt id marker description prefix choice index glyph='󰓃'
 	local -a rows=() ids=()
 	require fuzzel
+	if [[ "$mode" == source ]]; then glyph='󰍬'; fi
 	devices=$(list_devices "$mode")
 	[[ -n "$devices" ]] || return 0
 	prompt=$(t "audio_${mode}_prompt")
 	while IFS=$'\t' read -r id marker description; do
 		prefix='  '
 		if [[ "$marker" == '*' ]]; then prefix='* '; fi
-		rows+=("${prefix}󰓃  $description  ($id)")
+		rows+=("${prefix}${glyph}  $description  ($id)")
 		ids+=("$id")
 	done <<<"$devices"
 	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
