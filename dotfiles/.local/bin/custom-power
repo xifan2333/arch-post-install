@@ -90,13 +90,14 @@ action() {
 	esac
 }
 menu() {
-	local choice prompt label command index
+	local choice prompt label index
 	local -a commands=(lock suspend logout reboot shutdown) rows=()
+	local -a glyphs=(󰌾 󰤄 󰍃 󰜉 󰐥)
 	require fuzzel
 	prompt=$(t power_menu_prompt)
-	for command in "${commands[@]}"; do
-		label=$(t "power_$command")
-		rows+=("$label")
+	for index in "${!commands[@]}"; do
+		label=$(t "power_${commands[$index]}")
+		rows+=("  ${glyphs[$index]}  $label")
 	done
 	choice=$(printf '%s\n' "${rows[@]}" | pick --prompt "$prompt" --index)
 	[[ -n "$choice" ]] || return 0
