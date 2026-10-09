@@ -103,11 +103,14 @@ they point into this repository. Stream target history remains in `livestream`.
   Chinese locales use zh-cn, English/C/POSIX use en-us. Other locales and missing
   dictionaries or keys are errors.
 - Wallpapers, screenshots, and recordings are permanent user media, stored under
-  XDG Pictures/Videos directories. `custom-wallpaper current` reads the managed
-  wallpaper service's MainPID arguments, preserving spaces; no running image
-  yields empty output, and conflicting images yield an error. `custom-wallpaper random`, the menu's
-  random action, and session startup fetch and apply a random pixel-art image
-  from Wallhaven (exact tag `id:2321`, SFW, at least 1920×1080). Network, download,
+  XDG Pictures/Videos directories. Setting a wallpaper persists its active file path
+  to `${XDG_STATE_HOME:-$HOME/.local/state}/wallpaper/current`. `custom-wallpaper current`
+  reads the managed wallpaper service's MainPID arguments, preserving spaces; no running
+  image yields empty output, and conflicting images yield an error. `custom-wallpaper init`
+  restores the persisted wallpaper path if valid on disk, falling back to a random pixel-art
+  image from Wallhaven (exact tag `id:2321`, SFW, at least 1920×1080) when uninitialized.
+  Session startup invokes `custom-wallpaper init`. `custom-wallpaper random` and the menu's
+  random action fetch and apply a random pixel-art image from Wallhaven. Network, download,
   or empty-result failures report an error and leave the current wallpaper in
   place; local images are not used as a fallback.
 
