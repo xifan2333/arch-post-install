@@ -428,7 +428,7 @@ class DiscoverySession:
         self.process.returncode = os.waitstatus_to_exitcode(status)
         self.loop.quit()
 
-    def append_device(self, device):
+    def push(self, device):
         if device.path in self.seen or device.is_paired or not device.address:
             return
         self.seen.add(device.path)
@@ -442,33 +442,29 @@ class DiscoverySession:
                 self.process.stdin.write(f"{item.label}\n")
                 self.process.stdin.flush()
 
-    def _on_dbus_signal(
-        self, _conn, _sender, path, interface, member, parameters, _data
+    def _on_device_added(self, _conn, _sender, _path, _iface, _member, params, _data):
+        added, interfaces = params.unpack()
+        if DEVICE in interfaces and added.startswith(self.bluetooth.adapter + "/"):
+            dev = BluetoothDevice(added, interfaces[DEVICE])
+            self.bluetooth.devices[added] = dev
+            self.push(dev)
+
+    def _on_properties_changed(
+        self, _conn, _sender, path, _iface, _member, params, _data
     ):
-        args = parameters.unpack()
-        if interface == "org.freedesktop.DBus":
-            self._stop(error=t("cli_unavailable", name="org.bluez"))
-        elif member == "InterfacesRemoved":
-            removed, interfaces = args
-            if removed == self.bluetooth.adapter and ADAPTER in interfaces:
-                self._stop(error=t("bluetooth_no_device"))
-            elif DEVICE in interfaces:
-                self.bluetooth.devices.pop(removed, None)
-        elif member == "InterfacesAdded":
-            added, interfaces = args
-            if added.startswith(self.bluetooth.adapter + "/") and DEVICE in interfaces:
-                dev = BluetoothDevice(added, interfaces[DEVICE])
-                self.bluetooth.devices[added] = dev
-                self.append_device(dev)
-        elif member == "PropertiesChanged":
-            kind, values, invalidated = args
-            if path in self.bluetooth.devices and kind == DEVICE:
-                dev = self.bluetooth.devices[path]
-                dev.update(values, invalidated)
-                self.append_device(dev)
-            elif path == self.bluetooth.adapter and kind == ADAPTER:
-                if values.get("Powered") is False or values.get("Discovering") is False:
-                    self._stop(error=t("bluetooth_operation_failed"))
+        kind, values, invalidated = params.unpack()
+        if kind == DEVICE and path in self.bluetooth.devices:
+            dev = self.bluetooth.devices[path]
+            dev.update(values, invalidated)
+            self.push(dev)
+        elif path == self.bluetooth.adapter and kind == ADAPTER:
+            if values.get("Powered") is False or values.get("Discovering") is False:
+                self._stop(error=t("bluetooth_operation_failed"))
+
+    def _on_bluez_vanished(
+        self, _conn, _sender, _path, _iface, _member, _params, _data
+    ):
+        self._stop(error=t("cli_unavailable", name="org.bluez"))
 
     def _on_closed(self, _connection, _vanished, error):
         self._stop(
@@ -484,30 +480,38 @@ class DiscoverySession:
         self.closed_handler = self.bluetooth.connection.connect(
             "closed", self._on_closed
         )
-        for sender, interface, member, path, arg0 in (
-            ("org.bluez", OBJECTS, "InterfacesAdded", "/", None),
-            ("org.bluez", OBJECTS, "InterfacesRemoved", "/", None),
-            ("org.bluez", PROPERTIES, "PropertiesChanged", None, None),
-            (
+        self.subscriptions = [
+            self.bluetooth.connection.signal_subscribe(
+                "org.bluez",
+                OBJECTS,
+                "InterfacesAdded",
+                "/",
+                None,
+                Gio.DBusSignalFlags.NONE,
+                self._on_device_added,
+                None,
+            ),
+            self.bluetooth.connection.signal_subscribe(
+                "org.bluez",
+                PROPERTIES,
+                "PropertiesChanged",
+                None,
+                None,
+                Gio.DBusSignalFlags.NONE,
+                self._on_properties_changed,
+                None,
+            ),
+            self.bluetooth.connection.signal_subscribe(
                 "org.freedesktop.DBus",
                 "org.freedesktop.DBus",
                 "NameOwnerChanged",
                 "/org/freedesktop/DBus",
                 "org.bluez",
+                Gio.DBusSignalFlags.NONE,
+                self._on_bluez_vanished,
+                None,
             ),
-        ):
-            self.subscriptions.append(
-                self.bluetooth.connection.signal_subscribe(
-                    sender,
-                    interface,
-                    member,
-                    path,
-                    arg0,
-                    Gio.DBusSignalFlags.NONE,
-                    self._on_dbus_signal,
-                    None,
-                )
-            )
+        ]
         self.bluetooth.refresh()
         self.bluetooth.call(
             self.bluetooth.adapter,
@@ -548,7 +552,7 @@ class DiscoverySession:
             for item in self.items:
                 self.process.stdin.write(f"{item.label}\n")
             for dev in self.bluetooth.devices.values():
-                self.append_device(dev)
+                self.push(dev)
             self.process.stdin.flush()
         except BrokenPipeError:
             pass
