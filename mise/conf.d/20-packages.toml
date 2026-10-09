@@ -108,6 +108,7 @@
 
 # Fonts
 "pacman:noto-fonts-cjk" = "latest"
+"pacman:noto-fonts-emoji" = "latest"
 "pacman:ttf-sarasa-gothic" = "latest"
 "pacman:ttf-jetbrains-mono-nerd" = "latest"
 "pacman:woff2-font-awesome" = "latest"
