@@ -79,7 +79,8 @@ they point into this repository. Stream target history remains in `livestream`.
 
 - Title history: `${XDG_STATE_HOME:-$HOME/.local/state}/custom-title/history.txt`.
   `get` is empty when history is absent; `start` then fails. Only `edit` opens
-  the title editor. `clear` hides the overlay and keeps its history.
+  the title editor. `clear` hides the overlay and clears its history. `history`
+  prints recent title history.
 - Font authority: `${XDG_STATE_HOME:-$HOME/.local/state}/font/fonts.conf`.
   `custom-font init "JetBrainsMono Nerd Font" "Sarasa Mono SC"` initializes
   missing state, preserves an existing selected pair, and regenerates
