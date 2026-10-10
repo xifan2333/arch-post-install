@@ -2,7 +2,7 @@
 #
 # @name         custom-camera
 # @summary      Select and control a session-owned webcam picture-in-picture window
-# @deps         custom-i18n; status/stop: systemctl; list/start/select: v4l2-ctl, awk, jq
+# @deps         custom-i18n; status/stop: systemctl; list/start/select: udevadm, v4l2-ctl, jq
 #               start/select: systemctl, uwsm, mpv; select: fuzzel, mktemp, cat, rm
 # @usage        custom-camera [status|list|start [device]|toggle|select|stop]
 # @options      -h, --help  Print localized usage
@@ -16,10 +16,6 @@ set -Eeuo pipefail
 shopt -s inherit_errexit
 trap 'exit 130' INT
 
-MAX_PIP_W=1280
-MAX_PIP_H=720
-MJPEG_SCORE_FACTOR=1.05
-USB_SCORE_FACTOR=1.25
 PIP_SIZE=185x185
 UNIT=custom-camera.service
 
@@ -48,63 +44,64 @@ require() {
 }
 usage_error() { die 2 cli_usage "command=${0##*/}"; }
 
-# Parse only numeric mode data here; jq encodes all device-supplied text.
+# Extract the highest resolution and framerate mode supported by the camera device.
 best_mode() {
-	LC_ALL=C awk -v max_w="$MAX_PIP_W" -v max_h="$MAX_PIP_H" -v mjpeg="$MJPEG_SCORE_FACTOR" '
-		BEGIN { best_score = -1 }
-		/\047MJPG\047/ || tolower($0) ~ /\047mjpeg\047/ { fmt = "mjpeg"; next }
-		/\047YUYV\047/ || tolower($0) ~ /\047yuv\047/ { fmt = "yuyv422"; next }
-		/\[[0-9]+\]:/ { fmt = ""; w = h = 0; next }
-		/Size: Discrete/ {
-			if (match($0, /Size: Discrete [0-9]+x[0-9]+/)) {
-				size = substr($0, RSTART, RLENGTH)
-				sub(/^Size: Discrete /, "", size)
-				split(size, dims, "x")
-				w = dims[1] + 0; h = dims[2] + 0
-			}
-			next
-		}
-		/Interval: Discrete/ && w > 0 && fmt != "" {
-			if (!match($0, /\([0-9]+(\.[0-9]+)?[[:space:]]*fps\)/)) next
-			fps = substr($0, RSTART + 1, RLENGTH - 2) + 0
-			if (fps <= 0) next
-			score = w * h * fps * (fmt == "mjpeg" ? mjpeg : 1)
-			if (w <= max_w && h <= max_h) {
-				if (score > best_score) {
-					best_score = score
-					best = sprintf("[%d,%d,%d,\"%s\",%.17g]", w, h, int(fps), fmt, score)
-				}
-			} else if (fallback == "" || score < fallback_score) {
-				# Keep the existing oversized-mode comparison using integer FPS.
-				fallback_score = w * h * int(fps)
-				fallback = sprintf("[%d,%d,%d,\"%s\",%.17g]", w, h, int(fps), fmt, fallback_score)
-			}
-		}
-		END { if (best != "") print best; else if (fallback != "") print fallback }
-	'
-}
-list_cameras() {
-	local devices dev name formats mode
-	devices=$(LC_ALL=C v4l2-ctl --list-devices)
-	printf '%s\n' "$devices" | LC_ALL=C awk '
-		function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
-		/^[^ \t]/ { name = trim($0); sub(/:+$/, "", name); next }
-		/^[ \t]+\/dev\/video/ {
-			dev = trim($0)
-			printf "%s%c%s%c", dev, 0, (name == "" ? dev : name), 0
-		}
-	' | while IFS= read -r -d '' dev && IFS= read -r -d '' name; do
-		# Metadata-only nodes can reject format queries; retain their stderr.
-		if formats=$(LC_ALL=C v4l2-ctl -d "$dev" --list-formats-ext); then
-			mode=$(printf '%s\n' "$formats" | best_mode)
-			[[ -n "$mode" ]] || continue
-			jq -cn --arg device "$dev" --arg name "$name" --argjson mode "$mode" --argjson usb "$USB_SCORE_FACTOR" '
-				($name | ascii_downcase | contains("usb") or contains("external")) as $is_usb |
-				{device: $device, name: ($name | split("(")[0] | gsub("^\\s+|\\s+$"; "")),
-				 width: $mode[0], height: $mode[1], fps: $mode[2], format: $mode[3],
-				 is_usb: $is_usb, score: ($mode[4] * (if $is_usb then $usb else 1 end))}'
+	local dev="$1" line fmt="" priority=0 w=0 h=0 fps=0
+	local re_fmt="'(MJPG|YUYV)'"
+	local re_size='Size:[[:space:]]*Discrete[[:space:]]*([0-9]+)x([0-9]+)'
+	local re_fps='\(([0-9]+)(\.[0-9]+)?[[:space:]]*fps\)'
+	while IFS= read -r line; do
+		if [[ "$line" =~ $re_fmt ]]; then
+			case "${BASH_REMATCH[1]}" in
+			MJPG)
+				fmt="mjpeg"
+				priority=2
+				;;
+			YUYV)
+				fmt="yuyv422"
+				priority=1
+				;;
+			esac
+		elif [[ "$line" =~ $re_size ]]; then
+			w="${BASH_REMATCH[1]}"
+			h="${BASH_REMATCH[2]}"
+		elif [[ "$line" =~ $re_fps && -n "$fmt" && $w -gt 0 ]]; then
+			fps="${BASH_REMATCH[1]}"
+			printf '%d %d %d %d %s\n' "$w" "$h" "$fps" "$priority" "$fmt"
 		fi
-	done | jq -sc 'sort_by(-.score)[]'
+	done < <(v4l2-ctl -d "$dev" --list-formats-ext 2>/dev/null) | sort -k1,1nr -k2,2nr -k3,3nr -k4,4nr | head -n 1
+}
+
+# Discover video capture devices via udev, ordered by external status, max resolution, and fps.
+list_cameras() {
+	local -a nodes=(/sys/class/video4linux/video*)
+	[[ -e "${nodes[0]}" ]] || return 0
+	local tab=$'\t'
+	local dev name external mode w h fps fmt
+	while IFS="$tab" read -r dev name external; do
+		[[ -n "$dev" ]] || continue
+		mode=$(best_mode "$dev")
+		[[ -n "$mode" ]] || continue
+		read -r w h fps _ fmt <<<"$mode"
+		jq -cn \
+			--arg device "$dev" \
+			--arg name "$name" \
+			--argjson external "$external" \
+			--argjson width "$w" \
+			--argjson height "$h" \
+			--argjson fps "$fps" \
+			--arg format "$fmt" \
+			'{device: $device, name: $name, external: $external, width: $width, height: $height, fps: $fps, format: $format}'
+	done < <(
+		udevadm info --json=short "${nodes[@]}" 2>/dev/null | jq -r '
+			select(.ID_V4L_CAPABILITIES == ":capture:") |
+			[
+				.DEVNAME,
+				((.ID_V4L_PRODUCT // .ID_MODEL_ENC // .DEVNAME) | gsub("^\\s+|\\s+$"; "")),
+				(.ID_INTEGRATION == "external")
+			] | @tsv
+		'
+	) | jq -sc 'sort_by((if .external then 0 else 1 end), -(.width * .height), -.fps)[]'
 }
 
 camera_state() {
@@ -200,7 +197,7 @@ main() {
 		;;
 	esac
 	if [[ "$action" != list ]]; then require systemctl uwsm mpv; fi
-	require v4l2-ctl awk jq
+	require udevadm v4l2-ctl jq
 	cameras=$(list_cameras)
 	if [[ "$action" == list ]]; then
 		if [[ -n "$cameras" ]]; then printf '%s\n' "$cameras"; fi
