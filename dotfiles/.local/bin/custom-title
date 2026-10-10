@@ -15,9 +15,10 @@
 #
 # @commands
 #   get         Print active stream title from history
+#   history     Print recent stream title history
 #   set <text>  Set stream title and display overlay
 #   edit        Open interactive title picker / editor via Fuzzel (default)
-#   clear       Clear title and hide overlay
+#   clear       Clear title history and hide overlay
 #   toggle      Toggle title overlay banner on or off
 #   start       Start displaying current title banner
 #   stop        Hide title banner
@@ -28,8 +29,10 @@
 #
 # @examples
 #   custom-title get
+#   custom-title history
 #   custom-title set "Live Coding Session"
 #   custom-title edit
+#   custom-title clear
 #   custom-title toggle
 
 set -Eeuo pipefail
@@ -89,12 +92,34 @@ running() {
 	state=$(systemctl --user show --property=ActiveState --value "$unit") || die 1 cli_unavailable "name=$unit"
 	case "$state" in active | activating) return 0 ;; inactive | failed) return 1 ;; *) die 1 cli_unavailable "name=$unit:$state" ;; esac
 }
+notify() {
+	local title body
+	title=$(t domain_title)
+	body=$(t "$@")
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send -a custom-title -h string:x-canonical-private-synchronous:title "$title" "$body"
+	fi
+}
 stop_title() {
 	require systemctl
 	if running; then systemctl --user stop "$unit"; fi
 }
+clear_title() (
+	require flock
+	stop_title
+	if [[ -d "$state_dir" ]]; then
+		exec {lock}<"$state_dir"
+		flock "$lock"
+		rm -f -- "$history_file"
+		flock -u "$lock"
+	fi
+	notify overlay_title_history_cleared
+)
 get_title() {
 	if [[ -e "$history_file" ]]; then head -n 1 -- "$history_file"; fi
+}
+history_title() {
+	if [[ -e "$history_file" ]]; then cat -- "$history_file"; fi
 }
 start_title() {
 	local text="$1" data
@@ -145,14 +170,16 @@ main() {
 		(($# == 1)) || usage_error
 		[[ -n "$1" && "$1" != *$'\n'* && "$1" != *$'\r'* ]] || usage_error
 		;;
-	get | edit | clear | toggle | start | stop | status | -h | --help) (($# == 0)) || usage_error ;;
+	get | history | list | edit | clear | clear-history | toggle | start | stop | status | -h | --help) (($# == 0)) || usage_error ;;
 	*) usage_error ;;
 	esac
 	case "$action" in
 	-h | --help) t help_title ;;
 	get) get_title ;;
+	history | list) history_title ;;
 	set) set_title "$1" ;;
-	clear | stop) stop_title ;;
+	clear | clear-history) clear_title ;;
+	stop) stop_title ;;
 	edit) edit_title ;;
 	start)
 		title=$(get_title)
