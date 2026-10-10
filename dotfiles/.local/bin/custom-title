@@ -154,12 +154,21 @@ set_title() (
 	start_title "$title"
 )
 edit_title() {
-	local candidates='' chosen prompt
+	local candidates='' chosen prompt clear_opt
 	require fuzzel
-	if [[ -e "$history_file" ]]; then candidates=$(cat -- "$history_file"); fi
 	prompt=$(t overlay_title_prompt)
-	chosen=$(pick --prompt "$prompt" <<<"$candidates")
+	clear_opt=$(t overlay_title_clear_history)
+	if [[ -s "$history_file" ]]; then
+		candidates=$(cat -- "$history_file")
+		chosen=$(pick --prompt "$prompt" <<<"$clear_opt"$'\n'"$candidates")
+	else
+		chosen=$(pick --prompt "$prompt" </dev/null)
+	fi
 	[[ -n "$chosen" ]] || return 0
+	if [[ "$chosen" == "$clear_opt" ]]; then
+		clear_title
+		return 0
+	fi
 	set_title "$chosen"
 }
 main() {
