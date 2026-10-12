@@ -4,8 +4,7 @@
 # @summary      Record the screen or live stream through one session-owned service
 # @deps         systemctl, uwsm, gpu-screen-recorder, flock, notify-send, ps
 #               menu/config: fuzzel; stream: ffmpeg, custom-hardware, custom-danmaku
-#               watch: python3, python-gobject, readlink
-# @usage        custom-record [status [text|waybar]|watch|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]]
+# @usage        custom-record [status [text|waybar]|start [record|stream]|full|stop|toggle [record|stream]|menu|config [clear]]
 # @options      -h, --help  Print localized usage
 # @stdin        Unused; interactive configuration is explicit
 # @stdout       Status, Waybar JSON, or the started recording file path
@@ -271,6 +270,13 @@ stream_ready() {
 	require_service_owner
 	custom-danmaku start >/dev/null
 }
+signal_waybar() {
+	local state
+	state=$(systemctl --user show --property=ActiveState --value waybar.service 2>/dev/null || :)
+	if [[ "$state" == active ]]; then
+		systemctl --user kill --kill-whom=main --signal=RTMIN+8 waybar.service 2>/dev/null || :
+	fi
+}
 service_cleanup() {
 	local rc=0
 	if [[ "${CUSTOM_RECORD_MODE:-}" == stream ]]; then
@@ -280,6 +286,7 @@ service_cleanup() {
 		custom-hardware fan auto >/dev/null || rc=1
 		custom-danmaku stop >/dev/null || rc=1
 	fi
+	signal_waybar
 	if [[ "${SERVICE_RESULT:-success}" != success ]]; then
 		require notify-send
 		notify record_failed "result=${SERVICE_RESULT:-failed}"
@@ -290,16 +297,36 @@ stream_cleanup() {
 	service_cleanup "$@"
 }
 
+record_run() {
+	local encoder ticker rc=0
+	require gpu-screen-recorder
+	gpu-screen-recorder "$@" &
+	encoder=$!
+	(
+		trap 'exit 0' INT TERM
+		while kill -0 "$encoder" 2>/dev/null; do
+			sleep 1
+			signal_waybar
+		done
+	) &
+	ticker=$!
+	trap 'kill "$ticker" 2>/dev/null || :; wait "$encoder" 2>/dev/null || :; exit 0' INT TERM
+	trap 'kill "$ticker" 2>/dev/null || :' EXIT
+	if wait "$encoder"; then rc=0; else rc=$?; fi
+	kill "$ticker" 2>/dev/null || :
+	return "$rc"
+}
+
 stream_run() {
-	local video="$1" audio="$2" output="$3" fifo encoder mux finished='' rc worker
+	local video="$1" audio="$2" output="$3" fifo encoder mux ticker finished='' rc worker
 	require_service_owner
 	require gpu-screen-recorder ffmpeg mkfifo
 	[[ -n "${RUNTIME_DIRECTORY:-}" && -d "$RUNTIME_DIRECTORY" ]] || die 1 cli_unavailable name=RUNTIME_DIRECTORY
 	fifo="$RUNTIME_DIRECTORY/stream.mkv"
 	# Exiting MainPID lets systemd stop both workers with a bounded timeout.
 	# RuntimeDirectory also removes the FIFO if this process is killed.
-	trap 'rm -f -- "$fifo"' EXIT
-	trap 'exit 0' INT TERM
+	trap 'kill "$ticker" 2>/dev/null || :; rm -f -- "$fifo"' EXIT
+	trap 'kill "$ticker" 2>/dev/null || :; exit 0' INT TERM
 	mkfifo -m 600 -- "$fifo"
 	ffmpeg -nostdin -hide_banner -loglevel warning -i "$fifo" -map 0 -c copy \
 		-flush_packets 1 -flvflags no_duration_filesize -f flv "$output" &
@@ -308,7 +335,16 @@ stream_run() {
 		-encoder gpu -fallback-cpu-encoding no -cr "$STREAM_COLOR_RANGE" -keyint "$STREAM_KEY_INTERVAL" \
 		-bm cbr -q "$video" -ac aac -ab "$audio" -a 'default_output|default_input' -o "$fifo" &
 	encoder=$!
+	(
+		trap 'exit 0' INT TERM
+		while kill -0 "$encoder" 2>/dev/null && kill -0 "$mux" 2>/dev/null; do
+			sleep 1
+			signal_waybar
+		done
+	) &
+	ticker=$!
 	if wait -n -p finished "$encoder" "$mux"; then rc=0; else rc=$?; fi
+	kill "$ticker" 2>/dev/null || :
 	if [[ "$finished" == "$encoder" ]]; then
 		worker=gpu-screen-recorder
 	else
@@ -327,7 +363,7 @@ start_recording() {
 	self=$(readlink -f -- "${BASH_SOURCE[0]}")
 	self="${self//\\/\\\\}"
 	self="${self//\"/\\\"}"
-	recorder=$(command -v gpu-screen-recorder)
+	recorder="$self"
 	if [[ "$requested" == stream ]]; then
 		require ffmpeg custom-hardware custom-danmaku mkfifo
 		read_records
@@ -336,7 +372,6 @@ start_recording() {
 		if [[ "$current_key" == \?* || "$current_server" == */ ]]; then
 			output="$current_server$current_key"
 		else output="$current_server/$current_key"; fi
-		recorder="$self"
 		send_sigkill=yes
 		capture=(stream-run "$current_video" "$current_audio" "$output")
 		# ':' suppresses variable expansion in the hooks; quote the executable.
@@ -348,9 +383,9 @@ start_recording() {
 			-p "ExecStopPost=:\"$self\" service-cleanup")
 	else
 		output="$SAVE_DIR/screenrecord-$(date +%Y%m%d_%H%M%S_%N).mp4"
-		capture=(-w screen -f "$FRAME_RATE" -cr "$COLOR_RANGE" -ffmpeg-video-opts "qp=$VIDEO_QP" -c mp4
+		capture=(record-run -w screen -f "$FRAME_RATE" -cr "$COLOR_RANGE" -ffmpeg-video-opts "qp=$VIDEO_QP" -c mp4
 			-a 'default_output|default_input' -o "$output")
-		hooks=(-p "ExecStopPost=:\"$self\" service-cleanup")
+		hooks=(-p ExitType=main -p KillMode=control-group -p "ExecStopPost=:\"$self\" service-cleanup")
 	fi
 	if [[ "$active_state" == failed ]]; then
 		((main_pid == 0)) || die 1 record_busy
@@ -365,6 +400,7 @@ start_recording() {
 	read_state
 	check_failure
 	[[ "$active_state" == active && "$sub_state" == running && "$main_pid" -gt 0 && "$record_mode" == "$requested" ]] || die 1 cli_unavailable "name=$UNIT"
+	signal_waybar
 	notify "record_started_$requested"
 	if [[ "$requested" == record ]]; then printf '%s\n' "$output"; fi
 }
@@ -385,6 +421,7 @@ stop_recording() {
 	read_state
 	check_failure
 	[[ "$active_state" == inactive ]] || die 1 record_busy
+	signal_waybar
 	notify "record_stopped_$stopped_mode"
 }
 status() {
@@ -477,11 +514,12 @@ main() {
 		(($# <= 1)) || usage_error
 		if (($#)); then [[ "$1" == clear ]] || usage_error; fi
 		;;
+	record-run) (($# >= 1)) || usage_error ;;
 	stream-run)
 		(($# == 3)) || usage_error
 		[[ "$1" =~ ^[1-9][0-9]*$ && "$2" =~ ^[1-9][0-9]*$ && -n "$3" ]] || usage_error
 		;;
-	-h | --help | watch | full | stop | menu | stream-prepare | stream-ready | stream-cleanup | service-cleanup) (($# == 0)) || usage_error ;;
+	-h | --help | full | stop | menu | stream-prepare | stream-ready | stream-cleanup | service-cleanup) (($# == 0)) || usage_error ;;
 	*) usage_error ;;
 	esac
 	case "$action" in
@@ -492,11 +530,6 @@ main() {
 	status)
 		status "${1:-text}"
 		return
-		;;
-	watch)
-		require python3 readlink
-		self=$(readlink -f -- "${BASH_SOURCE[0]}")
-		exec python3 -B "${self%/bin/*}/share/custom-record/watch.py" "$self"
 		;;
 	menu)
 		menu
@@ -520,6 +553,10 @@ main() {
 		;;
 	stream-cleanup | service-cleanup)
 		service_cleanup
+		return
+		;;
+	record-run)
+		record_run "$@"
 		return
 		;;
 	stream-run)
