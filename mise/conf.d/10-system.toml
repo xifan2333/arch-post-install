@@ -88,6 +88,12 @@ owner = "root"
 group = "root"
 mode = "0755"
 
+[bootstrap.files."/etc/systemd/network/10-container.network"]
+source = "../systemd/network/10-container.network"
+owner = "root"
+group = "root"
+mode = "0644"
+
 [bootstrap.files."/etc/systemd/network/20-wired.network"]
 source = "../systemd/network/20-wired.network"
 owner = "root"
