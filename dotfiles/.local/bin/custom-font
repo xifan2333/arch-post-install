@@ -134,6 +134,22 @@ sync_fnott() (
 	chmod 644 "$tmp"
 	mv -Tf -- "$tmp" "$fnott_dir/fnott.ini"
 )
+sync_satty() (
+	local satty_dir="${XDG_CONFIG_HOME:-$HOME/.config}/satty"
+	local theme_toml="${XDG_STATE_HOME:-$HOME/.local/state}/theme/satty.toml"
+	local font_toml="$state_dir/satty.toml"
+	local tmp
+	mkdir -p -- "$satty_dir"
+	tmp=$(mktemp "$satty_dir/.satty.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	if [[ -f "$theme_toml" ]]; then cat -- "$theme_toml" >"$tmp"; fi
+	if [[ -f "$font_toml" ]]; then
+		printf '\n' >>"$tmp"
+		cat -- "$font_toml" >>"$tmp"
+	fi
+	chmod 644 "$tmp"
+	mv -Tf -- "$tmp" "$satty_dir/config.toml"
+)
 sync_toolkit_fonts() {
 	local family="$1, $2" key value
 	# GSettings uses quoted GVariant strings, not shell quoting.
@@ -220,6 +236,8 @@ EOF
 	printf '[main]\nfont=%s:size=%s,%s:size=%s\n' "${write_mono//-/\\-}" "$font_size" "${write_cjk//-/\\-}" "$font_size" >"$tmp/fuzzel.ini"
 	# The validated names use the same quote escaping in CSS and TOML strings.
 	printf '[font]\nfamily = ["%s", "%s", "Noto Color Emoji"]\n' "$mono_css" "$cjk_css" >"$tmp/ftty.toml"
+	printf '[font]\nfamily = "%s"\nstyle = "Regular"\nfallback = ["%s"]\n' \
+		"$mono_css" "$cjk_css" >"$tmp/satty.toml"
 	printf '[main]\ntitle-font=%s,%s:size=%s\nsummary-font=%s,%s:size=%s\nbody-font=%s,%s:size=%s\n' \
 		"$write_mono" "$write_cjk" "$notification_font_size" \
 		"$write_mono" "$write_cjk" "$notification_font_size" \
@@ -240,6 +258,7 @@ EOF
 	for qt in qt5ct qt6ct; do mv -f -- "$tmp/$qt.conf" "$state_dir/$qt.conf"; done
 	mv -f -- "$tmp/fuzzel.ini" "$state_dir/fuzzel.ini"
 	mv -f -- "$tmp/ftty.toml" "$state_dir/ftty.toml"
+	mv -f -- "$tmp/satty.toml" "$state_dir/satty.toml"
 	mv -f -- "$tmp/fnott.ini" "$state_dir/fnott.ini"
 	mv -f -- "$tmp/fcitx5.conf" "$state_dir/fcitx5.conf"
 	# Bootstrap init establishes this generated-config link; set also converges it.
@@ -260,6 +279,7 @@ EOF
 		mv -Tf -- "$link_tmp/$qt.conf" "$qt_dir/$qt.conf"
 	done
 	sync_fnott
+	sync_satty
 	sync_toolkit_fonts "$write_mono" "$write_cjk"
 )
 list_fonts() {

@@ -194,6 +194,22 @@ integrate_fnott() (
 	chmod 644 "$tmp"
 	mv -Tf -- "$tmp" "$fnott_dir/fnott.ini"
 )
+integrate_satty() (
+	local satty_dir="$CONFIG_DIR/satty"
+	local theme_toml="$STATE_DIR/satty.toml"
+	local font_toml="${XDG_STATE_HOME:-$HOME/.local/state}/font/satty.toml"
+	local tmp
+	mkdir -p -- "$satty_dir"
+	tmp=$(mktemp "$satty_dir/.satty.XXXXXX")
+	trap 'rm -f -- "$tmp"' EXIT
+	if [[ -f "$theme_toml" ]]; then cat -- "$theme_toml" >"$tmp"; fi
+	if [[ -f "$font_toml" ]]; then
+		printf '\n' >>"$tmp"
+		cat -- "$font_toml" >>"$tmp"
+	fi
+	chmod 644 "$tmp"
+	mv -Tf -- "$tmp" "$satty_dir/config.toml"
+)
 integrate() {
 	local target source svg search_dir qt version scheme=prefer-light gtk=adw-gtk3
 	local -a data_dirs
@@ -215,6 +231,7 @@ integrate() {
 	link_atomic "$STATE_DIR/wayhud.css" "$CONFIG_DIR/wayhud/style.css"
 	link_atomic "$STATE_DIR/herdr.toml" "$CONFIG_DIR/herdr/config.toml"
 	integrate_fnott
+	integrate_satty
 	# Directory events are required by the Qt configuration watchers.
 	for qt in qt5ct qt6ct; do link_atomic "$STATE_DIR/qt-colors.conf" "$CONFIG_DIR/$qt/colors.conf"; done
 	for version in gtk-3.0 gtk-4.0; do
