@@ -22,9 +22,20 @@ no-window-decoration = true
 # Default active annotation tool on launch
 initial-tool = "brush"
 
-[font]
-family = "monospace"
-style = "Regular"
-
 [color-palette]
-palette = ["#f0932bff", "#eb4d4bff", "#6ab04cff", "#22a6b3ff", "#130f40ff"]
+palette = [
+  "{{ red }}",
+  "{{ orange }}",
+  "{{ yellow }}",
+  "{{ green }}",
+  "{{ cyan }}",
+  "{{ blue }}",
+  "{{ magenta }}",
+]
+custom = [
+  "{{ accent }}",
+  "{{ selection }}",
+  "{{ foreground }}",
+  "{{ muted }}",
+  "{{ darker_background }}",
+]
