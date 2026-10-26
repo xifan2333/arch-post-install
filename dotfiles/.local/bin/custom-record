@@ -63,15 +63,21 @@ FRAME_RATE=60
 STREAM_FRAME_RATE=30
 STREAM_COLOR_RANGE=limited
 STREAM_KEY_INTERVAL=2
+STREAM_INITIAL_DELAY=2
+STREAM_MAX_DELAY=30
+STREAM_MAX_RETRIES=10
+STREAM_STABLE_DURATION=60
+STREAM_RW_TIMEOUT=10000000
+STREAM_RESOLUTION=1280x720
 COLOR_RANGE=full
 VIDEO_QP=10
 STOP_TIMEOUT=15
 STARTUP_DELAY=0.3
-DEFAULT_VIDEO_KBPS=3500
-DEFAULT_AUDIO_KBPS=160
+DEFAULT_VIDEO_KBPS=3000
+DEFAULT_AUDIO_KBPS=192
 MENU_LINES=8
 declare -ar VIDEO_RATES=(2500 3000 3500 4000 4500 6000)
-declare -ar AUDIO_RATES=(128 160 192)
+declare -ar AUDIO_RATES=(128 160 192 256)
 load_state='' active_state='' sub_state='' main_pid='' result='' record_mode=''
 
 notify() {
@@ -318,40 +324,66 @@ record_run() {
 }
 
 stream_run() {
-	local video="$1" audio="$2" output="$3" fifo encoder mux ticker finished='' rc worker
+	local video="$1" audio="$2" output="$3" fifo encoder mux ticker
+	local retries=0 session_start=0 session_duration=0 delay="$STREAM_INITIAL_DELAY"
+	local finished='' rc=0 worker stopping=0 wake_fd
 	require_service_owner
 	require gpu-screen-recorder ffmpeg mkfifo
 	[[ -n "${RUNTIME_DIRECTORY:-}" && -d "$RUNTIME_DIRECTORY" ]] || die 1 cli_unavailable name=RUNTIME_DIRECTORY
 	fifo="$RUNTIME_DIRECTORY/stream.mkv"
+	exec {wake_fd}<> <(:)
 	# Exiting MainPID lets systemd stop both workers with a bounded timeout.
 	# RuntimeDirectory also removes the FIFO if this process is killed.
-	trap 'kill "$ticker" 2>/dev/null || :; rm -f -- "$fifo"' EXIT
-	trap 'kill "$ticker" 2>/dev/null || :; exit 0' INT TERM
-	mkfifo -m 600 -- "$fifo"
-	ffmpeg -nostdin -hide_banner -loglevel warning -i "$fifo" -map 0 -c copy \
-		-flush_packets 1 -flvflags no_duration_filesize -f flv "$output" &
-	mux=$!
-	gpu-screen-recorder -w screen -f "$STREAM_FRAME_RATE" -fm cfr -c mkv -k h264 \
-		-encoder gpu -fallback-cpu-encoding no -cr "$STREAM_COLOR_RANGE" -keyint "$STREAM_KEY_INTERVAL" \
-		-bm cbr -q "$video" -ac aac -ab "$audio" -a 'default_output|default_input' -o "$fifo" &
-	encoder=$!
-	(
-		trap 'exit 0' INT TERM
-		while kill -0 "$encoder" 2>/dev/null && kill -0 "$mux" 2>/dev/null; do
-			sleep 1
-			signal_waybar
-		done
-	) &
-	ticker=$!
-	if wait -n -p finished "$encoder" "$mux"; then rc=0; else rc=$?; fi
-	kill "$ticker" 2>/dev/null || :
-	if [[ "$finished" == "$encoder" ]]; then
-		worker=gpu-screen-recorder
-	else
-		worker=ffmpeg
-	fi
-	# A live stream cannot finish successfully on its own; even EOF is a failure.
-	die 1 record_failed "result=$worker:$rc"
+	trap 'stopping=1; kill -INT "$ticker" "$encoder" "$mux" 2>/dev/null || :; exit 0' INT TERM
+	trap 'kill -INT "$ticker" "$encoder" "$mux" 2>/dev/null || :; exec {wake_fd}>&- 2>/dev/null || :; rm -f -- "$fifo" "$RUNTIME_DIRECTORY/reconnecting"' EXIT
+	while ((stopping == 0)); do
+		rm -f -- "$fifo" "$RUNTIME_DIRECTORY/reconnecting"
+		signal_waybar
+		mkfifo -m 600 -- "$fifo"
+		ffmpeg -nostdin -hide_banner -loglevel warning -i "$fifo" -map 0 -c copy \
+			-flush_packets 1 -flvflags no_duration_filesize -rw_timeout "$STREAM_RW_TIMEOUT" \
+			-f flv "$output" &
+		mux=$!
+		gpu-screen-recorder -w screen -s "$STREAM_RESOLUTION" -f "$STREAM_FRAME_RATE" -fm cfr -c mkv -k h264 \
+			-encoder gpu -fallback-cpu-encoding no -cr "$STREAM_COLOR_RANGE" -keyint "$STREAM_KEY_INTERVAL" \
+			-bm cbr -q "$video" -ac aac -ab "$audio" -a 'default_output|default_input' -o "$fifo" &
+		encoder=$!
+		session_start=$SECONDS
+		(
+			trap 'exit 0' INT TERM
+			while kill -0 "$encoder" 2>/dev/null && kill -0 "$mux" 2>/dev/null; do
+				sleep 1
+				signal_waybar
+			done
+		) &
+		ticker=$!
+		if wait -n -p finished "$encoder" "$mux"; then rc=0; else rc=$?; fi
+		kill "$ticker" 2>/dev/null || :
+		((stopping == 0)) || break
+		kill -INT "$encoder" "$mux" 2>/dev/null || :
+		wait "$encoder" "$mux" 2>/dev/null || :
+		session_duration=$((SECONDS - session_start))
+		if ((session_duration >= STREAM_STABLE_DURATION)); then
+			retries=0
+			delay="$STREAM_INITIAL_DELAY"
+		fi
+		((retries++))
+		if ((retries > STREAM_MAX_RETRIES)); then
+			if [[ "$finished" == "$encoder" ]]; then
+				worker=gpu-screen-recorder
+			else
+				worker=ffmpeg
+			fi
+			# A live stream cannot finish successfully on its own; even EOF is a failure.
+			die 1 record_failed "result=$worker:$rc"
+		fi
+		((delay <= STREAM_MAX_DELAY)) || delay="$STREAM_MAX_DELAY"
+		touch "$RUNTIME_DIRECTORY/reconnecting"
+		signal_waybar
+		notify livestream_reconnecting "attempt=$retries" "max=$STREAM_MAX_RETRIES" "wait=$delay"
+		read -r -t "$delay" -u "$wake_fd" || true
+		delay=$((delay * 2))
+	done
 }
 
 start_recording() {
@@ -446,9 +478,15 @@ status() {
 			[[ "$elapsed" =~ ^[0-9]+$ ]] || die 1 cli_unavailable "name=$UNIT:duration"
 			duration=$(printf '%02d:%02d' "$((elapsed / 60))" "$((elapsed % 60))")
 			state=recording
-			if [[ "$record_mode" == stream ]]; then state=live; fi
-			text="$duration"
 			tooltip=$(t "record_running_$record_mode" "duration=$duration")
+			if [[ "$record_mode" == stream ]]; then
+				state=live
+				if [[ -f "${RUNTIME_DIRECTORY:-/run/user/$UID/custom-record}/reconnecting" ]]; then
+					state=reconnecting
+					tooltip=$(t livestream_reconnecting_status "duration=$duration")
+				fi
+			fi
+			text="$duration"
 			;;
 		inactive)
 			state=idle
@@ -465,7 +503,7 @@ status() {
 		jq -cn --arg text "$text" --arg state "$state" --arg tooltip "$tooltip" --argjson elapsed "$elapsed" \
 			'{text:$text,alt:$state,class:$state,tooltip:$tooltip,elapsed:$elapsed}'
 		return 0
-	elif [[ "$state" == recording || "$state" == live ]]; then
+	elif [[ "$state" == recording || "$state" == live || "$state" == reconnecting ]]; then
 		printf '%s (%s)\n' "$state" "$duration"
 	else printf '%s\n' "$state"; fi
 	check_failure

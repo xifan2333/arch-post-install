@@ -57,6 +57,8 @@
   "livestream_switched": "已切换推流目标至：{target}",
   "livestream_key_updated": "推流密钥已更新",
   "livestream_history_cleared": "推流历史已清空",
+  "livestream_reconnecting": "直播连接断开；正在重连（第 {attempt}/{max} 次，等待 {wait} 秒）...",
+  "livestream_reconnecting_status": "重连中：{duration}",
   "livestream_cfg_title": "推流设置",
   "livestream_cfg_server": "服务器",
   "livestream_cfg_key": "密钥",
