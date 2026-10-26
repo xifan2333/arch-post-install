@@ -39,7 +39,7 @@ hooks {
 
       ["commit-header-length"] {
         check = new CommandSpec {
-          command = #"
+          command = #"""
             set -euo pipefail
 
             header=$(head -n 1 "{{commit_msg_file}}")
@@ -53,7 +53,7 @@ hooks {
               printf 'commit header exceeds 100 characters: %s\n' "$header" >&2
               exit 1
             fi
-          "#
+          """#
           effect = "read"
         }
       }
