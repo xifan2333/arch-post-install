@@ -111,6 +111,7 @@
     "format-icons": {
       "recording": "󰑋",
       "live": "󰐻",
+      "reconnecting": "󰑐",
       "idle": "󰑊"
     },
     "tooltip": false,

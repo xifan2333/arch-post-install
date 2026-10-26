@@ -57,6 +57,8 @@
   "livestream_switched": "Switched target to: {target}",
   "livestream_key_updated": "Stream key updated",
   "livestream_history_cleared": "History cleared",
+  "livestream_reconnecting": "Live stream disconnected; reconnecting ({attempt}/{max}) in {wait}s...",
+  "livestream_reconnecting_status": "Reconnecting: {duration}",
   "livestream_cfg_title": "Live Stream Config",
   "livestream_cfg_server": "Server",
   "livestream_cfg_key": "Key",

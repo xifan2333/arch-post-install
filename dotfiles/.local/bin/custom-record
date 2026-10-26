@@ -334,9 +334,10 @@ stream_run() {
 	# Exiting MainPID lets systemd stop both workers with a bounded timeout.
 	# RuntimeDirectory also removes the FIFO if this process is killed.
 	trap 'stopping=1; kill -INT "$ticker" "$encoder" "$mux" 2>/dev/null || :; exit 0' INT TERM
-	trap 'kill -INT "$ticker" "$encoder" "$mux" 2>/dev/null || :; exec {wake_fd}>&- 2>/dev/null || :; rm -f -- "$fifo"' EXIT
+	trap 'kill -INT "$ticker" "$encoder" "$mux" 2>/dev/null || :; exec {wake_fd}>&- 2>/dev/null || :; rm -f -- "$fifo" "$RUNTIME_DIRECTORY/reconnecting"' EXIT
 	while ((stopping == 0)); do
-		rm -f -- "$fifo"
+		rm -f -- "$fifo" "$RUNTIME_DIRECTORY/reconnecting"
+		signal_waybar
 		mkfifo -m 600 -- "$fifo"
 		ffmpeg -nostdin -hide_banner -loglevel warning -i "$fifo" -map 0 -c copy \
 			-flush_packets 1 -flvflags no_duration_filesize -rw_timeout "$STREAM_RW_TIMEOUT" \
@@ -376,6 +377,9 @@ stream_run() {
 			die 1 record_failed "result=$worker:$rc"
 		fi
 		((delay <= STREAM_MAX_DELAY)) || delay="$STREAM_MAX_DELAY"
+		touch "$RUNTIME_DIRECTORY/reconnecting"
+		signal_waybar
+		notify livestream_reconnecting "attempt=$retries" "max=$STREAM_MAX_RETRIES" "wait=$delay"
 		read -r -t "$delay" -u "$wake_fd" || true
 		delay=$((delay * 2))
 	done
@@ -473,9 +477,15 @@ status() {
 			[[ "$elapsed" =~ ^[0-9]+$ ]] || die 1 cli_unavailable "name=$UNIT:duration"
 			duration=$(printf '%02d:%02d' "$((elapsed / 60))" "$((elapsed % 60))")
 			state=recording
-			if [[ "$record_mode" == stream ]]; then state=live; fi
-			text="$duration"
 			tooltip=$(t "record_running_$record_mode" "duration=$duration")
+			if [[ "$record_mode" == stream ]]; then
+				state=live
+				if [[ -f "${RUNTIME_DIRECTORY:-/run/user/$UID/custom-record}/reconnecting" ]]; then
+					state=reconnecting
+					tooltip=$(t livestream_reconnecting_status "duration=$duration")
+				fi
+			fi
+			text="$duration"
 			;;
 		inactive)
 			state=idle
@@ -492,7 +502,7 @@ status() {
 		jq -cn --arg text "$text" --arg state "$state" --arg tooltip "$tooltip" --argjson elapsed "$elapsed" \
 			'{text:$text,alt:$state,class:$state,tooltip:$tooltip,elapsed:$elapsed}'
 		return 0
-	elif [[ "$state" == recording || "$state" == live ]]; then
+	elif [[ "$state" == recording || "$state" == live || "$state" == reconnecting ]]; then
 		printf '%s (%s)\n' "$state" "$duration"
 	else printf '%s\n' "$state"; fi
 	check_failure
