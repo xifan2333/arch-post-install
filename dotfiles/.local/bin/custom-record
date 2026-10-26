@@ -68,15 +68,16 @@ STREAM_MAX_DELAY=30
 STREAM_MAX_RETRIES=10
 STREAM_STABLE_DURATION=60
 STREAM_RW_TIMEOUT=10000000
+STREAM_RESOLUTION=1280x720
 COLOR_RANGE=full
 VIDEO_QP=10
 STOP_TIMEOUT=15
 STARTUP_DELAY=0.3
-DEFAULT_VIDEO_KBPS=3500
-DEFAULT_AUDIO_KBPS=160
+DEFAULT_VIDEO_KBPS=3000
+DEFAULT_AUDIO_KBPS=192
 MENU_LINES=8
 declare -ar VIDEO_RATES=(2500 3000 3500 4000 4500 6000)
-declare -ar AUDIO_RATES=(128 160 192)
+declare -ar AUDIO_RATES=(128 160 192 256)
 load_state='' active_state='' sub_state='' main_pid='' result='' record_mode=''
 
 notify() {
@@ -343,7 +344,7 @@ stream_run() {
 			-flush_packets 1 -flvflags no_duration_filesize -rw_timeout "$STREAM_RW_TIMEOUT" \
 			-f flv "$output" &
 		mux=$!
-		gpu-screen-recorder -w screen -f "$STREAM_FRAME_RATE" -fm cfr -c mkv -k h264 \
+		gpu-screen-recorder -w screen -s "$STREAM_RESOLUTION" -f "$STREAM_FRAME_RATE" -fm cfr -c mkv -k h264 \
 			-encoder gpu -fallback-cpu-encoding no -cr "$STREAM_COLOR_RANGE" -keyint "$STREAM_KEY_INTERVAL" \
 			-bm cbr -q "$video" -ac aac -ab "$audio" -a 'default_output|default_input' -o "$fifo" &
 		encoder=$!
