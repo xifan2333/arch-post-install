@@ -49,4 +49,5 @@ x-scheme-handler/karing=karing.desktop
 x-scheme-handler/zcode=zcode.desktop
 x-scheme-handler/claude-cli=claude-code-url-handler.desktop
 x-scheme-handler/antigravity=antigravity.desktop
+x-scheme-handler/magpie=magpie.desktop
 
