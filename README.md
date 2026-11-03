@@ -243,9 +243,9 @@ flac1.3
 herdr-corral-bin
 karing-bin
 linuxqq-appimage
+tencent-wechat
 ttf-wps-fonts
 unibarrage-bin
-wechat-appimage
 wps-office-365-edu
 wps-office-365-edu-fonts
 ```
