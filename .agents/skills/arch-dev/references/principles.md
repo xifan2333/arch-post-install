@@ -81,6 +81,11 @@ When investigating tools, CLI flags, configuration formats, or protocols:
 - **Priority 3: Upstream Source Inspection in `~/Code/`**: If local documentation is insufficient or a package is not yet installed, clone the repository into `~/Code/<repo>` (via `git clone --depth 1 <url>`) and directly inspect source code, CLI structs, and configuration examples.
 - **Strict Prohibition**: Never perform speculative or random web searches when authoritative manpages, CLI help, or upstream source code can be directly inspected locally.
 
+### 3.6 Dual-Tier Lifecycle Model (`mise bootstrap` vs `mise dot`)
+- **System Lifecycle Convergence (`mise bootstrap`)**: Used exclusively for machine provisioning, system package updates (`pacman:` / `aur:`), `/etc` privileged files, systemd system/user services, and bootstrap lifecycle hooks. Invoking the heavy `mise bootstrap` pipeline for routine desktop configuration edits is strictly prohibited.
+- **Fast Dotfiles Feedback Loop (`mise dot`)**: Daily script development, UI theme tweaking (Waybar, xrwm), and shortcut adjustments must use `mise dot diff`, `mise dot status`, or `mise dot apply`. This operates purely in user space with sub-second feedback, without invoking `sudo` or querying package databases.
+- **Command Ergonomics & Deprecation**: Standalone `mise dotfiles` is deprecated. Use canonical `mise bootstrap dotfiles` in automated scripts/CI and official short alias `mise dot` in interactive shells.
+
 ---
 
 ## 4. Custom Script Architecture & Standards
