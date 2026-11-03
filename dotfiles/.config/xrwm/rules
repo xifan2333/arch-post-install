@@ -15,7 +15,9 @@ xrwm rule-add -app-id "lxqt-openssh-askpass" dimensions 400 200
 
 # Instant messaging clients (keep chat windows out of the tiling layout)
 xrwm rule-add -app-id "QQ" float
+xrwm rule-add -app-id "QQ" dimensions 1000 680
 xrwm rule-add -app-id "wechat" float
+xrwm rule-add -app-id "wechat" dimensions 1000 680
 
 # Media viewers & previews
 xrwm rule-add -app-id "imv" float
