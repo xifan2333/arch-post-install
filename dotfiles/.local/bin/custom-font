@@ -118,38 +118,13 @@ font_argument() {
 	# Keep names representable in the line-based config formats and Fuzzel list.
 	[[ -n "$1" && "$1" != *[[:cntrl:]:=,\\]* ]] || usage_error
 }
-sync_fnott() (
-	local fnott_dir="${XDG_CONFIG_HOME:-$HOME/.config}/fnott"
-	local theme_ini="${XDG_STATE_HOME:-$HOME/.local/state}/theme/fnott.ini"
-	local font_ini="$state_dir/fnott.ini"
-	local tmp
-	mkdir -p -- "$fnott_dir"
-	tmp=$(mktemp "$fnott_dir/.fnott.XXXXXX")
-	trap 'rm -f -- "$tmp"' EXIT
-	if [[ -f "$theme_ini" ]]; then cat -- "$theme_ini" >"$tmp"; fi
-	if [[ -f "$font_ini" ]]; then
-		printf '\n' >>"$tmp"
-		cat -- "$font_ini" >>"$tmp"
+sync_hybrid_apps() {
+	if command -v custom-theme >/dev/null 2>&1; then
+		custom-theme integrate-hybrid
+	elif [[ -x "${BASH_SOURCE[0]%/*}/custom-theme" ]]; then
+		"${BASH_SOURCE[0]%/*}/custom-theme" integrate-hybrid
 	fi
-	chmod 644 "$tmp"
-	mv -Tf -- "$tmp" "$fnott_dir/fnott.ini"
-)
-sync_satty() (
-	local satty_dir="${XDG_CONFIG_HOME:-$HOME/.config}/satty"
-	local theme_toml="${XDG_STATE_HOME:-$HOME/.local/state}/theme/satty.toml"
-	local font_toml="$state_dir/satty.toml"
-	local tmp
-	mkdir -p -- "$satty_dir"
-	tmp=$(mktemp "$satty_dir/.satty.XXXXXX")
-	trap 'rm -f -- "$tmp"' EXIT
-	if [[ -f "$theme_toml" ]]; then cat -- "$theme_toml" >"$tmp"; fi
-	if [[ -f "$font_toml" ]]; then
-		printf '\n' >>"$tmp"
-		cat -- "$font_toml" >>"$tmp"
-	fi
-	chmod 644 "$tmp"
-	mv -Tf -- "$tmp" "$satty_dir/config.toml"
-)
+}
 sync_toolkit_fonts() {
 	local family="$1, $2" key value
 	# GSettings uses quoted GVariant strings, not shell quoting.
@@ -278,8 +253,7 @@ EOF
 		ln -s -- "$state_dir/$qt.conf" "$link_tmp/$qt.conf"
 		mv -Tf -- "$link_tmp/$qt.conf" "$qt_dir/$qt.conf"
 	done
-	sync_fnott
-	sync_satty
+	sync_hybrid_apps
 	sync_toolkit_fonts "$write_mono" "$write_cjk"
 )
 list_fonts() {
