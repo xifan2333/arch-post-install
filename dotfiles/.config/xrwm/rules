@@ -19,6 +19,10 @@ xrwm rule-add -app-id "QQ" dimensions 1000 680
 xrwm rule-add -app-id "wechat" float
 xrwm rule-add -app-id "wechat" dimensions 1000 680
 
+# File manager (browse without splitting the master column)
+xrwm rule-add -app-id "pcmanfm" float
+xrwm rule-add -app-id "pcmanfm" dimensions 1000 680
+
 # Media viewers & previews
 xrwm rule-add -app-id "imv" float
 xrwm rule-add -app-id "imv" dimensions 960 540
