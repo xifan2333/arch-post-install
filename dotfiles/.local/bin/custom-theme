@@ -178,38 +178,32 @@ gtk_settings() (
 	chmod 644 "$tmp"
 	mv -Tf -- "$tmp" "$dir/settings.ini"
 )
-integrate_fnott() (
-	local fnott_dir="$CONFIG_DIR/fnott"
-	local theme_ini="$STATE_DIR/fnott.ini"
-	local font_ini="${XDG_STATE_HOME:-$HOME/.local/state}/font/fnott.ini"
-	local tmp
-	mkdir -p -- "$fnott_dir"
-	tmp=$(mktemp "$fnott_dir/.fnott.XXXXXX")
-	trap 'rm -f -- "$tmp"' EXIT
-	if [[ -f "$theme_ini" ]]; then cat -- "$theme_ini" >"$tmp"; fi
-	if [[ -f "$font_ini" ]]; then
-		printf '\n' >>"$tmp"
-		cat -- "$font_ini" >>"$tmp"
-	fi
-	chmod 644 "$tmp"
-	mv -Tf -- "$tmp" "$fnott_dir/fnott.ini"
-)
-integrate_satty() (
-	local satty_dir="$CONFIG_DIR/satty"
-	local theme_toml="$STATE_DIR/satty.toml"
-	local font_toml="${XDG_STATE_HOME:-$HOME/.local/state}/font/satty.toml"
-	local tmp
-	mkdir -p -- "$satty_dir"
-	tmp=$(mktemp "$satty_dir/.satty.XXXXXX")
-	trap 'rm -f -- "$tmp"' EXIT
-	if [[ -f "$theme_toml" ]]; then cat -- "$theme_toml" >"$tmp"; fi
-	if [[ -f "$font_toml" ]]; then
-		printf '\n' >>"$tmp"
-		cat -- "$font_toml" >>"$tmp"
-	fi
-	chmod 644 "$tmp"
-	mv -Tf -- "$tmp" "$satty_dir/config.toml"
-)
+render_hybrid() {
+	local target="$1" base="$2" theme_src="$3" font_src="$4"
+	local t="" f="" content
+	[[ -f "$theme_src" ]] && t=$(<"$theme_src")
+	[[ -f "$font_src" ]] && f=$(<"$font_src")
+	[[ -f "$base" ]] || return 0
+	content=$(<"$base")
+	content="${content//# @THEME@/$t}"
+	content="${content//# @FONT@/$f}"
+	mkdir -p -- "${target%/*}"
+	printf '%s\n' "$content" >"$target"
+}
+integrate_fnott() {
+	render_hybrid \
+		"$CONFIG_DIR/fnott/fnott.ini" \
+		"$CONFIG_DIR/themed/fnott.base.ini" \
+		"$STATE_DIR/fnott.ini" \
+		"${XDG_STATE_HOME:-$HOME/.local/state}/font/fnott.ini"
+}
+integrate_satty() {
+	render_hybrid \
+		"$CONFIG_DIR/satty/config.toml" \
+		"$CONFIG_DIR/themed/satty.base.toml" \
+		"$STATE_DIR/satty.toml" \
+		"${XDG_STATE_HOME:-$HOME/.local/state}/font/satty.toml"
+}
 integrate() {
 	local target source svg search_dir qt version scheme=prefer-light gtk=adw-gtk3
 	local -a data_dirs
