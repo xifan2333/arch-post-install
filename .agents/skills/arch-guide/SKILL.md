@@ -59,7 +59,7 @@ Mise natively manages official Arch packages and AUR packages side by side:
 
 # AUR packages (installed automatically via yay)
 "aur:karing-bin" = "latest"
-"aur:wechat-appimage" = "latest"
+"aur:tencent-wechat" = "latest"
 ```
 
 Preview changes before applying:
