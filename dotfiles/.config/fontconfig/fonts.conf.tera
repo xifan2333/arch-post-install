@@ -13,5 +13,5 @@
 {% endfor %}
 
   <!-- Resolve generic aliases before applying the selected mono/CJK families. -->
-  <include ignore_missing="no">{{ state | escape }}/font/fonts.conf</include>
+  <include ignore_missing="no">{{ state | escape_html }}/font/fonts.conf</include>
 </fontconfig>
