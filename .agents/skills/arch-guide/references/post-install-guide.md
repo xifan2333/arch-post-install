@@ -75,5 +75,13 @@ mise bootstrap status           # show aggregate resource status
 mise bootstrap packages status  # verify installed official & AUR packages
 mise bootstrap files status     # verify /etc files and permissions
 mise bootstrap services status  # verify systemd service states
-mise bootstrap dotfiles status  # verify symlink mappings
+mise bootstrap dotfiles status  # verify symlink mappings (or: mise dot status)
+```
+
+For routine desktop configuration verification and development, use the fast sub-pipeline:
+
+```bash
+mise dot status                 # check symlink and template drift
+mise dot diff                   # view unified patch of unapplied template/link changes
+mise dot apply                  # converge dotfiles without touching system packages
 ```
