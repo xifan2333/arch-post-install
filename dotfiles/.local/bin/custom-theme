@@ -3,7 +3,7 @@
 # @name         custom-theme
 # @summary      Render semantic desktop colors and refresh application themes
 # @deps         awk, coreutils, flock, systemctl, gsettings, notify-send; menu: fuzzel
-# @usage        custom-theme [menu|list|current|set <name>|<name>|refresh|integrate-hybrid]
+# @usage        custom-theme [menu|list|current|set <name>|<name>|refresh]
 # @options      -h, --help  Print localized usage
 # @stdin        Unused
 # @stdout       Theme names, one per line
@@ -178,10 +178,8 @@ gtk_settings() (
 	chmod 644 "$tmp"
 	mv -Tf -- "$tmp" "$dir/settings.ini"
 )
-inject_managed_block() (
-	local target="$1" content="$2" legacy_prefix="${3:-}" default_base="${4:-}"
-	local begin="# --- BEGIN THEME MANAGED BLOCK ---"
-	local end="# --- END THEME MANAGED BLOCK ---"
+replace_managed_block() (
+	local target="$1" begin="$2" end="$3" content="$4" default_base="${5:-}" legacy_prefix="${6:-}"
 	local dir="${target%/*}" tmp input
 	mkdir -p -- "$dir"
 	tmp=$(mktemp "$dir/.block.XXXXXX")
@@ -195,18 +193,21 @@ inject_managed_block() (
 	fi
 	awk -v b="$begin" -v e="$end" -v legacy="$legacy_prefix" -v c="$content" '
 		$0 == b { print; print c; inside=1; found=1; next }
-		$0 == e { inside=0; next }
+		$0 == e { inside=0; print; next }
 		inside { next }
 
-		!found && legacy != "" && $0 == legacy {
+		!found && legacy != "" && ($0 == legacy || $0 == "# --- BEGIN THEME MANAGED BLOCK ---") {
 			print b
 			print c
 			print e
 			found=1
-			legacy_matched=1
+			legacy_inside=1
 			next
 		}
-		legacy_matched { next }
+		legacy_inside {
+			if ($0 ~ /^# --- END / || $0 == "[main]" || $0 == "[font]") { legacy_inside=0 }
+			next
+		}
 
 		{ print }
 
@@ -225,32 +226,28 @@ inject_managed_block() (
 integrate_fnott() {
 	local fnott_dir="$CONFIG_DIR/fnott"
 	local theme_ini="$STATE_DIR/fnott.ini"
-	local font_ini="${XDG_STATE_HOME:-$HOME/.local/state}/font/fnott.ini"
 	local base="$CONFIG_DIR/themed/fnott.base.ini"
-	local content=""
-	if [[ -f "$theme_ini" ]]; then content=$(cat -- "$theme_ini"); fi
-	if [[ -f "$font_ini" ]]; then
-		if [[ -n "$content" ]]; then content+=$'\n\n'; fi
-		content+=$(cat -- "$font_ini")
-	fi
-	inject_managed_block "$fnott_dir/fnott.ini" "$content" "# Global color scheme" "$base"
+	[[ -f "$theme_ini" ]] || return 0
+	replace_managed_block \
+		"$fnott_dir/fnott.ini" \
+		"# --- BEGIN MANAGED THEME ---" \
+		"# --- END MANAGED THEME ---" \
+		"$(cat -- "$theme_ini")" \
+		"$base" \
+		"# Global color scheme"
 }
 integrate_satty() {
 	local satty_dir="$CONFIG_DIR/satty"
 	local theme_toml="$STATE_DIR/satty.toml"
-	local font_toml="${XDG_STATE_HOME:-$HOME/.local/state}/font/satty.toml"
 	local base="$CONFIG_DIR/themed/satty.base.toml"
-	local content=""
-	if [[ -f "$theme_toml" ]]; then content=$(cat -- "$theme_toml"); fi
-	if [[ -f "$font_toml" ]]; then
-		if [[ -n "$content" ]]; then content+=$'\n\n'; fi
-		content+=$(cat -- "$font_toml")
-	fi
-	inject_managed_block "$satty_dir/config.toml" "$content" "[color-palette]" "$base"
-}
-integrate_hybrid() {
-	integrate_fnott
-	integrate_satty
+	[[ -f "$theme_toml" ]] || return 0
+	replace_managed_block \
+		"$satty_dir/config.toml" \
+		"# --- BEGIN MANAGED THEME ---" \
+		"# --- END MANAGED THEME ---" \
+		"$(cat -- "$theme_toml")" \
+		"$base" \
+		"[color-palette]"
 }
 integrate() {
 	local target source svg search_dir qt version scheme=prefer-light gtk=adw-gtk3
@@ -424,10 +421,6 @@ main() {
 		name=$(current)
 		[[ -n "$name" ]] || die 1 theme_no_current
 		apply_theme "$name"
-		;;
-	integrate-hybrid)
-		(($# == 0)) || usage_error
-		integrate_hybrid
 		;;
 	set)
 		(($# == 1)) || usage_error

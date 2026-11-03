@@ -1,5 +1,5 @@
 # Satty screenshot annotation tool configuration
-# Settings outside the theme managed block are preserved across theme switches.
+# Settings outside the managed blocks are preserved across theme and font switches.
 
 [general]
 # Smart window resizing based on screenshot dimensions
@@ -24,3 +24,9 @@ no-window-decoration = true
 
 # Default active annotation tool on launch
 initial-tool = "brush"
+
+# --- BEGIN MANAGED THEME ---
+# --- END MANAGED THEME ---
+
+# --- BEGIN MANAGED FONT ---
+# --- END MANAGED FONT ---
