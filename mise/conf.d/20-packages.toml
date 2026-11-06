@@ -99,6 +99,8 @@
 "pacman:gvfs" = "latest"
 "pacman:localsend" = "latest"
 "pacman:obsidian" = "latest"
+"pacman:remmina" = "latest"
+"pacman:freerdp" = "latest"
 "aur:herdr-corral-bin" = "latest"
 "aur:dmnotifier-bin" = "latest"
 "aur:karing-bin" = "latest"
