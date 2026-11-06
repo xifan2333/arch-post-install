@@ -3,6 +3,7 @@
 "pacman:android-tools" = "latest"
 "pacman:android-udev" = "latest"
 "pacman:git" = "latest"
+"pacman:github-cli" = "latest"
 "pacman:unzip" = "latest"
 "pacman:yay" = "latest"
 
