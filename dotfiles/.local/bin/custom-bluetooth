@@ -3,7 +3,7 @@
 # @name         custom-bluetooth
 # @summary      Manage Bluetooth adapters and stream discovered devices into Fuzzel
 # @deps         python3, python-gobject, custom-i18n; menu: fuzzel, notify-send
-#               pairing: built-in D-Bus agent (Gio)
+#               pairing: built-in D-Bus agent (Gio); passkey/PIN entry: fuzzel
 # @usage        custom-bluetooth [menu|scan|list|status|connect <mac|name>|
 #               disconnect [mac|name]|remove <mac|name>|clear|toggle|off]
 # @options      -h, --help  Print localized usage without contacting the backend
@@ -20,6 +20,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 from collections.abc import Callable
 from contextlib import suppress
 from typing import NamedTuple
@@ -105,8 +106,9 @@ def agent_filter(connection, message, incoming, user_data=None):
 
     bluetoothctl only registers its agent in interactive mode, so this
     script serves its own agent on its Gio connection while pairing.
-    Confirmation requests are accepted and passkey/PIN requests answered
-    with fixed values, matching an interactive "yes" answer.
+    Confirmations are accepted automatically; passkey/PIN entry is
+    prompted for interactively (fuzzel) or falls back to fixed values
+    headless, matching an interactive bluetoothctl "yes" answer.
     """
     if (
         not incoming
@@ -116,21 +118,106 @@ def agent_filter(connection, message, incoming, user_data=None):
     ):
         return message
     method = message.get_member()
-    reply = message.new_method_reply()
     if method == "RequestPasskey":
-        reply.set_body(GLib.Variant("(u)", (AGENT_PASSKEY,)))
+        pair_input(connection, message, "u", AGENT_PASSKEY)
     elif method == "RequestPinCode":
-        reply.set_body(GLib.Variant("(s)", (AGENT_PINCODE,)))
-    elif method not in PAIRING_OK_METHODS:
+        pair_input(connection, message, "s", AGENT_PINCODE)
+    elif method in ("DisplayPasskey", "DisplayPinCode"):
+        code = message.get_body().unpack()[1]
+        if method == "DisplayPasskey":
+            code = f"{code:06d}"
+        notify("bluetooth_passkey_notify", passkey=code)
+        connection.send_message(
+            message.new_method_reply(), Gio.DBusSendMessageFlags.NONE
+        )
+    elif method in PAIRING_OK_METHODS:
+        connection.send_message(
+            message.new_method_reply(), Gio.DBusSendMessageFlags.NONE
+        )
+    else:
         connection.send_message(
             Gio.DBusMessage.new_method_error_literal(
                 message, "org.bluez.Error.Rejected", "Not supported"
             ),
             Gio.DBusSendMessageFlags.NONE,
         )
-        return None
-    connection.send_message(reply, Gio.DBusSendMessageFlags.NONE)
     return None
+
+
+def pair_input(connection, message, value_type, fallback):
+    """Answer RequestPasskey (u) or RequestPinCode (s) interactively.
+
+    Gio filters must not block, so the fuzzel prompt runs on a daemon
+    thread; send_message() is thread-safe. Headless environments fall
+    back to fixed values instead of hanging.
+    """
+    if shutil.which("fuzzel") and os.environ.get("WAYLAND_DISPLAY"):
+        prompt = t("bluetooth_pin_prompt").rstrip("\n")
+        threading.Thread(
+            target=agent_interactive,
+            args=(connection, message, value_type, prompt),
+            daemon=True,
+        ).start()
+        return
+    _answer_value(connection, message, value_type, fallback)
+
+
+def agent_interactive(connection, message, value_type, prompt):
+    """Ask the user for a pairing code, then answer the agent request."""
+    answer = ""
+    try:
+        with (
+            suppress(BrokenPipeError),
+            tempfile.TemporaryFile(
+                mode="w+t", dir=os.environ.get("XDG_RUNTIME_DIR")
+            ) as errors,
+        ):
+            process = subprocess.Popen(
+                ["fuzzel", "--dmenu", "--log-level=error", "--prompt", prompt],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=errors,
+                text=True,
+            )
+            process.stdin.close()
+            out, _ = process.communicate()
+            errors.seek(0)
+            diagnostic = errors.read()
+        if diagnostic:
+            print(diagnostic, file=sys.stderr, end="")
+        if process.returncode == 0:
+            answer = out.rstrip("\n")
+    except OSError:
+        answer = ""
+    if not answer:
+        connection.send_message(
+            Gio.DBusMessage.new_method_error_literal(
+                message, "org.bluez.Error.Rejected", "Cancelled"
+            ),
+            Gio.DBusSendMessageFlags.NONE,
+        )
+        return
+    if value_type == "u":
+        try:
+            answer = str(int(answer))
+        except ValueError:
+            connection.send_message(
+                Gio.DBusMessage.new_method_error_literal(
+                    message, "org.bluez.Error.Rejected", "Invalid passkey"
+                ),
+                Gio.DBusSendMessageFlags.NONE,
+            )
+            return
+    _answer_value(connection, message, value_type, answer)
+
+
+def _answer_value(connection, message, value_type, value):
+    reply = message.new_method_reply()
+    if value_type == "u":
+        reply.set_body(GLib.Variant("(u)", (int(value),)))
+    else:
+        reply.set_body(GLib.Variant("(s)", (str(value),)))
+    connection.send_message(reply, Gio.DBusSendMessageFlags.NONE)
 
 
 class BluetoothDevice:
