@@ -3,7 +3,7 @@
 # @name         custom-bluetooth
 # @summary      Manage Bluetooth adapters and stream discovered devices into Fuzzel
 # @deps         python3, python-gobject, custom-i18n; menu: fuzzel, notify-send
-#               pairing: bluetoothctl
+#               pairing: built-in D-Bus agent (Gio)
 # @usage        custom-bluetooth [menu|scan|list|status|connect <mac|name>|
 #               disconnect [mac|name]|remove <mac|name>|clear|toggle|off]
 # @options      -h, --help  Print localized usage without contacting the backend
@@ -33,6 +33,22 @@ OBJECTS = "org.freedesktop.DBus.ObjectManager"
 DBUS_TIMEOUT_MS = 25_000
 SCAN_TIMEOUT_MS = 5_000
 PAIR_TIMEOUT = 15
+AGENT_MANAGER = "org.bluez.AgentManager1"
+AGENT_INTERFACE = "org.bluez.Agent1"
+AGENT_PATH = "/custom/bluetooth/agent"
+AGENT_PASSKEY = 0
+AGENT_PINCODE = "0000"
+PAIRING_OK_METHODS = frozenset(
+    {
+        "Release",
+        "Cancel",
+        "DisplayPinCode",
+        "DisplayPasskey",
+        "RequestConfirmation",
+        "RequestAuthorization",
+        "AuthorizeService",
+    }
+)
 MENU_LINES = 15
 ICONS = {
     "audio-headset": "󰋋",
@@ -82,6 +98,39 @@ def escaped(value):
     ):
         value = value.replace(char, replacement)
     return value
+
+
+def agent_filter(connection, message, incoming, user_data=None):
+    """Auto-answer org.bluez.Agent1 calls destined for AGENT_PATH.
+
+    bluetoothctl only registers its agent in interactive mode, so this
+    script serves its own agent on its Gio connection while pairing.
+    Confirmation requests are accepted and passkey/PIN requests answered
+    with fixed values, matching an interactive "yes" answer.
+    """
+    if (
+        not incoming
+        or message.get_message_type() != Gio.DBusMessageType.METHOD_CALL
+        or message.get_interface() != AGENT_INTERFACE
+        or message.get_path() != AGENT_PATH
+    ):
+        return message
+    method = message.get_member()
+    reply = message.new_method_reply()
+    if method == "RequestPasskey":
+        reply.set_body(GLib.Variant("(u)", (AGENT_PASSKEY,)))
+    elif method == "RequestPinCode":
+        reply.set_body(GLib.Variant("(s)", (AGENT_PINCODE,)))
+    elif method not in PAIRING_OK_METHODS:
+        connection.send_message(
+            Gio.DBusMessage.new_method_error_literal(
+                message, "org.bluez.Error.Rejected", "Not supported"
+            ),
+            Gio.DBusSendMessageFlags.NONE,
+        )
+        return None
+    connection.send_message(reply, Gio.DBusSendMessageFlags.NONE)
+    return None
 
 
 class BluetoothDevice:
@@ -145,6 +194,7 @@ class Bluetooth:
         self.adapter = None
         self.devices = {}
         self.powered = False
+        self._agent_filter = None
 
     def call(self, path, interface, method, args=None, timeout=DBUS_TIMEOUT_MS):
         return self.connection.call_sync(
@@ -198,6 +248,37 @@ class Bluetooth:
 
     def set_adapter_pairable(self, pairable):
         self.set(self.adapter, ADAPTER, "Pairable", pairable)
+
+    def install_agent(self):
+        if self._agent_filter is not None:
+            return
+        self._agent_filter = self.connection.add_filter(agent_filter)
+        self.call(
+            "/org/bluez",
+            AGENT_MANAGER,
+            "RegisterAgent",
+            GLib.Variant("(os)", (AGENT_PATH, "DisplayYesNo")),
+        )
+        self.call(
+            "/org/bluez",
+            AGENT_MANAGER,
+            "RequestDefaultAgent",
+            GLib.Variant("(o)", (AGENT_PATH,)),
+        )
+
+    def remove_agent(self):
+        if self._agent_filter is None:
+            return
+        with suppress(GLib.Error):
+            self.call(
+                "/org/bluez",
+                AGENT_MANAGER,
+                "UnregisterAgent",
+                GLib.Variant("(o)", (AGENT_PATH,)),
+            )
+        with suppress(GLib.Error):
+            self.connection.remove_filter(self._agent_filter)
+        self._agent_filter = None
 
     def set_device_trusted(self, device, trusted):
         self.set(device.path, DEVICE, "Trusted", trusted)
@@ -380,22 +461,17 @@ def manage_menu(bluetooth):
 
 
 def pair_device(bluetooth, device):
-    require("bluetoothctl")
     bluetooth.set_adapter_pairable(True)
-    subprocess.run(
-        [
-            "bluetoothctl",
-            "--agent",
-            "DisplayYesNo",
-            "pair",
-            device.address,
-        ],
-        input="yes\n",
-        text=True,
-        stdout=sys.stderr,
-        timeout=PAIR_TIMEOUT,
-        check=True,
-    )
+    bluetooth.install_agent()
+    try:
+        try:
+            bluetooth.call(device.path, DEVICE, "Pair", timeout=PAIR_TIMEOUT * 1000)
+        except GLib.Error as error:
+            if "AlreadyExists" not in error.message:
+                print(error.message, file=sys.stderr)
+                fail("bluetooth_failed", dev=device.name)
+    finally:
+        bluetooth.remove_agent()
     if not bluetooth.get(device.path, DEVICE, "Paired"):
         fail("bluetooth_failed", dev=device.name)
     bluetooth.set_device_trusted(device, True)
