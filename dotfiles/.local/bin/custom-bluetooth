@@ -620,9 +620,12 @@ class DiscoverySession:
             dev = self.bluetooth.devices[path]
             dev.update(values, invalidated)
             self.push(dev)
-        elif path == self.bluetooth.adapter and kind == ADAPTER:
-            if values.get("Powered") is False or values.get("Discovering") is False:
-                self._stop(error=t("bluetooth_operation_failed"))
+        elif (
+            path == self.bluetooth.adapter
+            and kind == ADAPTER
+            and (values.get("Powered") is False or values.get("Discovering") is False)
+        ):
+            self._stop(error=t("bluetooth_operation_failed"))
 
     def _on_bluez_vanished(
         self, _conn, _sender, _path, _iface, _member, _params, _data
