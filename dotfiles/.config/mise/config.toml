@@ -1,6 +1,9 @@
 [tools]
 agy = "latest"
 android-sdk = "latest"
+"aqua:ast-grep/ast-grep" = "latest"
+"aqua:boyter/scc" = "latest"
+"aqua:crate-ci/typos" = "latest"
 aube = "latest"
 bat = "latest"
 btop = "latest"
@@ -27,13 +30,17 @@ lefthook = "latest"
 neovim = "latest"
 node = "latest"
 "npm:@deepseek-ai/dsh" = "latest"
+"npm:hyperframes" = "0.9.20"
 "npm:skills" = "latest"
 opencode = { version = "latest", allow_builds = ["@opencode/cli"] }
 pandoc = "latest"
 pi = "latest"
 "pipx:clang-tidy" = "21.1.6"
+"pipx:cpp-linter" = "latest"
+"pipx:lizard" = "latest"
 "pipx:pioarduino" = "latest"
 "pipx:yt-dlp" = { version = "latest", uvx_args = "--with secretstorage" }
+"pypi:ast-grep-cli" = "latest"
 ripgrep = "latest"
 shfmt = "latest"
 starship = "latest"
@@ -49,3 +56,6 @@ use_versions_host = false
 
 [settings.github]
 credential_command = "gh auth token"
+
+[settings.npm]
+shell_out = true
