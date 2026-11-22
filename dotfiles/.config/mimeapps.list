@@ -47,9 +47,7 @@ application/ogg=mpv.desktop
 x-scheme-handler/mailto=chromium.desktop
 x-scheme-handler/karing=karing.desktop
 x-scheme-handler/magpie=magpie.desktop
-x-scheme-handler/t3code=com.t3tools.T3Code.desktop
 x-scheme-handler/ccswitch=magpie-ccswitch.desktop
 
 [Added Associations]
-x-scheme-handler/t3code=com.t3tools.T3Code.desktop;
 text/markdown=obsidian.desktop;
